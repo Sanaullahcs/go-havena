@@ -47,6 +47,9 @@ const ACTION_TYPE_META = {
   post: { label: "admin.actionTypePost", icon: "message-square", color: "#7C3AED" },
   business: { label: "admin.actionTypeBusiness", icon: "briefcase", color: "#D97706" },
   booking: { label: "admin.actionTypeBooking", icon: "calendar", color: "#7C3AED" },
+  amenity_review: { label: "admin.actionTypeAmenityReview", icon: "grid", color: "#0891B2" },
+  amenity_payment: { label: "admin.actionTypeAmenityPayment", icon: "file-text", color: "#D97706" },
+  service_payment: { label: "admin.actionTypeServicePayment", icon: "clipboard", color: "#F59E0B" },
   event: { label: "admin.actionTypeEvent", icon: "calendar", color: "#7C3AED" },
   notice: { label: "admin.actionTypeNotice", icon: "bell", color: "#0891B2" },
   alert: { label: "admin.actionTypeAlert", icon: "alert-triangle", color: "#DC2626" },
@@ -423,6 +426,11 @@ export default function AdminDashboardScreen() {
     }
     if (featureOn("feed")) total += Number(stats?.pending_posts ?? 0);
     if (featureOn("bookings")) total += Number(stats?.pending_bookings ?? 0);
+    if (featureOn("amenities")) {
+      total += Number(stats?.pending_amenity_reviews ?? 0);
+      total += Number(stats?.pending_amenity_payments ?? 0);
+    }
+    if (featureOn("services")) total += Number(stats?.pending_service_payments ?? 0);
     return total;
   }, [sessionUser, stats]);
 
@@ -461,6 +469,9 @@ export default function AdminDashboardScreen() {
       };
     }
     if (action.type === "booking") return "/screens/admin-bookings";
+    if (action.type === "amenity_review") return "/screens/admin-amenities";
+    if (action.type === "amenity_payment") return "/screens/admin-amenity-bills";
+    if (action.type === "service_payment") return "/screens/admin-service-bills";
     if (action.type === "listing") return "/screens/admin-listings";
     return "/screens/admin-dashboard";
   };

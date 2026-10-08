@@ -51,7 +51,6 @@ class UnitServiceBillReminderService
         $query = DB::table('unit_service_bills')
             ->whereIn('status', [
                 UnitServiceBillService::STATUS_UNPAID,
-                UnitServiceBillService::STATUS_REJECTED,
             ])
             ->whereDate('due_date', '<', now()->toDateString());
 
@@ -261,17 +260,41 @@ class UnitServiceBillReminderService
 
     public function notifyRejected(object $bill): void
     {
-        $this->notifyLifecycle($bill, self::KIND_REJECTED, 'warning', self::REJECTED_TITLE, self::REJECTED_BODY);
+        $reason = trim((string) ($bill->rejection_reason ?? ''));
+        $body = $reason !== ''
+            ? "Your payment proof was rejected: {$reason} Open My unit bills to upload a new payment proof."
+            : self::REJECTED_BODY;
+
+        $this->notifyLifecycle($bill, self::KIND_REJECTED, 'warning', self::REJECTED_TITLE, $body);
     }
 
     public function createdMessage(string $serviceName, object $bill): string
     {
         $amount = $this->formatAmount((float) ($bill->amount ?? 0));
-        $dueDate = ! empty($bill->due_date)
-            ? Carbon::parse((string) $bill->due_date)->format('F j')
-            : 'the due date';
+        $subject = $this->billSubjectLabel($serviceName);
+        $availability = "Your {$subject} of {$amount} is now available.";
 
-        return "Your {$serviceName} bill of {$amount} is now available. Due date: {$dueDate}.";
+        if (empty($bill->due_date)) {
+            return $availability;
+        }
+
+        $dueDate = Carbon::parse((string) $bill->due_date)->format('F j');
+
+        return "{$availability} Due date: {$dueDate}.";
+    }
+
+    /** Avoid "Water Bill bill" when the service name already ends with "bill". */
+    public function billSubjectLabel(string $serviceName): string
+    {
+        $name = trim($serviceName);
+        if ($name === '') {
+            return 'service bill';
+        }
+        if (preg_match('/\bbill\s*$/iu', $name)) {
+            return $name;
+        }
+
+        return "{$name} bill";
     }
 
     private function notifyLifecycle(object $bill, string $kind, string $type, string $title, string $body): void

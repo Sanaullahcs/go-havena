@@ -8,7 +8,11 @@ import { AmenityFormModal } from "@/components/admin/amenity-form-modal";
 import { AmenityViewModal } from "@/components/admin/amenity-view-modal";
 import { AmenityMonthlyBillModal } from "@/components/admin/amenity-monthly-bill-modal";
 import { AmenityBookModal } from "@/components/admin/amenity-book-modal";
-import { AmenityBookingTrackModal, canPayAmenityBooking } from "@/components/admin/amenity-booking-track-modal";
+import {
+  AmenityBookingTrackModal,
+  canPayAmenityBooking,
+  isAmenityBookingPaymentRejected,
+} from "@/components/admin/amenity-booking-track-modal";
 import { AmenityPaymentProofModal } from "@/components/property/amenity-payment-proof-modal";
 import { AmenityIcon } from "@/components/admin/amenity-icon";
 import {
@@ -30,6 +34,7 @@ import { apiError } from "@/lib/api/client";
 import {
   approveAmenity,
   approveBooking,
+  cancelBooking,
   createAmenity,
   deleteAmenity,
   fetchAdminAmenities,
@@ -79,6 +84,17 @@ function bookingStatusBadge(status?: string | null) {
   return { label: "Booked", tone: "blue" as const };
 }
 
+function userBookingStatusBadge(amenity: Amenity) {
+  if (isAmenityBookingPaymentRejected(amenity)) {
+    return { label: "Payment rejected", tone: "red" as const };
+  }
+  const bill = amenity.user_next_booking_bill;
+  if (amenity.user_next_booking_status === "awaiting_payment" && bill && !bill.can_submit_proof) {
+    return { label: "Payment review", tone: "amber" as const };
+  }
+  return bookingStatusBadge(amenity.user_next_booking_status);
+}
+
 function formatBookingDate(value?: string | null): string {
   if (!value) return "";
   const date = new Date(`${value}T12:00:00`);
@@ -99,6 +115,9 @@ function bookingHoursHint(amenity: Amenity): string {
   }
   if (amenity.user_next_booking_status === "pending") return "Waiting for approval";
   if (amenity.user_next_booking_status === "awaiting_payment") {
+    if (isAmenityBookingPaymentRejected(amenity)) {
+      return "Payment proof rejected — re-submit to confirm";
+    }
     return amenity.user_next_booking_bill?.can_submit_proof
       ? "Approved — payment required"
       : "Waiting for payment approval";
@@ -125,6 +144,7 @@ export default function AdminAmenitiesPage() {
   const [editing, setEditing] = useState<Amenity | null>(null);
   const [booking, setBooking] = useState<Amenity | null>(null);
   const [trackingBooking, setTrackingBooking] = useState<Amenity | null>(null);
+  const [cancellingTrackBooking, setCancellingTrackBooking] = useState(false);
   const [payingBill, setPayingBill] = useState<{ amenity: Amenity; bill: AmenityMonthlyBill } | null>(null);
   const [submittingProof, setSubmittingProof] = useState(false);
   const [billingAmenity, setBillingAmenity] = useState<Amenity | null>(null);
@@ -362,6 +382,9 @@ export default function AdminAmenitiesPage() {
   const inboxVisible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return inbox.filter((booking) => {
+      if (booking.status === "cancelled" || booking.status === "rejected") {
+        return false;
+      }
       const matchesSearch =
         !q ||
         booking.amenity_name.toLowerCase().includes(q) ||
@@ -436,6 +459,34 @@ export default function AdminAmenitiesPage() {
     }
     setTrackingBooking(null);
     setPayingBill({ amenity, bill });
+  };
+
+  const handleCancelTrackingBooking = async (amenity: Amenity) => {
+    const bookingId = amenity.user_next_booking_id;
+    if (!bookingId) return;
+    const pending = amenity.user_next_booking_status === "pending";
+    const confirmed = await confirmAction({
+      title: pending ? "Cancel booking request?" : "Cancel reservation?",
+      text: pending
+        ? `Withdraw your request for ${amenity.name}. The amenity creator will no longer see it in their queue.`
+        : `Cancel your reservation for ${amenity.name}. This cannot be undone.`,
+      confirmText: pending ? "Cancel request" : "Cancel reservation",
+      icon: "warning",
+      color: "red",
+    });
+    if (!confirmed.isConfirmed) return;
+
+    setCancellingTrackBooking(true);
+    try {
+      await cancelBooking(bookingId);
+      toastSuccess(pending ? "Booking request cancelled." : "Reservation cancelled.");
+      setTrackingBooking(null);
+      await load(true);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setCancellingTrackBooking(false);
+    }
   };
 
   const handleSubmitBookingProof = async (payload: AmenityPaymentProofForm) => {
@@ -721,8 +772,8 @@ export default function AdminAmenitiesPage() {
                   <DtCell className="max-w-0 overflow-hidden">
                     <div className="flex min-w-0 flex-wrap gap-1.5">
                       {tabFilter === "my_bookings" && amenity.user_has_upcoming_booking ? (
-                        <AdminBadge tone={bookingStatusBadge(amenity.user_next_booking_status).tone}>
-                          {bookingStatusBadge(amenity.user_next_booking_status).label}
+                        <AdminBadge tone={userBookingStatusBadge(amenity).tone}>
+                          {userBookingStatusBadge(amenity).label}
                         </AdminBadge>
                       ) : null}
                       {tabFilter !== "my_bookings" && review ? (
@@ -787,7 +838,9 @@ export default function AdminAmenitiesPage() {
                               ...(canPayAmenityBooking(amenity)
                                 ? [
                                     {
-                                      label: "Make payment",
+                                      label: isAmenityBookingPaymentRejected(amenity)
+                                        ? "Re-submit payment proof"
+                                        : "Make payment",
                                       icon: "edit" as const,
                                       onClick: () => openBookingPayment(amenity),
                                     },
@@ -916,8 +969,12 @@ export default function AdminAmenitiesPage() {
 
       <AmenityBookingTrackModal
         amenity={trackingBooking}
-        onClose={() => setTrackingBooking(null)}
+        onClose={() => {
+          if (!cancellingTrackBooking) setTrackingBooking(null);
+        }}
         onPay={openBookingPayment}
+        onCancel={handleCancelTrackingBooking}
+        cancelling={cancellingTrackBooking}
       />
 
       {payingBill ? (

@@ -211,7 +211,7 @@ export default function NoticeDetailScreen() {
   const bodyParagraphs = useMemo(() => {
     const raw = localizedField(notice, "body") || notice?.body || "";
     return String(raw)
-      .split(/\n{2,}/)
+      .split(/\n+/)
       .map((part) => part.trim())
       .filter(Boolean);
   }, [notice, i18n.language]);
@@ -466,16 +466,19 @@ export default function NoticeDetailScreen() {
                 </View>
               )}
 
-              <View style={styles.divider} />
-
-              <SectionHeader icon="file-text" title={t('notices.noticeDetails')} accent={theme.accent} />
-              <View style={styles.bodyWrap}>
-                {bodyParagraphs.map((paragraph, index) => (
-                  <Text key={`p-${index}`} style={styles.body}>
-                    {paragraph}
-                  </Text>
-                ))}
-              </View>
+              {bodyParagraphs.length > 0 ? (
+                <>
+                  <View style={styles.divider} />
+                  <SectionHeader icon="file-text" title={t('notices.noticeDetails')} accent={theme.accent} />
+                  <View style={styles.bodyWrap}>
+                    {bodyParagraphs.map((paragraph, index) => (
+                      <Text key={`p-${index}`} style={styles.body}>
+                        {paragraph}
+                      </Text>
+                    ))}
+                  </View>
+                </>
+              ) : null}
 
               <View style={styles.divider} />
 

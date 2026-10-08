@@ -22,7 +22,7 @@ class EnsureLoginAccountsCommand extends Command
         }
 
         try {
-            $restorer->restoreUsers();
+            $restorer->restoreDemoLoginUsers();
         } catch (\Throwable $e) {
             $this->error($e->getMessage());
 

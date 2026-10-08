@@ -130,13 +130,26 @@ export function applyAmenityChargeModel(form: AmenityForm, model: AmenityChargeM
   };
 }
 
+export type AmenityFormValidationScope = {
+  /** Validate charge model + booking fee (billing step when the wizard has one). */
+  payment?: boolean;
+  /** Validate shared billing amount / due day. */
+  sharedBilling?: boolean;
+};
+
 export function amenityFormStepErrors(
   form: AmenityForm,
   step: Exclude<AmenityFormStep, "review">,
   showSharedBilling = false,
 ): Record<string, string> {
-  const all = validateAmenityForm(form);
-  const fields: Array<keyof AmenityForm> = [...AMENITY_FORM_STEP_FIELDS[step]];
+  const all = validateAmenityForm(form, {
+    payment: !showSharedBilling || step === "billing",
+    sharedBilling: !showSharedBilling || step === "billing",
+  });
+  let fields: Array<keyof AmenityForm> = [...AMENITY_FORM_STEP_FIELDS[step]];
+  if (step === "availability" && showSharedBilling) {
+    fields = fields.filter((field) => field !== "booking_fee");
+  }
   if (step === "availability" && !showSharedBilling) {
     fields.push("charge_model");
   }
@@ -180,7 +193,12 @@ function amenityCapacityError(raw: string, required: boolean): string | undefine
   return undefined;
 }
 
-export function validateAmenityForm(form: AmenityForm): Record<string, string> {
+export function validateAmenityForm(
+  form: AmenityForm,
+  scope: AmenityFormValidationScope = {},
+): Record<string, string> {
+  const validatePayment = scope.payment ?? true;
+  const validateSharedBilling = scope.sharedBilling ?? true;
   const errors: Record<string, string> = {};
   const name = form.name.trim();
   const capacityRaw = form.capacity.trim();
@@ -264,33 +282,37 @@ export function validateAmenityForm(form: AmenityForm): Record<string, string> {
     errors.icon_key = "Category is required.";
   }
 
-  const feeRaw = form.charge_model === "monthly" || form.shared_billing_enabled ? "0" : form.booking_fee.trim();
-  const fee = feeRaw === "" ? 0 : Number(feeRaw);
-  if (form.status === "bookable" || form.status === "open") {
-    if (!form.charge_model) {
-      errors.charge_model = "Choose how residents pay.";
+  if (validatePayment) {
+    const feeRaw = form.charge_model === "monthly" || form.shared_billing_enabled ? "0" : form.booking_fee.trim();
+    const fee = feeRaw === "" ? 0 : Number(feeRaw);
+    if (form.status === "bookable" || form.status === "open") {
+      if (!form.charge_model) {
+        errors.charge_model = "Choose how residents pay.";
+      }
     }
-  }
-  if (form.charge_model === "booking") {
-    if (!feeRaw || !Number.isFinite(fee) || fee <= 0) {
-      errors.booking_fee =
-        form.capacity_booking_type === "full_slot"
-          ? "Enter a reservation fee per slot greater than 0."
-          : "Enter a reservation fee per person greater than 0.";
-    } else if (form.status === "closed") {
-      errors.booking_fee = "Closed amenities cannot have a booking fee.";
-    } else if (Math.round(fee * 100) > 99_999_999) {
-      errors.booking_fee = "Booking fee must not exceed 999,999.99.";
-    }
-  } else if (form.charge_model !== "monthly" && !form.shared_billing_enabled) {
-    if (feeRaw !== "" && (!Number.isFinite(fee) || fee < 0)) {
-      errors.booking_fee = "Enter 0 or a valid booking fee.";
-    } else if (form.status === "closed" && fee > 0) {
-      errors.booking_fee = "Closed amenities cannot have a booking fee.";
+    if (form.charge_model === "booking") {
+      if (!feeRaw || !Number.isFinite(fee) || fee <= 0) {
+        errors.booking_fee =
+          form.status === "open"
+            ? "Enter a reservation fee greater than 0."
+            : form.capacity_booking_type === "full_slot"
+              ? "Enter a reservation fee per slot greater than 0."
+              : "Enter a reservation fee per person greater than 0.";
+      } else if (form.status === "closed") {
+        errors.booking_fee = "Closed amenities cannot have a booking fee.";
+      } else if (Math.round(fee * 100) > 99_999_999) {
+        errors.booking_fee = "Booking fee must not exceed 999,999.99.";
+      }
+    } else if (form.charge_model !== "monthly" && !form.shared_billing_enabled) {
+      if (feeRaw !== "" && (!Number.isFinite(fee) || fee < 0)) {
+        errors.booking_fee = "Enter 0 or a valid booking fee.";
+      } else if (form.status === "closed" && fee > 0) {
+        errors.booking_fee = "Closed amenities cannot have a booking fee.";
+      }
     }
   }
 
-  if (form.shared_billing_enabled) {
+  if (validateSharedBilling && form.shared_billing_enabled) {
     if (form.shared_billing_frequency !== "monthly" && form.shared_billing_frequency !== "yearly") {
       errors.shared_billing_frequency = "Choose monthly or yearly billing.";
     }

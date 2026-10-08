@@ -139,7 +139,7 @@ export default function AdminBookingsPage() {
     setServicesError(null);
     try {
       const [bookingsResult, subscriptionsResult] = await Promise.allSettled([
-        fetchBookingInbox(),
+        fetchBookingInbox({ status: "all" }),
         fetchAdminServiceSubscriptionInbox(),
       ]);
 

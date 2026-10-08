@@ -214,6 +214,65 @@ class AmenityBookingFeeTest extends TestCase
             ->assertJsonPath('data.0.amount', 25);
     }
 
+    public function test_resident_cancel_pending_removes_booking_from_owner_inbox(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+        $amenityId = $this->createAmenity($community->id, $admin->id);
+
+        Sanctum::actingAs($resident);
+        $bookingId = $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => now()->addDay()->toDateString(),
+            'time_slot' => '4:00 PM - 5:00 PM',
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/bookings/inbox')->assertOk()->assertJsonCount(1, 'data');
+
+        Sanctum::actingAs($resident);
+        $this->deleteJson("/api/v1/bookings/{$bookingId}")->assertOk();
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/bookings/inbox')->assertOk()->assertJsonCount(0, 'data');
+        $this->assertSame('cancelled', DB::table('bookings')->where('id', $bookingId)->value('status'));
+    }
+
+    public function test_resident_cancel_after_approval_withdraws_unpaid_bill_and_frees_slot(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+        $amenityId = $this->createAmenity($community->id, $admin->id, ['capacity' => 2]);
+        $date = now()->addDay()->toDateString();
+        $slot = '4:00 PM - 5:00 PM';
+
+        Sanctum::actingAs($resident);
+        $bookingId = $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => $date,
+            'time_slot' => $slot,
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/v1/bookings/{$bookingId}/approve")->assertOk();
+
+        $this->assertDatabaseHas('amenity_resident_bills', [
+            'booking_id' => $bookingId,
+            'status' => 'unpaid',
+        ]);
+
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/amenity-bills')->assertOk()->assertJsonCount(1, 'data');
+
+        $this->deleteJson("/api/v1/bookings/{$bookingId}")->assertOk();
+
+        $this->assertDatabaseMissing('amenity_resident_bills', ['booking_id' => $bookingId]);
+        $this->getJson('/api/v1/amenity-bills')->assertOk()->assertJsonCount(0, 'data');
+        $this->assertSame('cancelled', DB::table('bookings')->where('id', $bookingId)->value('status'));
+
+        $slots = $this->getJson("/api/v1/amenities/{$amenityId}/slots?date={$date}")->json('data');
+        $taken = collect($slots)->firstWhere('value', $slot);
+        $this->assertTrue($taken['available'] ?? false);
+    }
+
     public function test_reject_paid_booking_frees_slot_and_shows_reason(): void
     {
         Storage::fake('public');
@@ -388,6 +447,12 @@ class AmenityBookingFeeTest extends TestCase
         ])->assertCreated()->json('data.id');
 
         Sanctum::actingAs($owner);
+        $this->getJson('/api/v1/amenity-owner-bills')->assertOk()->assertJsonCount(0, 'data');
+
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/amenity-bills')->assertOk()->assertJsonCount(0, 'data');
+
+        Sanctum::actingAs($owner);
         $this->patchJson("/api/v1/bookings/{$bookingId}/approve")->assertOk();
 
         $residentBillId = (int) DB::table('amenity_resident_bills')
@@ -421,8 +486,65 @@ class AmenityBookingFeeTest extends TestCase
         $this->patchJson("/api/v1/amenities/{$amenityId}/resident-bills/{$residentBillId}/approve")
             ->assertForbidden();
 
+        Sanctum::actingAs($admin);
+        $adminBills = $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->getJson('/api/v1/admin/amenity-bills')
+            ->assertOk()
+            ->json('data');
+        $this->assertFalse(collect($adminBills)->contains(fn ($row) => (int) ($row['resident_bill_id'] ?? 0) === $residentBillId));
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->patchJson("/api/v1/admin/amenities/{$amenityId}/resident-bills/{$residentBillId}/approve")
+            ->assertForbidden();
+
         Sanctum::actingAs($owner);
         $this->patchJson("/api/v1/amenities/{$amenityId}/resident-bills/{$residentBillId}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'paid');
+    }
+
+    public function test_staff_amenity_booking_payment_appears_in_admin_inbox(): void
+    {
+        Storage::fake('public');
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+        $amenityId = $this->createAmenity($community->id, $admin->id, ['booking_fee' => 15, 'name' => 'Pet Park']);
+
+        Sanctum::actingAs($resident);
+        $bookingId = $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => now()->addDay()->toDateString(),
+            'time_slot' => '10:00 AM - 11:00 AM',
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/v1/bookings/{$bookingId}/approve")->assertOk();
+
+        $residentBillId = (int) DB::table('amenity_resident_bills')
+            ->where('booking_id', $bookingId)
+            ->value('id');
+        $this->assertGreaterThan(0, $residentBillId);
+
+        Sanctum::actingAs($resident);
+        $this->withHeaders(['Accept' => 'application/json'])
+            ->post("/api/v1/amenities/{$amenityId}/bills/{$residentBillId}/proof", [
+                'payment_date' => now()->toDateString(),
+                'payment_reference' => 'PET-1',
+                'file' => UploadedFile::fake()->image('pet-proof.jpg', 300, 300),
+            ])
+            ->assertOk();
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->getJson('/api/v1/admin/amenity-bills')
+            ->assertOk()
+            ->assertJsonPath('data.0.resident_bill_id', $residentBillId)
+            ->assertJsonPath('data.0.status', 'pending_verification')
+            ->assertJsonPath('data.0.can_review', true);
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->patchJson("/api/v1/admin/amenities/{$amenityId}/resident-bills/{$residentBillId}/approve")
             ->assertOk()
             ->assertJsonPath('data.status', 'paid');
     }

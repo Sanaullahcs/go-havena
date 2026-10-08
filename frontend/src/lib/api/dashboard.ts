@@ -11,6 +11,9 @@ export interface AdminDashboardStats {
   active_listings: number;
   pending_listings: number;
   pending_bookings?: number;
+  pending_amenity_reviews?: number;
+  pending_amenity_payments?: number;
+  pending_service_payments?: number;
   pending_businesses?: number;
   published_notices: number;
   total_posts: number;
@@ -28,7 +31,22 @@ export interface AdminDashboardStats {
 }
 
 export interface AdminDashboardPendingAction {
-  type: "membership" | "family_add_member" | "community_request" | "community_admin" | "post" | "notice" | "event" | "alert" | "listing";
+  type:
+    | "membership"
+    | "family_add_member"
+    | "community_request"
+    | "community_admin"
+    | "post"
+    | "notice"
+    | "event"
+    | "alert"
+    | "listing"
+    | "business"
+    | "booking"
+    | "amenity_review"
+    | "amenity_payment"
+    | "service_payment";
+  amenity_id?: number;
   id: number;
   user_id?: number;
   community_id?: number;

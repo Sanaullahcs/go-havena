@@ -103,6 +103,10 @@ class UtilityBillDocumentValidator
             return UtilityBillDocumentVerdict::review('ambiguous_document_image');
         }
 
+        if ($features['hasDocumentStructure'] && $features['documentScore'] >= 0.38) {
+            return UtilityBillDocumentVerdict::review('document_structure_review');
+        }
+
         return UtilityBillDocumentVerdict::reject('unrelated_or_no_document_structure');
     }
 

@@ -317,6 +317,8 @@ class AmenityController extends Controller
 
         if ($request->filled('status') && $request->status !== 'all') {
             $query->where('bookings.status', $request->status);
+        } else {
+            $query->whereNotIn('bookings.status', ['cancelled', 'rejected']);
         }
 
         $bookings = $query
@@ -606,11 +608,25 @@ class AmenityController extends Controller
         DB::table('bookings')->where('id', $bookingId)->delete();
     }
 
-    /** DELETE /v1/bookings/{id} */
+    /** DELETE /v1/bookings/{id} — booker or community admin in scope. */
     public function cancelBooking(int $id): JsonResponse
     {
-        $booking = DB::table('bookings')->where('id', $id)->where('user_id', auth()->id())->first();
+        $booking = DB::table('bookings')->where('id', $id)->first();
         if (! $booking) {
+            return response()->json(['message' => 'Booking not found'], 404);
+        }
+
+        $user = auth()->user();
+        $isBooker = (int) $booking->user_id === (int) $user->id;
+        $canAdminCancel = false;
+        if (! $isBooker) {
+            $scoped = $this->findBookingWithAmenity($id);
+            if ($scoped && AdminRoleService::isActiveCommunityAdmin($user)) {
+                $communityId = AdminRoleService::resolveAdminCommunityScope($user, request());
+                $canAdminCancel = $communityId && (int) ($scoped->community_id ?? 0) === (int) $communityId;
+            }
+        }
+        if (! $isBooker && ! $canAdminCancel) {
             return response()->json(['message' => 'Booking not found'], 404);
         }
 
@@ -628,7 +644,22 @@ class AmenityController extends Controller
 
         $this->refundBookingAchIfNeeded($booking, auth()->user(), 'Resident cancelled the reservation');
 
-        DB::table('bookings')->where('id', $id)->update(['status' => 'cancelled', 'updated_at' => now()]);
+        DB::transaction(function () use ($id, $booking) {
+            app(AmenitySharedBillService::class)->withdrawOpenBillsForCancelledBooking((int) $booking->id);
+
+            if (Schema::hasTable('booking_slot_allocations')) {
+                DB::table('booking_slot_allocations')->where('booking_id', (int) $booking->id)->delete();
+            }
+
+            DB::table('bookings')->where('id', $id)->update(['status' => 'cancelled', 'updated_at' => now()]);
+        });
+
+        ActivityLogService::user(
+            'booking_cancelled',
+            'Cancelled amenity booking #'.$id,
+            'Booking',
+            $id,
+        );
 
         return response()->json(['message' => 'Booking cancelled']);
     }
@@ -1431,7 +1462,7 @@ class AmenityController extends Controller
             ->where('date', '>=', now()->toDateString())
             ->whereNotIn('status', ['cancelled'])
             ->orderBy('date')
-            ->get(['id', 'amenity_id', 'date', 'time_slot', 'status', 'guests'])
+            ->get(['id', 'amenity_id', 'date', 'time_slot', 'status', 'guests', 'payment_verification_status', 'payment_method'])
             ->groupBy('amenity_id')
             ->map(fn ($rows) => $rows->first());
     }
@@ -1445,6 +1476,9 @@ class AmenityController extends Controller
         $amenity['user_next_booking_time_slot'] = $booking->time_slot ?? null;
         $amenity['user_next_booking_status'] = $booking->status ?? null;
         $amenity['user_next_booking_guests'] = $booking ? (int) ($booking->guests ?? 1) : null;
+        $amenity['user_next_booking_can_cancel'] = $booking
+            ? app(AmenityCapacityService::class)->canCancel($booking)
+            : false;
         $amenity['user_next_booking_bill'] = null;
 
         return $amenity;

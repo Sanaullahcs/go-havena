@@ -204,7 +204,8 @@ export function AmenityBookModal({
   });
   const unitFee = amenity.shared_billing_enabled ? 0 : bookingFeeAmount(amenity.booking_fee);
   const guestCount = fullSlot ? 1 : Math.max(1, parseInt(guests, 10) || 1);
-  const fee = reservationFeeTotal(unitFee, guestCount, fullSlot);
+  const openAccess = amenity.status === "open";
+  const fee = reservationFeeTotal(unitFee, guestCount, fullSlot, openAccess);
 
   const handleSubmit = async () => {
     if (!date) {
@@ -389,6 +390,7 @@ export function AmenityBookModal({
             guests={guestCount}
             unitFee={unitFee}
             fullSlot={fullSlot}
+            openAccess={openAccess}
           />
         </div>
 

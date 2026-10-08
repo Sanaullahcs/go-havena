@@ -9,7 +9,8 @@ use Illuminate\Support\Facades\Schema;
 class ResetTestDbCommand extends Command
 {
     protected $signature = 'havena:reset-test-db
-                            {--force : Skip confirmation prompt}';
+                            {--force : Skip confirmation prompt}
+                            {--system-admin-only : Keep regions and run SystemAdminSeeder only (no TGI demo or wellness seed)}';
 
     protected $description = 'Clear all app data except the regions list and system admin login';
 
@@ -58,6 +59,29 @@ class ResetTestDbCommand extends Command
         }
 
         $this->info("Truncated {$cleared} tables.");
+
+        if ($this->option('system-admin-only')) {
+            foreach ([
+                'Database\\Seeders\\GeographySeeder',
+                'Database\\Seeders\\SystemAdminSeeder',
+            ] as $seeder) {
+                $code = $this->call('db:seed', ['--class' => $seeder, '--force' => true]);
+                if ($code !== self::SUCCESS) {
+                    return $code;
+                }
+            }
+
+            $countryCount = DB::table('countries')->count();
+            $stateCount = DB::table('states')->count();
+
+            $this->newLine();
+            $this->info('Database cleared (regions + geography + system admin).');
+            $this->line("  Regions kept: {$regionCount}");
+            $this->line("  Countries: {$countryCount}, states: {$stateCount}");
+            $this->line('  System admin: admin@havena.app / password');
+
+            return self::SUCCESS;
+        }
 
         $code = $this->call('havena:ensure-login-accounts');
         if ($code !== self::SUCCESS) {

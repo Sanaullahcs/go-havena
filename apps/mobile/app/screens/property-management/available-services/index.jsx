@@ -84,7 +84,7 @@ function statusMeta(status, t) {
   if (key === "pending" || key === "pending_approval") {
     return { label: t("services.availableServicesStatusPending"), tone: "pending" };
   }
-  return { label: t("services.availableServicesStatus", { status }), tone: "muted" };
+  return null;
 }
 
 function ExpandableServiceName({ name, t }) {

@@ -12,7 +12,8 @@ import { SERVICE_CATEGORY_OPTIONS, type PropertyServiceForm } from "@/lib/api/pr
 import { formatCommunityMoney } from "@/lib/money";
 
 export const NOTICE_TITLE_TEMPLATE = "{{service}} — Unit {{unit}}";
-const NOTICE_PREVIEW_UNIT = "201";
+/** Example unit numbers only — real notices use each billed unit's number. */
+const NOTICE_SAMPLE_UNITS = "4B, 12A, …";
 
 function pad2(value: number) {
   return String(value).padStart(2, "0");
@@ -60,41 +61,39 @@ function isNoticeTemplate(value?: string | null) {
   return !value?.trim() || /\{\{\s*(service|unit|month|amount)\s*\}\}/i.test(value);
 }
 
-function fillNoticePreview(template: string, serviceName: string, unitNumber = NOTICE_PREVIEW_UNIT) {
+/** Show the notice template with the service name filled in; keep {{unit}} and other tokens visible. */
+function noticeTemplateDisplay(template: string, serviceName: string) {
   const name = serviceName.trim() || "Service";
-  return template
-    .replace(/\{\{\s*service\s*\}\}/gi, name)
-    .replace(/\{\{\s*unit\s*\}\}/gi, unitNumber)
-    .replace(/\{\{\s*month\s*\}\}/gi, "September 2026")
-    .replace(/\{\{\s*amount\s*\}\}/gi, "$50");
+  return template.replace(/\{\{\s*service\s*\}\}/gi, name);
 }
 
 function noticeTitleDisplay(form: PropertyServiceForm) {
   const template = form.notice_title?.trim() || NOTICE_TITLE_TEMPLATE;
-  return fillNoticePreview(template, form.name);
+  return noticeTemplateDisplay(template, form.name);
 }
 
 function defaultNoticeBodyTemplate(form: PropertyServiceForm) {
-  return `Your ${form.name.trim() || "service"} bill is now available for unit {{unit}}.`;
+  const name = form.name.trim() || "service";
+  return `Your ${name} bill of {{amount}} is now available. Due date: {{month}}.`;
 }
 
 function noticeBodyDisplay(form: PropertyServiceForm) {
   const template = form.notice_body?.trim() || defaultNoticeBodyTemplate(form);
-  return fillNoticePreview(template, form.name);
+  return noticeTemplateDisplay(template, form.name);
 }
 
 export function noticeFieldsForSave(form: PropertyServiceForm): Pick<PropertyServiceForm, "notice_title" | "notice_body"> {
   const currentTitle = form.notice_title?.trim() || NOTICE_TITLE_TEMPLATE;
-  const defaultTitlePreview = fillNoticePreview(NOTICE_TITLE_TEMPLATE, form.name);
+  const defaultTitlePreview = noticeTemplateDisplay(NOTICE_TITLE_TEMPLATE, form.name);
   const noticeTitle = isNoticeTemplate(currentTitle) || currentTitle === defaultTitlePreview
     ? NOTICE_TITLE_TEMPLATE
-    : currentTitle.replaceAll(NOTICE_PREVIEW_UNIT, "{{unit}}");
+    : currentTitle;
 
   const currentBody = form.notice_body?.trim() || "";
-  const defaultBodyPreview = fillNoticePreview(defaultNoticeBodyTemplate(form), form.name);
+  const defaultBodyPreview = noticeTemplateDisplay(defaultNoticeBodyTemplate(form), form.name);
   const noticeBody = !currentBody || isNoticeTemplate(currentBody) || currentBody === defaultBodyPreview
     ? ""
-    : currentBody.replaceAll(NOTICE_PREVIEW_UNIT, "{{unit}}");
+    : currentBody;
 
   return { notice_title: noticeTitle, notice_body: noticeBody };
 }
@@ -673,7 +672,7 @@ export function PropertyServiceFormModal({
                   value={isNoticeTemplate(form.notice_title) ? noticeTitleDisplay(form) : (form.notice_title ?? "")}
                   maxLength={SERVICE_FIELD_MAX.notice_title}
                   onChange={(e) => setField("notice_title", e.target.value.slice(0, SERVICE_FIELD_MAX.notice_title))}
-                  placeholder={`${form.name.trim() || "Service"} — Unit ${NOTICE_PREVIEW_UNIT}`}
+                  placeholder={`${form.name.trim() || "Service"} — Unit {{unit}}`}
                 />
                 <FieldMeta
                   error={fieldError("notice_title", form.notice_title ?? "", SERVICE_FIELD_MAX.notice_title)}
@@ -681,7 +680,9 @@ export function PropertyServiceFormModal({
                   max={SERVICE_FIELD_MAX.notice_title}
                 />
                 <p className="mt-1.5 text-xs text-slate-500">
-                  Each billed unit gets this notice with its own unit number. Preview uses unit {NOTICE_PREVIEW_UNIT}.
+                  Automatic services bill every eligible unit. Each billing contact gets their own notice;{" "}
+                  <span className="font-medium text-slate-600">{`{{unit}}`}</span> becomes that unit&apos;s number (e.g.{" "}
+                  {NOTICE_SAMPLE_UNITS}).
                 </p>
               </div>
               <div>
@@ -691,13 +692,18 @@ export function PropertyServiceFormModal({
                   value={isNoticeTemplate(form.notice_body) ? noticeBodyDisplay(form) : (form.notice_body ?? "")}
                   maxLength={SERVICE_FIELD_MAX.notice_body}
                   onChange={(e) => setField("notice_body", e.target.value.slice(0, SERVICE_FIELD_MAX.notice_body))}
-                  placeholder="Shown on the resident Home notice."
+                  placeholder="Your service bill of {{amount}} is now available. Due date: {{month}}."
                 />
                 <FieldMeta
                   error={fieldError("notice_body", form.notice_body ?? "", SERVICE_FIELD_MAX.notice_body)}
                   value={isNoticeTemplate(form.notice_body) ? "" : (form.notice_body ?? "")}
                   max={SERVICE_FIELD_MAX.notice_body}
                 />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Leave the default to use the standard bill message for all units. Service description is added when set.
+                  Tokens: <span className="font-medium text-slate-600">{`{{amount}}`}</span>,{" "}
+                  <span className="font-medium text-slate-600">{`{{month}}`}</span>.
+                </p>
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <ClearableInput type="checkbox" checked={!!form.send_notice} onChange={(e) => setField("send_notice", e.target.checked)} />

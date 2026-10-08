@@ -567,13 +567,13 @@ function CompleteProfileInner() {
             label="Upload lease or utility bill"
             required={!existingUtilityBillUrl}
             error={utilityErr}
-            hint="Used to verify you live in this community. JPG, PNG, or PDF — 10 MB max."
+            hint="Used to verify you live in this community. JPG, JFIF, PNG, or PDF — 10 MB max."
           >
             <ClearableInput
               ref={fileInputRef}
               id="profile-utility"
               type="file"
-              accept=".jpg,.jpeg,.png,.pdf,.heic,.heif,image/jpeg,image/png,application/pdf"
+              accept=".jpg,.jpeg,.jfif,.png,.pdf,.heic,.heif,image/jpeg,image/png,application/pdf"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0] ?? null;

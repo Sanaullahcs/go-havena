@@ -85,8 +85,47 @@ function canPayAmenityBooking(item) {
     && item?.user_next_booking_bill?.can_submit_proof === true;
 }
 
+function isBookingPaymentRejected(item) {
+  const bill = item?.user_next_booking_bill;
+  return item?.user_next_booking_status === "awaiting_payment"
+    && String(bill?.status ?? "").toLowerCase() === "rejected"
+    && bill?.can_submit_proof === true;
+}
+
 function bookingStatusMeta(status) {
   return BOOKING_STATUS_META[status] ?? { label: "admin.booked", color: AdminTheme.accent, bg: AdminTheme.accentSoft };
+}
+
+function userBookingStatusMeta(item) {
+  if (isBookingPaymentRejected(item)) {
+    return { label: "admin.paymentRejectedLabel", color: "#B91C1C", bg: "#FEF2F2" };
+  }
+  const bill = item?.user_next_booking_bill;
+  if (item?.user_next_booking_status === "awaiting_payment" && bill && !bill.can_submit_proof) {
+    return { label: "admin.paymentReviewLabel", color: "#B45309", bg: "#FEF3C7" };
+  }
+  return bookingStatusMeta(item?.user_next_booking_status);
+}
+
+function userBookingStatusHint(item, t) {
+  if (isBookingPaymentRejected(item)) {
+    const reason = String(item?.user_next_booking_bill?.rejection_reason ?? "").trim();
+    return reason
+      ? t("admin.bookingStatusPaymentRejectedHintWithReason", { reason })
+      : t("admin.bookingStatusPaymentRejectedHint");
+  }
+  if (item?.user_next_booking_status === "pending") {
+    return t("admin.bookingStatusPendingHint");
+  }
+  if (item?.user_next_booking_status === "awaiting_payment") {
+    return item?.user_next_booking_bill?.can_submit_proof
+      ? t("admin.bookingStatusAwaitingPaymentHint")
+      : t("admin.bookingStatusPaymentReviewHint");
+  }
+  if (item?.user_next_booking_status === "rejected") {
+    return t("admin.bookingStatusRejectedHint");
+  }
+  return t("admin.bookingStatusConfirmedHint");
 }
 
 const EMPTY_FORM = {
@@ -210,16 +249,16 @@ function AmenityCard({ item, onOpen, onApprove, onReject, busy, t }) {
               <View
                 style={[
                   styles.bookingStatusPill,
-                  { backgroundColor: bookingStatusMeta(item.user_next_booking_status).bg },
+                  { backgroundColor: userBookingStatusMeta(item).bg },
                 ]}
               >
                 <Text
                   style={[
                     styles.bookingStatusText,
-                    { color: bookingStatusMeta(item.user_next_booking_status).color },
+                    { color: userBookingStatusMeta(item).color },
                   ]}
                 >
-                  {t(bookingStatusMeta(item.user_next_booking_status).label)}
+                  {t(userBookingStatusMeta(item).label)}
                 </Text>
               </View>
             ) : null}
@@ -1276,28 +1315,20 @@ export default function AdminAmenitiesScreen() {
                   style={[
                     styles.bookingStatusBanner,
                     {
-                      backgroundColor: bookingStatusMeta(trackingBooking.user_next_booking_status).bg,
+                      backgroundColor: userBookingStatusMeta(trackingBooking).bg,
                     },
                   ]}
                 >
                   <Text
                     style={[
                       styles.bookingStatusBannerText,
-                      { color: bookingStatusMeta(trackingBooking.user_next_booking_status).color },
+                      { color: userBookingStatusMeta(trackingBooking).color },
                     ]}
                   >
-                    {t(bookingStatusMeta(trackingBooking.user_next_booking_status).label)}
+                    {t(userBookingStatusMeta(trackingBooking).label)}
                   </Text>
                   <Text style={styles.bookingStatusHint}>
-                    {trackingBooking.user_next_booking_status === "pending"
-                      ? t("admin.bookingStatusPendingHint")
-                      : trackingBooking.user_next_booking_status === "awaiting_payment"
-                        ? trackingBooking.user_next_booking_bill?.can_submit_proof
-                          ? t("admin.bookingStatusAwaitingPaymentHint")
-                          : t("admin.bookingStatusPaymentReviewHint")
-                      : trackingBooking.user_next_booking_status === "rejected"
-                        ? t("admin.bookingStatusRejectedHint")
-                        : t("admin.bookingStatusConfirmedHint")}
+                    {userBookingStatusHint(trackingBooking, t)}
                   </Text>
                 </View>
                 <View style={styles.trackDetails}>
@@ -1330,7 +1361,11 @@ export default function AdminAmenitiesScreen() {
                     style={styles.payBtn}
                     onPress={() => setProofFor(trackingBooking.user_next_booking_bill)}
                   >
-                    <Text style={styles.payBtnText}>{t("admin.makePayment")}</Text>
+                    <Text style={styles.payBtnText}>
+                      {isBookingPaymentRejected(trackingBooking)
+                        ? t("services.myAmenityBillsResubmitPay")
+                        : t("admin.makePayment")}
+                    </Text>
                   </TouchableOpacity>
                 ) : null}
               </>

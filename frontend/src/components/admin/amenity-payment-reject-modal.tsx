@@ -44,7 +44,7 @@ export function AmenityPaymentRejectModal({
       >
         <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Reject Payment</h2>
+            <h2 className="text-lg font-bold text-slate-900">Rejection reason</h2>
             <p className="mt-0.5 text-xs text-slate-500">
               {payment.resident_name || "Resident"}
               {payment.billing_month_label ? ` · ${payment.billing_month_label}` : ""}

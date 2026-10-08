@@ -219,6 +219,16 @@ export function actionTypeLabel(type: AdminDashboardPendingAction["type"]) {
       return "Alert";
     case "community_request":
       return "Community";
+    case "business":
+      return "Business";
+    case "booking":
+      return "Booking";
+    case "amenity_review":
+      return "Amenity";
+    case "amenity_payment":
+      return "Amenity bill";
+    case "service_payment":
+      return "Service bill";
     default:
       return "Item";
   }
@@ -237,6 +247,13 @@ export function actionTypeStyle(type: AdminDashboardPendingAction["type"]) {
     case "event":
     case "alert":
       return "bg-violet-50 text-violet-800 ring-violet-100";
+    case "business":
+    case "amenity_payment":
+    case "service_payment":
+      return "bg-amber-50 text-amber-800 ring-amber-100";
+    case "booking":
+    case "amenity_review":
+      return "bg-cyan-50 text-cyan-800 ring-cyan-100";
     default:
       return "bg-slate-100 text-slate-700 ring-slate-200";
   }

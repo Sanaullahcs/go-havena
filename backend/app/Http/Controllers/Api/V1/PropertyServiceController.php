@@ -181,7 +181,7 @@ class PropertyServiceController extends Controller
 
         return response()->json([
             'data' => $this->bills->cancelSubscription($service, $unit, (int) $request->user()->id),
-            'message' => 'Subscription cancellation saved.',
+            'message' => 'You are unsubscribed. Open bills were removed; paid history is kept.',
         ]);
     }
 
@@ -219,8 +219,15 @@ class PropertyServiceController extends Controller
             $rules['custom_category'] = ($creating ? 'required' : 'sometimes').'|string|min:2|max:80';
         }
 
-        if (($request->input('amount_type') ?? 'fixed') !== 'variable') {
-            $rules['amount'] = ['required', 'numeric', 'min:0.01', 'max:999999.99', 'regex:/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/'];
+        $amountTypeInput = $request->input('amount_type');
+        $effectiveAmountType = $creating
+            ? ($amountTypeInput ?? 'fixed')
+            : ($request->has('amount_type') ? $amountTypeInput : null);
+
+        if (($effectiveAmountType ?? 'fixed') !== 'variable') {
+            if ($creating || $request->has('amount') || $request->has('amount_type')) {
+                $rules['amount'] = ['required', 'numeric', 'min:0.01', 'max:999999.99', 'regex:/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/'];
+            }
         }
 
         return $request->validate($rules, [

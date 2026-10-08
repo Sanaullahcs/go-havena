@@ -10,7 +10,7 @@ use Illuminate\Validation\ValidationException;
 class UtilityBillStorage
 {
     /** Shared with profile self-upload and system-admin profile edits. */
-    public const RULE = 'file|mimes:jpg,jpeg,png,pdf,heic,heif|max:10240';
+    public const RULE = 'file|mimes:jpg,jpeg,jfif,png,pdf,heic,heif|max:10240';
 
     public function store(UploadedFile $file): string
     {

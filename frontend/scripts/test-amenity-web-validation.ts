@@ -339,6 +339,14 @@ console.log("\nWeb amenity form validation");
   assert(Boolean(emptyHours.capacity), "step 2 requires capacity for slots");
   assert(!emptyHours.name, "step 2 does not re-validate name");
 
+  const availabilityWithBillingWizard = amenityFormStepErrors(
+    { ...valid, charge_model: "", booking_fee: "" },
+    "availability",
+    true,
+  );
+  assert(!availabilityWithBillingWizard.charge_model, "availability step skips payment choice when billing is separate");
+  assert(!availabilityWithBillingWizard.booking_fee, "availability step skips booking fee when billing is separate");
+
   assert(
     visibleAmenityFormSteps(true, false).join(",") === "details,availability,billing,review",
     "always includes billing step when the form supports amenity billing",

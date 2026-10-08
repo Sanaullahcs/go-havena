@@ -39,7 +39,6 @@ const CATEGORIES = [
 ];
 
 const NOTICE_TITLE_TEMPLATE = "{{service}} — Unit {{unit}}";
-const NOTICE_PREVIEW_UNIT = "201";
 const STEPS = [1, 2, 3, 4];
 
 function currentMonthValue(date = new Date()) {
@@ -78,41 +77,38 @@ function isNoticeTemplate(value) {
   return !String(value ?? "").trim() || /\{\{\s*(service|unit|month|amount)\s*\}\}/i.test(value);
 }
 
-function fillNoticePreview(template, serviceName, unitNumber = NOTICE_PREVIEW_UNIT) {
+function noticeTemplateDisplay(template, serviceName) {
   const name = String(serviceName ?? "").trim() || "Service";
-  return String(template ?? "")
-    .replace(/\{\{\s*service\s*\}\}/gi, name)
-    .replace(/\{\{\s*unit\s*\}\}/gi, unitNumber)
-    .replace(/\{\{\s*month\s*\}\}/gi, previewMonthLabel())
-    .replace(/\{\{\s*amount\s*\}\}/gi, "$50");
+  return String(template ?? "").replace(/\{\{\s*service\s*\}\}/gi, name);
 }
 
 function defaultNoticeBodyTemplate(form) {
-  return `Your ${String(form.name ?? "").trim() || "service"} bill is now available for unit {{unit}}.`;
+  const name = String(form.name ?? "").trim() || "service";
+  return `Your ${name} bill of {{amount}} is now available. Due date: {{month}}.`;
 }
 
 function noticeTitleDisplay(form) {
   const template = String(form.notice_title ?? "").trim() || NOTICE_TITLE_TEMPLATE;
-  return fillNoticePreview(template, form.name);
+  return noticeTemplateDisplay(template, form.name);
 }
 
 function noticeBodyDisplay(form) {
   const template = String(form.notice_body ?? "").trim() || defaultNoticeBodyTemplate(form);
-  return fillNoticePreview(template, form.name);
+  return noticeTemplateDisplay(template, form.name);
 }
 
 function noticeFieldsForSave(form) {
   const currentTitle = String(form.notice_title ?? "").trim() || NOTICE_TITLE_TEMPLATE;
-  const defaultTitlePreview = fillNoticePreview(NOTICE_TITLE_TEMPLATE, form.name);
+  const defaultTitlePreview = noticeTemplateDisplay(NOTICE_TITLE_TEMPLATE, form.name);
   const noticeTitle = isNoticeTemplate(currentTitle) || currentTitle === defaultTitlePreview
     ? NOTICE_TITLE_TEMPLATE
-    : currentTitle.replaceAll(NOTICE_PREVIEW_UNIT, "{{unit}}");
+    : currentTitle;
 
   const currentBody = String(form.notice_body ?? "").trim();
-  const defaultBodyPreview = fillNoticePreview(defaultNoticeBodyTemplate(form), form.name);
+  const defaultBodyPreview = noticeTemplateDisplay(defaultNoticeBodyTemplate(form), form.name);
   const noticeBody = !currentBody || isNoticeTemplate(currentBody) || currentBody === defaultBodyPreview
     ? ""
-    : currentBody.replaceAll(NOTICE_PREVIEW_UNIT, "{{unit}}");
+    : currentBody;
 
   return { notice_title: noticeTitle, notice_body: noticeBody };
 }
@@ -847,7 +843,7 @@ export default function AdminServiceFormScreen() {
                 value={isNoticeTemplate(form.notice_title) ? noticeTitleDisplay(form) : form.notice_title}
                 maxLength={SERVICE_FIELD_MAX.notice_title}
                 onChangeText={(value) => setF("notice_title", value)}
-                placeholder={`${String(form.name).trim() || "Service"} — Unit ${NOTICE_PREVIEW_UNIT}`}
+                placeholder={`${String(form.name).trim() || "Service"} — Unit {{unit}}`}
                 placeholderTextColor="#94A3B8"
               />
               <FieldMeta
@@ -856,7 +852,7 @@ export default function AdminServiceFormScreen() {
                 max={SERVICE_FIELD_MAX.notice_title}
               />
               <Text style={styles.hintText}>
-                {t("services.createServiceNoticeTitleHint", { unit: NOTICE_PREVIEW_UNIT })}
+                {t("services.createServiceNoticeTitleHint")}
               </Text>
             </View>
 

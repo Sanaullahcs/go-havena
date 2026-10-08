@@ -70,6 +70,9 @@ export default function UnitBillInvoiceModal({
   const insets = useSafeAreaInsets();
   const invoice = bill?.invoice ?? null;
   const invoiceUrl = invoice?.file_url || null;
+  const rejected = String(bill?.status ?? "").toLowerCase() === "rejected";
+  const rejectionReason = String(bill?.rejection_reason ?? "").trim()
+    || (rejected ? t("services.unitBillsRejectedReasonFallback") : "");
   const scrollMaxHeight = Math.round(WINDOW_HEIGHT * 0.9) - sw(168) - insets.bottom;
   const invoiceRows = [
     { key: "service", label: t("services.unitBillsInvoiceService"), value: bill?.title },
@@ -107,7 +110,9 @@ export default function UnitBillInvoiceModal({
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, sw(12)) }]}>
           <View style={styles.header}>
             <View style={styles.headerCopy}>
-              <Text style={styles.title}>{t("services.unitBillsInvoiceTitle")}</Text>
+              <Text style={styles.title}>
+                {rejected ? t("services.unitBillsRejectionTitle") : t("services.unitBillsInvoiceTitle")}
+              </Text>
               <Text style={styles.subtitle} numberOfLines={2}>
                 {bill?.service_name || bill?.title || t("services.unitBillsSub")}
               </Text>
@@ -133,6 +138,13 @@ export default function UnitBillInvoiceModal({
                 </View>
               ) : null}
             </View>
+
+            {rejected && rejectionReason ? (
+              <View style={styles.rejectCard}>
+                <Text style={styles.rejectTitle}>{t("services.unitBillsRejectedHint")}</Text>
+                <Text style={styles.rejectBody}>{rejectionReason}</Text>
+              </View>
+            ) : null}
 
             <View style={styles.detailsCard}>
               {invoiceRows.map((row) => (
@@ -176,7 +188,7 @@ export default function UnitBillInvoiceModal({
             ) : null}
           </ScrollView>
 
-          {bill?.can_submit_proof || needsAcknowledgeBeforePay(bill) ? (
+          {(rejected && bill?.can_submit_proof) || (!rejected && (bill?.can_submit_proof || needsAcknowledgeBeforePay(bill))) ? (
             <View style={styles.footer}>
               <Pressable
                 disabled={busy}
@@ -189,8 +201,10 @@ export default function UnitBillInvoiceModal({
                   <Text style={styles.payText}>{t("services.unitBillsAcknowledgeThenPay")}</Text>
                 ) : (
                   <>
-                    <Feather name="credit-card" size={sf(15)} color="#FFFFFF" />
-                    <Text style={styles.payText}>{t("services.unitBillsPayNow")}</Text>
+                    <Feather name={rejected ? "upload" : "credit-card"} size={sf(15)} color="#FFFFFF" />
+                    <Text style={styles.payText}>
+                      {rejected ? t("services.myAmenityBillsResubmitPay") : t("services.unitBillsPayNow")}
+                    </Text>
                   </>
                 )}
               </Pressable>
@@ -304,6 +318,25 @@ const styles = {
   statusText_success: { color: PropertyHubTheme.successText },
   statusText_pending: { color: PropertyHubTheme.pendingText },
   statusText_danger: { color: PropertyHubTheme.dangerText },
+  rejectCard: {
+    backgroundColor: PropertyHubTheme.dangerBg,
+    borderRadius: sw(14),
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.dangerBorder,
+    padding: sw(14),
+  },
+  rejectTitle: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(12),
+    color: PropertyHubTheme.dangerText,
+    marginBottom: sw(6),
+  },
+  rejectBody: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    lineHeight: sf(19),
+    color: PropertyHubTheme.dangerText,
+  },
   detailsCard: {
     backgroundColor: "#F8FAFC",
     borderRadius: sw(14),

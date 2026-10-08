@@ -9,21 +9,29 @@ use App\Models\FamilyAddMemberRequest;
 use App\Models\Region;
 use App\Models\User;
 use App\Services\AdminRoleService;
+use App\Services\AmenitySharedBillService;
 use App\Services\MemberLifecycleStatus;
+use App\Services\UnitServiceBillService;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
     /** GET /v1/admin/dashboard/stats */
-    public function adminStats(Request $request): JsonResponse
-    {
+    public function adminStats(
+        Request $request,
+        AmenitySharedBillService $amenityBills,
+        UnitServiceBillService $serviceBills,
+    ): JsonResponse {
         $communityId = AdminRoleService::resolveAdminCommunityScope($request->user(), $request);
 
         if ($request->boolean('mobile')) {
-            return response()->json(['data' => $this->buildMobileDashboardPayload($communityId)]);
+            return response()->json([
+                'data' => $this->buildMobileDashboardPayload($communityId, $request, $amenityBills, $serviceBills),
+            ]);
         }
 
         $reportsQuery = DB::table('reports')->whereNull('deleted_at');
@@ -95,7 +103,24 @@ class DashboardController extends Controller
         if ($communityId) {
             $bookingsQuery->where('amenities.community_id', $communityId);
         }
-        $pendingBookings = (clone $bookingsQuery)->where('bookings.status', 'pending')->count();
+        $pendingBookingsQuery = (clone $bookingsQuery)->where('bookings.status', 'pending');
+        if ($communityId) {
+            $this->applyStaffCreatedAmenityScope($pendingBookingsQuery, 'amenities.created_by');
+        }
+        $pendingBookings = $pendingBookingsQuery->count();
+
+        $pendingAmenityReviews = 0;
+        $pendingAmenityPayments = 0;
+        $pendingServicePayments = 0;
+        if ($communityId) {
+            $pendingAmenityReviews = (int) DB::table('amenities')
+                ->where('community_id', $communityId)
+                ->where('review_status', 'pending')
+                ->count();
+            $viewerId = (int) ($request->user()?->id ?? 0);
+            $pendingAmenityPayments = $amenityBills->countCommunityAdminReviewablePendingPayments($communityId, $viewerId);
+            $pendingServicePayments = $serviceBills->countAdminPendingVerification($communityId);
+        }
 
         $communitiesQuery = Community::query();
         if ($communityId) {
@@ -293,7 +318,7 @@ class DashboardController extends Controller
             ])
             ->values();
 
-        $pendingActions = $this->buildPendingActions($communityId);
+        $pendingActions = $this->buildPendingActions($communityId, $request, $amenityBills, $serviceBills);
 
         $scopeLabel = $communityId
             ? (Community::query()->find($communityId)?->name ?? "Community #{$communityId}")
@@ -312,6 +337,7 @@ class DashboardController extends Controller
                     'onboarding_members'         => $onboardingMembers,
                     'pending_approval_total'     => $communityId
                         ? $pendingMembers + $pendingListings + $pendingPosts + $pendingBookings + $pendingBusinesses
+                            + $pendingAmenityReviews + $pendingAmenityPayments + $pendingServicePayments
                         : $pendingMembers + $pendingCommunityRequests + $pendingListings + $pendingCommunityAdmins,
                     'banned_members'             => $bannedMembers,
                     'open_reports'               => $openReports,
@@ -324,6 +350,9 @@ class DashboardController extends Controller
                     'pending_posts'              => $pendingPosts,
                     'approved_posts'             => $approvedPosts,
                     'pending_bookings'           => $pendingBookings,
+                    'pending_amenity_reviews'    => $pendingAmenityReviews,
+                    'pending_amenity_payments'   => $pendingAmenityPayments,
+                    'pending_service_payments'   => $pendingServicePayments,
                     'total_communities'          => $totalCommunities,
                     'active_regions'             => $activeRegions,
                     'pending_community_requests' => $pendingCommunityRequests,
@@ -352,8 +381,12 @@ class DashboardController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function buildMobileDashboardPayload(?int $communityId): array
-    {
+    private function buildMobileDashboardPayload(
+        ?int $communityId,
+        Request $request,
+        AmenitySharedBillService $amenityBills,
+        UnitServiceBillService $serviceBills,
+    ): array {
         $residentsQuery = $this->residentMembershipQuery($communityId);
 
         $totalMembers = (clone $residentsQuery)->where('cm.status', 'approved')->count();
@@ -380,7 +413,24 @@ class DashboardController extends Controller
         if ($communityId) {
             $bookingsQuery->where('amenities.community_id', $communityId);
         }
-        $pendingBookings = (clone $bookingsQuery)->where('bookings.status', 'pending')->count();
+        $pendingBookingsQuery = (clone $bookingsQuery)->where('bookings.status', 'pending');
+        if ($communityId) {
+            $this->applyStaffCreatedAmenityScope($pendingBookingsQuery, 'amenities.created_by');
+        }
+        $pendingBookings = $pendingBookingsQuery->count();
+
+        $pendingAmenityReviews = 0;
+        $pendingAmenityPayments = 0;
+        $pendingServicePayments = 0;
+        if ($communityId) {
+            $pendingAmenityReviews = (int) DB::table('amenities')
+                ->where('community_id', $communityId)
+                ->where('review_status', 'pending')
+                ->count();
+            $viewerId = (int) ($request->user()?->id ?? 0);
+            $pendingAmenityPayments = $amenityBills->countCommunityAdminReviewablePendingPayments($communityId, $viewerId);
+            $pendingServicePayments = $serviceBills->countAdminPendingVerification($communityId);
+        }
 
         $businessesQuery = DB::table('businesses')->whereNull('deleted_at');
         if ($communityId) {
@@ -399,7 +449,7 @@ class DashboardController extends Controller
             ->when($communityId, fn ($q) => $q->where('id', $communityId))
             ->count();
 
-        $pendingActions = $this->buildPendingActionsMobile($communityId, 5);
+        $pendingActions = $this->buildPendingActionsMobile($communityId, $request, $amenityBills, $serviceBills, 5);
 
         $scopeLabel = $communityId
             ? (Community::query()->find($communityId)?->name ?? "Community #{$communityId}")
@@ -418,7 +468,11 @@ class DashboardController extends Controller
                 'pending_bookings'       => $pendingBookings,
                 'pending_businesses'     => $pendingBusinesses,
                 'pending_posts'          => $pendingPosts,
-                'pending_approval_total' => $pendingMembers + $pendingCommunityRequests + $pendingPosts + $pendingListings + $pendingBookings + $pendingBusinesses,
+                'pending_approval_total' => $pendingMembers + $pendingCommunityRequests + $pendingPosts + $pendingListings + $pendingBookings + $pendingBusinesses
+                    + $pendingAmenityReviews + $pendingAmenityPayments + $pendingServicePayments,
+                'pending_amenity_reviews' => $pendingAmenityReviews,
+                'pending_amenity_payments' => $pendingAmenityPayments,
+                'pending_service_payments' => $pendingServicePayments,
             ],
             'pending_actions' => $pendingActions,
             'generated_at'    => now()->toIso8601String(),
@@ -426,9 +480,18 @@ class DashboardController extends Controller
     }
 
     /** @return list<array<string, mixed>> */
-    private function buildPendingActionsMobile(?int $communityId, int $limit = 5): array
-    {
-        return array_slice($this->buildPendingActions($communityId), 0, $limit);
+    private function buildPendingActionsMobile(
+        ?int $communityId,
+        Request $request,
+        AmenitySharedBillService $amenityBills,
+        UnitServiceBillService $serviceBills,
+        int $limit = 5,
+    ): array {
+        return array_slice(
+            $this->buildPendingActions($communityId, $request, $amenityBills, $serviceBills),
+            0,
+            $limit,
+        );
     }
 
     /** GET /v1/dashboard/stats (resident) */
@@ -534,8 +597,12 @@ class DashboardController extends Controller
     }
 
     /** @return list<array<string, mixed>> */
-    private function buildPendingActions(?int $communityId): array
-    {
+    private function buildPendingActions(
+        ?int $communityId,
+        Request $request,
+        AmenitySharedBillService $amenityBills,
+        UnitServiceBillService $serviceBills,
+    ): array {
         $memberships = DB::table('community_memberships as cm')
             ->join('users', 'users.id', '=', 'cm.user_id')
             ->leftJoin('communities', 'communities.id', '=', 'cm.community_id')
@@ -846,12 +913,143 @@ class DashboardController extends Controller
             ])
             ->all();
 
-        return collect([...$memberships, ...$familyAddRequests, ...$communityAdmins, ...$communities, ...$posts, ...$notices, ...$listings, ...$businesses])
+        $bookings = [];
+        $amenityReviews = [];
+        $amenityPayments = [];
+        $servicePayments = [];
+        if ($communityId) {
+            $bookings = DB::table('bookings')
+                ->join('amenities', 'amenities.id', '=', 'bookings.amenity_id')
+                ->join('users', 'users.id', '=', 'bookings.user_id')
+                ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+                ->where('bookings.status', 'pending')
+                ->where('amenities.community_id', $communityId)
+                ->tap(fn ($q) => $this->applyStaffCreatedAmenityScope($q, 'amenities.created_by'))
+                ->select([
+                    'bookings.id',
+                    'amenities.community_id',
+                    'bookings.date',
+                    'bookings.time_slot',
+                    'bookings.created_at',
+                    'amenities.name as amenity_name',
+                    DB::raw('COALESCE(profiles.display_name, users.name) as resident_name'),
+                ])
+                ->orderByDesc('bookings.created_at')
+                ->limit(10)
+                ->get()
+                ->map(fn ($row) => [
+                    'type'         => 'booking',
+                    'id'           => (int) $row->id,
+                    'community_id' => (int) $row->community_id,
+                    'title'        => $row->amenity_name ?? 'Amenity booking',
+                    'subtitle'     => $row->resident_name ?? 'Resident request',
+                    'detail'       => trim(($row->date ?? '').' · '.($row->time_slot ?? '')),
+                    'created_at'   => $row->created_at,
+                    'action_label' => 'Review booking',
+                    'action_href'  => '/admin/bookings',
+                ])
+                ->all();
+
+            $amenityReviews = DB::table('amenities as a')
+                ->join('users', 'users.id', '=', 'a.created_by')
+                ->leftJoin('profiles', 'profiles.user_id', '=', 'a.created_by')
+                ->where('a.community_id', $communityId)
+                ->where('a.review_status', 'pending')
+                ->select([
+                    'a.id',
+                    'a.community_id',
+                    'a.name',
+                    'a.created_at',
+                    DB::raw('COALESCE(profiles.display_name, users.name) as creator_name'),
+                ])
+                ->orderByDesc('a.created_at')
+                ->limit(10)
+                ->get()
+                ->map(fn ($row) => [
+                    'type'         => 'amenity_review',
+                    'id'           => (int) $row->id,
+                    'community_id' => (int) $row->community_id,
+                    'title'        => $row->name ?? 'New amenity',
+                    'subtitle'     => $row->creator_name ?? 'Resident submission',
+                    'detail'       => 'Amenity awaiting approval',
+                    'created_at'   => $row->created_at,
+                    'action_label' => 'Review amenity',
+                    'action_href'  => '/admin/amenities',
+                ])
+                ->all();
+
+            $viewerId = (int) ($request->user()?->id ?? 0);
+            $amenityPayments = collect($amenityBills->communityAdminReviewablePendingPaymentRows($communityId, $viewerId, 10))
+                ->map(function ($row) use ($amenityBills) {
+                    $bookingPayment = $amenityBills->isBookingPaymentBill($row);
+
+                    return [
+                        'type'         => 'amenity_payment',
+                        'id'           => (int) $row->resident_bill_id,
+                        'community_id' => (int) $row->community_id,
+                        'amenity_id'   => (int) $row->amenity_id,
+                        'title'        => $row->amenity_name ?? 'Amenity bill',
+                        'subtitle'     => $row->resident_name ?? 'Resident payment',
+                        'detail'       => $bookingPayment
+                            ? 'Booking fee · payment proof'
+                            : 'Monthly amenity · payment proof',
+                        'created_at'   => $row->proof_submitted_at ?? $row->created_at ?? now()->toIso8601String(),
+                        'action_label' => 'Review payment',
+                        'action_href'  => '/admin/amenity-bills',
+                    ];
+                })
+                ->all();
+
+            $servicePayments = collect($serviceBills->adminPendingVerificationDashboardRows($communityId, 10))
+                ->map(fn ($row) => [
+                    'type'         => 'service_payment',
+                    'id'           => (int) $row->id,
+                    'community_id' => (int) $row->community_id,
+                    'title'        => $row->service_name ?? 'Unit service',
+                    'subtitle'     => trim(($row->billing_contact_display_name ?? $row->billing_contact_name ?? 'Billing contact')
+                        .($row->unit_number ? " · Unit {$row->unit_number}" : '')),
+                    'detail'       => 'Service bill · payment proof',
+                    'created_at'   => $row->proof_submitted_at ?? $row->created_at,
+                    'action_label' => 'Review payment',
+                    'action_href'  => '/admin/service-bills',
+                ])
+                ->all();
+        }
+
+        return collect([
+            ...$memberships,
+            ...$familyAddRequests,
+            ...$communityAdmins,
+            ...$communities,
+            ...$posts,
+            ...$notices,
+            ...$listings,
+            ...$businesses,
+            ...$bookings,
+            ...$amenityReviews,
+            ...$amenityPayments,
+            ...$servicePayments,
+        ])
             ->unique(fn (array $item) => ($item['type'] ?? '').':'.($item['id'] ?? ''))
             ->sortByDesc('created_at')
             ->values()
-            ->take(15)
+            ->take(20)
             ->all();
+    }
+
+    private function applyStaffCreatedAmenityScope($query, string $createdByColumn): void
+    {
+        $query->whereExists(function ($sub) use ($createdByColumn) {
+            $sub->select(DB::raw(1))
+                ->from('users as amenity_creator')
+                ->whereColumn('amenity_creator.id', $createdByColumn)
+                ->where(function ($roles) {
+                    $roles->whereIn('amenity_creator.role', ['community_admin', 'admin']);
+                    if (Schema::hasColumn('users', 'is_admin')) {
+                        $roles->orWhere('amenity_creator.is_admin', true);
+                    }
+                });
+        });
     }
 
     private function dashboardContact(?string $phone, ?string $email = null, mixed $unitNumber = null): string

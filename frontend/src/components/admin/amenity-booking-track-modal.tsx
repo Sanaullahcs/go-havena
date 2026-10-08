@@ -17,7 +17,23 @@ function bookingStatusMeta(status?: string | null) {
   if (status === "awaiting_payment") return { label: "Payment required", tone: "amber" as const, hint: "The amenity creator approved your request. Pay and submit proof to confirm the booking." };
   if (status === "rejected") return { label: "Declined", tone: "red" as const, hint: "Your booking request was declined by the amenity creator." };
   if (status === "confirmed") return { label: "Approved", tone: "green" as const, hint: "Your reservation is confirmed." };
+  if (status === "cancelled") return { label: "Cancelled", tone: "slate" as const, hint: "This reservation was cancelled." };
   return { label: "Booked", tone: "blue" as const, hint: "Your reservation details are below." };
+}
+
+export function canCancelAmenityBooking(amenity?: Amenity | null): boolean {
+  if (!amenity?.user_next_booking_id) return false;
+  if (amenity.user_next_booking_can_cancel === false) return false;
+  if (amenity.user_next_booking_can_cancel === true) return true;
+  const status = amenity.user_next_booking_status;
+  return status === "pending" || status === "awaiting_payment" || status === "confirmed";
+}
+
+export function isAmenityBookingPaymentRejected(amenity?: Amenity | null) {
+  const bill = amenity?.user_next_booking_bill;
+  return amenity?.user_next_booking_status === "awaiting_payment"
+    && String(bill?.status ?? "").toLowerCase() === "rejected"
+    && bill?.can_submit_proof === true;
 }
 
 export function canPayAmenityBooking(amenity?: Amenity | null) {
@@ -25,23 +41,46 @@ export function canPayAmenityBooking(amenity?: Amenity | null) {
     && amenity.user_next_booking_bill?.can_submit_proof === true;
 }
 
+function userBookingTrackStatus(amenity: Amenity) {
+  const bill = amenity.user_next_booking_bill;
+  if (isAmenityBookingPaymentRejected(amenity)) {
+    const reason = String(bill?.rejection_reason ?? "").trim();
+    return {
+      label: "Payment rejected",
+      tone: "red" as const,
+      hint: reason
+        ? `The amenity creator rejected your payment proof: ${reason}. Submit a new proof to continue.`
+        : "The amenity creator rejected your payment proof. Submit a new proof to continue.",
+    };
+  }
+  return bookingStatusMeta(amenity.user_next_booking_status);
+}
+
 export function AmenityBookingTrackModal({
   amenity,
   onClose,
   onPay,
+  onCancel,
+  cancelling = false,
 }: {
   amenity: Amenity | null;
   onClose: () => void;
   onPay?: (amenity: Amenity) => void;
+  onCancel?: (amenity: Amenity) => void;
+  cancelling?: boolean;
 }) {
   if (!amenity?.user_has_upcoming_booking) return null;
 
-  const status = bookingStatusMeta(amenity.user_next_booking_status);
+  const status = userBookingTrackStatus(amenity);
+  const paymentRejected = isAmenityBookingPaymentRejected(amenity);
   const canPay = canPayAmenityBooking(amenity);
+  const canCancel = canCancelAmenityBooking(amenity);
+  const isPending = amenity.user_next_booking_status === "pending";
   const bill = amenity.user_next_booking_bill;
   const awaitingReview = amenity.user_next_booking_status === "awaiting_payment"
     && bill
-    && !bill.can_submit_proof;
+    && !bill.can_submit_proof
+    && !paymentRejected;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
@@ -110,13 +149,23 @@ export function AmenityBookingTrackModal({
           ) : null}
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
-          <button type="button" onClick={onClose} className="nl-btn-secondary">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
+          {canCancel && onCancel ? (
+            <button
+              type="button"
+              disabled={cancelling}
+              onClick={() => onCancel(amenity)}
+              className="mr-auto rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+            >
+              {cancelling ? "Cancelling…" : isPending ? "Cancel request" : "Cancel reservation"}
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose} disabled={cancelling} className="nl-btn-secondary">
             Close
           </button>
           {canPay && onPay ? (
-            <button type="button" onClick={() => onPay(amenity)} className="nl-btn-primary">
-              Make payment
+            <button type="button" onClick={() => onPay(amenity)} disabled={cancelling} className="nl-btn-primary">
+              {paymentRejected ? "Re-submit payment proof" : "Make payment"}
             </button>
           ) : null}
         </div>
