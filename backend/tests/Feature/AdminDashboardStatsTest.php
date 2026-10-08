@@ -437,4 +437,97 @@ class AdminDashboardStatsTest extends TestCase
         $this->assertSame('(555) 555-0100', $pending['detail']);
         $this->assertStringNotContainsString('+15555550100', (string) $pending['detail']);
     }
+
+    public function test_community_dashboard_pending_queue_includes_amenity_and_booking_reviews(): void
+    {
+        config(['billing.enabled' => false, 'billing.enforce' => false]);
+
+        $region = Region::query()->create([
+            'title'       => 'Property Metro',
+            'area'        => 'Area',
+            'state'       => 'EG',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $community = Community::query()->create([
+            'name'          => 'Property Valley',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $admin = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status'                 => 'active',
+        ]);
+
+        $resident = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'name'   => 'Resident Review',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $admin->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $resident->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        $staffAmenityId = \Illuminate\Support\Facades\DB::table('amenities')->insertGetId([
+            'community_id'  => $community->id,
+            'created_by'    => $admin->id,
+            'name'          => 'Pet Park',
+            'status'        => 'bookable',
+            'review_status' => 'approved',
+            'capacity'      => 10,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ]);
+
+        \Illuminate\Support\Facades\DB::table('bookings')->insert([
+            'amenity_id' => $staffAmenityId,
+            'user_id'    => $resident->id,
+            'date'       => now()->addDay()->toDateString(),
+            'time_slot'  => '10:00 AM - 11:00 AM',
+            'status'     => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        \Illuminate\Support\Facades\DB::table('amenities')->insert([
+            'community_id'  => $community->id,
+            'created_by'    => $resident->id,
+            'name'          => 'Resident Gym',
+            'status'        => 'bookable',
+            'review_status' => 'pending',
+            'capacity'      => 8,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ]);
+
+        Sanctum::actingAs($admin);
+        $response = $this->getJson('/api/v1/admin/dashboard/stats');
+        $response->assertOk();
+
+        $stats = $response->json('data.stats');
+        $this->assertSame(1, $stats['pending_bookings']);
+        $this->assertSame(1, $stats['pending_amenity_reviews']);
+        $this->assertGreaterThanOrEqual(2, $stats['pending_approval_total']);
+
+        $types = collect($response->json('data.pending_actions'))->pluck('type');
+        $this->assertTrue($types->contains('booking'));
+        $this->assertTrue($types->contains('amenity_review'));
+    }
 }

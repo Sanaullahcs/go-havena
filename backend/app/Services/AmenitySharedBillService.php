@@ -439,6 +439,22 @@ class AmenitySharedBillService
         return $formatted;
     }
 
+    public function countCommunityAdminReviewablePendingPayments(int $communityId, int $viewerId): int
+    {
+        return (int) $this->communityAdminReviewablePendingPaymentQuery($communityId, $viewerId)->count();
+    }
+
+    /** @return list<object> */
+    public function communityAdminReviewablePendingPaymentRows(int $communityId, int $viewerId, int $limit = 10): array
+    {
+        return $this->communityAdminReviewablePendingPaymentQuery($communityId, $viewerId)
+            ->orderByDesc('rb.proof_submitted_at')
+            ->orderByDesc('rb.id')
+            ->limit($limit)
+            ->get()
+            ->all();
+    }
+
     public function listCommunityResidentBills(int $communityId, Request $request): array
     {
         app(AmenityBillReminderService::class)->markOverdue();
@@ -1894,6 +1910,33 @@ class AmenitySharedBillService
     private function communityResidentBillQuery(int $communityId)
     {
         return $this->residentBillQuery()->where('rb.community_id', $communityId);
+    }
+
+    private function communityAdminReviewablePendingPaymentQuery(int $communityId, int $viewerId)
+    {
+        $query = $this->applyCommunityAdminBookingPaymentVisibility(
+            $this->applyExcludeInactiveBookingBills(
+                $this->communityResidentBillQuery($communityId)->where('rb.status', self::RESIDENT_STATUS_PENDING),
+            ),
+        );
+
+        return $query->where(function ($outer) use ($viewerId) {
+            $outer->where(function ($sharedOnly) {
+                if (Schema::hasColumn('amenity_resident_bills', 'booking_id')) {
+                    $sharedOnly->where(function ($inner) {
+                        $inner->whereNull('rb.booking_id')->orWhere('rb.booking_id', 0);
+                    });
+                }
+                if (Schema::hasColumn('amenity_monthly_bills', 'booking_id')) {
+                    $sharedOnly->where(function ($inner) {
+                        $inner->whereNull('mb.booking_id')->orWhere('mb.booking_id', 0);
+                    });
+                }
+            });
+            if ($viewerId > 0) {
+                $outer->orWhere('a.created_by', $viewerId);
+            }
+        });
     }
 
     /** Booking reservation fees are reviewed only by the amenity creator (owner bills), not community admins. */

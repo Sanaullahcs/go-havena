@@ -10,7 +10,14 @@ export type PendingReviewCategory = {
 export function communityPendingReviewCategories(
   stats: Pick<
     AdminDashboardStats,
-    "pending_members" | "pending_listings" | "pending_posts" | "pending_bookings" | "pending_businesses"
+    | "pending_members"
+    | "pending_listings"
+    | "pending_posts"
+    | "pending_bookings"
+    | "pending_businesses"
+    | "pending_amenity_reviews"
+    | "pending_amenity_payments"
+    | "pending_service_payments"
   >,
 ): PendingReviewCategory[] {
   return [
@@ -18,6 +25,9 @@ export function communityPendingReviewCategories(
     { key: "listings", label: "Listings", count: stats.pending_listings ?? 0 },
     { key: "posts", label: "Posts", count: stats.pending_posts },
     { key: "bookings", label: "Bookings", count: stats.pending_bookings ?? 0 },
+    { key: "amenities", label: "Amenities", count: stats.pending_amenity_reviews ?? 0 },
+    { key: "amenity_bills", label: "Amenity bills", count: stats.pending_amenity_payments ?? 0 },
+    { key: "service_bills", label: "Service bills", count: stats.pending_service_payments ?? 0 },
     { key: "businesses", label: "Businesses", count: stats.pending_businesses ?? 0 },
   ];
 }
@@ -32,6 +42,9 @@ export function pendingReviewCategoriesForDisplay(
     | "pending_posts"
     | "pending_bookings"
     | "pending_businesses"
+    | "pending_amenity_reviews"
+    | "pending_amenity_payments"
+    | "pending_service_payments"
   >,
 ): PendingReviewCategory[] {
   const all = communityPendingReviewCategories(stats);
@@ -51,6 +64,9 @@ export function PendingReviewBreakdown({
     | "pending_posts"
     | "pending_bookings"
     | "pending_businesses"
+    | "pending_amenity_reviews"
+    | "pending_amenity_payments"
+    | "pending_service_payments"
   >;
 }) {
   if (stats.pending_approval_total <= 0) {

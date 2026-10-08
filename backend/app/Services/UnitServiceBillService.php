@@ -357,6 +357,25 @@ class UnitServiceBillService
         return $this->adminBillQuery($communityId)->where('usb.id', $billId)->first();
     }
 
+    public function countAdminPendingVerification(int $communityId): int
+    {
+        return (int) $this->adminBillQuery($communityId)
+            ->where('usb.status', self::STATUS_PENDING)
+            ->count();
+    }
+
+    /** @return list<object> */
+    public function adminPendingVerificationDashboardRows(int $communityId, int $limit = 10): array
+    {
+        return $this->adminBillQuery($communityId)
+            ->where('usb.status', self::STATUS_PENDING)
+            ->orderByDesc('usb.proof_submitted_at')
+            ->orderByDesc('usb.id')
+            ->limit($limit)
+            ->get()
+            ->all();
+    }
+
     public function acknowledge(object $ownedBill, int $userId): array
     {
         if (! in_array((string) $ownedBill->status, [self::STATUS_UNPAID, self::STATUS_OVERDUE], true)) {

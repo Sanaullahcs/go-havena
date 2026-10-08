@@ -103,6 +103,9 @@ const REVIEW_ACTION_FEATURES = {
   listing: "marketplace",
   business: "marketplace",
   booking: "bookings",
+  amenity_review: "amenities",
+  amenity_payment: "amenities",
+  service_payment: "services",
   family_add_member: "family",
 };
 

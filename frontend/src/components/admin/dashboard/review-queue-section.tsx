@@ -32,6 +32,11 @@ const TYPE_META: Record<
   event: { tone: "cyan", icon: Calendar, accent: "#06B6D4", soft: "#ECFEFF" },
   alert: { tone: "red", icon: AlertTriangle, accent: "#EF4444", soft: "#FEF2F2" },
   community_request: { tone: "violet", icon: Building2, accent: "#1B4F8A", soft: "#E8F0F7" },
+  business: { tone: "amber", icon: ShoppingBag, accent: "#D97706", soft: "#FFFBEB" },
+  booking: { tone: "violet", icon: Calendar, accent: "#7C3AED", soft: "#F5F3FF" },
+  amenity_review: { tone: "cyan", icon: Building2, accent: "#0891B2", soft: "#ECFEFF" },
+  amenity_payment: { tone: "amber", icon: FileText, accent: "#D97706", soft: "#FFFBEB" },
+  service_payment: { tone: "amber", icon: FileText, accent: "#F59E0B", soft: "#FFFBEB" },
 };
 
 function ReviewQueueRow({
