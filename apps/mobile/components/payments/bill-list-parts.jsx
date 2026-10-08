@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { formatCommunityMoney } from "../../utils/money";
-import { billAmount, billStatusMeta, canPayBill, formatBillDate } from "../../utils/bill-document";
+import { billAmount, billListStamp, billStatusMeta, canPayBill } from "../../utils/bill-document";
 import { rnShadow } from "../../utils/shadow";
 import { sf, sw } from "../../utils/responsive";
 
@@ -44,7 +44,9 @@ export function BillSummary({ summary, t }) {
           {clear
             ? summary.review > 0
               ? t("bills.list.inReviewCount", { count: summary.review })
-              : t("bills.list.paidCount", { count: summary.paid })
+              : summary.paid > 0
+                ? t("bills.list.paidTotal", { count: summary.paid, amount: formatCommunityMoney(summary.paidTotal) })
+                : t("bills.list.paidCount", { count: summary.paid })
             : summary.overdue > 0
               ? t("bills.list.overdueOf", { overdue: summary.overdue, count: summary.due })
               : t("bills.list.toPayCount", { count: summary.due })}
@@ -86,32 +88,38 @@ export function BillFilters({ value, onChange, summary, t }) {
 export function BillCard({ bill, icon, title, subtitle, t, busy = false, onPress, onPay, payLabel }) {
   const status = billStatusMeta(bill, t);
   const tone = TONE[status.tone] ?? TONE.warning;
-  const due = formatBillDate(bill.due_date);
   const payable = canPayBill(bill);
-  const paid = status.group === "paid";
+  const stamp = billListStamp(bill, status);
+  const dueLine = status.key === "overdue"
+    ? (stamp ? `${status.label} · ${stamp}` : status.label)
+    : stamp
+      ? t("bills.list.dueOn", { date: stamp })
+      : status.label;
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]} accessibilityRole="button" accessibilityLabel={`${title}, ${status.label}`}>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]} accessibilityRole="button" accessibilityLabel={`${title}, ${formatCommunityMoney(billAmount(bill))}, ${status.label}`}>
       <View style={styles.cardTop}>
         <View style={styles.iconWell}>{icon}</View>
         <View style={styles.cardCopy}>
-          <Text style={styles.cardTitle} numberOfLines={2}>{title}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.cardTitle} numberOfLines={2}>{title}</Text>
+            <Text style={[styles.amount, status.key === "overdue" && styles.amountOverdue]}>
+              {formatCommunityMoney(billAmount(bill))}
+            </Text>
+          </View>
           {subtitle ? <Text style={styles.cardSub} numberOfLines={1}>{subtitle}</Text> : null}
+          <Text style={styles.when} numberOfLines={1}>
+            {status.group === "due" ? (
+              <Text style={{ color: tone.fg }}>{dueLine}</Text>
+            ) : (
+              <>
+                <Text style={{ color: tone.fg }}>{status.label}</Text>
+                {stamp ? <Text>{` · ${stamp}`}</Text> : null}
+              </>
+            )}
+          </Text>
         </View>
-        <View style={[styles.badge, { backgroundColor: tone.bg, borderColor: tone.border }]}>
-          <Text style={[styles.badgeText, { color: tone.fg }]}>{status.label}</Text>
-        </View>
-      </View>
-
-      <View style={styles.amountRow}>
-        <Text style={styles.amount}>{formatCommunityMoney(billAmount(bill))}</Text>
-        <Text style={[styles.dueText, status.key === "overdue" && styles.dueOverdue]}>
-          {paid
-            ? t("bills.list.viewReceipt")
-            : due
-              ? status.key === "overdue" ? t("bills.list.wasDue", { date: due }) : t("bills.list.dueOn", { date: due })
-              : null}
-        </Text>
+        <Feather name="chevron-right" size={sf(16)} color={PropertyHubTheme.textMuted} style={styles.chevron} />
       </View>
 
       {status.key === "rejected" && bill.rejection_reason ? (
@@ -134,25 +142,19 @@ export function BillCard({ bill, icon, title, subtitle, t, busy = false, onPress
       ) : null}
 
       {payable && onPay ? (
-        <View style={styles.actions}>
-          <Pressable
-            onPress={onPay}
-            disabled={busy}
-            style={({ pressed }) => [styles.payBtn, pressed && styles.cardPressed, busy && styles.disabled]}
-            accessibilityRole="button"
-          >
-            {busy ? <ActivityIndicator color="#FFFFFF" /> : (
-              <>
-                <Feather name="credit-card" size={sf(15)} color="#FFFFFF" />
-                <Text style={styles.payText}>{payLabel || t("bills.list.payNow")}</Text>
-              </>
-            )}
-          </Pressable>
-          <View style={styles.detailsLink}>
-            <Text style={styles.detailsText}>{t("bills.list.invoice")}</Text>
-            <Feather name="chevron-right" size={sf(15)} color={PropertyHubTheme.deepTeal} />
-          </View>
-        </View>
+        <Pressable
+          onPress={onPay}
+          disabled={busy}
+          style={({ pressed }) => [styles.payBtn, pressed && styles.cardPressed, busy && styles.disabled]}
+          accessibilityRole="button"
+        >
+          {busy ? <ActivityIndicator color="#FFFFFF" /> : (
+            <>
+              <Feather name="credit-card" size={sf(15)} color="#FFFFFF" />
+              <Text style={styles.payText}>{payLabel || t("bills.list.payNow")}</Text>
+            </>
+          )}
+        </Pressable>
       ) : null}
     </Pressable>
   );
@@ -215,21 +217,18 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: "row", alignItems: "flex-start", gap: sw(12) },
   iconWell: { width: sw(42), height: sw(42), borderRadius: sw(13), alignItems: "center", justifyContent: "center", backgroundColor: PropertyHubTheme.mint },
   cardCopy: { flex: 1, minWidth: 0 },
-  cardTitle: { fontFamily: Fonts.bold, fontSize: sf(15), lineHeight: sf(20), color: PropertyHubTheme.text },
-  cardSub: { fontFamily: Fonts.regular, fontSize: sf(12.5), color: PropertyHubTheme.textMuted, marginTop: sw(2) },
-  badge: { borderRadius: 999, borderWidth: 1, paddingHorizontal: sw(10), paddingVertical: sw(4), flexShrink: 0 },
-  badgeText: { fontFamily: Fonts.semiBold, fontSize: sf(11) },
-  amountRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: sw(10) },
-  amount: { fontFamily: Fonts.bold, fontSize: sf(20), color: PropertyHubTheme.text },
-  dueText: { fontFamily: Fonts.medium, fontSize: sf(12.5), color: PropertyHubTheme.textMuted },
-  dueOverdue: { color: "#B91C1C" },
+  titleRow: { flexDirection: "row", alignItems: "flex-start", gap: sw(10) },
+  cardTitle: { flex: 1, minWidth: 0, fontFamily: Fonts.bold, fontSize: sf(15), lineHeight: sf(20), color: PropertyHubTheme.text },
+  cardSub: { fontFamily: Fonts.regular, fontSize: sf(12.5), lineHeight: sf(17), color: PropertyHubTheme.textMuted, marginTop: sw(2) },
+  amount: { fontFamily: Fonts.bold, fontSize: sf(15), lineHeight: sf(20), color: PropertyHubTheme.text, fontVariant: ["tabular-nums"], flexShrink: 0 },
+  amountOverdue: { color: "#B91C1C" },
+  when: { fontFamily: Fonts.medium, fontSize: sf(12.5), lineHeight: sf(17), color: PropertyHubTheme.textMuted, marginTop: sw(4) },
+  chevron: { marginTop: sw(2) },
   reason: { flexDirection: "row", gap: sw(8), padding: sw(10), borderRadius: sw(12), backgroundColor: "#FEF2F2" },
   reasonText: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(12.5), lineHeight: sf(18), color: "#7F1D1D" },
   hint: { flexDirection: "row", alignItems: "center", gap: sw(8), padding: sw(10), borderRadius: sw(12), backgroundColor: "#EFF6FF" },
   hintText: { flex: 1, fontFamily: Fonts.medium, fontSize: sf(12.5), lineHeight: sf(18) },
-  actions: { flexDirection: "row", alignItems: "center", gap: sw(12) },
   payBtn: {
-    flex: 1,
     minHeight: sw(44),
     borderRadius: sw(12),
     backgroundColor: PropertyHubTheme.teal,
@@ -239,8 +238,6 @@ const styles = StyleSheet.create({
     gap: sw(8),
   },
   payText: { fontFamily: Fonts.bold, fontSize: sf(14), color: "#FFFFFF" },
-  detailsLink: { flexDirection: "row", alignItems: "center", gap: sw(2), paddingHorizontal: sw(4) },
-  detailsText: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: PropertyHubTheme.deepTeal },
   disabled: { opacity: 0.55 },
 
   empty: { alignItems: "center", backgroundColor: "#FFFFFF", borderRadius: sw(18), paddingHorizontal: sw(20), paddingVertical: sw(28) },

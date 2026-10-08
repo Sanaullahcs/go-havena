@@ -48,7 +48,7 @@ import {
   defaultBillFilter,
   filterBills,
 } from "../../../../components/payments/bill-list-parts";
-import { buildBillDocument, canPayBill, sortBills, summarizeBills } from "../../../../utils/bill-document";
+import { billListFields, buildBillDocument, canPayBill, sortBills, summarizeBills } from "../../../../utils/bill-document";
 import { useSessionUser } from "../../../../hooks/use-session-user";
 
 const MINE_TAB = "mine";
@@ -392,33 +392,35 @@ export default function MyAmenityBillsScreen() {
         subtitle={showingMine ? t("services.myAmenityBillsSub") : t("services.myAmenityBillsReceivedSub")}
       />
 
-      <View style={styles.toolbar}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabBar}
-          keyboardShouldPersistTaps="handled"
-        >
-          {tabs.map((item) => {
-            const active = tab === item.id;
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => setTab(item.id)}
-                style={[styles.tab, active && styles.tabActive]}
-              >
-                <Text
-                  style={[styles.tabText, active && styles.tabTextActive]}
-                  numberOfLines={1}
-                  includeFontPadding={false}
+      {tabs.length > 1 ? (
+        <View style={styles.toolbar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabBar}
+            keyboardShouldPersistTaps="handled"
+          >
+            {tabs.map((item) => {
+              const active = tab === item.id;
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => setTab(item.id)}
+                  style={[styles.tab, active && styles.tabActive]}
                 >
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+                  <Text
+                    style={[styles.tabText, active && styles.tabTextActive]}
+                    numberOfLines={1}
+                    includeFontPadding={false}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -451,16 +453,16 @@ export default function MyAmenityBillsScreen() {
               {visibleBills.length === 0 ? (
                 <BillEmpty filter={activeFilter} t={t} />
               ) : (
-                visibleBills.map((bill) => (
+                visibleBills.map((bill) => {
+                  const fields = billListFields(bill, "amenity");
+                  return (
                   <BillCard
                     key={bill.resident_bill_id || bill.id}
                     bill={bill}
                     t={t}
                     icon={<AmenityIcon iconKey={bill.amenity_icon_key} name={bill.amenity_name} size={sf(18)} />}
-                    title={bill.title || bill.amenity_name || t("services.myAmenityBillsTitle")}
-                    subtitle={[bill.title && bill.title !== bill.amenity_name ? bill.amenity_name : null, bill.billing_month_label]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    title={fields.title || t("services.myAmenityBillsTitle")}
+                    subtitle={fields.subtitle}
                     payLabel={payActionLabel(bill, t)}
                     onPay={() => startPayment(bill)}
                     onPress={() => {
@@ -472,7 +474,8 @@ export default function MyAmenityBillsScreen() {
                       setDetailFor(bill);
                     }}
                   />
-                ))
+                  );
+                })
               )}
             </>
           )

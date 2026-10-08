@@ -4939,6 +4939,8 @@
       "inReviewCount_other": "{{count}} pagos en revisión",
       "paidCount_one": "{{count}} factura pagada",
       "paidCount_other": "{{count}} facturas pagadas",
+      "paidTotal_one": "{{count}} factura pagada · {{amount}}",
+      "paidTotal_other": "{{count}} facturas pagadas · {{amount}}",
       "filter": {
         "due": "Por pagar",
         "review": "En revisión",

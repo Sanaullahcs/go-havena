@@ -24,10 +24,9 @@ import { Fonts } from "../../../../constants/font";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { useSessionUser } from "../../../../hooks/use-session-user";
 import { sf, sw } from "../../../../utils/responsive";
-import { buildBillDocument, canPayBill, sortBills, summarizeBills } from "../../../../utils/bill-document";
+import { billListFields, buildBillDocument, canPayBill, sortBills, summarizeBills } from "../../../../utils/bill-document";
 import {
   acknowledgeServiceBill,
-  billingFrequencyLabel,
   fetchServiceBills,
   resolveViewerBillingAccess,
   submitServiceBillProof,
@@ -42,14 +41,6 @@ function payActionLabel(bill, t) {
   if (needsAcknowledgeBeforePay(bill)) return t("bills.list.acknowledgeAndPay");
   if (bill.online_payment?.available) return t("bills.list.payNow");
   return String(bill.status ?? "").toLowerCase() === "rejected" ? t("bills.list.resubmitProof") : t("bills.list.uploadProof");
-}
-
-function billSubtitle(bill, t) {
-  const parts = [
-    bill.service_name && bill.service_name !== bill.title ? bill.service_name : null,
-    bill.billing_period_label || billingFrequencyLabel(bill.billing_frequency, t),
-  ];
-  return parts.filter(Boolean).join(" · ");
 }
 
 export default function UnitBillsScreen() {
@@ -199,15 +190,17 @@ export default function UnitBillsScreen() {
               {visible.length === 0 ? (
                 <BillEmpty filter={activeFilter} t={t} />
               ) : (
-                visible.map((bill) => (
+                visible.map((bill) => {
+                  const fields = billListFields(bill, "unit");
+                  return (
                   <BillCard
                     key={bill.id}
                     bill={bill}
                     t={t}
                     busy={busyId === bill.id}
                     icon={<Feather name="home" size={sf(18)} color={PropertyHubTheme.deepTeal} />}
-                    title={bill.title || bill.service_name}
-                    subtitle={billSubtitle(bill, t)}
+                    title={fields.title}
+                    subtitle={fields.subtitle}
                     payLabel={payActionLabel(bill, t)}
                     onPay={() => pay(bill)}
                     onPress={() => {
@@ -219,12 +212,9 @@ export default function UnitBillsScreen() {
                       setDetailFor(bill);
                     }}
                   />
-                ))
+                  );
+                })
               )}
-              <View style={styles.noteCard}>
-                <Feather name="info" size={sf(14)} color={PropertyHubTheme.teal} />
-                <Text style={styles.noteText}>{t("services.unitBillsContactIntro")}</Text>
-              </View>
             </>
           )}
         </ScrollView>
@@ -287,21 +277,6 @@ const styles = {
     paddingTop: sw(12),
     paddingBottom: sw(32),
     gap: sw(12),
-  },
-  noteCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: sw(10),
-    borderRadius: sw(14),
-    padding: sw(14),
-    backgroundColor: "#F8FAFC",
-  },
-  noteText: {
-    flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: sf(12.5),
-    lineHeight: sf(18),
-    color: PropertyHubTheme.textMuted,
   },
   emptyCard: {
     alignItems: "center",

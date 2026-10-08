@@ -15,6 +15,89 @@ export function formatBillDate(value) {
   return date ? date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null;
 }
 
+/** "8 Oct 2026, 3:15 PM" when the value has a clock, otherwise the date only. */
+export function formatBillStamp(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  const hasClock = /(?:T|\s)\d{2}:\d{2}/.test(raw);
+  if (!hasClock) return formatBillDate(raw);
+  const date = new Date(raw.includes("T") ? raw : raw.replace(" ", "T"));
+  if (Number.isNaN(date.getTime())) return formatBillDate(raw);
+  const day = date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const time = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return `${day}, ${time}`;
+}
+
+/** When this bill happened: paid or submitted time, or the due date. */
+export function billListStamp(bill, status) {
+  if (!status) return null;
+  if (status.group === "paid" || status.group === "review") {
+    return formatBillStamp(
+      bill?.paid_at
+      || bill?.approved_at
+      || bill?.payment_acknowledgement?.approved_at
+      || bill?.payment_proof?.submitted_at
+      || bill?.payment_acknowledgement?.payment_date
+      || bill?.payment_proof?.payment_date,
+    );
+  }
+  return formatBillDate(bill?.due_date);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** "Pool Upkeep — October 2026" → "Pool Upkeep" when the period is already shown separately. */
+function stripTrailingLabel(title, label) {
+  const text = String(title || "").trim();
+  const suffix = String(label || "").trim();
+  if (!text || !suffix) return text;
+  const separated = text.replace(new RegExp(`\\s*[\\u2014\\u2013\\-|·•]\\s*${escapeRegExp(suffix)}\\s*$`, "i"), "").trim();
+  if (separated && separated !== text) return separated;
+  if (text.toLowerCase().endsWith(suffix.toLowerCase())) {
+    const cut = text.slice(0, text.length - suffix.length).replace(/[\s\u2014\u2013\-|·•]+$/u, "").trim();
+    if (cut) return cut;
+  }
+  return text;
+}
+
+/** "2026-10" or "October 2026" → "Oct 2026". A bare year stays a year. */
+export function shortBillPeriod(iso, label) {
+  const key = String(iso || "");
+  if (/^\d{4}-\d{2}/.test(key)) {
+    const date = dateOnly(`${key.slice(0, 7)}-01`);
+    if (date) return date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  }
+  const text = String(label || "").trim();
+  if (/^\d{4}$/.test(text)) return text;
+  const parsed = text ? new Date(`${text.replace(/,/g, "")} 1`) : null;
+  if (parsed && !Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  }
+  return text || null;
+}
+
+/**
+ * First-screen copy for an amenity or unit bill.
+ * The period is shown once, and the place is omitted when it repeats the title.
+ */
+export function billListFields(bill, kind) {
+  const service = kind === "unit" ? bill?.service_name : bill?.amenity_name;
+  const periodLabel = kind === "unit" ? bill?.billing_period_label : bill?.billing_month_label;
+  const periodKey = kind === "unit" ? bill?.billing_period : bill?.billing_month;
+  const raw = String((kind === "unit" ? bill?.title || service : bill?.title || service) || "").trim();
+  const title = stripTrailingLabel(raw, periodLabel) || String(service || raw).trim();
+  const serviceName = String(service || "").trim();
+  const alreadyNamed = serviceName && new RegExp(`^${escapeRegExp(serviceName)}(?:\\s*[\\u2014\\u2013\\-|·•]|$)`, "i").test(title);
+  const place = serviceName && !alreadyNamed ? serviceName : null;
+  const period = shortBillPeriod(periodKey, periodLabel);
+  return {
+    title,
+    subtitle: [place, period].filter(Boolean).join(" · "),
+  };
+}
+
 function startOfToday() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);

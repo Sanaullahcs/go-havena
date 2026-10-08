@@ -4979,6 +4979,8 @@
       "inReviewCount_other": "{{count}} payments being reviewed",
       "paidCount_one": "{{count}} bill paid",
       "paidCount_other": "{{count}} bills paid",
+      "paidTotal_one": "{{count}} bill paid · {{amount}}",
+      "paidTotal_other": "{{count}} bills paid · {{amount}}",
       "filter": {
         "due": "To pay",
         "review": "In review",

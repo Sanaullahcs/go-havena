@@ -1641,6 +1641,8 @@ class UnitServiceBillService
             'acknowledged_at' => $row->acknowledged_at,
             'payment_proof' => $this->formatPaymentProof($row, $request),
             'payment_method' => $row->payment_method ?? null,
+            'approved_at' => $row->approved_at ?? null,
+            'paid_at' => (string) $row->status === self::STATUS_PAID ? ($row->approved_at ?? null) : null,
             'rejection_reason' => $row->rejection_reason,
             'created_at' => $row->created_at,
         ];

@@ -4939,6 +4939,8 @@
       "inReviewCount_other": "{{count}} دفعات قيد المراجعة",
       "paidCount_one": "فاتورة واحدة مدفوعة",
       "paidCount_other": "{{count}} فواتير مدفوعة",
+      "paidTotal_one": "فاتورة واحدة مدفوعة · {{amount}}",
+      "paidTotal_other": "{{count}} فواتير مدفوعة · {{amount}}",
       "filter": {
         "due": "للدفع",
         "review": "قيد المراجعة",
