@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  Pressable,
   StyleSheet,
   Animated,
   Modal,
   Platform,
+  Pressable,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -65,6 +65,7 @@ export default function InboxMenu({
   triggerRef,
   messageUnread = 0,
   notificationUnread = 0,
+  totalUnread,
   onMessagesPress,
   showMessages = true,
   onNotificationsPress,
@@ -102,15 +103,17 @@ export default function InboxMenu({
 
   if (!visible) return null;
 
-  const totalUnread = messageUnread + notificationUnread;
+  const headerUnread = typeof totalUnread === "number" ? totalUnread : messageUnread + notificationUnread;
 
   return (
     <Modal transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+      <View style={styles.modalRoot}>
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t("notifications.closeInbox", "Close inbox")} />
 
       <Animated.View
+        pointerEvents="box-none"
         style={[
-          styles.panel,
+          styles.panelHost,
           { top: panel.top, left: panel.left, width: PANEL_WIDTH },
           {
             opacity: anim,
@@ -125,12 +128,13 @@ export default function InboxMenu({
           },
         ]}
       >
+      <View style={styles.panel} collapsable={false}>
         <View style={styles.header}>
           <View style={styles.headerCopy}>
             <Text style={styles.headerTitle}>{t("notifications.inbox", "Inbox")}</Text>
             <Text style={styles.headerSub}>
-              {totalUnread > 0
-                ? t("notifications.unreadCount", { count: totalUnread, defaultValue: "{{count}} unread" })
+              {headerUnread > 0
+                ? t("notifications.unreadCount", { count: headerUnread, defaultValue: "{{count}} unread" })
                 : t("notifications.allCaughtUp", "All caught up")}
             </Text>
           </View>
@@ -172,18 +176,27 @@ export default function InboxMenu({
             onPress={onNotificationsPress}
           />
         </View>
+      </View>
       </Animated.View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  modalRoot: {
+    flex: 1,
+  },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "transparent",
   },
-  panel: {
+  panelHost: {
     position: "absolute",
+    zIndex: 2,
+    elevation: 16,
+  },
+  panel: {
     backgroundColor: T.white,
     borderRadius: sw(16),
     borderWidth: 1,

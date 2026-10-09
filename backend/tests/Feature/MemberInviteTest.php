@@ -167,7 +167,27 @@ class MemberInviteTest extends TestCase
                 'residence_type' => 'tenant',
             ])
             ->assertOk()
-            ->assertJsonPath('data.email', 'jane.invite@example.com');
+            ->assertJsonPath('data.email', 'jane.invite@example.com')
+            ->assertJsonPath('data.profile.unit_number', 'Unit 12B');
+
+        $this->putJson('/api/v1/me', [
+                'display_name' => 'Jane Resident',
+                'unit_number'  => 'Unit 99Z',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['unit_number']);
+
+        $this->putJson('/api/v1/me', [
+                'display_name' => 'Jane Resident',
+                'unit_number'  => '',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['unit_number']);
+
+        $this->assertDatabaseHas('profiles', [
+            'user_id'     => $claimantId,
+            'unit_number' => 'Unit 12B',
+        ]);
     }
 
     public function test_community_admin_can_view_invited_resident_profile_with_invite_code(): void

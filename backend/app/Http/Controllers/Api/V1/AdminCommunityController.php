@@ -641,6 +641,8 @@ class AdminCommunityController extends Controller
             'success',
             'Community admin access granted',
             "You have been assigned to manage {$community->name} in Havena.",
+            null,
+            ['scope' => 'account', 'community_id' => $community->id],
         );
 
         app(ReferralService::class)->ensureReferralCode($assigned->fresh());

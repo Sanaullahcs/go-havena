@@ -2102,7 +2102,7 @@ class NoticeController extends Controller
                 "{$label} pending approval",
                 "A resident submitted \"{$title}\" for review.",
                 $href,
-                ['category' => $category, 'kind' => $kind],
+                ['category' => $category, 'kind' => $kind, 'community_id' => $communityId],
             );
         }
     }

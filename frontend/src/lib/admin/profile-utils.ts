@@ -54,24 +54,6 @@ export const DEFAULT_ADMIN_NOTIFICATION_PREFS: AdminNotificationPrefs = {
   weeklyDigest: false,
 };
 
-const PREFS_STORAGE_PREFIX = "nbr_admin_notif_prefs_";
-
-export function loadAdminNotificationPrefs(userId?: number | null): AdminNotificationPrefs {
-  if (typeof window === "undefined" || !userId) return { ...DEFAULT_ADMIN_NOTIFICATION_PREFS };
-  try {
-    const raw = localStorage.getItem(`${PREFS_STORAGE_PREFIX}${userId}`);
-    if (!raw) return { ...DEFAULT_ADMIN_NOTIFICATION_PREFS };
-    return { ...DEFAULT_ADMIN_NOTIFICATION_PREFS, ...JSON.parse(raw) };
-  } catch {
-    return { ...DEFAULT_ADMIN_NOTIFICATION_PREFS };
-  }
-}
-
-export function saveAdminNotificationPrefs(userId: number, prefs: AdminNotificationPrefs) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(`${PREFS_STORAGE_PREFIX}${userId}`, JSON.stringify(prefs));
-}
-
 export function profileFormFromMe(me: MeProfile) {
   return {
     name: me.name ?? me.profile?.display_name ?? "",

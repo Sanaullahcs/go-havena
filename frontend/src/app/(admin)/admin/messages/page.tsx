@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChatShell, type ChatConversation, type ChatMessage } from "@/components/shared/chat";
 import { AdminNewChatSheet } from "@/components/admin/admin-new-chat-sheet";
 import {
+  emitMessagesUnread,
   fetchConversations,
   fetchConversationMessages,
   sendConversationMessage,
@@ -12,6 +13,8 @@ import {
   type Conversation,
   type CommunityMember,
 } from "@/lib/api/messages";
+import { subscribeForegroundNotification } from "@/lib/notifications/foreground-notification-events";
+import { emitNotificationsRefresh } from "@/lib/api/notifications";
 import { formatConversationTime, formatMessageTime } from "@/lib/admin/message-time";
 import { resolveMediaUrl } from "@/lib/media/resolve-url";
 import { getUser, updateUser } from "@/lib/auth/session";
@@ -42,6 +45,8 @@ function toChatConversation(conv: Conversation): ChatConversation {
   };
 }
 
+const MESSAGE_SYNC_MS = 4_000;
+
 function toChatMessage(msg: { id: number; sender_id: number; sender_name: string; body: string; created_at: string }): ChatMessage {
   return {
     id: msg.id,
@@ -65,6 +70,16 @@ export default function AdminMessagesPage() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [messages, setMessages] = useState<Record<number, ChatMessage[]>>({});
   const [activeId, setActiveId] = useState<number | null>(null);
+  const activeIdRef = useRef<number | null>(null);
+  const lastPublishedUnreadRef = useRef<number | null>(null);
+  activeIdRef.current = activeId;
+
+  const publishUnread = useCallback((count: number) => {
+    emitMessagesUnread(count);
+    if (lastPublishedUnreadRef.current === count) return;
+    lastPublishedUnreadRef.current = count;
+    emitNotificationsRefresh();
+  }, []);
   const [listingContext, setListingContext] = useState<string | null>(null);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
@@ -73,38 +88,68 @@ export default function AdminMessagesPage() {
   const [newChatOpen, setNewChatOpen] = useState(false);
 
   const loadConversations = useCallback(async (silent = false) => {
-    if (!silent) setLoadingList(true);
-    setListError(null);
+    if (!silent) {
+      setLoadingList(true);
+      setListError(null);
+    }
     try {
       const rows = await fetchConversations();
-      setConversations(rows.map(toChatConversation));
+      const openId = activeIdRef.current;
+      const mapped = rows.map(toChatConversation).map((conversation) =>
+        openId != null && conversation.id === openId ? { ...conversation, unread: 0 } : conversation,
+      );
+      setConversations(mapped);
+      publishUnread(mapped.reduce((sum, conversation) => sum + conversation.unread, 0));
+      if (!silent) setListError(null);
     } catch (err) {
-      const message = apiError(err);
-      setListError(message);
-      if (!silent) setConversations([]);
+      if (!silent) {
+        setListError(apiError(err));
+        setConversations([]);
+      }
     } finally {
       if (!silent) setLoadingList(false);
     }
-  }, []);
+  }, [publishUnread]);
 
   const loadThread = useCallback(async (conversationId: number, silent = false) => {
     if (!silent) setLoadingThread(true);
     try {
       const { messages: rows, listing } = await fetchConversationMessages(conversationId);
-      setMessages((prev) => ({
-        ...prev,
-        [conversationId]: rows.map(toChatMessage),
-      }));
+      const chatMessages = rows.map(toChatMessage);
+      const newest = rows[rows.length - 1];
+      setMessages((prev) => {
+        const current = prev[conversationId] ?? [];
+        const byId = new Map<number, ChatMessage>();
+        for (const message of current) byId.set(message.id, message);
+        for (const message of chatMessages) byId.set(message.id, message);
+        const merged = [...byId.values()].sort((a, b) => a.id - b.id);
+        return { ...prev, [conversationId]: merged };
+      });
       setListingContext(listing?.title ? `About listing: ${listing.title}` : null);
-      setConversations((prev) =>
-        prev.map((c) => (c.id === conversationId ? { ...c, unread: 0 } : c)),
-      );
+      setConversations((prev) => {
+        const next = prev.map((conversation) =>
+          conversation.id === conversationId
+            ? {
+                ...conversation,
+                unread: 0,
+                ...(newest
+                  ? {
+                      lastMessage: newest.body,
+                      lastTime: formatConversationTime(newest.created_at),
+                    }
+                  : {}),
+              }
+            : conversation,
+        );
+        publishUnread(next.reduce((sum, conversation) => sum + conversation.unread, 0));
+        return next;
+      });
     } catch (err) {
-      toastError(apiError(err));
+      if (!silent) toastError(apiError(err));
     } finally {
       if (!silent) setLoadingThread(false);
     }
-  }, []);
+  }, [publishUnread]);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,12 +171,41 @@ export default function AdminMessagesPage() {
     }
 
     bootstrap();
-    const timer = window.setInterval(() => loadConversations(true), 30_000);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
     };
   }, [loadConversations]);
+
+  useEffect(() => {
+    const sync = () => {
+      void loadConversations(true);
+      if (activeId) void loadThread(activeId, true);
+    };
+
+    const timer = window.setInterval(sync, MESSAGE_SYNC_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", sync);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", sync);
+    };
+  }, [activeId, loadConversations, loadThread]);
+
+  useEffect(() => {
+    return subscribeForegroundNotification((payload) => {
+      const link = payload.link ?? "";
+      const title = payload.title.toLowerCase();
+      if (!link.includes("message") && !title.includes("message")) return;
+      void loadConversations(true);
+      if (activeId) void loadThread(activeId, true);
+    });
+  }, [activeId, loadConversations, loadThread]);
 
   useEffect(() => {
     if (!requestedConversationId || Number.isNaN(requestedConversationId)) return;
@@ -143,9 +217,7 @@ export default function AdminMessagesPage() {
 
   useEffect(() => {
     if (!activeId) return;
-    loadThread(activeId);
-    const timer = window.setInterval(() => loadThread(activeId, true), 15_000);
-    return () => window.clearInterval(timer);
+    void loadThread(activeId);
   }, [activeId, loadThread]);
 
   const activeMessages = activeId ? (messages[activeId] ?? []) : [];
@@ -159,7 +231,11 @@ export default function AdminMessagesPage() {
     if (!messages[id]) {
       loadThread(id);
     } else {
-      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)));
+      setConversations((prev) => {
+        const next = prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c));
+        publishUnread(next.reduce((sum, conversation) => sum + conversation.unread, 0));
+        return next;
+      });
     }
   };
 

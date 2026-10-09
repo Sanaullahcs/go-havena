@@ -77,6 +77,7 @@ export default function Profile() {
   const roleKey = fields.role === "guest" ? "guest" : fields.role === "community_admin" || fields.role === "admin" ? "admin" : "resident";
   const roleLabel = t(`profile.roles.${roleKey}`);
   const showSubscriptionTab = isCommunityAdmin(profile);
+  const showSettingsGear = isCommunityAdmin(profile ?? sessionUser);
   const featureUser = profile ?? sessionUser;
   const showPoints = isResidentFeatureEnabled(featureUser, "points");
   const showPosts = isResidentFeatureEnabled(featureUser, "feed");
@@ -88,13 +89,15 @@ export default function Profile() {
         title={t("profile.title")}
         iconOnly
         right={
-          <Pressable
-            onPress={() => router.push("/screens/settings")}
-            style={styles.headerBtn}
-            accessibilityLabel={t("profile.settings")}
-          >
-            <Feather name="settings" size={sf(17)} color={Colors.textPrimary} />
-          </Pressable>
+          showSettingsGear ? (
+            <Pressable
+              onPress={() => router.push("/screens/settings")}
+              style={styles.headerBtn}
+              accessibilityLabel={t("profile.settings")}
+            >
+              <Feather name="settings" size={sf(17)} color={Colors.textPrimary} />
+            </Pressable>
+          ) : null
         }
       />
 

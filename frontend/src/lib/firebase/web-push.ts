@@ -2,6 +2,7 @@
 
 import { getApps, initializeApp } from "firebase/app";
 import { getMessaging, getToken, isSupported, onMessage, type Messaging } from "firebase/messaging";
+import { getUser, getManagedCommunityId, isCommunityAdminUser } from "@/lib/auth/session";
 import { getFirebaseVapidKey, getFirebaseWebConfig, isFirebaseWebConfigured } from "@/lib/firebase/config";
 import { registerFcmDevice, unregisterFcmDevice } from "@/lib/api/devices";
 import {
@@ -94,6 +95,121 @@ function getStoredFcmToken(): string | null {
   return localStorage.getItem(FCM_TOKEN_KEY);
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function firebaseErrorCode(err: unknown): string {
+  if (err && typeof err === "object" && "code" in err && typeof err.code === "string") {
+    return err.code;
+  }
+  return "";
+}
+
+/** Chrome can report offline on localhost while Google is still reachable. Firebase refuses getToken in that state. */
+function forceNavigatorOnline(): () => void {
+  try {
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      get: () => true,
+    });
+  } catch {
+    return () => {};
+  }
+
+  return () => {
+    Reflect.deleteProperty(navigator, "onLine");
+  };
+}
+
+async function browserCanReachFirebase(): Promise<boolean> {
+  try {
+    await fetch("https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js", {
+      method: "HEAD",
+      mode: "no-cors",
+      cache: "no-store",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function registerMessagingServiceWorker(): Promise<ServiceWorkerRegistration> {
+  const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", {
+    scope: "/",
+    updateViaCache: "none",
+  });
+  await navigator.serviceWorker.ready;
+
+  const worker = registration.active ?? registration.installing ?? registration.waiting;
+  if (!worker || worker.state === "activated") {
+    return registration.active ? await navigator.serviceWorker.ready : registration;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error("Firebase service worker did not activate."));
+    }, 10000);
+    const finish = () => {
+      if (worker.state === "activated") {
+        window.clearTimeout(timer);
+        resolve();
+        return;
+      }
+      if (worker.state === "redundant") {
+        window.clearTimeout(timer);
+        reject(new Error("Firebase service worker failed to activate."));
+      }
+    };
+    finish();
+    worker.addEventListener("statechange", finish);
+  });
+
+  return navigator.serviceWorker.ready;
+}
+
+async function requestFcmToken(
+  messaging: Messaging,
+  vapidKey: string,
+  registration: ServiceWorkerRegistration,
+): Promise<string> {
+  const reachable = await browserCanReachFirebase();
+  if (!navigator.onLine && !reachable) {
+    throw new Error("Chrome is offline, so a desktop push token cannot be registered.");
+  }
+
+  const readToken = async (forceOnline: boolean) => {
+    const restore = forceOnline ? forceNavigatorOnline() : () => {};
+    try {
+      const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
+      if (!token) {
+        throw new Error("Could not get an FCM token.");
+      }
+      return token;
+    } finally {
+      restore();
+    }
+  };
+
+  try {
+    return await readToken(!navigator.onLine);
+  } catch (err) {
+    const code = firebaseErrorCode(err);
+    const retryable =
+      code.includes("app-offline") ||
+      code.includes("failed-service-worker-registration") ||
+      code.includes("token-subscribe-failed");
+    if (!retryable || !reachable) {
+      throw err;
+    }
+    await delay(1000);
+    return readToken(true);
+  }
+}
+
 export async function enableWebPush(): Promise<{ ok: true } | { ok: false; message: string }> {
   if (!isFirebaseWebConfigured()) {
     return { ok: false, message: "Firebase web push is not configured. Add NEXT_PUBLIC_FIREBASE_* env vars." };
@@ -103,7 +219,9 @@ export async function enableWebPush(): Promise<{ ok: true } | { ok: false; messa
     return { ok: false, message: "This browser does not support notifications." };
   }
 
-  const permission = await Notification.requestPermission();
+  const permission = Notification.permission === "granted"
+    ? "granted"
+    : await Notification.requestPermission();
   if (permission !== "granted") {
     return { ok: false, message: "Notification permission was denied." };
   }
@@ -124,11 +242,8 @@ export async function enableWebPush(): Promise<{ ok: true } | { ok: false; messa
       };
     }
 
-    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
-    const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
-    if (!token) {
-      return { ok: false, message: "Could not get an FCM token." };
-    }
+    const registration = await registerMessagingServiceWorker();
+    const token = await requestFcmToken(messaging, vapidKey, registration);
 
     await registerFcmDevice(token);
     storeFcmToken(token);
@@ -252,7 +367,23 @@ function parseIncomingPushPayload(payload: {
     link: rawLink ? resolvePushLink(rawLink, hints) : null,
     tag,
     category: hints.category,
+    communityId: data.community_id ?? null,
+    scope: data.scope ?? null,
   };
+}
+
+function isAuthorizedCommunityAdminPush(message: WebPushMessagePayload): boolean {
+  const user = getUser();
+  if (!user || !isCommunityAdminUser(user)) return true;
+  if (user.active_context === "resident" || user.active_mode === "resident") return true;
+  if (message.scope === "account") return true;
+
+  const incoming = message.communityId ? Number(message.communityId) : null;
+  if (!incoming) return true;
+  if (user.status === "suspended" || user.community_admin_status !== "approved") return false;
+
+  const allowed = getManagedCommunityId(user);
+  return allowed != null && Number(allowed) === incoming;
 }
 
 export async function subscribeForegroundMessages(
@@ -263,6 +394,29 @@ export async function subscribeForegroundMessages(
 
   return onMessage(messaging, (payload) => {
     const message = parseIncomingPushPayload(payload);
+    if (!isAuthorizedCommunityAdminPush(message)) return;
     void displayForegroundWebPush(message, onInApp);
   });
+}
+
+export function handleServiceWorkerForegroundMessage(data: {
+  title?: string;
+  body?: string;
+  link?: string | null;
+  tag?: string | null;
+  category?: string | null;
+  communityId?: string | null;
+  scope?: string | null;
+}) {
+  const message: WebPushMessagePayload = {
+    title: data.title?.trim() || "Havena",
+    body: data.body?.trim() || "",
+    link: data.link ?? null,
+    tag: data.tag ?? null,
+    category: data.category ?? null,
+    communityId: data.communityId ?? null,
+    scope: data.scope ?? null,
+  };
+  if (!isAuthorizedCommunityAdminPush(message)) return;
+  void displayForegroundWebPush(message);
 }

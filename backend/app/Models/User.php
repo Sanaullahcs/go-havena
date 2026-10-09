@@ -33,6 +33,8 @@ class User extends Authenticatable
         'active_context_community_id',
         'community_admin_rejection_reason',
         'suspension_reason',
+        'push_notifications_enabled',
+        'admin_notification_preferences',
     ];
 
     protected $hidden = [
@@ -55,6 +57,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
             'password' => 'hashed',
+            'push_notifications_enabled' => 'boolean',
+            'admin_notification_preferences' => 'array',
         ];
     }
 

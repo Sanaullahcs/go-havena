@@ -49,6 +49,7 @@ export default function UnitPickerField({
   onBlur,
   error,
   disabled = false,
+  locked = false,
   placeholder,
   loadUnits,
   createUnit,
@@ -136,6 +137,7 @@ export default function UnitPickerField({
   };
 
   const openSheet = () => {
+    if (disabled || locked) return;
     setSearchEnabled(false);
     Keyboard.dismiss();
     setOpen(true);
@@ -201,24 +203,32 @@ export default function UnitPickerField({
     <>
       {label ? <Text style={styles.label}>{label}</Text> : null}
       <Pressable
-        disabled={disabled}
-        onPress={() => !disabled && openSheet()}
+        disabled={disabled || locked}
+        onPress={openSheet}
         style={[
           styles.trigger,
-          error && styles.triggerError,
-          disabled && styles.triggerDisabled,
+          error && !locked && styles.triggerError,
+          disabled && !locked && styles.triggerDisabled,
+          locked && styles.triggerLocked,
           containerStyle,
         ]}
       >
-        <Text style={[styles.triggerText, !displayValue && styles.placeholder]} numberOfLines={1}>
-          {displayValue || placeholder || t("unitPicker.selectUnit")}
+        <Text
+          style={[
+            styles.triggerText,
+            locked && styles.triggerTextLocked,
+            !displayValue && !locked && styles.placeholder,
+          ]}
+          numberOfLines={1}
+        >
+          {displayValue || (locked ? "" : placeholder || t("unitPicker.selectUnit"))}
         </Text>
-        <Feather name="chevron-down" size={sf(18)} color={T.gray} />
+        {locked ? null : <Feather name="chevron-down" size={sf(18)} color={T.gray} />}
       </Pressable>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <Modal
-        visible={open}
+        visible={open && !locked}
         animationType="slide"
         transparent
         statusBarTranslucent
@@ -406,6 +416,13 @@ const styles = {
   triggerDisabled: {
     opacity: 0.6,
     backgroundColor: "#F8FAFC",
+  },
+  triggerLocked: {
+    backgroundColor: "#F3F4F6",
+    borderColor: "#E5E7EB",
+  },
+  triggerTextLocked: {
+    color: "#6B7280",
   },
   triggerText: {
     flex: 1,

@@ -1,4 +1,5 @@
 import { apiRequest } from "./api-client";
+import { emitMessageUnreadRefresh, emitNotificationRefresh } from "./notification-events";
 
 export async function fetchConversations() {
   const res = await apiRequest("/conversations");
@@ -46,6 +47,10 @@ export async function fetchMessages(conversationId, { limit = 25, beforeId } = {
   }
 
   const res = await apiRequest(`/conversations/${conversationId}/messages?${params}`);
+  if (beforeId == null) {
+    emitMessageUnreadRefresh();
+    emitNotificationRefresh();
+  }
   return {
     messages: res.data ?? [],
     listing: res.meta?.conversation ?? null,

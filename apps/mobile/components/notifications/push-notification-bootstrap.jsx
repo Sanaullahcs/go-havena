@@ -6,24 +6,41 @@ import {
   addPushNotificationResponseListener,
   configurePushNotificationHandler,
   getInitialNotificationResponse,
+  getNotificationPermissionStatus,
   handleNotificationResponse,
+  isAppActiveForPush,
+  reconcilePushWithDevicePermission,
   syncNotificationBadgeCount,
-  syncPushNotificationsIfEnabled,
 } from "../../services/push-notifications";
-import { getToken } from "../../services/auth-session";
+import { getPushNotificationsEnabled } from "../../services/notification-preferences";
+import { getCachedUser, getToken, subscribeSessionUser } from "../../services/auth-session";
+import { currentCommunityId, isCommunityAdmin, isResidentMode } from "../../services/community-access";
 import { fetchNotificationUnreadCount } from "../../services/notifications-api";
-import { emitMessageUnreadRefresh, emitNotificationBanner, emitNotificationRefresh } from "../../services/notification-events";
-import i18n from "../../i18n";
+import { emitMessageUnreadRefresh, emitNotificationRefresh } from "../../services/notification-events";
 
 async function refreshUnreadBadge() {
   try {
-    const unread = await fetchNotificationUnreadCount();
+    const count = await fetchNotificationUnreadCount();
+    const unread = typeof count === "number" ? count : count?.unread ?? 0;
     await syncNotificationBadgeCount(unread);
     emitNotificationRefresh();
     return unread;
   } catch {
     return null;
   }
+}
+
+function shouldShowCommunityAdminBanner(data) {
+  const user = getCachedUser();
+  if (!user || !isCommunityAdmin(user) || isResidentMode(user)) return true;
+  if (data?.scope === "account") return true;
+
+  const incoming = data?.community_id ? Number(data.community_id) : null;
+  if (!incoming) return true;
+  if (user.status === "suspended" || user.community_admin_status !== "approved") return false;
+
+  const allowed = currentCommunityId(user);
+  return allowed != null && Number(allowed) === incoming;
 }
 
 function navigateFromNotificationResponse(response) {
@@ -34,33 +51,6 @@ function navigateFromNotificationResponse(response) {
     router.dismissAll();
   }
   router.push(route);
-}
-
-function extractNotificationContent(content) {
-  const data = content?.data ?? {};
-  let title = content?.title || data.title || data.push_title || "";
-  let body = content?.body || data.body || data.push_body || "";
-  const kind = data.kind || "";
-  const type = data.type || "";
-  const actor = data.actor_name || data.actorName || "";
-
-  if (!title) {
-    if (kind === "post_comment" || kind === "post_comment_reply") title = kind === "post_comment_reply" ? i18n.t("pushNotifications.newReply") : i18n.t("pushNotifications.newComment");
-    else if (kind === "message" || kind === "new_message") title = i18n.t("pushNotifications.newMessage");
-    else if (kind === "post_like") title = i18n.t("pushNotifications.newLike");
-    else if (kind === "post_created") title = i18n.t("pushNotifications.newCommunityPost");
-    else title = "Havena";
-  }
-
-  if (!body) {
-    if (kind === "post_comment_reply" && actor) body = i18n.t("pushNotifications.actorReplied", { actor });
-    else if (kind === "post_comment" && actor) body = i18n.t("pushNotifications.actorCommented", { actor });
-    else if ((kind === "message" || kind === "new_message") && actor) body = i18n.t("pushNotifications.actorMessaged", { actor });
-    else if (kind === "post_like" && actor) body = i18n.t("pushNotifications.actorLiked", { actor });
-    else if (kind === "post_created" && actor) body = i18n.t("pushNotifications.actorPosted", { actor });
-  }
-
-  return { title, body, kind, type };
 }
 
 export default function PushNotificationBootstrap() {
@@ -75,7 +65,7 @@ export default function PushNotificationBootstrap() {
 
       const authToken = await getToken();
       if (authToken) {
-        await syncPushNotificationsIfEnabled();
+        await reconcilePushWithDevicePermission();
         await refreshUnreadBadge();
       }
       if (!active) return;
@@ -85,29 +75,25 @@ export default function PushNotificationBootstrap() {
         navigateFromNotificationResponse(initialResponse);
       }
 
-      receivedSub = await addPushNotificationReceivedListener((notification) => {
+      receivedSub = await addPushNotificationReceivedListener(async (notification) => {
         const content = notification?.request?.content;
         emitNotificationRefresh();
         refreshUnreadBadge();
 
-        if (!content) return;
+        if (!content || !isAppActiveForPush()) return;
 
-        const { title, body, kind, type } = extractNotificationContent(content);
+        const [enabled, permission] = await Promise.all([
+          getPushNotificationsEnabled(),
+          getNotificationPermissionStatus(),
+        ]);
+        if (!enabled || permission !== "granted") return;
+
         const data = content?.data ?? {};
-        if (kind === "message" || kind === "new_message" || data.kind === "message" || data.conversation_id || data.conversationId) {
+        const kind = data.kind || "";
+        if (!shouldShowCommunityAdminBanner(data)) return;
+        if (kind === "message" || kind === "new_message" || data.conversation_id || data.conversationId) {
           emitMessageUnreadRefresh();
         }
-        const tag = data.kind && data.post_id ? `${data.kind}-${data.post_id}` : data.kind || null;
-        const actionUrl = data.action_url || data.actionUrl || null;
-        emitNotificationBanner({
-          id: tag,
-          title,
-          body,
-          kind: kind || data.kind || "",
-          type: type || data.type || "",
-          actionUrl,
-          onPress: () => navigateFromNotificationResponse({ notification }),
-        });
       });
 
       responseSub = await addPushNotificationResponseListener((response) => {
@@ -119,8 +105,19 @@ export default function PushNotificationBootstrap() {
 
     const appStateSub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
-        refreshUnreadBadge();
+        reconcilePushWithDevicePermission().finally(() => {
+          refreshUnreadBadge();
+        });
       }
+    });
+
+    const sessionSub = subscribeSessionUser(() => {
+      getToken().then((token) => {
+        if (!token) return;
+        reconcilePushWithDevicePermission().finally(() => {
+          refreshUnreadBadge();
+        });
+      });
     });
 
     return () => {
@@ -128,6 +125,7 @@ export default function PushNotificationBootstrap() {
       receivedSub.remove();
       responseSub.remove();
       appStateSub.remove();
+      sessionSub();
     };
   }, []);
 

@@ -7,7 +7,7 @@ import { getUser, isPakistanCommunityRegion, isSystemAdminUser } from "@/lib/aut
 import { FEATURES_UPDATED_EVENT } from "@/components/auth/feature-settings-sync";
 import { adminFeatureForPath, isResidentFeatureEnabled } from "@/lib/resident-features";
 import { isPlaidAvailable } from "@/lib/plaid-eligibility";
-import { fetchMessageUnreadCount } from "@/lib/api/messages";
+import { fetchMessageUnreadCount, MESSAGES_UNREAD_EVENT } from "@/lib/api/messages";
 import { HavenaMark } from "@/components/shared/havena-mark";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -234,11 +234,18 @@ function SidebarInner({
       }
     }
 
+    const onUnread = (event: Event) => {
+      const count = (event as CustomEvent<{ count?: number }>).detail?.count;
+      if (typeof count === "number" && !cancelled) setMessageUnread(count);
+    };
+
     loadUnread();
-    const timer = window.setInterval(loadUnread, 60_000);
+    const timer = window.setInterval(loadUnread, 5_000);
+    window.addEventListener(MESSAGES_UNREAD_EVENT, onUnread);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      window.removeEventListener(MESSAGES_UNREAD_EVENT, onUnread);
     };
   }, [isSystemAdmin]);
 

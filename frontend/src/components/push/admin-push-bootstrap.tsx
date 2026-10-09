@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BellRing, X } from "lucide-react";
+import { isCommunityAdminUser, getUser } from "@/lib/auth/session";
+import { fetchPushNotificationPreference } from "@/lib/api/push-preference";
 import { isFirebaseWebConfigured } from "@/lib/firebase/config";
 import {
   autoEnrollWebPushOnDashboard,
   dismissDeniedBanner,
+  ensureWebPushRegistered,
   getWebPushPermission,
   isDeniedBannerDismissed,
   notifyWebPushChanged,
@@ -56,6 +59,15 @@ export function AdminPushBootstrap() {
     let cancelled = false;
     const enrollTimer = setTimeout(async () => {
       if (cancelled) return;
+      if (isCommunityAdminUser(getUser())) {
+        try {
+          const preference = await fetchPushNotificationPreference();
+          if (!preference.enabled) return;
+        } catch {
+          /* keep the existing enroll path when the preference cannot be read */
+        }
+      }
+      if (cancelled) return;
       await autoEnrollWebPushOnDashboard();
       notifyWebPushChanged();
       if (!cancelled) refreshPushState();
@@ -63,9 +75,31 @@ export function AdminPushBootstrap() {
 
     refreshPushState();
 
+    const retryWhenOnline = () => {
+      if (cancelled || getWebPushPermission() !== "granted") return;
+      void (async () => {
+        if (isCommunityAdminUser(getUser())) {
+          try {
+            const preference = await fetchPushNotificationPreference();
+            if (!preference.enabled || cancelled) return;
+          } catch {
+            /* keep the existing enroll path when the preference cannot be read */
+          }
+        }
+        if (cancelled) return;
+        await ensureWebPushRegistered();
+        if (!cancelled) {
+          notifyWebPushChanged();
+          refreshPushState();
+        }
+      })();
+    };
+    window.addEventListener("online", retryWhenOnline);
+
     return () => {
       cancelled = true;
       clearTimeout(enrollTimer);
+      window.removeEventListener("online", retryWhenOnline);
     };
   }, [refreshPushState]);
 

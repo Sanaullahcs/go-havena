@@ -7,6 +7,7 @@ use App\Models\CommunityMembership;
 use App\Models\Region;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -126,6 +127,92 @@ class CommunityAdminMessagesTest extends TestCase
         $this->getJson('/api/v1/conversations/unread-count')
             ->assertOk()
             ->assertJsonPath('data.unread_count', 1);
+    }
+
+    public function test_opening_a_conversation_marks_its_message_notifications_read(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityAdminInbox();
+
+        Sanctum::actingAs($resident);
+        $first = $this->withHeader('X-Community-Id', (string) $community->id)
+            ->postJson('/api/v1/conversations', [
+                'recipient_id' => $admin->id,
+                'message'      => 'First unread',
+            ])
+            ->assertCreated();
+
+        $conversationId = (int) $first->json('data.conversation_id');
+
+        $this->withHeader('X-Community-Id', (string) $community->id)
+            ->postJson("/api/v1/conversations/{$conversationId}/messages", [
+                'body' => 'Second unread',
+            ])
+            ->assertCreated();
+
+        $otherConversationId = $conversationId + 1000;
+        DB::table('app_notifications')->insert([
+            'user_id'    => $admin->id,
+            'type'       => 'info',
+            'title'      => 'New message from someone else',
+            'body'       => 'Leave this unread',
+            'data'       => json_encode([
+                'kind'            => 'message',
+                'conversation_id' => $otherConversationId,
+            ]),
+            'action_url' => '/screens/messages/chat?conversationId='.$otherConversationId,
+            'read_at'    => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('app_notifications')->insert([
+            'user_id'    => $admin->id,
+            'type'       => 'info',
+            'title'      => 'Pool closed',
+            'body'       => 'Maintenance tonight',
+            'data'       => json_encode(['kind' => 'notice']),
+            'action_url' => null,
+            'read_at'    => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->withHeader('X-Community-Id', (string) $community->id)
+            ->getJson('/api/v1/notifications')
+            ->assertOk()
+            ->assertJsonPath('unread', 4)
+            ->assertJsonPath('unread_messages', 3);
+
+        $this->withHeader('X-Community-Id', (string) $community->id)
+            ->getJson("/api/v1/conversations/{$conversationId}/messages")
+            ->assertOk();
+
+        $this->getJson('/api/v1/conversations/unread-count')
+            ->assertOk()
+            ->assertJsonPath('data.unread_count', 0);
+
+        $opened = DB::table('app_notifications')
+            ->where('user_id', $admin->id)
+            ->where('action_url', 'like', '%conversationId='.$conversationId.'&%')
+            ->get();
+
+        $this->assertCount(2, $opened);
+        $this->assertTrue($opened->every(fn ($row) => $row->read_at !== null));
+
+        $other = DB::table('app_notifications')
+            ->where('user_id', $admin->id)
+            ->where('action_url', '/screens/messages/chat?conversationId='.$otherConversationId)
+            ->first();
+
+        $this->assertNotNull($other);
+        $this->assertNull($other->read_at);
+
+        $this->withHeader('X-Community-Id', (string) $community->id)
+            ->getJson('/api/v1/notifications')
+            ->assertOk()
+            ->assertJsonPath('unread', 2)
+            ->assertJsonPath('unread_messages', 1);
     }
 
     public function test_message_timestamps_are_returned_as_utc_iso8601(): void

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -11,7 +10,13 @@ import {
   MessageSquare,
   Settings,
 } from "lucide-react";
-import { fetchNotifications, markNotificationRead, markAllRead } from "@/lib/api/notifications";
+import {
+  emitNotificationsRefresh,
+  fetchNotifications,
+  markNotificationRead,
+  markAllRead,
+  NOTIFICATIONS_REFRESH_EVENT,
+} from "@/lib/api/notifications";
 import { confirmMarkAllNotificationsRead } from "@/lib/admin/dashboard-confirmations";
 import { resolveAdminNotificationHref } from "@/lib/notifications/resolve-admin-notification-href";
 import { notificationPreviewText } from "@/lib/notifications/notification-preview";
@@ -89,20 +94,65 @@ export function NotificationBell({
 }) {
   const router = useRouter();
   const [notes, setNotes] = useState<AppNotification[]>(init ?? []);
+  const [unreadCount, setUnreadCount] = useState(() => (init ?? []).filter((note) => !note.read).length);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const loadingRef = useRef(false);
+  const queuedRef = useRef(false);
 
-  const unread = notes.filter((n) => !n.read).length;
+  const unread = unreadCount;
+  const keepSeedWhenEmpty = (init?.length ?? 0) > 0;
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    if (loadingRef.current) {
+      queuedRef.current = true;
+      return;
+    }
+    loadingRef.current = true;
     fetchNotifications()
-      .then((data: { data: Record<string, unknown>[] }) => {
-        if (data?.data?.length) setNotes(data.data.map(dbRowToNote));
+      .then((data) => {
+        const rows = data?.data;
+        if (!Array.isArray(rows)) return;
+        if (rows.length > 0 || !keepSeedWhenEmpty) {
+          setNotes(rows.map(dbRowToNote));
+        }
+        if (typeof data?.unread === "number") setUnreadCount(data.unread);
       })
       .catch(() => {
-        /* stay with init */
+        /* keep the last authorized list, or the resident seed when the request fails */
+      })
+      .finally(() => {
+        loadingRef.current = false;
+        if (queuedRef.current) {
+          queuedRef.current = false;
+          load();
+        }
       });
-  }, []);
+  }, [keepSeedWhenEmpty]);
+
+  useEffect(() => {
+    load();
+    const onSession = () => {
+      if (!keepSeedWhenEmpty) setNotes([]);
+      load();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    window.addEventListener("nbr-session-updated", onSession);
+    window.addEventListener(NOTIFICATIONS_REFRESH_EVENT, load);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 20_000);
+
+    return () => {
+      window.removeEventListener("nbr-session-updated", onSession);
+      window.removeEventListener(NOTIFICATIONS_REFRESH_EVENT, load);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(timer);
+    };
+  }, [keepSeedWhenEmpty, load]);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -113,8 +163,11 @@ export function NotificationBell({
   }, []);
 
   const markOne = (id: number) => {
-    markNotificationRead(id).catch(() => {});
     setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setUnreadCount((count) => Math.max(0, count - 1));
+    markNotificationRead(id)
+      .then(() => emitNotificationsRefresh())
+      .catch(() => {});
   };
 
   const openNotification = (note: AppNotification) => {
@@ -136,8 +189,11 @@ export function NotificationBell({
     if (unreadCount === 0) return;
     const result = await confirmMarkAllNotificationsRead(unreadCount);
     if (!result.isConfirmed) return;
-    markAllRead().catch(() => {});
     setNotes((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+    markAllRead()
+      .then(() => emitNotificationsRefresh())
+      .catch(() => {});
   };
 
   return (
@@ -239,14 +295,17 @@ export function NotificationBell({
 
           {viewAllHref ? (
             <div className="border-t px-4 py-2.5" style={{ borderColor: NL.borderCard }}>
-              <Link
-                href={viewAllHref}
-                onClick={() => setOpen(false)}
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  router.push(viewAllHref);
+                }}
                 className="block w-full rounded-lg py-1.5 text-center text-[12.5px] font-semibold transition hover:bg-slate-50"
                 style={{ color: accentColor }}
               >
                 View all notifications →
-              </Link>
+              </button>
             </div>
           ) : null}
         </div>

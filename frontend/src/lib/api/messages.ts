@@ -100,6 +100,13 @@ export async function fetchMessageableMembers(search = ""): Promise<CommunityMem
   return res.data?.data ?? [];
 }
 
+export const MESSAGES_UNREAD_EVENT = "havena-messages-unread";
+
+export function emitMessagesUnread(count: number) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(MESSAGES_UNREAD_EVENT, { detail: { count } }));
+}
+
 export async function fetchMessageUnreadCount(): Promise<number> {
   const conversations = await fetchConversations();
   return conversations.reduce((sum, row) => sum + (row.unread_count ?? 0), 0);

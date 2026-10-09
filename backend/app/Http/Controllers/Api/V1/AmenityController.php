@@ -1813,7 +1813,9 @@ class AmenityController extends Controller
             if ($excludeUserId !== null && (int) $adminId === $excludeUserId) {
                 continue;
             }
-            NotificationService::send((int) $adminId, $type, $title, $body, $url);
+            NotificationService::send((int) $adminId, $type, $title, $body, $url, [
+                'community_id' => $communityId,
+            ]);
         }
     }
 }

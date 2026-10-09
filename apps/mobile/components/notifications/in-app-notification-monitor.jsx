@@ -2,14 +2,22 @@ import { useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import { router } from "expo-router";
 import { getToken } from "../../services/auth-session";
+import { fetchAccountPushPreference } from "../../services/devices-api";
 import { fetchNotifications } from "../../services/notifications-api";
-import { getPushNotificationsEnabled } from "../../services/notification-preferences";
+import {
+  getPushNotificationsEnabled,
+  setPushNotificationsEnabled,
+} from "../../services/notification-preferences";
 import {
   emitMessageUnreadRefresh,
   emitNotificationBanner,
   emitNotificationRefresh,
 } from "../../services/notification-events";
-import { isRemotePushSupported, resolvePushNotificationRoute } from "../../services/push-notifications";
+import {
+  isRemotePushSupported,
+  rememberForegroundPushState,
+  resolvePushNotificationRoute,
+} from "../../services/push-notifications";
 import { isExpoGo } from "../../utils/expo-runtime";
 
 const POLL_MS = 20000;
@@ -40,6 +48,20 @@ export default function InAppNotificationMonitor() {
         ]);
         if (!authToken || !enabled) return;
 
+        try {
+          const accountEnabled = await fetchAccountPushPreference();
+          if (!accountEnabled) {
+            await setPushNotificationsEnabled(false);
+            rememberForegroundPushState(false, "denied");
+            return;
+          }
+        } catch {
+          // Keep the saved device preference when the account lookup fails.
+        }
+
+        const stillEnabled = await getPushNotificationsEnabled();
+        if (!stillEnabled) return;
+
         const { notifications, unread } = await fetchNotifications({ page: 1, perPage: 5 });
         emitNotificationRefresh();
 
@@ -55,6 +77,9 @@ export default function InAppNotificationMonitor() {
         if (latest.id === lastSeenId || latest.read) return;
 
         lastSeenIdRef.current = latest.id;
+        const allowed = await getPushNotificationsEnabled();
+        if (!allowed) return;
+
         if (latest.kind === "message") {
           emitMessageUnreadRefresh();
         }

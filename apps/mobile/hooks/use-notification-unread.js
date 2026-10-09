@@ -19,12 +19,16 @@ export function formatUnreadBadgeCount(count) {
 
 export function useNotificationUnread({ refreshOnFocus = true } = {}) {
   const [unread, setUnread] = useState(0);
+  const [messageAlerts, setMessageAlerts] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
       const count = await fetchNotificationUnreadCount();
-      setUnread(count);
-      return count;
+      const total = typeof count === "number" ? count : count?.unread ?? 0;
+      const alerts = typeof count === "number" ? 0 : count?.messageAlerts ?? 0;
+      setUnread(total);
+      setMessageAlerts(alerts);
+      return total;
     } catch {
       return null;
     }
@@ -60,5 +64,5 @@ export function useNotificationUnread({ refreshOnFocus = true } = {}) {
     };
   }, [refresh, refreshOnFocus]);
 
-  return { unread, refresh, setUnread };
+  return { unread, messageAlerts, refresh, setUnread };
 }

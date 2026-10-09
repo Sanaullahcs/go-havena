@@ -18,9 +18,11 @@ import { DashboardPanel } from "@/components/admin/dashboard/dashboard-panel";
 import { AdminBadge, DtPagination, StatTile } from "@/components/admin/ui";
 import { dashIcon } from "@/components/admin/dashboard/dashboard-icons";
 import {
+  emitNotificationsRefresh,
   fetchNotifications,
   markAllRead,
   markNotificationRead,
+  NOTIFICATIONS_REFRESH_EVENT,
   type NotificationListMeta,
 } from "@/lib/api/notifications";
 import { apiError } from "@/lib/api/client";
@@ -36,60 +38,39 @@ import { resolveAdminNotificationHref } from "@/lib/notifications/resolve-admin-
 import { notificationPreviewText } from "@/lib/notifications/notification-preview";
 import {
   countNotificationsByModule,
-  filterNotificationsByModule,
   type NotificationFeedModule,
 } from "@/lib/notifications/notification-feed-module";
 
-const FALLBACK: AppNotification[] = [
-  {
-    id: 1,
-    type: "warning",
-    title: "New moderation report",
-    body: "A resident filed a noise complaint that needs review.",
-    time: "2m ago",
-    read: false,
-    actionUrl: "/admin/moderation",
-  },
-  {
-    id: 2,
-    type: "success",
-    title: "Membership approved",
-    body: "A membership request was approved successfully.",
-    time: "15m ago",
-    read: false,
-    actionUrl: "/admin/members",
-  },
-  {
-    id: 3,
-    type: "message",
-    title: "New message",
-    body: "You have a new resident message waiting in your inbox.",
-    time: "1h ago",
-    read: false,
-  },
-  {
-    id: 4,
-    type: "info",
-    title: "Marketplace listing posted",
-    body: "A new marketplace item was submitted for review.",
-    time: "2h ago",
-    read: true,
-    actionUrl: "/admin/marketplace",
-  },
-  {
-    id: 5,
-    type: "system",
-    title: "System update",
-    body: "Havena platform services are running normally.",
-    time: "Yesterday",
-    read: true,
-  },
-];
+function notificationKind(row: Record<string, unknown>): string {
+  const raw = row.data;
+  if (!raw) return "";
+  if (typeof raw === "object") return String((raw as { kind?: unknown }).kind ?? "");
+  if (typeof raw !== "string") return "";
+  try {
+    return String((JSON.parse(raw) as { kind?: unknown }).kind ?? "");
+  } catch {
+    return "";
+  }
+}
+
+function isMessageNotification(row: Record<string, unknown>): boolean {
+  const type = String(row.type ?? "");
+  const kind = notificationKind(row);
+  const actionUrl = String(row.action_url ?? "");
+  return (
+    type === "message" ||
+    kind === "message" ||
+    kind === "new_message" ||
+    actionUrl.includes("/screens/messages/chat") ||
+    actionUrl.includes("/admin/messages")
+  );
+}
 
 function dbRowToNote(row: Record<string, unknown>): AppNotification {
+  const storedType = (row.type as AppNotification["type"]) ?? "info";
   return {
     id: row.id as number,
-    type: (row.type as AppNotification["type"]) ?? "info",
+    type: isMessageNotification(row) ? "message" : storedType,
     title: row.title as string,
     body: row.body as string | undefined,
     time: (row.created_at as string) ?? (row.time as string) ?? "",
@@ -122,30 +103,6 @@ function typeMeta(type: AppNotification["type"]) {
   }
 }
 
-function filterNotes(notes: AppNotification[], filter: Filter): AppNotification[] {
-  if (filter === "all") return notes;
-  if (filter === "unread") return notes.filter((n) => !n.read);
-  if (isModuleFilter(filter)) return filterNotificationsByModule(notes, filter);
-  return notes.filter((n) => n.type === filter);
-}
-
-function paginateNotes(notes: AppNotification[], page: number): AppNotification[] {
-  const start = (page - 1) * ADMIN_TABLE_PAGE_SIZE;
-  return notes.slice(start, start + ADMIN_TABLE_PAGE_SIZE);
-}
-
-function fallbackMeta(notes: AppNotification[]): NotificationListMeta {
-  return {
-    total: notes.length,
-    last_page: Math.max(1, Math.ceil(notes.length / ADMIN_TABLE_PAGE_SIZE)),
-    per_page: ADMIN_TABLE_PAGE_SIZE,
-    current_page: 1,
-    total_all: notes.length,
-    warning: notes.filter((n) => n.type === "warning").length,
-    message: notes.filter((n) => n.type === "message").length,
-  };
-}
-
 export default function AdminNotificationsPage() {
   const router = useRouter();
   const [notes, setNotes] = useState<AppNotification[]>([]);
@@ -157,13 +114,16 @@ export default function AdminNotificationsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [page, setPage] = useState(1);
   const [marking, setMarking] = useState(false);
-  const [usingFallback, setUsingFallback] = useState(false);
   const initialLoadDone = useRef(false);
+  const requestRef = useRef(0);
 
-  const load = useCallback(async (options?: { initial?: boolean }) => {
-    if (options?.initial) setLoading(true);
+  const load = useCallback(async (options?: { initial?: boolean; silent?: boolean }) => {
+    const requestId = ++requestRef.current;
+    if (options?.silent) {
+      /* keep the current list visible */
+    } else if (options?.initial) setLoading(true);
     else setPageLoading(true);
-    setError(null);
+    if (!options?.silent) setError(null);
     try {
       const params: {
         page: number;
@@ -177,35 +137,23 @@ export default function AdminNotificationsPage() {
       else if (filter !== "all") params.type = filter;
 
       const data = await fetchNotifications(params);
+      if (requestId !== requestRef.current) return;
       const rows = (data?.data ?? []) as Record<string, unknown>[];
-
-      if (data.meta) {
-        setNotes(rows.map(dbRowToNote));
-        setMeta(data.meta);
-        setUnread(data.unread ?? 0);
-        setUsingFallback(false);
-      } else if (rows.length) {
-        setNotes(rows.map(dbRowToNote));
-        setMeta(null);
-        setUnread(data.unread ?? 0);
-        setUsingFallback(false);
-      } else {
-        throw new Error("No notification data");
-      }
+      setNotes(rows.map(dbRowToNote));
+      setMeta(data.meta ?? null);
+      setUnread(data.unread ?? 0);
     } catch (err) {
-      const filtered = filterNotes(FALLBACK, filter);
-      setNotes(paginateNotes(filtered, page));
-      setMeta({
-        ...fallbackMeta(filtered),
-        current_page: page,
-        last_page: Math.max(1, Math.ceil(filtered.length / ADMIN_TABLE_PAGE_SIZE)),
-      });
-      setUnread(FALLBACK.filter((n) => !n.read).length);
-      setUsingFallback(true);
-      if (options?.initial) setError(apiError(err));
+      if (!options?.silent) {
+        setNotes([]);
+        setMeta(null);
+        setUnread(0);
+        if (options?.initial) setError(apiError(err));
+      }
     } finally {
-      setLoading(false);
-      setPageLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+        setPageLoading(false);
+      }
     }
   }, [filter, page]);
 
@@ -213,6 +161,33 @@ export default function AdminNotificationsPage() {
     load({ initial: !initialLoadDone.current });
     initialLoadDone.current = true;
   }, [filter, page, load]);
+
+  useEffect(() => {
+    const onSession = () => {
+      setNotes([]);
+      setMeta(null);
+      setUnread(0);
+      void load({ initial: true });
+    };
+    const onNotifications = () => {
+      void load({ silent: true });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load({ silent: true });
+    };
+    window.addEventListener("nbr-session-updated", onSession);
+    window.addEventListener(NOTIFICATIONS_REFRESH_EVENT, onNotifications);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load({ silent: true });
+    }, 20_000);
+    return () => {
+      window.removeEventListener("nbr-session-updated", onSession);
+      window.removeEventListener(NOTIFICATIONS_REFRESH_EVENT, onNotifications);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(timer);
+    };
+  }, [load]);
 
   const handleFilterChange = (next: Filter) => {
     setFilter(next);
@@ -240,9 +215,10 @@ export default function AdminNotificationsPage() {
 
   const markOne = async (id: number) => {
     setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-    if (!usingFallback) setUnread((count) => Math.max(0, count - 1));
+    setUnread((count) => Math.max(0, count - 1));
     try {
       await markNotificationRead(id);
+      emitNotificationsRefresh();
     } catch {
       /* keep optimistic UI */
     }
@@ -272,8 +248,9 @@ export default function AdminNotificationsPage() {
     setUnread(0);
     try {
       await markAllRead();
+      emitNotificationsRefresh();
       toastSuccess("All notifications marked as read");
-      if (!usingFallback) await load();
+      await load();
     } catch (err) {
       toastError(apiError(err));
     } finally {

@@ -307,7 +307,7 @@ class UserBlockService
                 $title,
                 $body,
                 '/admin/moderation',
-                ['kind' => 'user_blocked'],
+                ['kind' => 'user_blocked', 'community_id' => $communityId],
             );
         }
     }

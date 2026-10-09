@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import AppModal from "../layout/app-modal";
-import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as HT } from "../../constants/home-theme";
 import { useRouter } from "expo-router";
@@ -20,9 +19,7 @@ import { canAccessDashboard, isCommunityAdmin } from "../../services/community-a
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import ThemedIconBox from "./themed-icon-box";
-import NoticeDrawer from "./noticeDrawer";
-import { sf, sw } from "../../utils/responsive";
-import { chevronForward } from "../../utils/rtl";
+import { sw } from "../../utils/responsive";
 
 function CreateOptionRow({
   icon,
@@ -47,13 +44,12 @@ function CreateOptionRow({
   );
 }
 
-export default function CreateNewModal({ visible, onClose, onOpen }) {
+export default function CreateNewModal({ visible, onClose }) {
   const { t } = useTranslation();
   const router = useRouter();
   const [canManageCommunity, setCanManageCommunity] = useState(false);
   const [canCreateResidentEvent, setCanCreateResidentEvent] = useState(false);
   const [featureUser, setFeatureUser] = useState(null);
-  const [openNoticeDrawer, setOpenNoticeDrawer] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,13 +111,11 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
     (canManageCommunity || canCreateResidentEvent) && isResidentFeatureEnabled(featureUser, "events");
   const showFeed = isResidentFeatureEnabled(featureUser, "feed");
   const showMarketplace = isResidentFeatureEnabled(featureUser, "marketplace");
-  const showNotices =
-    canManageCommunity &&
-    (isResidentFeatureEnabled(featureUser, "notices") || isResidentFeatureEnabled(featureUser, "alerts"));
+  const showNotices = canManageCommunity && isResidentFeatureEnabled(featureUser, "notices");
+  const showAlerts = canManageCommunity && isResidentFeatureEnabled(featureUser, "alerts");
   const showRules = canManageCommunity && isResidentFeatureEnabled(featureUser, "community_rules");
   const showDocuments = canManageCommunity && isResidentFeatureEnabled(featureUser, "documents");
   return (
-    <>
       <AppModal visible={visible} onRequestClose={onClose}>
         <Pressable style={styles.overlay} onPress={onClose}>
           <Pressable style={styles.container}>
@@ -238,20 +232,31 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
 
                 {showNotices ? (
                 <CreateOptionRow
-                  icon="bell"
+                  icon="clipboard"
                   iconBg="#DBEAFE"
                   iconColor={HT.navy}
                   title={t("nav.notice")}
                   titleStyle={styles.optionTitleBlue}
-                  subtitle={t("nav.noticeSub")}
-                  trailing={
-                    <View style={styles.noticeChevron}>
-                      <Feather name={chevronForward()} size={sf(16)} color={HT.navy} />
-                    </View>
-                  }
+                  subtitle={t("notices.generalNotice")}
+                  style={{ marginBottom: showAlerts ? 10 : 0 }}
                   onPress={() => {
                     onClose();
-                    setOpenNoticeDrawer(true);
+                    router.push("/screens/create-notice");
+                  }}
+                />
+                ) : null}
+
+                {showAlerts ? (
+                <CreateOptionRow
+                  icon="alert-triangle"
+                  iconBg="#FEE2E2"
+                  iconColor="#DC2626"
+                  title={t("notices.alert")}
+                  titleStyle={styles.optionTitleBlue}
+                  subtitle={t("notices.urgentAlert")}
+                  onPress={() => {
+                    onClose();
+                    router.push("/screens/create-alert");
                   }}
                 />
                 ) : null}
@@ -260,13 +265,6 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
           </Pressable>
         </Pressable>
       </AppModal>
-
-      <NoticeDrawer
-        visible={openNoticeDrawer}
-        onClose={() => setOpenNoticeDrawer(false)}
-        onBackToCreate={onOpen}
-      />
-    </>
   );
 }
 
@@ -338,15 +336,6 @@ const styles = StyleSheet.create({
   optionCopy: {
     flex: 1,
     minWidth: 0,
-  },
-
-  noticeChevron: {
-    width: sw(28),
-    height: sw(28),
-    borderRadius: sw(14),
-    backgroundColor: HT.mint,
-    alignItems: "center",
-    justifyContent: "center",
   },
 
   optionTitleBlue: {

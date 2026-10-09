@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\V1\Auth\WebHandoffController;
 use App\Http\Controllers\Api\V1\CommunityController;
 use App\Http\Controllers\Api\V1\ActivityLogController;
 use App\Http\Controllers\Api\V1\MessageController;
+use App\Http\Controllers\Api\V1\CommunityAdminNotificationPreferenceController;
+use App\Http\Controllers\Api\V1\CommunityAdminPushPreferenceController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PointsController;
 use App\Http\Controllers\Api\V1\ProfileController;
@@ -312,6 +314,11 @@ Route::prefix('v1')->group(function () {
         });
 
         /* ── Notifications ── */
+        Route::get('/me/push-notifications',      [CommunityAdminPushPreferenceController::class, 'show']);
+        Route::patch('/me/push-notifications',    [CommunityAdminPushPreferenceController::class, 'update']);
+        Route::get('/me/notification-preferences',   [CommunityAdminNotificationPreferenceController::class, 'show']);
+        Route::patch('/me/notification-preferences', [CommunityAdminNotificationPreferenceController::class, 'update']);
+
         Route::get('/notifications',              [NotificationController::class, 'index']);
         Route::post('/notifications/{id}/read',   [NotificationController::class, 'markRead']);
         Route::post('/notifications/read-all',    [NotificationController::class, 'markAllRead']);
