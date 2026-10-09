@@ -19,7 +19,7 @@ class PlaidResidentService
     ) {
     }
 
-    public function resolveCommunityId(User $user, ?int $communityId = null): int
+    public function resolveCommunityId(User $user, ?int $communityId = null, bool $requireEligible = true): int
     {
         $query = DB::table('community_memberships')
             ->where('user_id', $user->id)
@@ -35,7 +35,9 @@ class PlaidResidentService
         }
 
         $resolved = (int) $membership->community_id;
-        $this->eligibility->assertCommunityEligible($resolved);
+        if ($requireEligible) {
+            $this->eligibility->assertCommunityEligible($resolved);
+        }
 
         return $resolved;
     }

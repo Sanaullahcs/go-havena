@@ -10,9 +10,7 @@ import KuickpayPaySheet from "../../../../components/payments/kuickpay-pay-sheet
 import BillDetailSheet from "../../../../components/payments/bill-detail-sheet";
 import {
   BillCard,
-  BillEmpty,
-  BillFilters,
-  BillSummary,
+  BillPayListLayout,
   defaultBillFilter,
   filterBills,
 } from "../../../../components/payments/bill-list-parts";
@@ -163,7 +161,7 @@ export default function UnitBillsScreen() {
             </Pressable>
           </View>
         </View>
-      ) : (
+      ) : sorted.length === 0 ? (
         <ScrollView
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -175,49 +173,48 @@ export default function UnitBillsScreen() {
             />
           }
         >
-          {sorted.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <View style={styles.emptyIcon}>
-                <Feather name="file-text" size={sf(22)} color={PropertyHubTheme.pendingText} />
-              </View>
-              <Text style={styles.emptyTitle}>{t("services.unitBillsEmptyTitle")}</Text>
-              <Text style={styles.emptyBody}>{t("services.unitBillsEmptyBody")}</Text>
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Feather name="file-text" size={sf(22)} color={PropertyHubTheme.pendingText} />
             </View>
-          ) : (
-            <>
-              <BillSummary summary={summary} t={t} />
-              <BillFilters value={activeFilter} onChange={setFilter} summary={summary} t={t} />
-              {visible.length === 0 ? (
-                <BillEmpty filter={activeFilter} t={t} />
-              ) : (
-                visible.map((bill) => {
-                  const fields = billListFields(bill, "unit");
-                  return (
-                  <BillCard
-                    key={bill.id}
-                    bill={bill}
-                    t={t}
-                    busy={busyId === bill.id}
-                    icon={<Feather name="home" size={sf(18)} color={PropertyHubTheme.deepTeal} />}
-                    title={fields.title}
-                    subtitle={fields.subtitle}
-                    payLabel={payActionLabel(bill, t)}
-                    onPay={() => pay(bill)}
-                    onPress={() => {
-                      const active = bill.online_payment?.active_payment;
-                      if (active?.status === "processing") {
-                        router.push({ pathname: PAYMENT_RESULT_ROUTE, params: { id: active.id } });
-                        return;
-                      }
-                      setDetailFor(bill);
-                    }}
-                  />
-                  );
-                })
-              )}
-            </>
-          )}
+            <Text style={styles.emptyTitle}>{t("services.unitBillsEmptyTitle")}</Text>
+            <Text style={styles.emptyBody}>{t("services.unitBillsEmptyBody")}</Text>
+          </View>
         </ScrollView>
+      ) : (
+        <BillPayListLayout
+          summary={summary}
+          activeFilter={activeFilter}
+          onFilterChange={setFilter}
+          t={t}
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); void load({ silent: true }); }}
+          data={visible}
+          keyExtractor={(bill) => String(bill.id)}
+          renderItem={({ item: bill }) => {
+            const fields = billListFields(bill, "unit");
+            return (
+              <BillCard
+                bill={bill}
+                t={t}
+                busy={busyId === bill.id}
+                icon={<Feather name="home" size={sf(18)} color={PropertyHubTheme.deepTeal} />}
+                title={fields.title}
+                subtitle={fields.subtitle}
+                payLabel={payActionLabel(bill, t)}
+                onPay={() => pay(bill)}
+                onPress={() => {
+                  const active = bill.online_payment?.active_payment;
+                  if (active?.status === "processing") {
+                    router.push({ pathname: PAYMENT_RESULT_ROUTE, params: { id: active.id } });
+                    return;
+                  }
+                  setDetailFor(bill);
+                }}
+              />
+            );
+          }}
+        />
       )}
 
       <BillDetailSheet
@@ -276,7 +273,7 @@ const styles = {
     paddingHorizontal: sw(16),
     paddingTop: sw(12),
     paddingBottom: sw(32),
-    gap: sw(12),
+    gap: sw(14),
   },
   emptyCard: {
     alignItems: "center",

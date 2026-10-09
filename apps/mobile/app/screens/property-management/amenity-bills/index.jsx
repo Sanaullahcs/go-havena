@@ -26,7 +26,6 @@ import { Layout } from "../../../../constants/tokens";
 import {
   approveAmenityOwnerPayment,
   approveBooking,
-  fetchAmenities,
   fetchAmenityOwnerBills,
   fetchBookingInbox,
   fetchMyAmenityBills,
@@ -35,23 +34,23 @@ import {
 } from "../../../../services/amenity-api";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { sf, sw } from "../../../../utils/responsive";
-import { rnShadow } from "../../../../utils/shadow";
 import { formatBookingDisplayFee } from "../../../../utils/amenity-display";
 import { formatCommunityMoney } from "../../../../utils/money";
 import { localizedField } from "../../../../i18n";
 import BillDetailSheet from "../../../../components/payments/bill-detail-sheet";
 import {
   BillCard,
-  BillEmpty,
-  BillFilters,
-  BillSummary,
+  BillCardFrame,
+  BillPayListLayout,
+  BillReceiptButton,
   defaultBillFilter,
   filterBills,
 } from "../../../../components/payments/bill-list-parts";
 import { billListFields, buildBillDocument, canPayBill, sortBills, summarizeBills } from "../../../../utils/bill-document";
 import { useSessionUser } from "../../../../hooks/use-session-user";
 
-const MINE_TAB = "mine";
+const PAY_TAB = "pay";
+const RECEIVE_TAB = "receive";
 
 function formatDueDate(value) {
   if (!value) return null;
@@ -96,16 +95,19 @@ function payActionLabel(bill, t) {
   return String(bill.status ?? "").toLowerCase() === "rejected" ? t("bills.list.resubmitProof") : t("bills.list.uploadProof");
 }
 
-function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onApprovePayment, onRejectPayment, t }) {
+function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onApprovePayment, onRejectPayment, onViewReceipt, t }) {
   const status = booking ? bookingStatusMeta(booking, t) : statusMeta(bill || {}, t);
   const amenityName = localizedField(booking || bill || {}, "amenity_name") || booking?.amenity_name || bill?.amenity_name;
   const dateLabel = formatDueDate(booking?.date || bill?.due_date);
   const proof = bill?.payment_proof || booking?.payment_proof;
+  const receiptUrl = proof?.file_url || null;
+  const paid = String(bill?.status ?? "").toLowerCase() === "paid";
+  const canViewReceipt = Boolean(receiptUrl || (paid && bill));
   const canReviewBooking = booking?.status === "pending";
   const canReviewPayment = bill?.can_review === true || String(bill?.status ?? "").toLowerCase() === "pending_verification";
 
   return (
-    <View style={styles.card}>
+    <BillCardFrame>
       <View style={styles.cardHeader}>
         <View style={styles.iconWell}>
           <AmenityIcon iconKey={booking?.amenity_icon_key || bill?.amenity_icon_key} name={amenityName} size={sf(18)} />
@@ -126,19 +128,19 @@ function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onAppro
         </View>
       </View>
 
+      <Text style={styles.amount}>
+        {booking ? formatBookingDisplayFee(booking) : formatCommunityMoney(bill?.amount)}
+      </Text>
       <View style={styles.chips}>
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>
-            {booking ? formatBookingDisplayFee(booking) : formatCommunityMoney(bill?.amount)}
-          </Text>
-        </View>
         {dateLabel ? (
           <View style={styles.chip}>
+            <Feather name="calendar" size={sf(12)} color={PropertyHubTheme.textMuted} />
             <Text style={styles.chipText}>{dateLabel}</Text>
           </View>
         ) : null}
         {booking?.time_slot ? (
           <View style={styles.chip}>
+            <Feather name="clock" size={sf(12)} color={PropertyHubTheme.textMuted} />
             <Text style={styles.chipText}>{booking.time_slot}</Text>
           </View>
         ) : null}
@@ -152,15 +154,22 @@ function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onAppro
           <Text style={styles.proofLine}>
             {t("propertyMgmt.paymentReference")}: {proof.payment_reference || "—"}
           </Text>
-          {proof.file_url ? (
-            <Pressable onPress={() => Linking.openURL(proof.file_url)}>
-              <Text style={styles.proofLink}>{t("propertyMgmt.viewPaymentProof")}</Text>
-            </Pressable>
-          ) : null}
         </View>
       ) : (
         <Text style={styles.infoText}>{t("services.myAmenityBillsNoProof")}</Text>
       )}
+
+      {(canViewReceipt || canReviewBooking || canReviewPayment) ? (
+        <View style={styles.cardActions}>
+          {canViewReceipt ? (
+            <BillReceiptButton
+              label={t("bills.list.viewReceipt")}
+              onPress={() => {
+                if (receiptUrl) Linking.openURL(receiptUrl).catch(() => {});
+                else if (bill) onViewReceipt?.(bill);
+              }}
+            />
+          ) : null}
 
       {canReviewBooking ? (
         <View style={styles.reviewRow}>
@@ -207,7 +216,9 @@ function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onAppro
           </Pressable>
         </View>
       ) : null}
-    </View>
+        </View>
+      ) : null}
+    </BillCardFrame>
   );
 }
 
@@ -216,10 +227,9 @@ export default function MyAmenityBillsScreen() {
   const router = useRouter();
   const { runAction, dialog, showFailure } = useApiAction();
   const [payFor, setPayFor] = useState(null);
-  const [tab, setTab] = useState(MINE_TAB);
+  const [tab, setTab] = useState(PAY_TAB);
   const [bills, setBills] = useState([]);
   const [ownerBills, setOwnerBills] = useState([]);
-  const [amenities, setAmenities] = useState([]);
   const [inbox, setInbox] = useState([]);
   const [proofFor, setProofFor] = useState(null);
   const [busyId, setBusyId] = useState(null);
@@ -247,15 +257,13 @@ export default function MyAmenityBillsScreen() {
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const [nextBills, nextOwnerBills, nextAmenities, nextInbox] = await Promise.all([
+      const [nextBills, nextOwnerBills, nextInbox] = await Promise.all([
         fetchMyAmenityBills().catch(() => []),
         fetchAmenityOwnerBills().catch(() => []),
-        fetchAmenities().catch(() => []),
         fetchBookingInbox().catch(() => []),
       ]);
       setBills(Array.isArray(nextBills) ? nextBills : []);
       setOwnerBills(Array.isArray(nextOwnerBills) ? nextOwnerBills : []);
-      setAmenities(Array.isArray(nextAmenities) ? nextAmenities : []);
       setInbox(Array.isArray(nextInbox) ? nextInbox : []);
     } catch (error) {
       await showFailure(t("services.myAmenityBillsTitle"), error);
@@ -267,50 +275,24 @@ export default function MyAmenityBillsScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const myAmenities = useMemo(() => {
-    const fromList = amenities.filter((item) => item.is_mine);
-    const byId = new Map(fromList.map((item) => [Number(item.id), item]));
-    for (const booking of inbox) {
-      const id = Number(booking.amenity_id);
-      if (!id || byId.has(id)) continue;
-      byId.set(id, {
-        id,
-        name: booking.amenity_name,
-        name_es: booking.amenity_name_es,
-        name_ar: booking.amenity_name_ar,
-        icon_key: booking.amenity_icon_key,
-        is_mine: true,
-      });
-    }
-    return [...byId.values()];
-  }, [amenities, inbox]);
-
   const tabs = useMemo(() => [
-    { id: MINE_TAB, label: t("services.myAmenityBillsTabMine") },
-    ...myAmenities.map((amenity) => ({
-      id: `amenity-${amenity.id}`,
-      amenityId: Number(amenity.id),
-      label: localizedField(amenity, "name") || amenity.name,
-    })),
-  ], [myAmenities, t]);
+    { id: PAY_TAB, label: t("services.myAmenityBillsTabPay") },
+    { id: RECEIVE_TAB, label: t("services.myAmenityBillsTabReceive") },
+  ], [t]);
 
-  const selectedAmenityId = tab.startsWith("amenity-") ? Number(tab.replace("amenity-", "")) : null;
   const receivedPayments = useMemo(() => {
-    if (!selectedAmenityId) return [];
-    const amenityBookings = inbox.filter((booking) => Number(booking.amenity_id) === selectedAmenityId);
-    const amenityBills = ownerBills.filter((bill) => Number(bill.amenity_id) === selectedAmenityId);
     const usedBillIds = new Set();
-    const items = amenityBookings.map((booking) => {
-      const bill = amenityBills.find((row) => Number(row.booking_id) === Number(booking.id));
+    const items = inbox.map((booking) => {
+      const bill = ownerBills.find((row) => Number(row.booking_id) === Number(booking.id));
       if (bill?.resident_bill_id) usedBillIds.add(Number(bill.resident_bill_id));
       return { key: `booking-${booking.id}`, booking, bill };
     });
-    for (const bill of amenityBills) {
+    for (const bill of ownerBills) {
       if (usedBillIds.has(Number(bill.resident_bill_id))) continue;
       items.push({ key: `bill-${bill.resident_bill_id}`, booking: null, bill });
     }
     return items;
-  }, [inbox, ownerBills, selectedAmenityId]);
+  }, [inbox, ownerBills]);
 
   async function handleSubmitted() {
     setProofFor(null);
@@ -383,124 +365,128 @@ export default function MyAmenityBillsScreen() {
     }
   }
 
-  const showingMine = tab === MINE_TAB;
+  const showingPay = tab === PAY_TAB;
 
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
       <InternalScreenHeader
         title={t("services.myAmenityBillsTitle")}
-        subtitle={showingMine ? t("services.myAmenityBillsSub") : t("services.myAmenityBillsReceivedSub")}
+        subtitle={showingPay ? t("services.myAmenityBillsSub") : t("services.myAmenityBillsReceivedSub")}
       />
 
-      {tabs.length > 1 ? (
-        <View style={styles.toolbar}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabBar}
-            keyboardShouldPersistTaps="handled"
-          >
-            {tabs.map((item) => {
-              const active = tab === item.id;
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => setTab(item.id)}
-                  style={[styles.tab, active && styles.tabActive]}
+      <View style={styles.toolbar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabBar}
+          keyboardShouldPersistTaps="handled"
+        >
+          {tabs.map((item) => {
+            const active = tab === item.id;
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => setTab(item.id)}
+                style={[styles.tab, active && styles.tabActive]}
+              >
+                <Text
+                  style={[styles.tabText, active && styles.tabTextActive]}
+                  numberOfLines={1}
+                  includeFontPadding={false}
                 >
-                  <Text
-                    style={[styles.tabText, active && styles.tabTextActive]}
-                    numberOfLines={1}
-                    includeFontPadding={false}
-                  >
-                    {item.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      ) : null}
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              void load({ silent: true });
-            }}
-            tintColor={PropertyHubTheme.teal}
-          />
-        }
-      >
-        {loading ? (
-          <View style={styles.loader}>
-            <ActivityIndicator color={PropertyHubTheme.teal} />
-          </View>
-        ) : showingMine ? (
-          myBills.length === 0 ? (
+      {loading ? (
+        <View style={styles.loader}>
+          <ActivityIndicator color={PropertyHubTheme.teal} />
+        </View>
+      ) : showingPay && myBills.length > 0 ? (
+        <BillPayListLayout
+          summary={summary}
+          activeFilter={activeFilter}
+          onFilterChange={setFilter}
+          t={t}
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            void load({ silent: true });
+          }}
+          data={visibleBills}
+          keyExtractor={(bill) => String(bill.resident_bill_id || bill.id)}
+          renderItem={({ item: bill }) => {
+            const fields = billListFields(bill, "amenity");
+            return (
+              <BillCard
+                bill={bill}
+                t={t}
+                icon={<AmenityIcon iconKey={bill.amenity_icon_key} name={bill.amenity_name} size={sf(18)} />}
+                title={fields.title || t("services.myAmenityBillsTitle")}
+                subtitle={fields.subtitle}
+                payLabel={payActionLabel(bill, t)}
+                onPay={() => startPayment(bill)}
+                onPress={() => {
+                  const active = bill.online_payment?.active_payment;
+                  if (active?.status === "processing") {
+                    router.push({ pathname: PAYMENT_RESULT_ROUTE, params: { id: active.id } });
+                    return;
+                  }
+                  setDetailFor(bill);
+                }}
+              />
+            );
+          }}
+        />
+      ) : (
+        <ScrollView
+          style={styles.scrollFlex}
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                void load({ silent: true });
+              }}
+              tintColor={PropertyHubTheme.teal}
+            />
+          }
+        >
+          {showingPay ? (
             <View style={styles.empty}>
               <Feather name="file-text" size={sf(28)} color={PropertyHubTheme.muted} />
               <Text style={styles.emptyTitle}>{t("services.myAmenityBillsEmptyTitle")}</Text>
               <Text style={styles.emptyBody}>{t("services.myAmenityBillsEmptyBody")}</Text>
             </View>
+          ) : receivedPayments.length === 0 ? (
+            <View style={styles.empty}>
+              <Feather name="credit-card" size={sf(28)} color={PropertyHubTheme.muted} />
+              <Text style={styles.emptyTitle}>{t("services.myAmenityBillsReceivedEmptyTitle")}</Text>
+              <Text style={styles.emptyBody}>{t("services.myAmenityBillsReceivedEmptyBody")}</Text>
+            </View>
           ) : (
-            <>
-              <BillSummary summary={summary} t={t} />
-              <BillFilters value={activeFilter} onChange={setFilter} summary={summary} t={t} />
-              {visibleBills.length === 0 ? (
-                <BillEmpty filter={activeFilter} t={t} />
-              ) : (
-                visibleBills.map((bill) => {
-                  const fields = billListFields(bill, "amenity");
-                  return (
-                  <BillCard
-                    key={bill.resident_bill_id || bill.id}
-                    bill={bill}
-                    t={t}
-                    icon={<AmenityIcon iconKey={bill.amenity_icon_key} name={bill.amenity_name} size={sf(18)} />}
-                    title={fields.title || t("services.myAmenityBillsTitle")}
-                    subtitle={fields.subtitle}
-                    payLabel={payActionLabel(bill, t)}
-                    onPay={() => startPayment(bill)}
-                    onPress={() => {
-                      const active = bill.online_payment?.active_payment;
-                      if (active?.status === "processing") {
-                        router.push({ pathname: PAYMENT_RESULT_ROUTE, params: { id: active.id } });
-                        return;
-                      }
-                      setDetailFor(bill);
-                    }}
-                  />
-                  );
-                })
-              )}
-            </>
-          )
-        ) : receivedPayments.length === 0 ? (
-          <View style={styles.empty}>
-            <Feather name="credit-card" size={sf(28)} color={PropertyHubTheme.muted} />
-            <Text style={styles.emptyTitle}>{t("services.myAmenityBillsReceivedEmptyTitle")}</Text>
-            <Text style={styles.emptyBody}>{t("services.myAmenityBillsReceivedEmptyBody")}</Text>
-          </View>
-        ) : (
-          receivedPayments.map((item) => (
-            <ReceivedPaymentCard
-              key={item.key}
-              booking={item.booking}
-              bill={item.bill}
-              busy={busyId === item.booking?.id || busyId === item.bill?.resident_bill_id}
-              onApprove={() => item.booking && void handleApprove(item.booking)}
-              onReject={() => item.booking && void handleReject(item.booking)}
-              onApprovePayment={() => item.bill && void handleApprovePayment(item.bill)}
-              onRejectPayment={() => item.bill && void handleRejectPayment(item.bill)}
-              t={t}
-            />
-          ))
-        )}
-      </ScrollView>
+            receivedPayments.map((item) => (
+              <ReceivedPaymentCard
+                key={item.key}
+                booking={item.booking}
+                bill={item.bill}
+                busy={busyId === item.booking?.id || busyId === item.bill?.resident_bill_id}
+                onApprove={() => item.booking && void handleApprove(item.booking)}
+                onReject={() => item.booking && void handleReject(item.booking)}
+                onApprovePayment={() => item.bill && void handleApprovePayment(item.bill)}
+                onRejectPayment={() => item.bill && void handleRejectPayment(item.bill)}
+                onViewReceipt={(bill) => setDetailFor(bill)}
+                t={t}
+              />
+            ))
+          )}
+        </ScrollView>
+      )}
 
       <BillDetailSheet
         visible={Boolean(detailFor)}
@@ -572,8 +558,9 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
   tabTextActive: { fontFamily: Fonts.bold, color: "#FFFFFF" },
+  scrollFlex: { flex: 1 },
   content: { padding: sw(16), paddingBottom: sw(40), gap: sw(12) },
-  loader: { paddingVertical: sw(40), alignItems: "center" },
+  loader: { flex: 1, alignItems: "center", justifyContent: "center" },
   empty: {
     alignItems: "center",
     gap: sw(8),
@@ -592,21 +579,14 @@ const styles = StyleSheet.create({
     color: PropertyHubTheme.muted,
     textAlign: "center",
   },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: sw(16),
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    padding: sw(14),
-    gap: sw(12),
-    ...rnShadow({ offsetY: 2, blur: 8, opacity: 0.05 }),
-  },
-  cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: sw(10) },
+  cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: sw(12) },
   iconWell: {
-    width: sw(40),
-    height: sw(40),
-    borderRadius: sw(12),
-    backgroundColor: "#F8FAFC",
+    width: sw(44),
+    height: sw(44),
+    borderRadius: sw(14),
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.iconBorder,
+    backgroundColor: PropertyHubTheme.mint,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -624,31 +604,44 @@ const styles = StyleSheet.create({
   },
   statusBadge: {
     borderRadius: 999,
-    paddingHorizontal: sw(8),
+    paddingHorizontal: sw(10),
     paddingVertical: sw(4),
+    borderWidth: 1,
   },
-  status_pending: { backgroundColor: "#FEF3C7" },
-  status_success: { backgroundColor: "#ECFDF5" },
-  status_danger: { backgroundColor: "#FEF2F2" },
+  status_pending: { backgroundColor: PropertyHubTheme.pendingBadgeBg, borderColor: PropertyHubTheme.pendingBorder },
+  status_success: { backgroundColor: PropertyHubTheme.successBadgeBg, borderColor: PropertyHubTheme.successBorder },
+  status_danger: { backgroundColor: PropertyHubTheme.dangerBadgeBg, borderColor: PropertyHubTheme.dangerBorder },
   statusText: { fontFamily: Fonts.semiBold, fontSize: sf(11) },
-  statusText_pending: { color: "#B45309" },
-  statusText_success: { color: "#047857" },
-  statusText_danger: { color: "#B91C1C" },
+  statusText_pending: { color: PropertyHubTheme.pendingText },
+  statusText_success: { color: PropertyHubTheme.successText },
+  statusText_danger: { color: PropertyHubTheme.dangerText },
+  amount: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(20),
+    lineHeight: sf(26),
+    color: PropertyHubTheme.text,
+    fontVariant: ["tabular-nums"],
+  },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: sw(8) },
   chip: {
-    backgroundColor: "#EFF6FF",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(5),
+    backgroundColor: "#F8FAFC",
     borderRadius: 999,
     paddingHorizontal: sw(10),
     paddingVertical: sw(5),
+    borderWidth: 1,
+    borderColor: "#D3DCE6",
   },
-  chipText: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: "#1B4F8A" },
+  chipText: { fontFamily: Fonts.medium, fontSize: sf(12), color: PropertyHubTheme.textMuted },
   rejectReason: {
     fontFamily: Fonts.regular,
     fontSize: sf(12),
     color: "#B91C1C",
   },
   primaryBtn: {
-    backgroundColor: PropertyHubTheme.deepTeal,
+    backgroundColor: PropertyHubTheme.teal,
     borderRadius: sw(12),
     minHeight: sw(44),
     alignItems: "center",
@@ -679,25 +672,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF2F2",
   },
   secondaryText: { fontFamily: Fonts.semiBold, fontSize: sf(14), color: "#B91C1C" },
-  reviewRow: { flexDirection: "row", gap: sw(8) },
+  cardActions: { alignSelf: "stretch", width: "100%", alignItems: "stretch", gap: sw(10), marginTop: sw(2) },
+  reviewRow: { flexDirection: "row", gap: sw(8), width: "100%" },
   disabled: { opacity: 0.6 },
   infoRow: { flexDirection: "row", alignItems: "center", gap: sw(8) },
   infoText: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(12), color: PropertyHubTheme.muted },
   proofBox: {
     backgroundColor: "#F8FAFC",
     borderRadius: sw(12),
-    padding: sw(10),
+    borderWidth: 1,
+    borderColor: "#D3DCE6",
+    padding: sw(12),
     gap: sw(4),
   },
   proofLine: {
     fontFamily: Fonts.regular,
     fontSize: sf(12),
     color: PropertyHubTheme.text,
-  },
-  proofLink: {
-    marginTop: sw(4),
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(13),
-    color: "#1B4F8A",
   },
 });

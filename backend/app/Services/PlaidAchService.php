@@ -101,7 +101,7 @@ class PlaidAchService
      */
     public function capability(User $user, ?int $communityId = null): array
     {
-        $communityId = $this->residents->resolveCommunityId($user, $communityId);
+        $communityId = $this->residents->resolveCommunityId($user, $communityId, requireEligible: false);
         $community = Community::query()->find($communityId);
         $communityBank = CommunityPlaidConnection::query()->where('community_id', $communityId)->first();
         $residentBank = $this->residents->findActive($user->id, $communityId);

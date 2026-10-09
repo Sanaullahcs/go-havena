@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -24,7 +25,6 @@ import { PropertyManagementRoutes } from "../../../constants/property-management
 import { Fonts } from "../../../constants/font";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { sf, sw } from "../../../utils/responsive";
-import { rnShadow } from "../../../utils/shadow";
 import { pickImageFile } from "../../../utils/pickImage";
 import {
   isRejectedBillStatus,
@@ -42,16 +42,24 @@ import {
 } from "../../../services/amenity-api";
 import { getUser } from "../../../services/auth-session";
 import { formatCommunityMoney } from "../../../utils/money";
+import { billListFields, buildBillDocument, sortBills, summarizeBills } from "../../../utils/bill-document";
+import BillDetailSheet from "../../../components/payments/bill-detail-sheet";
+import { useSessionUser } from "../../../hooks/use-session-user";
+import {
+  BillCard as PayBillCard,
+  BillCardFrame,
+  BillEmpty,
+  BillFilters,
+  BillReceiptButton,
+  BillSummary,
+  defaultBillFilter,
+  filterBills,
+} from "../../../components/payments/bill-list-parts";
+import AmenityIcon from "../../../components/property/amenity-icon";
 
 const MODE_TABS = [
   { id: "receive", labelKey: "services.amenityBillsTabReceive" },
   { id: "pay", labelKey: "services.amenityBillsTabPay" },
-];
-
-const RECEIVE_KIND_OPTIONS = [
-  { id: "all", labelKey: "services.amenityBillsFilterAll" },
-  { id: "shared", labelKey: "services.amenityBillsTabShared" },
-  { id: "booking", labelKey: "services.amenityBillsTabBooking" },
 ];
 
 function currentBillingMonth() {
@@ -115,12 +123,7 @@ function canPayBill(bill) {
   return bill.can_submit_proof === true || ["unpaid", "rejected", "overdue"].includes(String(bill.status ?? "").toLowerCase());
 }
 
-function isBookingBill(bill) {
-  return Number(bill.booking_id) > 0;
-}
-
-
-function BillCard({ bill, busy, onApprove, onReject, onPay, t }) {
+function BillCard({ bill, busy, onApprove, onReject, onPay, onViewReceipt, t }) {
   const status = statusMeta(bill, t);
   const due = formatDueDate(bill.due_date);
   const reviewable = !onPay && canReviewBill(bill);
@@ -129,12 +132,15 @@ function BillCard({ bill, busy, onApprove, onReject, onPay, t }) {
   const rejectionReason = String(bill.rejection_reason ?? "").trim();
   const isRejected = isRejectedBillStatus(bill.status);
   const isPayRejected = payable && isRejected;
+  const receiptUrl = bill.payment_proof?.file_url || null;
+  const paid = String(bill.status ?? "").toLowerCase() === "paid";
+  const canViewReceipt = !onPay && Boolean(receiptUrl || paid);
 
   return (
-    <View style={styles.card}>
+    <BillCardFrame>
       <View style={styles.cardHeader}>
         <View style={styles.iconWell}>
-          <Feather name="file-text" size={sf(18)} color={PropertyHubTheme.pendingText} />
+          <Feather name="file-text" size={sf(18)} color={PropertyHubTheme.deepTeal} />
         </View>
         <View style={styles.headerCopy}>
           <Text style={styles.billTitle} numberOfLines={2}>
@@ -151,10 +157,10 @@ function BillCard({ bill, busy, onApprove, onReject, onPay, t }) {
         </View>
       </View>
 
+      <View style={styles.amountRow}>
+        <Text style={styles.amount}>{formatAmount(amount)}</Text>
+      </View>
       <View style={styles.chips}>
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>{formatAmount(amount)}</Text>
-        </View>
         {bill.billing_month_label ? (
           <View style={styles.chipMuted}>
             <Text style={styles.chipMutedText}>{bill.billing_month_label}</Text>
@@ -162,6 +168,7 @@ function BillCard({ bill, busy, onApprove, onReject, onPay, t }) {
         ) : null}
         {due ? (
           <View style={styles.chipMuted}>
+            <Feather name="calendar" size={sf(12)} color={PropertyHubTheme.textMuted} />
             <Text style={styles.chipMutedText}>{t("services.unitBillsDue", { date: due })}</Text>
           </View>
         ) : null}
@@ -174,11 +181,21 @@ function BillCard({ bill, busy, onApprove, onReject, onPay, t }) {
         </View>
       ) : null}
 
+      {canViewReceipt ? (
+        <BillReceiptButton
+          label={t("bills.list.viewReceipt")}
+          onPress={() => {
+            if (receiptUrl) Linking.openURL(receiptUrl).catch(() => {});
+            else onViewReceipt?.(bill);
+          }}
+        />
+      ) : null}
+
       {payable ? (
         <Pressable
           onPress={onPay}
           disabled={busy}
-          style={[styles.approveBtn, busy && styles.disabled, { marginTop: sw(14) }]}
+          style={[styles.approveBtn, busy && styles.disabled]}
         >
           {busy ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
@@ -210,7 +227,7 @@ function BillCard({ bill, busy, onApprove, onReject, onPay, t }) {
           </Pressable>
         </View>
       ) : null}
-    </View>
+    </BillCardFrame>
   );
 }
 
@@ -414,14 +431,13 @@ function PublishBillModal({ visible, amenities, submitting, onClose, onSubmit, t
 export default function AdminAmenityBillsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const sessionUser = useSessionUser();
   const { runAction, showFailure } = useApiAction();
   const [bills, setBills] = useState([]);
   const [myBills, setMyBills] = useState([]);
   const [billingAmenities, setBillingAmenities] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [mode, setMode] = useState("receive");
-  const [receiveKind, setReceiveKind] = useState("all");
-  const [kindOpen, setKindOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
@@ -429,6 +445,8 @@ export default function AdminAmenityBillsScreen() {
   const [publishing, setPublishing] = useState(false);
   const [proofFor, setProofFor] = useState(null);
   const [rejectingPayment, setRejectingPayment] = useState(null);
+  const [receiptFor, setReceiptFor] = useState(null);
+  const [payFilter, setPayFilter] = useState(null);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -456,15 +474,16 @@ export default function AdminAmenityBillsScreen() {
 
   const receiveBills = useMemo(() => bills.filter((bill) => {
     if (currentUserId && Number(bill.user_id) === Number(currentUserId)) return false;
-    const booking = isBookingBill(bill);
-    if (receiveKind === "all") return true;
-    return receiveKind === "booking" ? booking : !booking;
-  }), [bills, currentUserId, receiveKind]);
+    return true;
+  }), [bills, currentUserId]);
 
   const paying = mode === "pay";
-  const receiveKindLabel = t(
-    RECEIVE_KIND_OPTIONS.find((item) => item.id === receiveKind)?.labelKey
-      ?? "services.amenityBillsFilterAll",
+  const payableBills = useMemo(() => sortBills(myBills, t), [myBills, t]);
+  const paySummary = useMemo(() => summarizeBills(payableBills, t), [payableBills, t]);
+  const activePayFilter = payFilter ?? defaultBillFilter(paySummary);
+  const visiblePayBills = useMemo(
+    () => filterBills(payableBills, activePayFilter, t),
+    [payableBills, activePayFilter, t],
   );
 
   async function handleApprove(bill) {
@@ -559,10 +578,7 @@ export default function AdminAmenityBillsScreen() {
               return (
                 <Pressable
                   key={item.id}
-                  onPress={() => {
-                    setMode(item.id);
-                    setKindOpen(false);
-                  }}
+                  onPress={() => setMode(item.id)}
                   style={[styles.tab, active && styles.tabActive]}
                 >
                   <Text style={[styles.tabText, active && styles.tabTextActive]}>{t(item.labelKey)}</Text>
@@ -572,7 +588,7 @@ export default function AdminAmenityBillsScreen() {
           </ScrollView>
 
           {paying ? (
-            myBills.length === 0 ? (
+            payableBills.length === 0 ? (
               <View style={styles.emptyCard}>
                 <View style={styles.emptyIcon}>
                   <Feather name="file-text" size={sf(22)} color={PropertyHubTheme.pendingText} />
@@ -581,83 +597,53 @@ export default function AdminAmenityBillsScreen() {
                 <Text style={styles.emptyBody}>{t("services.amenityBillsPayEmptyBody")}</Text>
               </View>
             ) : (
-              myBills.map((bill) => (
-                <BillCard
-                  key={bill.resident_bill_id || bill.id}
-                  bill={bill}
-                  busy={busyId === (bill.resident_bill_id || bill.id)}
-                  onPay={() => setProofFor(bill)}
-                  t={t}
-                />
-              ))
+              <>
+                <BillSummary summary={paySummary} t={t} />
+                <BillFilters value={activePayFilter} onChange={setPayFilter} summary={paySummary} t={t} />
+                {visiblePayBills.length === 0 ? (
+                  <BillEmpty filter={activePayFilter} t={t} />
+                ) : (
+                  visiblePayBills.map((bill) => {
+                    const fields = billListFields(bill, "amenity");
+                    const rejected = String(bill.status ?? "").toLowerCase() === "rejected";
+                    return (
+                      <PayBillCard
+                        key={bill.resident_bill_id || bill.id}
+                        bill={bill}
+                        t={t}
+                        busy={busyId === (bill.resident_bill_id || bill.id)}
+                        icon={<AmenityIcon iconKey={bill.amenity_icon_key} name={bill.amenity_name} size={sf(18)} />}
+                        title={fields.title || bill.amenity_name || t("services.amenityBillsTitle")}
+                        subtitle={fields.subtitle}
+                        payLabel={rejected ? t("services.myAmenityBillsResubmitPay") : t("bills.list.payNow")}
+                        onPay={() => setProofFor(bill)}
+                      />
+                    );
+                  })
+                )}
+              </>
             )
           ) : (
             <>
-              <View style={styles.dropdownWrap}>
-                <Pressable
-                  onPress={() => setKindOpen((open) => !open)}
-                  style={styles.dropdownBtn}
-                >
-                  <Text style={styles.dropdownBtnText}>{receiveKindLabel}</Text>
-                  <Feather
-                    name={kindOpen ? "chevron-up" : "chevron-down"}
-                    size={sf(16)}
-                    color={PropertyHubTheme.deepTeal}
-                  />
-                </Pressable>
-                {kindOpen ? (
-                  <View style={styles.dropdownMenu}>
-                    {RECEIVE_KIND_OPTIONS.map((item) => {
-                      const active = receiveKind === item.id;
-                      return (
-                        <Pressable
-                          key={item.id}
-                          onPress={() => {
-                            setReceiveKind(item.id);
-                            setKindOpen(false);
-                          }}
-                          style={[styles.dropdownItem, active && styles.dropdownItemActive]}
-                        >
-                          <Text style={[styles.dropdownItemText, active && styles.dropdownItemTextActive]}>
-                            {t(item.labelKey)}
-                          </Text>
-                          {active ? <Feather name="check" size={sf(14)} color={PropertyHubTheme.deepTeal} /> : null}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ) : null}
-              </View>
-
               {receiveBills.length === 0 ? (
                 <View style={styles.emptyCard}>
                   <View style={styles.emptyIcon}>
                     <Feather name="file-text" size={sf(22)} color={PropertyHubTheme.pendingText} />
                   </View>
-                  <Text style={styles.emptyTitle}>
-                    {receiveKind === "booking"
-                      ? t("services.myAmenityBillsReceivedEmptyTitle")
-                      : t("services.amenityBillsEmptyTitle")}
-                  </Text>
-                  <Text style={styles.emptyBody}>
-                    {receiveKind === "booking"
-                      ? t("services.myAmenityBillsReceivedEmptyBody")
-                      : t("services.amenityBillsEmptyBody")}
-                  </Text>
-                  {receiveKind !== "booking" ? (
-                    billingAmenities.length > 0 ? (
-                      <Pressable style={styles.emptyAction} onPress={() => setPublishOpen(true)}>
-                        <Text style={styles.emptyActionText}>{t("services.amenityBillsPublishAction")}</Text>
-                      </Pressable>
-                    ) : (
-                      <Pressable
-                        style={styles.emptyAction}
-                        onPress={() => router.push(PropertyManagementRoutes.ADMIN_AMENITIES)}
-                      >
-                        <Text style={styles.emptyActionText}>{t("services.amenityBillsManageAmenities")}</Text>
-                      </Pressable>
-                    )
-                  ) : null}
+                  <Text style={styles.emptyTitle}>{t("services.amenityBillsEmptyTitle")}</Text>
+                  <Text style={styles.emptyBody}>{t("services.amenityBillsEmptyBody")}</Text>
+                  {billingAmenities.length > 0 ? (
+                    <Pressable style={styles.emptyAction} onPress={() => setPublishOpen(true)}>
+                      <Text style={styles.emptyActionText}>{t("services.amenityBillsPublishAction")}</Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      style={styles.emptyAction}
+                      onPress={() => router.push(PropertyManagementRoutes.ADMIN_AMENITIES)}
+                    >
+                      <Text style={styles.emptyActionText}>{t("services.amenityBillsManageAmenities")}</Text>
+                    </Pressable>
+                  )}
                 </View>
               ) : (
                 receiveBills.map((bill) => (
@@ -667,6 +653,7 @@ export default function AdminAmenityBillsScreen() {
                     busy={busyId === bill.resident_bill_id}
                     onApprove={() => void handleApprove(bill)}
                     onReject={() => setRejectingPayment(bill)}
+                    onViewReceipt={setReceiptFor}
                     t={t}
                   />
                 ))
@@ -698,6 +685,12 @@ export default function AdminAmenityBillsScreen() {
           }}
         />
       ) : null}
+
+      <BillDetailSheet
+        visible={Boolean(receiptFor)}
+        doc={receiptFor ? buildBillDocument(receiptFor, { kind: "amenity", user: sessionUser, communityId: receiptFor.community_id, t }) : null}
+        onClose={() => setReceiptFor(null)}
+      />
 
       <PaymentRejectionModal
         visible={Boolean(rejectingPayment)}
@@ -846,15 +839,6 @@ const styles = {
     fontSize: sf(13),
     color: "#FFFFFF",
   },
-  card: {
-    backgroundColor: PropertyHubTheme.surface,
-    borderRadius: sw(16),
-    borderWidth: 1,
-    borderColor: PropertyHubTheme.border,
-    padding: sw(16),
-    ...rnShadow({ color: PropertyHubTheme.text, offset: { width: 0, height: 2 }, opacity: 0.04, radius: 8 }),
-    elevation: 1,
-  },
   cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: sw(12) },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: sw(8) },
   cardTitle: {
@@ -879,10 +863,10 @@ const styles = {
   iconWell: {
     width: sw(44),
     height: sw(44),
-    borderRadius: sw(12),
+    borderRadius: sw(14),
     borderWidth: 1,
-    backgroundColor: PropertyHubTheme.pendingBg,
-    borderColor: PropertyHubTheme.pendingBorder,
+    backgroundColor: PropertyHubTheme.mint,
+    borderColor: PropertyHubTheme.iconBorder,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -923,21 +907,25 @@ const styles = {
   statusText_success: { color: PropertyHubTheme.successText },
   statusText_pending: { color: PropertyHubTheme.pendingText },
   statusText_danger: { color: PropertyHubTheme.dangerText },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: sw(8), marginTop: sw(14) },
-  chip: {
-    backgroundColor: PropertyHubTheme.mint,
-    borderRadius: 999,
-    paddingHorizontal: sw(10),
-    paddingVertical: sw(5),
+  amountRow: { marginTop: sw(2) },
+  amount: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(20),
+    lineHeight: sf(26),
+    color: PropertyHubTheme.text,
+    fontVariant: ["tabular-nums"],
   },
-  chipText: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: PropertyHubTheme.deepTeal },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: sw(8) },
   chipMuted: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(5),
     backgroundColor: "#F8FAFC",
     borderRadius: 999,
     paddingHorizontal: sw(10),
     paddingVertical: sw(5),
     borderWidth: 1,
-    borderColor: PropertyHubTheme.border,
+    borderColor: "#D3DCE6",
   },
   chipMutedText: {
     fontFamily: Fonts.semiBold,
@@ -945,7 +933,6 @@ const styles = {
     color: PropertyHubTheme.textMuted,
   },
   rejectBox: {
-    marginTop: sw(12),
     padding: sw(12),
     borderRadius: sw(12),
     backgroundColor: PropertyHubTheme.dangerBg,
@@ -964,7 +951,7 @@ const styles = {
     color: PropertyHubTheme.dangerText,
     lineHeight: sf(18),
   },
-  actions: { flexDirection: "row", gap: sw(10), marginTop: sw(14) },
+  actions: { flexDirection: "row", gap: sw(10) },
   approveBtn: {
     flex: 1,
     minHeight: sw(44),

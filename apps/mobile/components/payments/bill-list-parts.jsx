@@ -1,5 +1,5 @@
 import React from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
@@ -8,12 +8,7 @@ import { billAmount, billListStamp, billStatusMeta, canPayBill } from "../../uti
 import { rnShadow } from "../../utils/shadow";
 import { sf, sw } from "../../utils/responsive";
 
-const TONE = {
-  success: { fg: "#047857", bg: "#ECFDF5", border: "#A7F3D0" },
-  warning: { fg: "#B45309", bg: "#FFFBEB", border: "#FDE68A" },
-  danger: { fg: "#B91C1C", bg: "#FEF2F2", border: "#FECACA" },
-  info: { fg: "#1D4ED8", bg: "#EFF6FF", border: "#BFDBFE" },
-};
+const CARD_BORDER = "#D3DCE6";
 
 export const FILTERS = ["due", "review", "paid", "all"];
 
@@ -59,6 +54,48 @@ export function BillSummary({ summary, t }) {
   );
 }
 
+/** Pay-tab list: summary + filters fixed; only bill cards scroll (unit & amenity). */
+export function BillPayListLayout({
+  summary,
+  activeFilter,
+  onFilterChange,
+  t,
+  refreshing = false,
+  onRefresh,
+  data,
+  keyExtractor,
+  renderItem,
+}) {
+  return (
+    <View style={styles.payListRoot}>
+      <View style={styles.payListChrome}>
+        <BillSummary summary={summary} t={t} />
+        <BillFilters value={activeFilter} onChange={onFilterChange} summary={summary} t={t} />
+      </View>
+      <FlatList
+        style={styles.payListScroll}
+        contentContainerStyle={[styles.payListContent, data.length === 0 && styles.payListContentEmpty]}
+        data={data}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        ItemSeparatorComponent={BillListSeparator}
+        ListEmptyComponent={<BillEmpty filter={activeFilter} t={t} />}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PropertyHubTheme.teal} />
+          ) : undefined
+        }
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      />
+    </View>
+  );
+}
+
+function BillListSeparator() {
+  return <View style={styles.listSeparator} />;
+}
+
 export function BillFilters({ value, onChange, summary, t }) {
   const counts = { due: summary.due, review: summary.review, paid: summary.paid, all: summary.due + summary.review + summary.paid };
   return (
@@ -84,78 +121,128 @@ export function BillFilters({ value, onChange, summary, t }) {
   );
 }
 
+/** Full-width receipt / proof action for receive-side bill cards. */
+export function BillReceiptButton({ label, onPress, disabled = false }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [styles.receiptHit, pressed && !disabled && styles.receiptHitPressed, disabled && styles.disabled]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <View style={styles.receiptFace}>
+        <Feather name="file-text" size={sf(16)} color={PropertyHubTheme.deepTeal} />
+        <Text style={styles.receiptLabel}>{label}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function statusBadgeStyles(tone) {
+  if (tone === "success") {
+    return { wrap: styles.status_success, text: styles.statusText_success };
+  }
+  if (tone === "danger") {
+    return { wrap: styles.status_danger, text: styles.statusText_danger };
+  }
+  if (tone === "info") {
+    return { wrap: styles.status_info, text: styles.statusText_info };
+  }
+  return { wrap: styles.status_pending, text: styles.statusText_pending };
+}
+
+/** White bordered bill list container — same on pay and receive lists. */
+export function BillCardFrame({ children, style, pressed = false }) {
+  return <View style={[styles.card, pressed && styles.cardPressed, style]}>{children}</View>;
+}
+
 /** List card shared by amenity and unit bills. Tap opens the invoice / receipt. */
 export function BillCard({ bill, icon, title, subtitle, t, busy = false, onPress, onPay, payLabel }) {
   const status = billStatusMeta(bill, t);
-  const tone = TONE[status.tone] ?? TONE.warning;
+  const badge = statusBadgeStyles(status.tone);
   const payable = canPayBill(bill);
   const stamp = billListStamp(bill, status);
-  const dueLine = status.key === "overdue"
-    ? (stamp ? `${status.label} · ${stamp}` : status.label)
-    : stamp
+  const dateHint = stamp
+    ? status.group === "due" && status.key !== "overdue"
       ? t("bills.list.dueOn", { date: stamp })
-      : status.label;
+      : stamp
+    : null;
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]} accessibilityRole="button" accessibilityLabel={`${title}, ${formatCommunityMoney(billAmount(bill))}, ${status.label}`}>
-      <View style={styles.cardTop}>
+    <Pressable
+      onPress={onPress}
+      style={styles.cardHit}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}, ${formatCommunityMoney(billAmount(bill))}, ${status.label}`}
+    >
+      {({ pressed }) => (
+      <BillCardFrame pressed={pressed}>
+      <View style={styles.cardHeader}>
         <View style={styles.iconWell}>{icon}</View>
-        <View style={styles.cardCopy}>
-          <View style={styles.titleRow}>
-            <Text style={styles.cardTitle} numberOfLines={2}>{title}</Text>
-            <Text style={[styles.amount, status.key === "overdue" && styles.amountOverdue]}>
-              {formatCommunityMoney(billAmount(bill))}
-            </Text>
-          </View>
+        <View style={styles.headerCopy}>
+          <Text style={styles.cardTitle} numberOfLines={2}>{title}</Text>
           {subtitle ? <Text style={styles.cardSub} numberOfLines={1}>{subtitle}</Text> : null}
-          <Text style={styles.when} numberOfLines={1}>
-            {status.group === "due" ? (
-              <Text style={{ color: tone.fg }}>{dueLine}</Text>
-            ) : (
-              <>
-                <Text style={{ color: tone.fg }}>{status.label}</Text>
-                {stamp ? <Text>{` · ${stamp}`}</Text> : null}
-              </>
-            )}
-          </Text>
         </View>
-        <Feather name="chevron-right" size={sf(16)} color={PropertyHubTheme.textMuted} style={styles.chevron} />
+        <View style={[styles.statusBadge, badge.wrap]}>
+          <Text style={[styles.statusBadgeText, badge.text]} numberOfLines={1}>{status.label}</Text>
+        </View>
       </View>
+
+      <Text style={[styles.amount, status.key === "overdue" && styles.amountOverdue]}>
+        {formatCommunityMoney(billAmount(bill))}
+      </Text>
+
+      {dateHint ? (
+        <View style={styles.chips}>
+          <View style={styles.chip}>
+            <Feather name="calendar" size={sf(12)} color={PropertyHubTheme.textMuted} />
+            <Text style={styles.chipText} numberOfLines={2}>{dateHint}</Text>
+          </View>
+        </View>
+      ) : null}
 
       {status.key === "rejected" && bill.rejection_reason ? (
         <View style={styles.reason}>
-          <Feather name="alert-triangle" size={sf(13)} color="#B91C1C" />
-          <Text style={styles.reasonText} numberOfLines={3}>{bill.rejection_reason}</Text>
+          <Feather name="alert-triangle" size={sf(13)} color={PropertyHubTheme.dangerText} />
+          <Text style={styles.reasonText} numberOfLines={2}>{bill.rejection_reason}</Text>
         </View>
       ) : null}
 
       {status.key === "processing" ? (
         <View style={styles.hint}>
-          <ActivityIndicator size="small" color="#1D4ED8" />
-          <Text style={[styles.hintText, { color: "#1D4ED8" }]}>{t("bills.list.processingHint")}</Text>
+          <ActivityIndicator size="small" color="#1B4F8A" />
+          <Text style={styles.hintText} numberOfLines={2}>{t("bills.list.processingHint")}</Text>
         </View>
       ) : status.key === "pending_verification" ? (
         <View style={styles.hint}>
-          <Feather name="clock" size={sf(14)} color="#1D4ED8" />
-          <Text style={[styles.hintText, { color: "#1D4ED8" }]}>{t("bills.list.reviewHint")}</Text>
+          <Feather name="clock" size={sf(13)} color="#1B4F8A" />
+          <Text style={styles.hintText} numberOfLines={2}>{t("bills.list.reviewHint")}</Text>
         </View>
       ) : null}
 
       {payable && onPay ? (
         <Pressable
-          onPress={onPay}
+          onPress={(event) => {
+            event?.stopPropagation?.();
+            onPay();
+          }}
           disabled={busy}
-          style={({ pressed }) => [styles.payBtn, pressed && styles.cardPressed, busy && styles.disabled]}
+          style={({ pressed }) => [styles.payHit, pressed && styles.payBtnPressed, busy && styles.disabled]}
           accessibilityRole="button"
         >
-          {busy ? <ActivityIndicator color="#FFFFFF" /> : (
-            <>
-              <Feather name="credit-card" size={sf(15)} color="#FFFFFF" />
-              <Text style={styles.payText}>{payLabel || t("bills.list.payNow")}</Text>
-            </>
-          )}
+          <View style={styles.payFace}>
+            {busy ? <ActivityIndicator color="#FFFFFF" /> : (
+              <>
+                <Feather name="credit-card" size={sf(15)} color="#FFFFFF" />
+                <Text style={styles.payText}>{payLabel || t("bills.list.payNow")}</Text>
+              </>
+            )}
+          </View>
         </Pressable>
       ) : null}
+      </BillCardFrame>
+      )}
     </Pressable>
   );
 }
@@ -173,6 +260,25 @@ export function BillEmpty({ filter, t }) {
 }
 
 const styles = StyleSheet.create({
+  payListRoot: { flex: 1 },
+  payListChrome: {
+    paddingHorizontal: sw(16),
+    paddingTop: sw(12),
+    paddingBottom: sw(10),
+    gap: sw(12),
+    backgroundColor: "#F9FAFB",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E2E8F0",
+  },
+  payListScroll: { flex: 1 },
+  payListContent: {
+    paddingHorizontal: sw(16),
+    paddingTop: sw(12),
+    paddingBottom: sw(32),
+  },
+  payListContentEmpty: { flexGrow: 1 },
+  listSeparator: { height: sw(14) },
+
   summary: { flexDirection: "row", alignItems: "center", gap: sw(12), borderRadius: sw(20), padding: sw(18) },
   summaryDue: { backgroundColor: "#1B4F8A" },
   summaryClear: { backgroundColor: "#ECFDF5", borderWidth: 1, borderColor: "#A7F3D0" },
@@ -206,29 +312,98 @@ const styles = StyleSheet.create({
   filterCountText: { fontFamily: Fonts.bold, fontSize: sf(11), color: PropertyHubTheme.textMuted },
   filterCountTextActive: { color: "#FFFFFF" },
 
+  cardHit: { width: "100%", alignSelf: "stretch" },
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: sw(18),
+    width: "100%",
+    backgroundColor: PropertyHubTheme.surface,
+    borderRadius: sw(PropertyHubTheme.cardRadius),
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
     padding: sw(16),
     gap: sw(12),
-    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 4 }, opacity: 0.05, radius: 12, elevation: 2 }),
+    alignItems: "stretch",
+    overflow: "hidden",
+    ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 2 }, opacity: 0.08, radius: 12, elevation: 3 }),
   },
-  cardPressed: { opacity: 0.9 },
-  cardTop: { flexDirection: "row", alignItems: "flex-start", gap: sw(12) },
-  iconWell: { width: sw(42), height: sw(42), borderRadius: sw(13), alignItems: "center", justifyContent: "center", backgroundColor: PropertyHubTheme.mint },
-  cardCopy: { flex: 1, minWidth: 0 },
-  titleRow: { flexDirection: "row", alignItems: "flex-start", gap: sw(10) },
-  cardTitle: { flex: 1, minWidth: 0, fontFamily: Fonts.bold, fontSize: sf(15), lineHeight: sf(20), color: PropertyHubTheme.text },
-  cardSub: { fontFamily: Fonts.regular, fontSize: sf(12.5), lineHeight: sf(17), color: PropertyHubTheme.textMuted, marginTop: sw(2) },
-  amount: { fontFamily: Fonts.bold, fontSize: sf(15), lineHeight: sf(20), color: PropertyHubTheme.text, fontVariant: ["tabular-nums"], flexShrink: 0 },
-  amountOverdue: { color: "#B91C1C" },
-  when: { fontFamily: Fonts.medium, fontSize: sf(12.5), lineHeight: sf(17), color: PropertyHubTheme.textMuted, marginTop: sw(4) },
-  chevron: { marginTop: sw(2) },
-  reason: { flexDirection: "row", gap: sw(8), padding: sw(10), borderRadius: sw(12), backgroundColor: "#FEF2F2" },
-  reasonText: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(12.5), lineHeight: sf(18), color: "#7F1D1D" },
-  hint: { flexDirection: "row", alignItems: "center", gap: sw(8), padding: sw(10), borderRadius: sw(12), backgroundColor: "#EFF6FF" },
-  hintText: { flex: 1, fontFamily: Fonts.medium, fontSize: sf(12.5), lineHeight: sf(18) },
-  payBtn: {
+  cardPressed: { opacity: 0.96 },
+  cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: sw(12) },
+  iconWell: {
+    width: sw(44),
+    height: sw(44),
+    borderRadius: sw(14),
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.iconBorder,
+    backgroundColor: PropertyHubTheme.mint,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  headerCopy: { flex: 1, minWidth: 0 },
+  cardTitle: { fontFamily: Fonts.semiBold, fontSize: sf(15), lineHeight: sf(21), color: PropertyHubTheme.text },
+  cardSub: { fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(17), color: PropertyHubTheme.textMuted, marginTop: sw(2) },
+  statusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(4),
+    borderWidth: 1,
+    flexShrink: 0,
+    maxWidth: "36%",
+  },
+  statusBadgeText: { fontFamily: Fonts.semiBold, fontSize: sf(11) },
+  status_success: { backgroundColor: PropertyHubTheme.successBadgeBg, borderColor: PropertyHubTheme.successBorder },
+  status_pending: { backgroundColor: PropertyHubTheme.pendingBadgeBg, borderColor: PropertyHubTheme.pendingBorder },
+  status_danger: { backgroundColor: PropertyHubTheme.dangerBadgeBg, borderColor: PropertyHubTheme.dangerBorder },
+  status_info: { backgroundColor: PropertyHubTheme.accentBlue, borderColor: "#BFDBFE" },
+  statusText_success: { color: PropertyHubTheme.successText },
+  statusText_pending: { color: PropertyHubTheme.pendingText },
+  statusText_danger: { color: PropertyHubTheme.dangerText },
+  statusText_info: { color: "#1B4F8A" },
+  amount: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(20),
+    lineHeight: sf(26),
+    color: PropertyHubTheme.text,
+    fontVariant: ["tabular-nums"],
+  },
+  amountOverdue: { color: PropertyHubTheme.dangerText },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: sw(8) },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(5),
+    backgroundColor: "#F8FAFC",
+    borderRadius: 999,
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(5),
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+  },
+  chipText: { fontFamily: Fonts.medium, fontSize: sf(12), color: PropertyHubTheme.textMuted, flexShrink: 1 },
+  reason: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: sw(8),
+    padding: sw(12),
+    borderRadius: sw(12),
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.dangerBorder,
+    backgroundColor: PropertyHubTheme.dangerBg,
+  },
+  reasonText: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(17), color: PropertyHubTheme.dangerText },
+  hint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(8),
+    padding: sw(12),
+    borderRadius: sw(12),
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    backgroundColor: PropertyHubTheme.accentBlue,
+  },
+  hintText: { flex: 1, fontFamily: Fonts.medium, fontSize: sf(12), lineHeight: sf(17), color: "#1B4F8A" },
+  payHit: { width: "100%", alignSelf: "stretch" },
+  payFace: {
+    width: "100%",
     minHeight: sw(44),
     borderRadius: sw(12),
     backgroundColor: PropertyHubTheme.teal,
@@ -236,12 +411,41 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: sw(8),
+    paddingHorizontal: sw(16),
+    paddingVertical: sw(12),
   },
+  payBtnPressed: { opacity: 0.9 },
   payText: { fontFamily: Fonts.bold, fontSize: sf(14), color: "#FFFFFF" },
   disabled: { opacity: 0.55 },
 
-  empty: { alignItems: "center", backgroundColor: "#FFFFFF", borderRadius: sw(18), paddingHorizontal: sw(20), paddingVertical: sw(28) },
+  empty: {
+    alignItems: "center",
+    backgroundColor: PropertyHubTheme.surface,
+    borderRadius: sw(PropertyHubTheme.cardRadius),
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    paddingHorizontal: sw(20),
+    paddingVertical: sw(28),
+  },
   emptyIcon: { width: sw(48), height: sw(48), borderRadius: sw(24), backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center", marginBottom: sw(10) },
   emptyTitle: { fontFamily: Fonts.bold, fontSize: sf(15), color: PropertyHubTheme.text, textAlign: "center" },
   emptyBody: { fontFamily: Fonts.regular, fontSize: sf(13), lineHeight: sf(19), color: PropertyHubTheme.textMuted, textAlign: "center", marginTop: sw(4) },
+
+  receiptHit: { width: "100%", alignSelf: "stretch" },
+  receiptHitPressed: { opacity: 0.92 },
+  receiptFace: {
+    width: "100%",
+    minHeight: sw(48),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: sw(8),
+    paddingHorizontal: sw(16),
+    paddingVertical: sw(12),
+    borderRadius: sw(12),
+    borderWidth: 1.5,
+    borderColor: PropertyHubTheme.teal,
+    backgroundColor: PropertyHubTheme.mint,
+  },
+  receiptLabel: { fontFamily: Fonts.bold, fontSize: sf(14), color: PropertyHubTheme.deepTeal },
 });
