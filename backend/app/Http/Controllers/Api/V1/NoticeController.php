@@ -890,7 +890,7 @@ class NoticeController extends Controller
             $id,
         );
 
-        if ($notice->author_id) {
+        if ($notice->author_id && (int) $notice->author_id !== (int) auth()->id()) {
             NotificationService::send(
                 (int) $notice->author_id,
                 'success',
@@ -931,7 +931,7 @@ class NoticeController extends Controller
 
         ActivityLogService::user('notice_rejected', "Rejected notice: \"{$notice->title}\"", 'Notice', $id, 'warning');
 
-        if ($notice->author_id) {
+        if ($notice->author_id && (int) $notice->author_id !== (int) auth()->id()) {
             $reason = $request->reason ? " Reason: {$request->reason}" : '';
             NotificationService::send(
                 (int) $notice->author_id,
@@ -958,7 +958,10 @@ class NoticeController extends Controller
 
         // Notify before soft-delete so audience/recipient rows are still available.
         if (($notice->category ?? '') === 'event') {
-            NoticeAudienceService::notifyEventCancelled($notice);
+            NoticeAudienceService::notifyEventCancelled(
+                $notice,
+                auth()->id() ? (int) auth()->id() : null,
+            );
         }
 
         DB::table('notices')->where('id', $id)->update(['deleted_at' => now()]);
@@ -2045,7 +2048,11 @@ class NoticeController extends Controller
     private function notifyResidentsForNotice(object $notice, string $title): void
     {
         try {
-            NoticeAudienceService::notifyForNotice($notice, $title);
+            NoticeAudienceService::notifyForNotice(
+                $notice,
+                $title,
+                auth()->id() ? (int) auth()->id() : null,
+            );
         } catch (\Throwable $e) {
             Log::warning('Notice resident notify failed', [
                 'notice_id' => $notice->id ?? null,
@@ -2095,7 +2102,12 @@ class NoticeController extends Controller
         };
         $href = "/screens/admin-content-review?kind={$kind}";
 
+        $actorId = auth()->id() ? (int) auth()->id() : 0;
+
         foreach ($adminIds as $userId) {
+            if ($actorId > 0 && (int) $userId === $actorId) {
+                continue;
+            }
             NotificationService::send(
                 (int) $userId,
                 'info',

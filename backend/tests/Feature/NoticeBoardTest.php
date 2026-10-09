@@ -832,6 +832,89 @@ class NoticeBoardTest extends TestCase
             'type'    => 'warning',
             'title'   => 'New Alert',
         ]);
+
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $admin->id,
+            'title'   => 'New Alert',
+        ]);
+    }
+
+    public function test_notice_publisher_is_not_notified_but_other_admins_and_residents_are(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        $otherAdmin = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status'                 => 'active',
+            'phone'                  => '+201700000023',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $otherAdmin->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $noticeId = $this->postJson('/api/v1/admin/notices', array_merge([
+            'title'    => 'Pool closed',
+            'body'     => 'The pool is closed for cleaning.',
+            'category' => 'general',
+            'status'   => 'published',
+        ], $this->scheduleFields()))->assertCreated()->json('data.id');
+
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id'    => $admin->id,
+            'action_url' => "/notices/{$noticeId}",
+        ]);
+
+        foreach ([$resident->id, $otherAdmin->id] as $userId) {
+            $this->assertDatabaseHas('app_notifications', [
+                'user_id'    => $userId,
+                'action_url' => "/notices/{$noticeId}",
+                'title'      => 'New Notice',
+            ]);
+        }
+    }
+
+    public function test_scheduled_notice_does_not_notify_its_author(): void
+    {
+        ['admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($admin);
+
+        $noticeId = $this->postJson('/api/v1/admin/notices', array_merge([
+            'title'        => 'Later reminder',
+            'body'         => 'This notice publishes on a schedule.',
+            'category'     => 'general',
+            'scheduled_at' => now()->addHours(2)->toIso8601String(),
+        ], $this->scheduleFields()))->assertCreated()->json('data.id');
+
+        $this->assertDatabaseMissing('app_notifications', [
+            'action_url' => "/notices/{$noticeId}",
+        ]);
+
+        $this->travelTo(now()->addHours(3));
+
+        Sanctum::actingAs($resident);
+
+        $this->getJson('/api/v1/notices')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $noticeId);
+
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id'    => $admin->id,
+            'action_url' => "/notices/{$noticeId}",
+        ]);
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id'    => $resident->id,
+            'action_url' => "/notices/{$noticeId}",
+            'title'      => 'New Notice',
+        ]);
     }
 
     public function test_resident_cannot_create_alert(): void
@@ -1406,6 +1489,7 @@ class NoticeBoardTest extends TestCase
             'title'    => 'Summer BBQ',
             'body'     => 'Bring a dish to share.',
             'category' => 'event',
+            'location' => 'Courtyard',
             'status'   => 'published',
         ], $this->scheduleFields(now()->addDays(2)->toDateString())))->assertCreated()->json('data.id');
 
@@ -1413,7 +1497,7 @@ class NoticeBoardTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'Notice deleted');
 
-        foreach ([$resident->id, $other->id, $admin->id] as $userId) {
+        foreach ([$resident->id, $other->id] as $userId) {
             $this->assertDatabaseHas('app_notifications', [
                 'user_id'    => $userId,
                 'type'       => 'warning',
@@ -1421,6 +1505,11 @@ class NoticeBoardTest extends TestCase
                 'action_url' => '/screens/notices',
             ]);
         }
+
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $admin->id,
+            'title'   => 'Event Cancelled',
+        ]);
 
         $body = DB::table('app_notifications')
             ->where('user_id', $resident->id)

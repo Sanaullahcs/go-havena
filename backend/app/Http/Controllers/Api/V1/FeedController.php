@@ -1035,6 +1035,7 @@ class FeedController extends Controller
             'Post',
             $id,
         );
+        if ((int) $post->user_id !== (int) auth()->id()) {
         NotificationService::send(
             $post->user_id,
             'success',
@@ -1046,6 +1047,7 @@ class FeedController extends Controller
                 'post_id' => (int) $id,
             ],
         );
+        }
 
         if ($wasNotLive) {
             $this->notifyPostCreated(
@@ -1090,6 +1092,7 @@ class FeedController extends Controller
             $id,
             'warning',
         );
+        if ((int) $post->user_id !== (int) auth()->id()) {
         NotificationService::send(
             $post->user_id,
             'warning',
@@ -1105,6 +1108,7 @@ class FeedController extends Controller
                 'post_id' => (int) $id,
             ],
         );
+        }
 
         return response()->json([
             'message' => $wasPublished ? 'Post removed from the community feed' : 'Post rejected',
@@ -1878,10 +1882,15 @@ class FeedController extends Controller
 
     private function notifyPostCreated(int $communityId, int $authorId, int $postId, string $body): void
     {
+        $excludeIds = array_values(array_unique(array_filter([
+            $authorId,
+            (int) (auth()->id() ?? 0),
+        ])));
+
         $recipientIds = DB::table('community_memberships')
             ->where('community_id', $communityId)
             ->where('status', 'approved')
-            ->where('user_id', '!=', $authorId)
+            ->whereNotIn('user_id', $excludeIds)
             ->pluck('user_id')
             ->map(fn ($id) => (int) $id)
             ->unique()

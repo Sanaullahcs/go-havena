@@ -698,9 +698,12 @@ class AmenityController extends Controller
             'updated_at' => now(),
         ]);
 
+        $notifyBooker = (int) $booking->user_id !== (int) $request->user()->id;
+
         if ($amenity && ! ($amenity->shared_billing_enabled ?? false) && $fee > 0 && ! $paidByBank) {
             $booking->status = $nextStatus;
             app(AmenitySharedBillService::class)->createBookingBill($booking, $amenity, (int) $request->user()->id, $request);
+            if ($notifyBooker) {
             NotificationService::send(
                 $booking->user_id,
                 'info',
@@ -712,9 +715,13 @@ class AmenityController extends Controller
                     ? '/screens/property-management/my-booking'
                     : '/screens/property-management/amenity-bills',
             );
+            }
         }
 
         ActivityLogService::user('booking_approved', "Approved {$booking->amenity_name} booking #{$id}", 'Booking', $id);
+        if (! $notifyBooker) {
+            return response()->json(['message' => 'Booking approved']);
+        }
         if ($paidByBank) {
             NotificationService::send(
                 $booking->user_id,
@@ -776,6 +783,7 @@ class AmenityController extends Controller
         ]);
 
         ActivityLogService::user('booking_rejected', "Rejected {$booking->amenity_name} booking #{$id}", 'Booking', $id);
+        if ((int) $booking->user_id !== (int) $request->user()->id) {
         NotificationService::send(
             $booking->user_id,
             'warning',
@@ -784,6 +792,7 @@ class AmenityController extends Controller
                 .($request->reason ? " Reason: {$request->reason}" : ''),
             '/screens/property-management/my-booking',
         );
+        }
 
         return response()->json(['message' => 'Booking rejected']);
     }
@@ -959,7 +968,7 @@ class AmenityController extends Controller
             ['related_item' => $amenity->name],
         );
 
-        if ($amenity->created_by) {
+        if ($amenity->created_by && (int) $amenity->created_by !== (int) $request->user()->id) {
             NotificationService::send(
                 (int) $amenity->created_by,
                 'success',
@@ -1017,7 +1026,7 @@ class AmenityController extends Controller
             'warning',
         );
 
-        if ($amenity->created_by) {
+        if ($amenity->created_by && (int) $amenity->created_by !== (int) $request->user()->id) {
             NotificationService::send(
                 (int) $amenity->created_by,
                 'warning',

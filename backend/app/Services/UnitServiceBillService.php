@@ -1155,6 +1155,9 @@ class UnitServiceBillService
 
         $unitNumber = (string) ($unit->unit_number ?? '');
         foreach ($adminIds as $adminId) {
+            if ($adminId === $requestedBy) {
+                continue;
+            }
             NotificationService::send(
                 $adminId,
                 'info',

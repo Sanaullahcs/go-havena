@@ -43,7 +43,7 @@ class ScheduledNoticeService
 
             $fresh = DB::table('notices')->where('id', $notice->id)->first();
             if ($fresh) {
-                NoticeAudienceService::notifyForNotice($fresh);
+                NoticeAudienceService::notifyForNotice($fresh, null, (int) $fresh->author_id);
             }
 
             $count++;

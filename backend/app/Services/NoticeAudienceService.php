@@ -173,19 +173,20 @@ class NoticeAudienceService
             ->pluck('user_id');
     }
 
-    public static function notifyForNotice(object $notice, ?string $titleOverride = null): void
+    public static function notifyForNotice(object $notice, ?string $titleOverride = null, ?int $excludeUserId = null): void
     {
         if ($notice->is_global ?? false) {
             $communityIds = DB::table('communities')->where('status', 'active')->pluck('id');
             foreach ($communityIds as $communityId) {
-        self::insertNotifications(
-            self::resolveNotificationUserIdsForCommunity($notice, (int) $communityId),
-            $titleOverride ?? $notice->title,
-            (int) $notice->id,
-            $notice->category ?? 'general',
-            $notice->body ?? null,
-            (int) $communityId,
-        );
+                self::insertNotifications(
+                    self::resolveNotificationUserIdsForCommunity($notice, (int) $communityId),
+                    $titleOverride ?? $notice->title,
+                    (int) $notice->id,
+                    $notice->category ?? 'general',
+                    $notice->body ?? null,
+                    (int) $communityId,
+                    $excludeUserId,
+                );
             }
 
             return;
@@ -198,6 +199,7 @@ class NoticeAudienceService
             $notice->category ?? 'general',
             $notice->body ?? null,
             (int) ($notice->community_id ?? 0),
+            $excludeUserId,
         );
     }
 
@@ -227,7 +229,9 @@ class NoticeAudienceService
         string $category,
         ?string $noticeBody = null,
         int $communityId = 0,
+        ?int $excludeUserId = null,
     ): void {
+        $userIds = self::exceptActor($userIds, $excludeUserId);
         if ($userIds->isEmpty()) {
             return;
         }
@@ -298,7 +302,7 @@ class NoticeAudienceService
      * Notify the original audience that a published event was cancelled/deleted.
      * Uses a safe action URL because the event detail is no longer available.
      */
-    public static function notifyEventCancelled(object $notice): void
+    public static function notifyEventCancelled(object $notice, ?int $excludeUserId = null): void
     {
         if (($notice->category ?? '') !== 'event') {
             return;
@@ -309,7 +313,7 @@ class NoticeAudienceService
             return;
         }
 
-        $userIds = self::resolveNotificationUserIds($notice)->unique()->filter();
+        $userIds = self::exceptActor(self::resolveNotificationUserIds($notice), $excludeUserId);
         if ($userIds->isEmpty()) {
             return;
         }
@@ -332,5 +336,21 @@ class NoticeAudienceService
                 ],
             );
         }
+    }
+
+    /** Drop the person who performed the action before any inbox row or push is created. */
+    private static function exceptActor(Collection $userIds, ?int $excludeUserId): Collection
+    {
+        $ids = $userIds
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($excludeUserId === null || $excludeUserId < 1) {
+            return $ids;
+        }
+
+        return $ids->reject(fn (int $id) => $id === $excludeUserId)->values();
     }
 }

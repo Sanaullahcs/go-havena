@@ -452,6 +452,7 @@ class ListingController extends Controller
             (int) $listing->user_id,
             ['related_item' => $listing->title],
         );
+        if ((int) $listing->user_id !== (int) auth()->id()) {
         NotificationService::send(
             $listing->user_id,
             'success',
@@ -459,6 +460,7 @@ class ListingController extends Controller
             "Your listing \"{$listing->title}\" is now live in the marketplace.",
             '/screens/listing-detail?id='.$id,
         );
+        }
 
         return response()->json([
             'message' => $wasRejected ? 'Listing re-approved' : 'Listing approved',
@@ -498,6 +500,7 @@ class ListingController extends Controller
             ['related_item' => $listing->title],
             'warning',
         );
+        if ((int) $listing->user_id !== (int) auth()->id()) {
         NotificationService::send(
             $listing->user_id,
             'warning',
@@ -507,6 +510,7 @@ class ListingController extends Controller
                 : "Your listing \"{$listing->title}\" was not approved. Please review our marketplace guidelines.",
             '/screens/listing-detail?id='.$id,
         );
+        }
 
         return response()->json([
             'message' => $wasLive ? 'Listing removed from marketplace' : 'Listing rejected',
