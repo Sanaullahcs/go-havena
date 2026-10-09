@@ -46,10 +46,33 @@ if (!config.apiKey || !config.projectId || !config.messagingSenderId || !config.
 }
 
 const contents = `/* Auto-generated — run: npm run firebase:sw */
-importScripts("https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/11.10.0/firebase-messaging-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/12.16.0/firebase-messaging-compat.js");
 
 firebase.initializeApp(${JSON.stringify(config, null, 2)});
+
+self.addEventListener("install", function () {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", function (event) {
+  event.waitUntil(self.clients.claim());
+});
+
+// Read the push body before Firebase does. Chrome only keeps a notification that is
+// passed to waitUntil, and Firebase skips onBackgroundMessage while any localhost tab is visible.
+self.addEventListener("push", function (event) {
+  var parsed = event.data ? event.data.json() : Promise.resolve({});
+  event.waitUntil(
+    Promise.resolve(parsed)
+      .then(function (raw) {
+        return presentDashboardPush(raw || {});
+      })
+      .catch(function () {
+        return undefined;
+      }),
+  );
+});
 
 const messaging = firebase.messaging();
 
@@ -59,8 +82,8 @@ function inferNoticeBoard(hints) {
   if (category === "emergency") return "alerts";
   var haystack = ((hints && hints.title) || "") + " " + ((hints && hints.body) || "");
   haystack = haystack.toLowerCase();
-  if (/\bevent\b/.test(haystack)) return "events";
-  if (/\balert\b|\bemergency\b/.test(haystack)) return "alerts";
+  if (/\\bevent\\b/.test(haystack)) return "events";
+  if (/\\balert\\b|\\bemergency\\b/.test(haystack)) return "alerts";
   return "notices";
 }
 
@@ -205,23 +228,61 @@ function pushIconUrl(payload) {
   return self.location.origin + "/app-icon.png";
 }
 
-/** Background: tab hidden — show exactly one notification from data payload. */
-messaging.onBackgroundMessage(function (payload) {
+function dashboardClientIsVisible(client) {
+  if (!client || client.visibilityState !== "visible") return false;
+  try {
+    return new URL(client.url).pathname.indexOf("/admin") === 0;
+  } catch (err) {
+    return false;
+  }
+}
+
+function presentDashboardPush(raw) {
+  var payload = raw && (raw.data || raw.notification) ? raw : { data: raw || {} };
+  var data = payload.data || {};
+  var hasContent =
+    payload.notification ||
+    data.title ||
+    data.body ||
+    data.kind ||
+    data.action_url ||
+    data.actionUrl ||
+    data.link;
+  if (!hasContent) return Promise.resolve();
+
   var message = extractPushPayload(payload);
   var icon = pushIconUrl(payload);
-  self.registration.showNotification(message.title, {
-    body: message.body,
-    icon: icon,
-    badge: icon,
-    tag: message.tag,
-    renotify: true,
-    data: {
-      link: toAbsoluteLink(message.link, message.hints),
-      href: message.link,
-      hints: message.hints,
-    },
+
+  return clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (windowClients) {
+    var visibleAdmins = windowClients.filter(dashboardClientIsVisible);
+    if (visibleAdmins.length > 0) {
+      visibleAdmins.forEach(function (client) {
+        client.postMessage({
+          type: "NBR_PUSH_FOREGROUND",
+          title: message.title,
+          body: message.body,
+          link: message.link,
+          tag: message.tag,
+          category: message.hints && message.hints.category ? message.hints.category : "",
+          communityId: data.community_id || data.communityId || null,
+          scope: data.scope || null,
+        });
+      });
+      return undefined;
+    }
+
+    return self.registration.showNotification(message.title || "Havena", {
+      body: message.body || "",
+      icon: icon,
+      tag: message.tag || "nbr-push",
+      data: {
+        link: toAbsoluteLink(message.link, message.hints),
+        href: message.link,
+        hints: message.hints,
+      },
+    });
   });
-});
+}
 
 function focusOrOpenDashboard(href, absoluteLink) {
   return clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (windowClients) {

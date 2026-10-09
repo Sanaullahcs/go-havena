@@ -22,6 +22,13 @@ export type NotificationListResponse = {
   meta?: NotificationListMeta;
 };
 
+export const NOTIFICATIONS_REFRESH_EVENT = "havena-notifications-refresh";
+
+export function emitNotificationsRefresh() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(NOTIFICATIONS_REFRESH_EVENT));
+}
+
 export async function fetchNotifications(params?: {
   page?: number;
   per_page?: number;

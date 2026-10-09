@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -11,6 +12,11 @@ class PushNotificationService
 {
     public static function sendToUser(int $userId, string $title, string $body, ?array $data = null): void
     {
+        $user = User::query()->find($userId);
+        if ($user && ! CommunityAdminPushPreference::allows($user)) {
+            return;
+        }
+
         if (! Schema::hasTable('devices')) {
             return;
         }
@@ -49,9 +55,37 @@ class PushNotificationService
         }, $tokens);
 
         try {
-            Http::timeout(8)
+            $response = Http::timeout(8)
                 ->acceptJson()
                 ->post('https://exp.host/--/api/v2/push/send', $messages);
+
+            if (! $response->successful()) {
+                Log::warning('Expo push send rejected', [
+                    'user_id' => $userId,
+                    'title'   => $title,
+                    'status'  => $response->status(),
+                ]);
+
+                return;
+            }
+
+            $tickets = $response->json('data');
+            if (! is_array($tickets)) {
+                return;
+            }
+
+            foreach ($tickets as $ticket) {
+                if (! is_array($ticket) || ($ticket['status'] ?? null) !== 'error') {
+                    continue;
+                }
+
+                $detail = $ticket['details']['error'] ?? $ticket['message'] ?? 'unknown';
+                Log::warning('Expo push ticket rejected', [
+                    'user_id' => $userId,
+                    'title'   => $title,
+                    'error'   => is_string($detail) ? $detail : 'unknown',
+                ]);
+            }
         } catch (\Throwable $e) {
             Log::warning('Expo push send failed', [
                 'user_id' => $userId,

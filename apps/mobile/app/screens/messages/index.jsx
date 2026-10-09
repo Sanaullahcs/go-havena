@@ -435,6 +435,10 @@ export default function MessagesScreen() {
   useFocusEffect(
     useCallback(() => {
       load(conversations.length > 0);
+      const timer = setInterval(() => {
+        load(true);
+      }, 4000);
+      return () => clearInterval(timer);
     }, [load, conversations.length]),
   );
 

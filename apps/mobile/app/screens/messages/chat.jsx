@@ -358,6 +358,10 @@ export default function ChatScreen() {
         markScrollToLatest();
         scrollToLatestWithRetry(false);
       });
+      const timer = setInterval(() => {
+        void refreshLatest();
+      }, 4000);
+      return () => clearInterval(timer);
     }, [refreshLatest, markScrollToLatest, scrollToLatestWithRetry]),
   );
 

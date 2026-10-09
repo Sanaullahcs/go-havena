@@ -5,21 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Bell, CircleHelp, LogOut, Menu, UserRound } from "lucide-react";
 import { clearSession, getUser, isSystemAdminUser } from "@/lib/auth/session";
-import { NotificationBell, type AppNotification } from "@/components/shared/notification-bell";
+import { NotificationBell } from "@/components/shared/notification-bell";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { confirmAction } from "@/lib/alert";
 import { logout } from "@/lib/api/auth";
 import { NL } from "@/lib/design-tokens";
 import { formatAccountContact, formatAccountDisplayName } from "@/lib/user/email-display";
-
-const ADMIN_NOTIFICATIONS: AppNotification[] = [
-  { id: 1, type: "warning", title: "New moderation report", body: "James Okafor filed a noise complaint for Apt 3C.", time: "2m ago", read: false },
-  { id: 2, type: "success", title: "Membership approved", body: "Sarah Mitchell's membership request was auto-approved.", time: "15m ago", read: false },
-  { id: 3, type: "message", title: "New message", body: "Lisa Wang: 'Can I reschedule my maintenance appointment?'", time: "1h ago", read: false },
-  { id: 4, type: "info", title: "Marketplace listing posted", body: "David Chen posted a new item in the marketplace.", time: "2h ago", read: true },
-  { id: 5, type: "system", title: "System update", body: "Havena v2.1.4 deployed successfully.", time: "Yesterday", read: true },
-  { id: 6, type: "warning", title: "Lease expiring soon", body: "3 residents have leases expiring within 30 days.", time: "Yesterday", read: true },
-];
 
 export function AdminTopBar({
   title,
@@ -110,7 +101,7 @@ export function AdminTopBar({
             <span className="hidden h-7 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
 
             {/* Notification bell */}
-            <NotificationBell notifications={ADMIN_NOTIFICATIONS} accentColor={NL.brandPrimary} viewAllHref="/admin/notifications" />
+            <NotificationBell accentColor={NL.brandPrimary} viewAllHref="/admin/notifications" />
 
             {/* Avatar + dropdown */}
             <div ref={dropRef} className="relative">

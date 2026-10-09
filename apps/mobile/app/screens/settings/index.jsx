@@ -49,13 +49,13 @@ export default function ProfileSetting() {
   const [devOverride, setDevOverride] = useState(null);
   const {
     pushEnabled,
+    systemPermission,
     emailEnabled,
     loading,
     pushBusy,
     emailBusy,
     setPush,
     setEmail,
-    openSystemSettings,
   } = usePushNotificationSettings();
 
   const refreshDevOverride = useCallback(async () => {
@@ -94,19 +94,7 @@ export default function ProfileSetting() {
 
   const handlePushToggle = async (nextValue) => {
     const result = await setPush(nextValue);
-    if (result.ok) return;
-
-    if (nextValue && result.reason === "permission_denied") {
-      const choice = await dialog.showConfirm(
-        t("settings.notificationsBlocked"),
-        t("settings.notificationsBlockedMsg"),
-        { confirmLabel: t("common.openSettings"), cancelLabel: t("common.notNow") },
-      );
-      if (choice === "confirm") {
-        await openSystemSettings();
-      }
-      return;
-    }
+    if (result.ok || result.reason === "opened_settings" || result.reason === "permission_denied") return;
 
     if (nextValue) {
       await dialog.showError(
@@ -214,7 +202,9 @@ export default function ProfileSetting() {
       title: t("settings.pushNotifications"),
       subTitle: pushEnabled
         ? t("settings.pushEnabledSub")
-        : t("settings.pushDisabledSub"),
+        : systemPermission && systemPermission !== "granted" && systemPermission !== "unsupported"
+          ? t("settings.pushBlockedByDevice")
+          : t("settings.pushDisabledSub"),
       icon: "smartphone",
       iconColor: "#059669",
       iconBg: "#ECFDF5",

@@ -257,15 +257,16 @@ class ProfileController extends Controller
                 $incoming = trim((string) $request->input('unit_number', ''));
                 $current = trim((string) ($user->profile?->unit_number ?? ''));
 
-                // Assigned units are managed by community admins — residents cannot change them here.
-                if ($current !== '' && strcasecmp($incoming, $current) !== 0) {
-                    throw ValidationException::withMessages([
-                        'unit_number' => ['Unit / apartment cannot be changed from your profile. Contact your community admin if you need an update.'],
-                    ]);
-                }
-
-                if ($current === '' || strcasecmp($incoming, $current) === 0) {
-                    $profileData['unit_number'] = $incoming !== '' ? $incoming : $current;
+                // A unit assigned on the invitation stays fixed. Residents can only set one when none exists yet.
+                if ($current !== '') {
+                    if (strcasecmp($incoming, $current) !== 0) {
+                        throw ValidationException::withMessages([
+                            'unit_number' => ['Unit / apartment cannot be changed from your profile. Contact your community admin if you need an update.'],
+                        ]);
+                    }
+                    $profileData['unit_number'] = $current;
+                } elseif ($incoming !== '') {
+                    $profileData['unit_number'] = $incoming;
                 }
             }
             if ($request->has('residence_type')) {

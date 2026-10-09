@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { navigateAppRoute } from "../../utils/app-navigation";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import BurgerButton from "./burger-button";
@@ -26,7 +27,7 @@ export default function TopBar({ onMenuPress }) {
   const router = useRouter();
   const { t } = useTranslation();
   const [user, setUser] = useState(null);
-  const { unread } = useNotificationUnread();
+  const { unread, messageAlerts } = useNotificationUnread();
   const { unread: messageUnread } = useMessageUnread();
   const headerRef = useRef(null);
   const inboxBtnRef = useRef(null);
@@ -34,12 +35,19 @@ export default function TopBar({ onMenuPress }) {
   const [locationOpen, setLocationOpen] = useState(false);
   const [locationFresh, setLocationFresh] = useState(true);
   const [activeCommunityId, setActiveCommunityId] = useState(null);
-
+  const inboxNavigatingRef = useRef(false);
 
   const navigateFromInbox = useCallback(
     (route) => {
-      setInboxOpen(false);
-      setTimeout(() => router.push(route), 200);
+      if (inboxNavigatingRef.current) return;
+      inboxNavigatingRef.current = true;
+      requestAnimationFrame(() => {
+        setInboxOpen(false);
+        setTimeout(() => {
+          inboxNavigatingRef.current = false;
+          navigateAppRoute(router, route);
+        }, 280);
+      });
     },
     [router],
   );
@@ -79,7 +87,8 @@ export default function TopBar({ onMenuPress }) {
   const rangeLabel = t("topBar.compactKm", { count: 3 });
   const showNearby = isResidentFeatureEnabled(user, "nearby_places");
   const showMessages = isResidentFeatureEnabled(user, "messages");
-  const inboxUnread = (unread || 0) + (showMessages ? messageUnread || 0 : 0);
+  const notificationOnly = Math.max(0, (unread || 0) - (messageAlerts || 0));
+  const inboxUnread = showMessages ? notificationOnly + (messageUnread || 0) : unread || 0;
 
   return (
     <View ref={headerRef} collapsable={false}>
@@ -149,6 +158,7 @@ export default function TopBar({ onMenuPress }) {
         triggerRef={inboxBtnRef}
         messageUnread={showMessages ? messageUnread || 0 : 0}
         notificationUnread={unread || 0}
+        totalUnread={inboxUnread}
         showMessages={showMessages}
         onMessagesPress={() => navigateFromInbox("/screens/messages")}
         onNotificationsPress={() => navigateFromInbox("/screens/notification")}

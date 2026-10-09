@@ -167,18 +167,24 @@ class DeviceController extends Controller
                     'last_seen_at' => $now,
                     'updated_at'   => $now,
                 ]);
-
-            return;
+            $keepId = (int) $existing->id;
+        } else {
+            $keepId = (int) DB::table('devices')->insertGetId([
+                'user_id'         => $userId,
+                'platform'        => $platform,
+                'expo_push_token' => null,
+                'fcm_token'       => $token,
+                'last_seen_at'    => $now,
+                'created_at'      => $now,
+                'updated_at'      => $now,
+            ]);
         }
 
-        DB::table('devices')->insert([
-            'user_id'         => $userId,
-            'platform'        => $platform,
-            'expo_push_token' => null,
-            'fcm_token'       => $token,
-            'last_seen_at'    => $now,
-            'created_at'      => $now,
-            'updated_at'      => $now,
-        ]);
+        DB::table('devices')
+            ->where('user_id', $userId)
+            ->where('platform', $platform)
+            ->whereNotNull('fcm_token')
+            ->where('id', '!=', $keepId)
+            ->delete();
     }
 }

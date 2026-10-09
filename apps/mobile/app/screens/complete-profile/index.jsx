@@ -165,6 +165,7 @@ export default function CompleteProfile() {
     isCommunityRequest ||
     profileUser?.role === "community_admin" ||
     profileUser?.role === "admin";
+  const emailLocked = isEditMode || isCommunityAdminProfile;
   const nameMax = LIMITS.profileName;
   const unitMax = isCommunityAdminProfile ? LIMITS.communityAdminUnit : LIMITS.profileUnit;
   const officeMax = LIMITS.officeAddress;
@@ -205,6 +206,20 @@ export default function CompleteProfile() {
   const showFamilyNumberField = role !== "admin" && !isCommunityRequest;
   const showResidenceType = !isGuestProfile && !isCommunityAdminProfile;
   const showUnitNumber = !isCommunityAdminProfile;
+  const invitedFromMembership = (profileUser?.memberships ?? []).some(
+    (membership) => String(membership?.invite_code_used ?? "").trim() !== "",
+  );
+  const isInvitedProfile =
+    !isEditMode &&
+    !isCommunityAdminProfile &&
+    !isGuestProfile &&
+    (invitedParam === "1" || invitedFromMembership);
+  const assignedUnitNumber = (() => {
+    if (!isInvitedProfile) return "";
+    const raw = profileUser?.profile?.unit_number ?? profileUser?.unit_number ?? "";
+    return isPlaceholderUnitNumber(raw) ? "" : String(raw).trim();
+  })();
+  const unitLocked = assignedUnitNumber !== "";
   const showOfficeAddress = isCommunityAdminProfile;
   // Utility bill is required for residents and community admins on every entry path.
   const showUtilityBill = (showResidenceType || showOfficeAddress) && !skipUtilityBill;
@@ -564,7 +579,7 @@ export default function CompleteProfile() {
         phoneDigits,
         phoneCountry,
         bio,
-        unitNumber,
+        unitNumber: unitLocked ? assignedUnitNumber : unitNumber,
         residenceType,
         officeAddress,
         utilityFile: selectedFile ?? (existingUtilityBillUrl ? { uri: existingUtilityBillUrl } : null),
@@ -575,7 +590,7 @@ export default function CompleteProfile() {
         guestMode: isGuestProfile,
         communityAdmin: isCommunityAdminProfile,
       }),
-    [name, email, phoneDigits, phoneCountry, bio, unitNumber, residenceType, officeAddress, selectedFile, existingUtilityBillUrl, isGuestProfile, showUtilityBill, showResidenceType, showUnitNumber, showOfficeAddress, isCommunityAdminProfile],
+    [name, email, phoneDigits, phoneCountry, bio, unitNumber, unitLocked, assignedUnitNumber, residenceType, officeAddress, selectedFile, existingUtilityBillUrl, isGuestProfile, showUtilityBill, showResidenceType, showUnitNumber, showOfficeAddress, isCommunityAdminProfile],
   );
 
   const isValid = useMemo(() => {
@@ -663,7 +678,7 @@ export default function CompleteProfile() {
             ? { office_address: officeAddress.trim() }
             : isEditMode
               ? {}
-              : { unit_number: unitNumber.trim() }),
+              : { unit_number: (unitLocked ? assignedUnitNumber : unitNumber).trim() }),
           ...(showResidenceType
             ? {
                 residence_type: residenceType,
@@ -1011,37 +1026,40 @@ export default function CompleteProfile() {
               <View
                 style={[
                   styles.inputBox,
-                  isEditMode && styles.inputBoxDisabled,
-                  !isEditMode && showError("email", liveErrors) && styles.inputError,
+                  emailLocked && styles.inputBoxDisabled,
+                  !emailLocked && showError("email", liveErrors) && styles.inputError,
                 ]}
-                pointerEvents={isEditMode ? "none" : "auto"}
+                pointerEvents={emailLocked ? "none" : "auto"}
               >
                 <LocaleTextInput
-                  style={[fieldTextStyle, isEditMode && styles.inputTextDisabled]}
+                  style={[fieldTextStyle, emailLocked && styles.inputTextDisabled]}
                   placeholder={t("onboarding.emailPlaceholder")}
                   placeholderTextColor={PLACEHOLDER_COLOR}
                   value={String(email ?? "")}
                   onChangeText={(text) => {
-                    if (isEditMode) return;
+                    if (emailLocked) return;
                     setEmail(text);
                     clearError("email");
                   }}
                   onBlur={() => {
-                    if (isEditMode) return;
+                    if (emailLocked) return;
                     touch("email");
                   }}
                   onFocus={() => {
-                    if (isEditMode) return;
+                    if (emailLocked) return;
                     handleFieldFocus(emailFieldRef);
                   }}
-                  editable={!isEditMode}
+                  editable={!emailLocked}
+                  caretHidden={emailLocked}
+                  contextMenuHidden={emailLocked}
+                  showSoftInputOnFocus={!emailLocked}
                   selectTextOnFocus={false}
                   autoCapitalize="none"
                   autoCorrect={false}
                   // Autofill + disabled email fields can SIGABRT on iOS; strip when read-only.
-                  autoComplete={isEditMode ? "off" : "email"}
-                  textContentType={isEditMode ? "none" : "emailAddress"}
-                  importantForAutofill={isEditMode ? "no" : "yes"}
+                  autoComplete={emailLocked ? "off" : "email"}
+                  textContentType={emailLocked ? "none" : "emailAddress"}
+                  importantForAutofill={emailLocked ? "no" : "yes"}
                   keyboardType="email-address"
                   maxLength={LIMITS.profileEmail}
                   forceLtr
@@ -1050,7 +1068,7 @@ export default function CompleteProfile() {
                   textAlignVertical="center"
                 />
               </View>
-              {!isEditMode && showError("email", liveErrors) ? (
+              {!emailLocked && showError("email", liveErrors) ? (
                 <Text style={styles.errorText}>{showError("email", liveErrors)}</Text>
               ) : null}
             </View>
@@ -1101,7 +1119,9 @@ export default function CompleteProfile() {
                   underlineColorAndroid="transparent"
                 />
               </View>
-              <Text style={styles.helperText}>{t("onboarding.characters", { count: bio.length, max: LIMITS.profileBio })}</Text>
+              {bio.length > 0 ? (
+                <Text style={styles.helperText}>{t("onboarding.characters", { count: bio.length, max: LIMITS.profileBio })}</Text>
+              ) : null}
               {showError("bio", liveErrors) ? <Text style={styles.errorText}>{showError("bio", liveErrors)}</Text> : null}
             </View>
 
@@ -1137,25 +1157,26 @@ export default function CompleteProfile() {
             <View ref={unitFieldRef} collapsable={false} style={styles.fieldGroup}>
               <UnitPickerField
                 label={
-                  isGuestProfile
+                  isGuestProfile || unitLocked
                     ? t("onboarding.unitNumber")
                     : `${t("onboarding.unitNumber")} *`
                 }
-                value={String(unitNumber ?? "")}
+                value={unitLocked ? assignedUnitNumber : String(unitNumber ?? "")}
                 disabled={isEditMode}
+                locked={unitLocked}
                 placeholder={t("onboarding.unitPlaceholder")}
                 unitMax={unitMax}
-                error={!isEditMode && showError("unitNumber", liveErrors) ? showError("unitNumber", liveErrors) : undefined}
+                error={!isEditMode && !unitLocked && showError("unitNumber", liveErrors) ? showError("unitNumber", liveErrors) : undefined}
                 onBlur={() => {
-                  if (!isEditMode) touch("unitNumber");
+                  if (!isEditMode && !unitLocked) touch("unitNumber");
                 }}
                 onChange={(text) => {
-                  if (isEditMode) return;
+                  if (isEditMode || unitLocked) return;
                   setUnitNumber(applyCharacterLimit(unitNumber, text, unitMax));
                   clearError("unitNumber");
                 }}
                 loadUnits={
-                  communityId && !isCommunityAdminProfile
+                  communityId && !isCommunityAdminProfile && !unitLocked
                     ? async () => {
                         const rows = await fetchCommunityUnits(Number(communityId));
                         return (rows ?? []).map((unit) => ({
@@ -1167,12 +1188,12 @@ export default function CompleteProfile() {
                     : async () => []
                 }
                 createUnit={
-                  communityId && !isCommunityAdminProfile
+                  communityId && !isCommunityAdminProfile && !unitLocked
                     ? async (num) => createCommunityUnit(Number(communityId), num)
                     : undefined
                 }
               />
-              {!isEditMode ? (
+              {!isEditMode && !unitLocked ? (
                 <Text style={styles.helperText}>
                   First resident on a new unit becomes the billing contact. Joining an existing unit does not change the contact.
                 </Text>
@@ -1731,7 +1752,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   inputBoxDisabled: {
-    backgroundColor: T.canvas,
+    backgroundColor: "#F3F4F6",
     borderColor: T.border,
   },
   inputTextDisabled: {

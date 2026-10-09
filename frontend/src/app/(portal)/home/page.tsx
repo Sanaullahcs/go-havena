@@ -33,6 +33,11 @@ export default function ResidentHomePage() {
   const name = formatAccountDisplayName(user, "Neighbor");
   const features = user?.resident_features;
   const showNotices = anyResidentFeatureEnabled(features, ["notices", "events", "alerts"]);
+  const recentNotices = RECENT_NOTICES.filter((item) => {
+    if (item.category === "Event") return isResidentFeatureEnabled(features, "events");
+    if (item.category === "Emergency") return isResidentFeatureEnabled(features, "alerts");
+    return isResidentFeatureEnabled(features, "notices");
+  });
   const showFeed = isResidentFeatureEnabled(features, "feed");
   const showWellness = isResidentFeatureEnabled(features, "wellness");
   const showMarketplace = isResidentFeatureEnabled(features, "marketplace");
@@ -178,13 +183,13 @@ export default function ResidentHomePage() {
         </div>
 
         {/* Recent notices */}
-        {showNotices ? <div className="nl-panel overflow-hidden">
+        {recentNotices.length > 0 ? <div className="nl-panel overflow-hidden">
           <div className="border-b border-slate-100 px-5 py-4">
             <h3 className="text-[15px] font-semibold text-slate-900">Recent Notices</h3>
             <p className="mt-0.5 text-[13px] text-slate-500">Latest from your community.</p>
           </div>
           <div className="divide-y divide-slate-100 p-3">
-            {RECENT_NOTICES.map((n) => (
+            {recentNotices.map((n) => (
               <Link
                 key={n.title}
                 href="/notices"

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -17,6 +18,11 @@ class FcmNotificationService
 
     public static function sendToUser(int $userId, string $title, string $body, ?array $data = null): void
     {
+        $user = User::query()->find($userId);
+        if ($user && ! CommunityAdminPushPreference::allows($user)) {
+            return;
+        }
+
         try {
             self::sendToUserInternal($userId, $title, $body, $data);
         } catch (\Throwable $e) {
@@ -72,10 +78,20 @@ class FcmNotificationService
                 : self::buildNativePushPayload($token, $title, $body, $stringData, $webLink);
 
             try {
-                Http::withToken($accessToken)
+                $response = Http::withToken($accessToken)
                     ->acceptJson()
                     ->timeout(8)
                     ->post($url, $payload);
+
+                if (! $response->successful()) {
+                    Log::warning('FCM send rejected', [
+                        'user_id'  => $userId,
+                        'platform' => $platform,
+                        'title'    => $title,
+                        'status'   => $response->status(),
+                        'error'    => $response->json('error.status') ?? $response->json('error.message'),
+                    ]);
+                }
             } catch (\Throwable $e) {
                 Log::warning('FCM send failed', [
                     'user_id'  => $userId,

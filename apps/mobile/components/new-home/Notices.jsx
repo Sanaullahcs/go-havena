@@ -319,11 +319,12 @@ export default function Notices({ items = [], noticesLoaded = false }) {
   const carouselItems = useMemo(
     () =>
       items
-        .filter((n) => n && n.id && isResidentFeatureEnabled(sessionUser, noticeFeatureKey(n)))
+        .filter((n) => n && n.id && isHomeSectionEnabled(sessionUser, noticeFeatureKey(n)))
         .slice(0, 7)
         .map((n) => mapNoticeToHero(n, t)),
     [items, sessionUser, t, i18n.language],
   );
+  const showNoticeEmpty = noticesOn && noticesLoaded && carouselItems.length === 0;
 
   useEffect(() => {
     activeIndexRef.current = activeIndex;
@@ -419,7 +420,7 @@ export default function Notices({ items = [], noticesLoaded = false }) {
 
   return (
     <>
-      {noticesOn && carouselItems.length > 0 ? (
+      {carouselItems.length > 0 ? (
         <View style={styles.heroWrap}>
           <FlatList
             ref={listRef}
@@ -466,7 +467,7 @@ export default function Notices({ items = [], noticesLoaded = false }) {
             </View>
           ) : null}
         </View>
-      ) : noticesOn && noticesLoaded ? (
+      ) : showNoticeEmpty ? (
         <View style={[styles.heroEmptyWrap, { width: "100%", paddingHorizontal: frame.sideInset }]}>
           <HomeSectionEmpty message={t("home.noNotices")} icon="bell" />
         </View>

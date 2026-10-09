@@ -178,13 +178,14 @@ class NoticeAudienceService
         if ($notice->is_global ?? false) {
             $communityIds = DB::table('communities')->where('status', 'active')->pluck('id');
             foreach ($communityIds as $communityId) {
-                self::insertNotifications(
-                    self::resolveNotificationUserIdsForCommunity($notice, (int) $communityId),
-                    $titleOverride ?? $notice->title,
-                    (int) $notice->id,
-                    $notice->category ?? 'general',
-                    $notice->body ?? null,
-                );
+        self::insertNotifications(
+            self::resolveNotificationUserIdsForCommunity($notice, (int) $communityId),
+            $titleOverride ?? $notice->title,
+            (int) $notice->id,
+            $notice->category ?? 'general',
+            $notice->body ?? null,
+            (int) $communityId,
+        );
             }
 
             return;
@@ -196,6 +197,7 @@ class NoticeAudienceService
             (int) $notice->id,
             $notice->category ?? 'general',
             $notice->body ?? null,
+            (int) ($notice->community_id ?? 0),
         );
     }
 
@@ -224,6 +226,7 @@ class NoticeAudienceService
         int $noticeId,
         string $category,
         ?string $noticeBody = null,
+        int $communityId = 0,
     ): void {
         if ($userIds->isEmpty()) {
             return;
@@ -263,6 +266,31 @@ class NoticeAudienceService
                 'notice_id' => $noticeId,
                 'error'     => $e->getMessage(),
             ]);
+
+            return;
+        }
+
+        $kind = match ($category) {
+            'event'     => 'event',
+            'emergency' => 'alert',
+            default     => 'notice',
+        };
+        $pushData = array_filter([
+            'category'     => $category,
+            'notice_id'    => $noticeId,
+            'kind'         => $kind,
+            'community_id' => $communityId > 0 ? $communityId : null,
+        ], static fn ($value) => $value !== null);
+
+        foreach ($userIds->unique() as $userId) {
+            NotificationService::deliverPush(
+                (int) $userId,
+                $category === 'emergency' ? 'warning' : 'info',
+                NotificationText::title($label),
+                NotificationText::body($summary),
+                "/notices/{$noticeId}",
+                $pushData,
+            );
         }
     }
 

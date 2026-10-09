@@ -1,11 +1,13 @@
 import i18n from "../i18n";
-import Constants, { ExecutionEnvironment } from "expo-constants";
+import Constants from "expo-constants";
+import { isExpoGo } from "../utils/expo-runtime";
 import * as Device from "expo-device";
 import { AppState, Linking, Platform } from "react-native";
-import { registerDevice, unregisterDevice } from "./devices-api";
+import { fetchAccountPushPreference, registerDevice, unregisterDevice } from "./devices-api";
 import { getNoticeDetailRoute } from "./notices-api";
 import { resolveNotificationRoute } from "./notifications-api";
 import { getNativePlatform } from "./app-version";
+import { emitNotificationBanner } from "./notification-events";
 import {
   getPushNotificationsEnabled,
   getStoredPushToken,
@@ -16,6 +18,14 @@ import {
 let handlerConfigured = false;
 let notificationsModulePromise = null;
 let appIsActive = AppState.currentState === "active";
+let lastReconciledPermission = null;
+let foregroundPushEnabled = false;
+let foregroundPermissionGranted = false;
+
+export function rememberForegroundPushState(enabled, permission) {
+  foregroundPushEnabled = Boolean(enabled);
+  foregroundPermissionGranted = permission === "granted";
+}
 
 AppState.addEventListener("change", (nextState) => {
   appIsActive = nextState === "active";
@@ -25,18 +35,11 @@ export function isAppActiveForPush() {
   return appIsActive;
 }
 
-/** Remote Expo push is not available in Expo Go on Android (SDK 53+). */
-function isExpoGoClient() {
-  return (
-    Constants.appOwnership === "expo" ||
-    Constants.executionEnvironment === ExecutionEnvironment.StoreClient
-  );
-}
-
 export function isRemotePushSupported() {
   if (Platform.OS === "web") return false;
+  // Expo Go cannot register this project's remote push token on Android or iOS.
+  if (isExpoGo()) return false;
   if (!Device.isDevice) return false;
-  if (isExpoGoClient() && Platform.OS === "android") return false;
   return true;
 }
 
@@ -63,9 +66,8 @@ export function getRemotePushUnavailableMessage() {
     return i18n.t("push.requiresDevice");
   }
 
-  const isExpoGo = isExpoGoClient();
-  if (isExpoGo && Platform.OS === "android") {
-    return i18n.t("push.expoGoAndroid");
+  if (isExpoGo()) {
+    return i18n.t("push.expoGo");
   }
 
   return i18n.t("push.unavailable");
@@ -102,16 +104,18 @@ export async function configurePushNotificationHandler() {
   if (!Notifications) return;
 
   handlerConfigured = true;
-  // Foreground handler: never show the native OS banner (it auto-dismisses).
-  // Our in-app notification list handles all foreground display.
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: false,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: false,
-      shouldShowList: false,
-    }),
+    handleNotification: async () => {
+      const stored = await getPushNotificationsEnabled().catch(() => false);
+      const show = Boolean(stored && foregroundPushEnabled && foregroundPermissionGranted);
+      return {
+        shouldShowAlert: show,
+        shouldPlaySound: show,
+        shouldSetBadge: show,
+        shouldShowBanner: show,
+        shouldShowList: show,
+      };
+    },
   });
 }
 
@@ -182,6 +186,9 @@ export async function getExpoPushToken() {
   } catch (err) {
     const raw = String(err?.message ?? err ?? "");
     console.warn("[push] getExpoPushTokenAsync failed", err);
+    if (isExpoGo() || /expo go/i.test(raw)) {
+      throw createPushError(PUSH_ERROR.UNSUPPORTED, i18n.t("push.expoGo"));
+    }
     if (/firebase messaging|google-services|Default FirebaseApp/i.test(raw)) {
       throw createPushError(PUSH_ERROR.REGISTRATION_FAILED, i18n.t("push.firebaseUnavailable"));
     }
@@ -212,6 +219,7 @@ export async function enablePushNotifications() {
     await registerDevice({ expoPushToken: token, platform });
     await setPushNotificationsEnabled(true);
     await setStoredPushToken(token);
+    rememberForegroundPushState(true, "granted");
 
     return token;
   } catch (err) {
@@ -240,6 +248,13 @@ export async function disablePushNotifications() {
 
   await setPushNotificationsEnabled(false);
   await setStoredPushToken(null);
+  rememberForegroundPushState(false, lastReconciledPermission);
+  emitNotificationBanner({ dismissAll: true });
+
+  const Notifications = await loadNotificationsModule();
+  if (Notifications?.dismissAllNotificationsAsync) {
+    await Notifications.dismissAllNotificationsAsync().catch(() => {});
+  }
 }
 
 /** Remove this device token on sign-out but keep the user's push preference. */
@@ -260,6 +275,9 @@ export async function syncPushNotificationsIfEnabled() {
   const enabled = await getPushNotificationsEnabled();
   if (!enabled) return false;
 
+  const permission = await getNotificationPermissionStatus();
+  if (permission !== "granted") return false;
+
   if (!isRemotePushSupported()) return true;
 
   try {
@@ -267,6 +285,46 @@ export async function syncPushNotificationsIfEnabled() {
     return true;
   } catch (err) {
     console.warn("[push] sync failed", err);
+    return false;
+  }
+}
+
+/**
+ * Reload the saved account preference and match it to the current system
+ * permission. Does not request permission.
+ */
+export async function reconcilePushWithDevicePermission() {
+  try {
+    const accountEnabled = await fetchAccountPushPreference();
+    await setPushNotificationsEnabled(accountEnabled);
+  } catch {
+    // Keep the on-device preference when this account has no saved switch.
+  }
+
+  const enabled = await getPushNotificationsEnabled();
+  const permission = await getNotificationPermissionStatus();
+  const previousPermission = lastReconciledPermission;
+  lastReconciledPermission = permission;
+  rememberForegroundPushState(enabled, permission);
+
+  if (!enabled) {
+    if (await getStoredPushToken()) {
+      await disablePushNotifications();
+    }
+    return false;
+  }
+
+  if (permission !== "granted") return false;
+  if (!isRemotePushSupported()) return true;
+
+  const permissionJustGranted = Boolean(previousPermission && previousPermission !== "granted");
+  if ((await getStoredPushToken()) && !permissionJustGranted) return true;
+
+  try {
+    await enablePushNotifications();
+    return true;
+  } catch (err) {
+    console.warn("[push] reconcile failed", err);
     return false;
   }
 }

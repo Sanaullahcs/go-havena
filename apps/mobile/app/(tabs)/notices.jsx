@@ -21,6 +21,7 @@ import {
   formatLongDate,
   formatEventRsvpLabel,
   getNoticeDetailRoute,
+  isAlertNotice,
   isEventNotice,
 } from "../../services/notices-api";
 import { getSavedNoticeIds, toggleSavedNotice } from "../../services/saved-notices";
@@ -74,6 +75,12 @@ function reviewStatusMeta(notice, t) {
     color: "#047857",
     label: t("notices.statusApproved"),
   };
+}
+
+function contentFeatureKey(notice) {
+  if (isEventNotice(notice)) return "events";
+  if (isAlertNotice(notice)) return "alerts";
+  return "notices";
 }
 
 function noticePermissionFeature(tab) {
@@ -189,6 +196,10 @@ export default function Notifications() {
           items = items.filter((n) => savedSet.has(Number(n.id)));
         }
 
+        items = items.filter((notice) =>
+          isResidentFeatureEnabled(sessionUser, contentFeatureKey(notice)),
+        );
+
         setNotices(items);
       } catch (err) {
         const feature = noticePermissionFeature(currentTab);
@@ -205,7 +216,7 @@ export default function Notifications() {
         setRefreshing(false);
       }
     },
-    [currentTab, debouncedQuery],
+    [currentTab, debouncedQuery, sessionUser],
   );
 
   useFocusEffect(

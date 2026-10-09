@@ -129,6 +129,8 @@ class ListingMessageTest extends TestCase
             ->assertJsonPath('data.message.type', 'offer')
             ->assertJsonPath('data.message.metadata.offer_amount', 95);
 
+        $convId = (int) $response->json('data.conversation_id');
+
         $this->assertDatabaseHas('messages', [
             'sender_id' => $buyer->id,
             'type'      => 'offer',
@@ -144,7 +146,33 @@ class ListingMessageTest extends TestCase
             ->where('title', 'New offer received')
             ->first();
 
-        $this->assertStringContainsString('/screens/messages/chat?conversationId=', $notification->action_url);
+        $this->assertStringContainsString('/screens/messages/chat?conversationId='.$convId, $notification->action_url);
+        $payload = json_decode($notification->data ?? '{}', true);
+        $this->assertSame($convId, (int) ($payload['conversation_id'] ?? 0));
+
+        DB::table('app_notifications')->insert([
+            'user_id'    => $seller->id,
+            'type'       => 'info',
+            'title'      => 'Older offer',
+            'body'       => 'Stored before conversation ids were included.',
+            'action_url' => '/screens/messages/chat?conversationId='.$convId,
+            'data'       => json_encode(['kind' => 'message', 'actor_name' => 'Buyer']),
+            'created_at' => now()->subMinute(),
+            'updated_at' => now()->subMinute(),
+        ]);
+
+        Sanctum::actingAs($seller);
+        $this->getJson('/api/v1/conversations/'.$convId.'/messages')->assertOk();
+
+        $this->assertNotNull(
+            DB::table('app_notifications')->where('id', $notification->id)->value('read_at'),
+        );
+        $this->assertNotNull(
+            DB::table('app_notifications')
+                ->where('user_id', $seller->id)
+                ->where('title', 'Older offer')
+                ->value('read_at'),
+        );
     }
 
     public function test_reuses_existing_listing_conversation(): void

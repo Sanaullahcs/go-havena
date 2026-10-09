@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Services\AdminRoleService;
 use App\Services\CommunityFeatureService;
+use App\Services\NotificationCommunityScope;
 use App\Support\CommunityFeatureCatalog;
 use App\Support\NotificationModule;
 use Illuminate\Database\Query\Builder;
@@ -20,9 +21,11 @@ class NotificationController extends Controller
     {
         $user = $request->user();
         $base = DB::table('app_notifications')->where('user_id', $user->id);
+        NotificationCommunityScope::apply($base, $user);
         $this->applyFeatureVisibility($base, $user);
 
         $unread = (clone $base)->whereNull('read_at')->count();
+        $unreadMessages = $this->unreadMessageNotificationCount($base);
         $totalAll = (clone $base)->count();
 
         $query = clone $base;
@@ -32,7 +35,12 @@ class NotificationController extends Controller
         }
 
         if ($request->filled('type')) {
-            $query->where('type', $request->string('type')->toString());
+            $type = $request->string('type')->toString();
+            if ($type === 'message') {
+                $this->applyMessageNotificationConstraint($query);
+            } else {
+                $query->where('type', $type);
+            }
         }
 
         if ($request->filled('module')) {
@@ -43,8 +51,8 @@ class NotificationController extends Controller
         $page = max((int) $request->get('page', 1), 1);
 
         $paginator = $query
-            ->orderByRaw('CASE WHEN read_at IS NULL THEN 0 ELSE 1 END')
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate($perPage, ['*'], 'page', $page);
 
         $items = $this->enrichNoticeNotifications(collect($paginator->items()))
@@ -62,6 +70,7 @@ class NotificationController extends Controller
         return response()->json([
             'data'   => $items->values(),
             'unread' => $unread,
+            'unread_messages' => $unreadMessages,
             'meta'   => [
                 'total'        => $paginator->total(),
                 'last_page'    => $paginator->lastPage(),
@@ -69,7 +78,7 @@ class NotificationController extends Controller
                 'current_page' => $paginator->currentPage(),
                 'total_all'    => $totalAll,
                 'warning'      => (clone $base)->where('type', 'warning')->count(),
-                'message'      => (clone $base)->where('type', 'message')->count(),
+                'message'      => $this->messageNotificationCount($base),
                 'system'       => (clone $base)->where('type', 'system')->count(),
                 ...NotificationModule::countAllModules($base),
             ],
@@ -79,10 +88,18 @@ class NotificationController extends Controller
     /** POST /notifications/{id}/read */
     public function markRead(Request $request, int $id): JsonResponse
     {
-        DB::table('app_notifications')
+        $user = $request->user();
+        $query = DB::table('app_notifications')
             ->where('id', $id)
-            ->where('user_id', $request->user()->id)
-            ->update(['read_at' => now()]);
+            ->where('user_id', $user->id);
+        NotificationCommunityScope::apply($query, $user);
+        $this->applyFeatureVisibility($query, $user);
+
+        if (! $query->exists()) {
+            return response()->json(['message' => 'Notification not found'], 404);
+        }
+
+        $query->update(['read_at' => now(), 'updated_at' => now()]);
 
         return response()->json(['success' => true]);
     }
@@ -94,10 +111,50 @@ class NotificationController extends Controller
         $query = DB::table('app_notifications')
             ->where('user_id', $user->id)
             ->whereNull('read_at');
+        NotificationCommunityScope::apply($query, $user);
         $this->applyFeatureVisibility($query, $user);
         $query->update(['read_at' => now()]);
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Chat alerts are stored as type "info" with data.kind = message.
+     * The Messages filter and count include those rows and type = message.
+     */
+    private function applyMessageNotificationConstraint(Builder $query): void
+    {
+        $query->where(function (Builder $inner) {
+            $inner->where('type', 'message')
+                ->orWhere('data->kind', 'message')
+                ->orWhere('data->kind', 'new_message')
+                ->orWhere('action_url', 'like', '%/screens/messages/chat%')
+                ->orWhere('action_url', 'like', '%/admin/messages%');
+        });
+    }
+
+    private function messageNotificationCount(Builder $base): int
+    {
+        $query = clone $base;
+        $this->applyMessageNotificationConstraint($query);
+
+        return (int) $query->count();
+    }
+
+    /**
+     * Unread alerts that already have a conversation unread count.
+     * The inbox badge uses this so one message is not counted twice.
+     */
+    private function unreadMessageNotificationCount(Builder $base): int
+    {
+        return (clone $base)
+            ->whereNull('read_at')
+            ->where(function (Builder $query) {
+                $query->where('data->kind', 'message')
+                    ->orWhere('data->kind', 'new_message')
+                    ->orWhere('action_url', 'like', '%/screens/messages/chat%');
+            })
+            ->count();
     }
 
     /**

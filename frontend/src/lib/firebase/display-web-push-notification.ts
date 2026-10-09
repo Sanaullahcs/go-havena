@@ -13,6 +13,8 @@ export type WebPushMessagePayload = {
   link?: string | null;
   tag?: string | null;
   category?: string | null;
+  communityId?: string | null;
+  scope?: string | null;
 };
 
 export function enrichPushContent(payload: {
@@ -71,7 +73,7 @@ export function buildPushTag(payload: WebPushMessagePayload): string {
   return "nbr-push";
 }
 
-/** Foreground delivery: in-app banner while the tab is visible (background uses the service worker). */
+/** In-app card while a dashboard tab is visible. Background banners are shown by the service worker. */
 export async function displayForegroundWebPush(
   payload: WebPushMessagePayload,
   onInApp?: (payload: WebPushMessagePayload) => void,

@@ -38,12 +38,14 @@ import {
 } from "@/lib/admin/community-admin-field-limits";
 import { validatePasswordForm, validateProfileForm } from "@/lib/admin/profile-validation";
 import {
-  adminRoleLabel,
-  loadAdminNotificationPrefs,
+  DEFAULT_ADMIN_NOTIFICATION_PREFS,
   profileFormFromMe,
-  saveAdminNotificationPrefs,
   type AdminNotificationPrefs,
 } from "@/lib/admin/profile-utils";
+import {
+  fetchAdminNotificationPrefs,
+  updateAdminNotificationPrefs,
+} from "@/lib/api/admin-notification-prefs";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import { DashboardHero } from "@/components/admin/dashboard/dashboard-shared";
 import { DashboardPanel } from "@/components/admin/dashboard/dashboard-panel";
@@ -51,6 +53,7 @@ import { AdminBadge } from "@/components/admin/ui";
 import { statusLabel, type MembershipStatus } from "@/lib/api/members";
 import { NL } from "@/lib/design-tokens";
 import { formatAccountContact, formatAccountDisplayName, formatDisplayEmail } from "@/lib/user/email-display";
+import { PushNotificationsToggle } from "@/components/admin/dashboard/push-notifications-toggle";
 
 const NOTIFICATION_PREFS = [
   { key: "newMemberAlerts" as const, label: "New member alerts", desc: "When a resident joins or requests approval" },
@@ -89,9 +92,7 @@ export default function AdminProfilePage() {
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
   const [savedForm, setSavedForm] = useState<ProfileForm>(EMPTY_FORM);
   const [phoneField, setPhoneField] = useState<PhoneFieldState>(emptyPhoneField());
-  const [prefs, setPrefs] = useState<AdminNotificationPrefs>(() =>
-    loadAdminNotificationPrefs(sessionUser?.id),
-  );
+  const [prefs, setPrefs] = useState<AdminNotificationPrefs>(DEFAULT_ADMIN_NOTIFICATION_PREFS);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -108,7 +109,6 @@ export default function AdminProfilePage() {
     setForm(next);
     setSavedForm(next);
     setPhoneField(phoneFieldFromE164(data.phone));
-    setPrefs(loadAdminNotificationPrefs(data.id));
     updateUser(meToSessionUser(data));
   }, []);
 
@@ -116,6 +116,11 @@ export default function AdminProfilePage() {
     setLoading(true);
     try {
       applyMe(await fetchMe());
+      try {
+        setPrefs(await fetchAdminNotificationPrefs());
+      } catch (err) {
+        toastError(apiError(err));
+      }
     } catch (err) {
       toastError(apiError(err));
     } finally {
@@ -221,12 +226,18 @@ export default function AdminProfilePage() {
     }
   };
 
-  const handlePrefChange = (key: keyof AdminNotificationPrefs, value: boolean) => {
+  const handlePrefChange = async (key: keyof AdminNotificationPrefs, value: boolean) => {
     if (!me?.id) return;
+    const previous = prefs;
     const next = { ...prefs, [key]: value };
     setPrefs(next);
-    saveAdminNotificationPrefs(me.id, next);
-    toastSuccess("Notification preference saved.");
+    try {
+      setPrefs(await updateAdminNotificationPrefs(next));
+      toastSuccess("Notification preference saved.");
+    } catch (err) {
+      setPrefs(previous);
+      toastError(apiError(err));
+    }
   };
 
   if (loading) {
@@ -572,7 +583,7 @@ export default function AdminProfilePage() {
             fit
             compact
             title="Notifications"
-            description="Saved on this device for your account"
+            description="Push and category preferences are saved to your account. Existing notifications stay in your inbox."
             icon={Bell}
             tone="violet"
             action={
@@ -582,6 +593,7 @@ export default function AdminProfilePage() {
             }
           >
             <div className="divide-y" style={{ borderColor: NL.borderCard }}>
+              {(me?.role ?? sessionUser?.role) === "community_admin" ? <PushNotificationsToggle /> : null}
               {NOTIFICATION_PREFS.map((p) => (
                 <div key={p.key} className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                   <div className="min-w-0">

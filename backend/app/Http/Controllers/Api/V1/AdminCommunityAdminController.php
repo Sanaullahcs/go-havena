@@ -221,6 +221,8 @@ class AdminCommunityAdminController extends Controller
             'success',
             'Community admin approved',
             $this->communityApprovalMessage($user),
+            null,
+            ['scope' => 'account'],
         );
 
         ActivityLogService::recordChanges(
@@ -287,7 +289,7 @@ class AdminCommunityAdminController extends Controller
                 ? "Your community admin application was not approved. Reason: {$reason}"
                 : 'Your community admin application was not approved. Please contact support.');
 
-        NotificationService::send($user->id, 'warning', 'Community admin not approved', $body);
+        NotificationService::send($user->id, 'warning', 'Community admin not approved', $body, null, ['scope' => 'account']);
 
         ActivityLogService::recordChanges(
             'community_admin_rejected',
@@ -347,6 +349,8 @@ class AdminCommunityAdminController extends Controller
             'warning',
             'Admin access suspended',
             'Your community admin access has been suspended by the system administrator.',
+            null,
+            ['scope' => 'account'],
         );
 
         return response()->json([
@@ -381,6 +385,8 @@ class AdminCommunityAdminController extends Controller
             'success',
             'Admin access restored',
             'Your community admin access has been restored by the system administrator.',
+            null,
+            ['scope' => 'account'],
         );
 
         return response()->json([
@@ -495,6 +501,8 @@ class AdminCommunityAdminController extends Controller
             'success',
             'Community admin access granted',
             "You have been assigned to manage {$community->name} in Havena.",
+            null,
+            ['scope' => 'account', 'community_id' => $community->id],
         );
 
         return response()->json([

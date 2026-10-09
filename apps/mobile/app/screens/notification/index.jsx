@@ -22,7 +22,8 @@ import {
   resolveNotificationRoute,
   sortNotifications,
 } from "../../../services/notifications-api";
-import { mergeNotifications } from "../../../utils/notification-pagination";
+import { mergeNotifications, syncLatestNotifications } from "../../../utils/notification-pagination";
+import { subscribeNotificationRefresh } from "../../../services/notification-events";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { sw, sf, SCREEN_WIDTH } from "../../../utils/responsive";
 import { previewNotificationText } from "../../../utils/notification-preview";
@@ -30,6 +31,7 @@ import { previewNotificationText } from "../../../utils/notification-preview";
 const ICON_SIZE = sw(36);
 const UNREAD_DOT = sw(8);
 const PAGE_SIZE = 15;
+const LIVE_REFRESH_MS = 20000;
 const TITLE_LINE_H = sf(18);
 const DESC_FONT = sf(12);
 const DESC_LINE_H = sf(18);
@@ -61,8 +63,9 @@ function NotificationRow({ item, onPress }) {
           <View
             style={styles.itemBody}
             onLayout={(event) => {
+              if (bodyWidth > 0) return;
               const next = Math.floor(event.nativeEvent.layout.width);
-              setBodyWidth((current) => (current === next ? current : next));
+              if (next > 0) setBodyWidth(next);
             }}
           >
             <Text style={styles.notificationTitle}>{item.title}</Text>
@@ -105,13 +108,23 @@ export default function Notifications() {
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
   const loadingMoreRef = useRef(false);
+  const silentInFlightRef = useRef(false);
+  const silentQueuedRef = useRef(false);
   const pageRef = useRef(1);
   const hasLoadedRef = useRef(false);
   const onEndReachedGateRef = useRef(true);
   const [showFooterLoader, setShowFooterLoader] = useState(false);
-  const { runAction, showFailure } = useApiAction();
+  const [loadError, setLoadError] = useState(false);
+  const { runAction, showFailure, dialog } = useApiAction();
 
-  const loadPage = useCallback(async (pageNum, { append = false, silent = false } = {}) => {
+  const loadPage = useCallback(async (pageNum, { append = false, silent = false, merge = false } = {}) => {
+    if (silent && !append) {
+      if (silentInFlightRef.current) {
+        silentQueuedRef.current = true;
+        return;
+      }
+      silentInFlightRef.current = true;
+    }
     if (!silent && !append) setLoading(true);
     if (append) {
       if (loadingMoreRef.current) return;
@@ -125,19 +138,34 @@ export default function Notifications() {
         perPage: PAGE_SIZE,
       });
 
-      setItems((prev) => (append ? mergeNotifications(prev, notifications) : notifications));
+      setLoadError(false);
+      setItems((prev) => {
+        if (append) return mergeNotifications(prev, notifications);
+        if (merge) return syncLatestNotifications(prev, notifications);
+        return notifications;
+      });
       setUnread(unreadCount);
-      pageRef.current = meta.currentPage;
-      setHasMore(meta.currentPage < meta.lastPage);
+      if (!merge) {
+        pageRef.current = meta.currentPage;
+        setHasMore(meta.currentPage < meta.lastPage);
+      }
       setTotal(meta.total);
     } catch {
-      if (!append) {
-        setItems([]);
+      if (!append && !silent) {
+        setLoadError(true);
         setHasMore(false);
+        setItems([]);
         setTotal(0);
         pageRef.current = 1;
       }
     } finally {
+      if (silent && !append) {
+        silentInFlightRef.current = false;
+        if (silentQueuedRef.current) {
+          silentQueuedRef.current = false;
+          loadPage(1, { silent: true, merge: true });
+        }
+      }
       if (!silent && !append) setLoading(false);
       if (append) {
         loadingMoreRef.current = false;
@@ -149,12 +177,26 @@ export default function Notifications() {
 
   useFocusEffect(
     useCallback(() => {
+      let active = true;
       if (!hasLoadedRef.current) {
         hasLoadedRef.current = true;
         loadPage(1);
-        return;
+      } else {
+        loadPage(1, { silent: true, merge: true });
       }
-      loadPage(1, { silent: true });
+
+      const timer = setInterval(() => {
+        if (active) loadPage(1, { silent: true, merge: true });
+      }, LIVE_REFRESH_MS);
+      const unsubscribe = subscribeNotificationRefresh(() => {
+        if (active) loadPage(1, { silent: true, merge: true });
+      });
+
+      return () => {
+        active = false;
+        clearInterval(timer);
+        unsubscribe();
+      };
     }, [loadPage]),
   );
 
@@ -232,9 +274,17 @@ export default function Notifications() {
       const route = resolveNotificationRoute(item);
       if (route?.pathname) {
         router.push(route);
+        return;
       }
+
+      await dialog.showDialog({
+        type: "info",
+        title: t("notifications.unableToOpen"),
+        message: t("notifications.noRelatedScreen"),
+        actions: [{ key: "ok", label: t("common.ok"), variant: "primary" }],
+      });
     },
-    [router, showFailure, t],
+    [dialog, router, showFailure, t],
   );
 
   const unreadLabel =
@@ -271,8 +321,23 @@ export default function Notifications() {
       );
     }
 
+    if (loadError) {
+      return (
+        <View style={styles.emptyWrap}>
+          <Text style={[styles.emptyText, styles.emptyTextInline]}>{t("notifications.couldNotLoad")}</Text>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => loadPage(1)}
+            style={styles.retryBtn}
+          >
+            <Text style={styles.retryText}>{t("common.tryAgain")}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     return <Text style={styles.emptyText}>{t("notifications.noNotificationsYet")}</Text>;
-  }, [loading, t]);
+  }, [loadError, loadPage, loading, t]);
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
@@ -345,6 +410,11 @@ const styles = StyleSheet.create({
     paddingVertical: sw(24),
     alignItems: "center",
   },
+  emptyWrap: {
+    alignItems: "center",
+    paddingVertical: sw(24),
+    gap: sw(12),
+  },
   emptyText: {
     fontFamily: Fonts.regular,
     fontSize: sf(12),
@@ -352,6 +422,22 @@ const styles = StyleSheet.create({
     color: "rgba(106, 114, 130, 1)",
     textAlign: "center",
     paddingVertical: sw(24),
+  },
+  emptyTextInline: {
+    paddingVertical: 0,
+  },
+  retryBtn: {
+    paddingHorizontal: sw(16),
+    paddingVertical: sw(8),
+    borderRadius: sw(10),
+    backgroundColor: "rgba(14, 165, 233, 0.12)",
+  },
+  retryText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    color: "rgba(14, 165, 233, 1)",
+    fontWeight: "700",
   },
   footerWrap: {
     alignItems: "center",

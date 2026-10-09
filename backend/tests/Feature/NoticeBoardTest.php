@@ -1557,4 +1557,49 @@ class NoticeBoardTest extends TestCase
             ->assertForbidden()
             ->assertJsonPath('message', 'Notices is not available in this community.');
     }
+
+    public function test_alerts_board_loads_when_notices_feature_is_off(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        DB::table('community_feature_flags')->insert([
+            'community_id' => $community->id,
+            'feature_key' => 'notices',
+            'enabled' => false,
+            'disabled_by' => 'system_admin',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/alerts', array_merge([
+            'title' => 'Water shutoff',
+            'body' => 'Water is off until 4pm.',
+            'status' => 'published',
+        ], $this->scheduleFields()))->assertCreated();
+
+        $this->postJson('/api/v1/admin/notices', array_merge([
+            'title' => 'Lobby hours',
+            'body' => 'The lobby desk closes at 8pm.',
+            'category' => 'general',
+            'status' => 'published',
+        ], $this->scheduleFields()))->assertForbidden();
+
+        $this->getJson('/api/v1/admin/notices?category_group=alerts')
+            ->assertOk()
+            ->assertJsonPath('data.0.title', 'Water shutoff')
+            ->assertJsonPath('data.0.category', 'emergency');
+
+        $this->getJson('/api/v1/admin/notices?category_group=notices')
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Notices is not available in this community.');
+
+        Sanctum::actingAs($resident);
+
+        $list = $this->getJson('/api/v1/notices')->assertOk();
+        $titles = collect($list->json('data'))->pluck('title')->all();
+        $this->assertContains('Water shutoff', $titles);
+        $this->assertNotContains('Lobby hours', $titles);
+    }
 }

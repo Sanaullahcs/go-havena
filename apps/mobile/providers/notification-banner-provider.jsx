@@ -221,7 +221,11 @@ export function NotificationBannerProvider({ children }) {
   }, []);
 
   const showBanner = useCallback(
-    ({ id, title, body, kind, type, actionUrl, onPress }) => {
+    ({ id, title, body, kind, type, actionUrl, onPress, dismissAll: shouldDismiss } = {}) => {
+      if (shouldDismiss) {
+        clearAll();
+        return;
+      }
       const itemId = buildItemId({ id });
       onPressMapRef.current.set(itemId, onPress ?? null);
 
@@ -244,7 +248,7 @@ export function NotificationBannerProvider({ children }) {
         showNext();
       }
     },
-    [showNext],
+    [clearAll, showNext],
   );
 
   useEffect(() => subscribeNotificationBanner(showBanner), [showBanner]);
@@ -265,16 +269,18 @@ export function NotificationBannerProvider({ children }) {
 
   return (
     <NotificationBannerContext.Provider value={value}>
-      {children}
-      {current ? (
-        <ForegroundNotificationBanner
-          key={current.id}
-          item={current}
-          topInset={insets.top}
-          onDismiss={handleDismiss}
-          onPress={() => onPressMapRef.current.get(current.id)?.()}
-        />
-      ) : null}
+      <View style={styles.host} pointerEvents="box-none">
+        {children}
+        {current ? (
+          <ForegroundNotificationBanner
+            key={current.id}
+            item={current}
+            topInset={insets.top}
+            onDismiss={handleDismiss}
+            onPress={() => onPressMapRef.current.get(current.id)?.()}
+          />
+        ) : null}
+      </View>
     </NotificationBannerContext.Provider>
   );
 }
@@ -288,13 +294,16 @@ export function useNotificationBanner() {
 }
 
 const styles = StyleSheet.create({
+  host: {
+    flex: 1,
+  },
   wrap: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 99999,
-    elevation: 999,
+    zIndex: 100000,
+    elevation: 1000,
     paddingHorizontal: 12,
   },
   card: {

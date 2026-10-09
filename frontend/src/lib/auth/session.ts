@@ -194,6 +194,7 @@ export type WebUser = {
   phone?: string;
   name?: string;
   role?: string;
+  status?: string | null;
   community_id?: number;
   community_admin_status?: string | null;
   /** Currency of the community the user is acting in. See lib/money.ts. */

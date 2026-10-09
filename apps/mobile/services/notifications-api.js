@@ -307,10 +307,9 @@ export function normalizeNotification(raw) {
 }
 
 export function sortNotifications(notifications) {
-  return [...notifications].sort((a, b) => {
-    if (a.read !== b.read) return a.read ? 1 : -1;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
+  return [...notifications].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 }
 
 /** Map backend action_url to an in-app route. Returns null when no safe destination exists. */
@@ -452,8 +451,10 @@ export async function fetchNotifications({ page = 1, perPage = 15 } = {}) {
 
 export async function fetchNotificationUnreadCount() {
   const res = await apiRequest("/notifications?page=1&per_page=1");
-  if (typeof res?.unread === "number") return res.unread;
-  return 0;
+  return {
+    unread: typeof res?.unread === "number" ? res.unread : 0,
+    messageAlerts: typeof res?.unread_messages === "number" ? res.unread_messages : 0,
+  };
 }
 
 export async function markNotificationRead(id) {

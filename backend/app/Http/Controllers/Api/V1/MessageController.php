@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class MessageController extends Controller
@@ -167,6 +168,8 @@ class MessageController extends Controller
                 ->where('conversation_id', $id)
                 ->where('user_id', $user->id)
                 ->update(['unread_count' => 0, 'last_read_at' => now()]);
+
+            $this->markConversationNotificationsRead((int) $user->id, (int) $id);
         }
 
         $conversation = DB::table('conversations as c')
@@ -346,8 +349,9 @@ class MessageController extends Controller
                 $senderName.' offered $'.number_format((float) $offerAmount, 2).' on "'.$listing?->title.'".',
                 $this->conversationActionUrl($convId, $listingId, $senderName),
                 [
-                    'kind'       => 'message',
-                    'actor_name' => $senderName,
+                    'kind'            => 'message',
+                    'actor_name'      => $senderName,
+                    'conversation_id' => (int) $convId,
                 ],
             );
         } elseif ($message !== '') {
@@ -629,6 +633,35 @@ class MessageController extends Controller
         }
 
         return MediaUrl::toPublic(is_string($images[0]) ? $images[0] : null, request());
+    }
+
+    /**
+     * Opening a thread marks that conversation's message alerts read.
+     * Other conversations and other users are left unread.
+     */
+    private function markConversationNotificationsRead(int $userId, int $conversationId): void
+    {
+        if (! Schema::hasTable('app_notifications') || $conversationId < 1) {
+            return;
+        }
+
+        $param = 'conversationId='.$conversationId;
+
+        DB::table('app_notifications')
+            ->where('user_id', $userId)
+            ->whereNull('read_at')
+            ->where(function ($query) use ($conversationId, $param) {
+                $query->where('action_url', 'like', '%'.$param)
+                    ->orWhere('action_url', 'like', '%'.$param.'&%');
+
+                if (Schema::hasColumn('app_notifications', 'data')) {
+                    $query->orWhereRaw(
+                        "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.conversation_id')) AS UNSIGNED) = ?",
+                        [$conversationId],
+                    );
+                }
+            })
+            ->update(['read_at' => now(), 'updated_at' => now()]);
     }
 
     private function conversationActionUrl(int $conversationId, ?int $listingId = null, ?string $peerName = null): string

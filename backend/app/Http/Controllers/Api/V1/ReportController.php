@@ -341,7 +341,7 @@ class ReportController extends Controller
                 $title,
                 $body,
                 '/admin/moderation',
-                ['kind' => 'ugc_report'],
+                ['kind' => 'ugc_report', 'community_id' => $communityId],
             );
         }
     }
