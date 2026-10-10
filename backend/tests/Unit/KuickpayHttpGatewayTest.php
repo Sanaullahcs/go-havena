@@ -57,6 +57,7 @@ class KuickpayHttpGatewayTest extends TestCase
                 && $body['amountPayable'] === '1250.00'
                 && $body['orderid'] === 'HVN-TEST-1'
                 && $body['signature'] === $expected
+                && ! array_key_exists('method', $body)
                 && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $body['timestamp']) === 1;
         });
     }

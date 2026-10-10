@@ -27,6 +27,7 @@ export function AmenityPaymentProofModal({
   const [form, setForm] = useState<AmenityPaymentProofForm>({
     file: null,
     payment_date: todayIsoDate(),
+    payment_bank: "",
     payment_reference: "",
     payment_note: "",
   });
@@ -103,6 +104,17 @@ export function AmenityPaymentProofModal({
             {showError("payment_date", liveErrors.payment_date) ? (
               <p className="mt-1 text-xs text-red-600">{liveErrors.payment_date}</p>
             ) : null}
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Bank name</label>
+            <input
+              className={inputClass()}
+              value={form.payment_bank}
+              onChange={(e) => setField("payment_bank", e.target.value)}
+              placeholder="Optional"
+              maxLength={80}
+            />
           </div>
 
           <div>

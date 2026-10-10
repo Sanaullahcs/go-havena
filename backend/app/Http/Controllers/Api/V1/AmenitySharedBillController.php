@@ -200,6 +200,20 @@ class AmenitySharedBillController extends Controller
         ]);
     }
 
+    /** PATCH /v1/admin/amenities/{id}/resident-bills/{residentBillId}/clarify */
+    public function adminClarify(Request $request, int $id, int $residentBillId): JsonResponse
+    {
+        $bill = $this->findAdminReviewableBill($request, $id, $residentBillId);
+        $data = $request->validate([
+            'message' => ['required', 'string', 'max:500'],
+        ]);
+
+        return response()->json([
+            'data' => $this->bills->requestClarification($bill, (int) $request->user()->id, trim($data['message']), $request),
+            'message' => 'The resident was asked for a clearer receipt.',
+        ]);
+    }
+
     /** GET /v1/amenities/{id}/bills */
     public function residentIndex(Request $request, int $id): JsonResponse
     {
@@ -240,6 +254,7 @@ class AmenitySharedBillController extends Controller
             'file' => AmenitySharedBillService::FILE_RULE,
             'payment_date' => 'required|date|before_or_equal:today',
             'payment_reference' => 'nullable|string|max:100',
+            'payment_bank' => 'nullable|string|max:80',
             'payment_note' => 'nullable|string|max:1000',
         ]);
 
@@ -250,6 +265,9 @@ class AmenitySharedBillController extends Controller
                 'payment_date' => $data['payment_date'],
                 'payment_reference' => isset($data['payment_reference']) && trim((string) $data['payment_reference']) !== ''
                     ? trim((string) $data['payment_reference'])
+                    : null,
+                'payment_bank' => isset($data['payment_bank']) && trim((string) $data['payment_bank']) !== ''
+                    ? trim((string) $data['payment_bank'])
                     : null,
                 'payment_note' => isset($data['payment_note']) && trim((string) $data['payment_note']) !== ''
                     ? trim((string) $data['payment_note'])

@@ -263,7 +263,7 @@ function withTimeout(promise, ms, message) {
   });
 }
 
-export async function submitAmenityBillProof(amenityId, residentBillId, { fileAsset, paymentDate, paymentReference, paymentNote }) {
+export async function submitAmenityBillProof(amenityId, residentBillId, { fileAsset, paymentDate, paymentReference, paymentBank, paymentNote }) {
   const token = await getToken();
   if (!token) throw new ApiError(i18n.t("imagePicker.signInRequired"), { status: 401 });
   if (!amenityId || !residentBillId) {
@@ -283,6 +283,7 @@ export async function submitAmenityBillProof(amenityId, residentBillId, { fileAs
 
   const parameters = { payment_date: String(paymentDate) };
   if (paymentReference) parameters.payment_reference = String(paymentReference);
+  if (paymentBank) parameters.payment_bank = String(paymentBank);
   if (paymentNote) parameters.payment_note = String(paymentNote);
 
   try {

@@ -8,7 +8,9 @@ use App\Models\PaymentAttempt;
 use App\Services\GuestAccessService;
 use App\Services\Kuickpay\KuickpayException;
 use App\Services\Kuickpay\KuickpayGateway;
+use App\Models\PaymentCase;
 use App\Services\Payments\OnlinePaymentPresenter;
+use App\Services\Payments\PaymentCaseService;
 use App\Services\Payments\PaymentOrchestrator;
 use App\Services\Payments\PaymentRouting;
 use Illuminate\Http\JsonResponse;
@@ -25,6 +27,7 @@ class PaymentController extends Controller
         private readonly OnlinePaymentPresenter $presenter,
         private readonly PaymentRouting $routing,
         private readonly KuickpayGateway $gateway,
+        private readonly PaymentCaseService $cases,
     ) {
     }
 
@@ -43,6 +46,7 @@ class PaymentController extends Controller
                 'test_mode' => $enabled && $this->gateway->isSimulated(),
                 'currency' => 'PKR',
                 'methods' => $enabled ? array_values((array) config('kuickpay.methods', [])) : [],
+                'method_selection' => 'hosted_page',
                 'utilities_enabled' => $enabled && (bool) $profile?->utilities_enabled,
                 'residents_can_link_utilities' => (bool) $profile?->residents_can_link_utilities,
             ],
@@ -121,6 +125,23 @@ class PaymentController extends Controller
         $attempt = $this->orchestrator->refresh($attempt, $request->boolean('sync'));
 
         return response()->json(['data' => $this->presenter->attempt($attempt->load(['community:id,name', 'user:id,name']))]);
+    }
+
+    /** POST /v1/payments/{id}/cases — resident dispute or refund request. Does not move money. */
+    public function openCase(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            'kind' => ['required', Rule::in([PaymentCase::KIND_DISPUTE, PaymentCase::KIND_REFUND])],
+            'reason' => ['required', 'string', 'max:120'],
+            'details' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $attempt = $this->findOwned($request, $id);
+        if (! in_array($attempt->status, [PaymentAttempt::STATUS_SUCCEEDED, PaymentAttempt::STATUS_REFUND_PENDING], true)) {
+            throw new KuickpayException('not_disputable', 'You can only raise this after a payment has been confirmed.');
+        }
+        $case = $this->cases->open($request->user(), $attempt, $data['kind'], $data['reason'], $data['details'] ?? null);
+
+        return response()->json(['data' => $this->cases->payload($case)], 201);
     }
 
     /** POST /v1/payments/{id}/cancel */

@@ -68,6 +68,7 @@ export default function PropertyPage() {
   const [payment, setPayment] = useState<BookingPaymentForm>({
     file: null,
     payment_date: todayIsoDate(),
+    payment_bank: "",
     payment_reference: "",
     payment_note: "",
     method: "proof",
@@ -166,6 +167,7 @@ export default function PropertyPage() {
     setPayment({
       file: null,
       payment_date: todayIsoDate(),
+      payment_bank: "",
       payment_reference: "",
       payment_note: "",
       method: achCapability?.can_pay_with_bank ? "bank_ach" : "proof",

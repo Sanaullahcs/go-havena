@@ -13,6 +13,7 @@ export const SYSTEM_ADMIN_ROUTE_PREFIXES = [
   "/admin/billing-plans",
   "/admin/billing-coupons",
   "/admin/bank-payments",
+  "/admin/kuickpay-oversight",
   "/admin/referrals",
   "/admin/app-version",
   "/admin/moderation",

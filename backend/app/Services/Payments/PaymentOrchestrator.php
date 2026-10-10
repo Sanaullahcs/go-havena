@@ -16,6 +16,7 @@ use App\Services\NotificationService;
 use App\Services\Utilities\UtilityBillService;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -129,6 +130,7 @@ class PaymentOrchestrator
                 'failure_code' => $e->codeKey,
                 'failure_message' => $e->getMessage(),
             ], 'checkout_failed');
+            $this->announceFailure($attempt->refresh());
 
             throw $e;
         } catch (\Throwable $e) {
@@ -138,6 +140,7 @@ class PaymentOrchestrator
                 'failure_code' => 'checkout_unavailable',
                 'failure_message' => 'We could not open KuickPay right now. You have not been charged.',
             ], 'checkout_failed');
+            $this->announceFailure($attempt->refresh());
 
             throw KuickpayException::unreachable();
         }
@@ -239,6 +242,7 @@ class PaymentOrchestrator
                 'failure_code' => 'checkout_declined',
                 'failure_message' => 'Your payment was declined. You have not been charged and the bill is still unpaid.',
             ], 'checkout_failed', $redacted, 'provider');
+            $this->announceFailure($attempt->refresh());
         } else {
             $this->toPending($attempt, 'return_unrecognised', $redacted);
         }
@@ -312,6 +316,7 @@ class PaymentOrchestrator
                     'failure_code' => 'checkout_declined',
                     'failure_message' => 'Your payment was declined. You have not been charged and the bill is still unpaid.',
                 ], 'checkout_failed_reconciled');
+                $this->announceFailure($attempt->refresh());
             } elseif ($status->status === CheckoutStatus::CANCELLED) {
                 $this->transition($attempt, PaymentAttempt::STATUS_CANCELLED, ['cancelled_at' => now()], 'checkout_cancelled_reconciled');
             } elseif ($attempt->hasExpired()) {
@@ -397,6 +402,151 @@ class PaymentOrchestrator
         app(\App\Services\PaymentMailService::class)->onlinePayment($attempt, 'refunded');
 
         return $attempt->refresh();
+    }
+
+    /**
+     * Records a refund KuickPay confirmed outside Havena.
+     * The bill stays paid. KuickPay does not publish a refund API, so this never sends money.
+     */
+    public function recordExternalRefund(PaymentAttempt $attempt, User $admin, string $note): PaymentAttempt
+    {
+        return Cache::lock('payments:attempt:'.$attempt->id, 30)->block(10, function () use ($attempt, $admin, $note) {
+            $attempt->refresh();
+            if ($attempt->status === PaymentAttempt::STATUS_REFUNDED) {
+                throw new KuickpayException('already_refunded', 'This refund is already recorded.');
+            }
+            if (! in_array($attempt->status, [PaymentAttempt::STATUS_SUCCEEDED, PaymentAttempt::STATUS_REFUND_PENDING], true)) {
+                throw new KuickpayException('not_refundable', 'Only a confirmed payment can be recorded as refunded.');
+            }
+
+            $this->transition($attempt, PaymentAttempt::STATUS_REFUNDED, [
+                'needs_attention' => false,
+            ], 'refund_recorded', ['note' => $note, 'external' => true], 'admin', (int) $admin->id);
+            $this->notifyRefundRecorded($attempt);
+
+            return $attempt->refresh();
+        });
+    }
+
+    /**
+     * Records a reversal confirmed outside Havena. Reopens the bill only when this
+     * payment is the one that marked it paid, and only when the admin asks to.
+     */
+    public function recordExternalReversal(PaymentAttempt $attempt, User $admin, string $note, bool $reopenBill): PaymentAttempt
+    {
+        return Cache::lock('payments:attempt:'.$attempt->id, 30)->block(10, function () use ($attempt, $admin, $note, $reopenBill) {
+            $attempt->refresh();
+            if ($attempt->status === PaymentAttempt::STATUS_REVERSED) {
+                throw new KuickpayException('already_reversed', 'This reversal is already recorded.');
+            }
+            if (! in_array($attempt->status, [
+                PaymentAttempt::STATUS_SUCCEEDED,
+                PaymentAttempt::STATUS_REFUND_PENDING,
+                PaymentAttempt::STATUS_REFUNDED,
+            ], true)) {
+                throw new KuickpayException('not_reversible', 'Only a confirmed payment can be recorded as reversed.');
+            }
+
+            DB::transaction(function () use ($attempt, $admin, $note, $reopenBill) {
+                $this->transition($attempt, PaymentAttempt::STATUS_REVERSED, [
+                    'needs_attention' => false,
+                ], 'reversal_recorded', ['note' => $note, 'reopen_bill' => $reopenBill], 'admin', (int) $admin->id);
+                if ($reopenBill) {
+                    $this->reopenSettledBill($attempt, (int) $admin->id);
+                }
+            });
+
+            NotificationService::send(
+                (int) $attempt->user_id,
+                'info',
+                'Payment reversed',
+                'A reversal was recorded for your '.$attempt->formattedAmount().' payment for '.$attempt->title.'.',
+                $this->appPath($attempt),
+                ['kind' => 'payment_reversed', 'payment_id' => $attempt->public_id],
+            );
+
+            return $attempt->refresh();
+        });
+    }
+
+    private function notifyRefundRecorded(PaymentAttempt $attempt): void
+    {
+        NotificationService::send(
+            (int) $attempt->user_id,
+            'info',
+            'Payment refunded',
+            'Your '.$attempt->formattedAmount().' payment for '.$attempt->title.' has been refunded.',
+            $this->appPath($attempt),
+            ['kind' => 'payment_refunded', 'payment_id' => $attempt->public_id],
+        );
+        app(\App\Services\PaymentMailService::class)->onlinePayment($attempt, 'refunded');
+    }
+
+    private function reopenSettledBill(PaymentAttempt $attempt, int $adminId): void
+    {
+        if ($attempt->payable_type === PaymentAttempt::PAYABLE_SERVICE_BILL) {
+            $bill = DB::table('unit_service_bills')->where('id', $attempt->payable_id)->lockForUpdate()->first();
+            if (! $bill || (int) ($bill->payment_attempt_id ?? 0) !== (int) $attempt->id) {
+                throw new KuickpayException('not_the_settling_payment', 'This payment is not the one that marked the bill paid. Record the reversal without reopening the bill.');
+            }
+            $status = ! empty($bill->due_date) && Carbon::parse($bill->due_date)->endOfDay()->isPast() ? 'overdue' : 'unpaid';
+            DB::table('unit_service_bills')->where('id', $bill->id)->update([
+                'status' => $status,
+                'payment_method' => null,
+                'payment_attempt_id' => null,
+                'approved_by' => null,
+                'approved_at' => null,
+                'updated_at' => now(),
+            ]);
+            DB::table('unit_service_bill_reviews')->insert([
+                'bill_id' => (int) $bill->id,
+                'community_id' => (int) $bill->community_id,
+                'service_id' => (int) $bill->service_id,
+                'unit_id' => (int) $bill->unit_id,
+                'actor_id' => $adminId,
+                'action' => 'reversed',
+                'status_from' => (string) $bill->status,
+                'status_to' => $status,
+                'rejection_reason' => 'Online payment reversed',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return;
+        }
+
+        if ($attempt->payable_type === PaymentAttempt::PAYABLE_AMENITY_BILL) {
+            $bill = DB::table('amenity_resident_bills')->where('id', $attempt->payable_id)->lockForUpdate()->first();
+            if (! $bill || (int) ($bill->payment_attempt_id ?? 0) !== (int) $attempt->id) {
+                throw new KuickpayException('not_the_settling_payment', 'This payment is not the one that marked the bill paid. Record the reversal without reopening the bill.');
+            }
+            DB::table('amenity_resident_bills')->where('id', $bill->id)->update([
+                'status' => 'unpaid',
+                'payment_method' => null,
+                'payment_attempt_id' => null,
+                'approved_by' => null,
+                'approved_at' => null,
+                'updated_at' => now(),
+            ]);
+            DB::table('amenity_resident_bill_reviews')->insert([
+                'resident_bill_id' => (int) $bill->id,
+                'monthly_bill_id' => (int) $bill->monthly_bill_id,
+                'amenity_id' => (int) $bill->amenity_id,
+                'community_id' => (int) $bill->community_id,
+                'user_id' => (int) $bill->user_id,
+                'actor_id' => $adminId,
+                'action' => 'reversed',
+                'status_from' => (string) $bill->status,
+                'status_to' => 'unpaid',
+                'rejection_reason' => 'Online payment reversed',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return;
+        }
+
+        throw new KuickpayException('not_reversible', 'Utility bills are not reopened from Havena. Record the reversal without reopening the bill.');
     }
 
     /**
@@ -581,6 +731,27 @@ class PaymentOrchestrator
         } catch (\Throwable $e) {
             // The payment is committed; a notification or audit-log failure must not surface as a payment error.
             Log::error('KuickPay success follow-up failed', ['payment' => $attempt->public_id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    private function announceFailure(PaymentAttempt $attempt): void
+    {
+        if ($attempt->status !== PaymentAttempt::STATUS_FAILED) {
+            return;
+        }
+
+        try {
+            NotificationService::send(
+                (int) $attempt->user_id,
+                'warning',
+                'Payment not completed',
+                ($attempt->failure_message ?: 'Your payment was not completed. You have not been charged.').' Reference '.$attempt->reference.'.',
+                $this->appPath($attempt),
+                ['kind' => 'payment_failed', 'payment_id' => $attempt->public_id],
+            );
+            app(\App\Services\PaymentMailService::class)->onlinePayment($attempt, 'failed');
+        } catch (\Throwable $e) {
+            Log::error('KuickPay failure follow-up failed', ['payment' => $attempt->public_id, 'error' => $e->getMessage()]);
         }
     }
 

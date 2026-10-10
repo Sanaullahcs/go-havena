@@ -31,6 +31,8 @@ class AmenitySharedBillService
 
     public const ACTION_APPROVED = 'approved';
 
+    public const ACTION_CLARIFICATION = 'clarification_requested';
+
     public const ACTION_REJECTED = 'rejected';
 
     public const ACTION_ACH_SUBMITTED = 'ach_submitted';
@@ -1229,6 +1231,23 @@ class AmenitySharedBillService
         return $this->formatAdminResidentBill($updated, $request);
     }
 
+    public function requestClarification(object $bill, int $adminId, string $message, Request $request): array
+    {
+        $this->reviewResidentPayment($bill, $adminId, self::ACTION_CLARIFICATION, self::RESIDENT_STATUS_REJECTED, $message);
+        $updated = $this->findAdminResidentBill((int) $bill->amenity_id, (int) $bill->resident_bill_id);
+        abort_if(! $updated, 500, 'Payment could not be loaded after the request.');
+        NotificationService::send(
+            (int) $updated->user_id,
+            'warning',
+            'More information needed',
+            'Your community asked for a clearer payment receipt: '.$message,
+            '/screens/property-management/amenity-bills',
+            ['kind' => 'amenity_bill_clarification', 'bill_id' => (int) $updated->resident_bill_id],
+        );
+
+        return $this->formatAdminResidentBill($updated, $request);
+    }
+
     public function resolveRejectionReason(string $code, ?string $customReason): string
     {
         if (! array_key_exists($code, self::REJECTION_REASONS)) {
@@ -1301,6 +1320,7 @@ class AmenitySharedBillService
                         'proof_mime_type' => $fileMeta['mime_type'],
                         'payment_date' => $data['payment_date'],
                         'payment_reference' => $data['payment_reference'] ?? null,
+                        'payment_bank' => $data['payment_bank'] ?? null,
                         'payment_note' => $data['payment_note'] ?? null,
                         'proof_submitted_at' => $now,
                         'proof_submitted_by' => (int) $ownedBill->user_id,
@@ -1484,6 +1504,7 @@ class AmenitySharedBillService
                 ? Carbon::parse((string) $row->payment_date)->toDateString()
                 : null,
             'payment_reference' => $row->payment_reference ?? null,
+            'payment_bank' => $row->payment_bank ?? null,
             'payment_note' => $row->payment_note ?? null,
             'submitted_at' => $row->proof_submitted_at ?? $row->created_at ?? null,
         ];
@@ -1704,6 +1725,12 @@ class AmenitySharedBillService
                 throw ValidationException::withMessages([
                     'status' => self::REVIEW_NOT_PENDING_MESSAGE,
                 ]);
+            }
+            if ($action === self::ACTION_APPROVED) {
+                \App\Services\Payments\OnlineSettlementGuard::assertManualApprovalAllowed(
+                    \App\Models\PaymentAttempt::PAYABLE_AMENITY_BILL,
+                    (int) $locked->id,
+                );
             }
 
             $now = now();

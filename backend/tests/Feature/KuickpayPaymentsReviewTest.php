@@ -326,7 +326,10 @@ class KuickpayPaymentsReviewTest extends TestCase
                 ->assertStatus(422)->assertJsonValidationErrors('amount');
         }
 
-        $serviceId = $this->withHeaders($headers)->postJson('/api/v1/admin/property-services', $base + ['amount' => 1234.567])
+        $this->withHeaders($headers)->postJson('/api/v1/admin/property-services', $base + ['amount' => 1234.567])
+            ->assertStatus(422)->assertJsonValidationErrors('amount');
+
+        $serviceId = $this->withHeaders($headers)->postJson('/api/v1/admin/property-services', $base + ['amount' => 1234.57])
             ->assertCreated()->json('data.id');
         $this->assertSame('1234.57', (string) DB::table('property_services')->where('id', $serviceId)->value('amount'));
     }
@@ -347,20 +350,20 @@ class KuickpayPaymentsReviewTest extends TestCase
         $vacantId = (int) $units->createUnit($community->id, 'C-303')->id;
         $serviceId = $this->createServiceViaApi($admin, $community, ['amount' => 1000, 'first_billing_month' => '2026-10']);
 
+        $this->assertNull(
+            DB::table('unit_service_bills')->where('service_id', $serviceId)->where('unit_id', $vacantId)->first(),
+            'Automatic bills are not created while a unit is vacant.',
+        );
+
+        $newcomer = $this->addResident($community, 'New Tenant', 'C-303');
         $vacantBill = DB::table('unit_service_bills')->where('service_id', $serviceId)->where('unit_id', $vacantId)->first();
-        $this->assertNotNull($vacantBill, 'Current behaviour: automatic bills are generated for vacant units.');
-        $this->assertNull($vacantBill->billing_contact_user_id);
+        $this->assertNotNull($vacantBill, 'The current bill is created when the first resident is assigned.');
+        $this->assertSame($newcomer->id, (int) $vacantBill->billing_contact_user_id);
 
         Sanctum::actingAs($existing);
         $this->assertFalse(collect($this->getJson('/api/v1/service-bills')->json('data'))->contains('id', $vacantBill->id));
-        $this->postJson('/api/v1/payments', ['payable_type' => 'unit_service_bill', 'payable_id' => $vacantBill->id])->assertNotFound();
-
-        $newcomer = $this->addResident($community, 'New Tenant', 'C-303');
         Sanctum::actingAs($newcomer);
-        $this->assertTrue(
-            collect($this->getJson('/api/v1/service-bills')->json('data'))->contains('id', $vacantBill->id),
-            'Current behaviour: the vacancy bill is deferred to the first billing contact.',
-        );
+        $this->assertTrue(collect($this->getJson('/api/v1/service-bills')->json('data'))->contains('id', $vacantBill->id));
         $this->assertSame($vacantId, (int) $units->findActiveUnitForUser($newcomer->id, $community->id)->id);
     }
 

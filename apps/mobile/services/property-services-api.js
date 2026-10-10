@@ -152,7 +152,7 @@ export async function acknowledgeServiceBill(id) {
   return res.data;
 }
 
-export async function submitServiceBillProof(id, { file, payment_date, payment_reference, payment_note }) {
+export async function submitServiceBillProof(id, { file, payment_date, payment_reference, payment_bank, payment_note }) {
   const token = await getToken();
   if (!token) throw new ApiError(i18n.t("imagePicker.signInRequired"), { status: 401 });
   const fileAsset = file;
@@ -163,6 +163,7 @@ export async function submitServiceBillProof(id, { file, payment_date, payment_r
   if (communityId) headers["X-Community-Id"] = String(communityId);
   const parameters = { payment_date: String(payment_date) };
   if (payment_reference) parameters.payment_reference = String(payment_reference);
+  if (payment_bank) parameters.payment_bank = String(payment_bank);
   if (payment_note) parameters.payment_note = String(payment_note);
   return uploadMultipartFile({
     url: `${API_BASE_URL}/service-bills/${id}/proof`,

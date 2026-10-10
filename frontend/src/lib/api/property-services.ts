@@ -116,6 +116,7 @@ export interface ServiceBillPaymentProof {
   file_url?: string | null;
   payment_date?: string | null;
   payment_reference?: string | null;
+  payment_bank?: string | null;
   payment_note?: string | null;
 }
 
@@ -340,6 +341,11 @@ export async function rejectServiceBill(id: number, rejection_code: string, reje
   return data.data as UnitServiceBill;
 }
 
+export async function clarifyServiceBill(id: number, message: string) {
+  const { data } = await api.patch(`/v1/admin/service-bills/${id}/clarify`, { message }, { params: communityParams() });
+  return data.data as UnitServiceBill;
+}
+
 export async function fetchResidentPropertyServices() {
   const { data } = await api.get("/v1/property-services");
   return { services: (data.data ?? []) as PropertyService[], unit: (data.unit ?? null) as CommunityUnit | null };
@@ -367,11 +373,12 @@ export async function acknowledgeServiceBill(id: number) {
 
 export async function submitServiceBillProof(
   id: number,
-  payload: { file: File; payment_date: string; payment_reference?: string; payment_note?: string },
+  payload: { file: File; payment_date: string; payment_reference?: string; payment_bank?: string; payment_note?: string },
 ) {
   const form = new FormData();
   form.append("file", payload.file);
   form.append("payment_date", payload.payment_date);
+  if (payload.payment_bank) form.append("payment_bank", payload.payment_bank);
   if (payload.payment_reference) form.append("payment_reference", payload.payment_reference);
   if (payload.payment_note) form.append("payment_note", payload.payment_note);
   const { data } = await api.post(`/v1/service-bills/${id}/proof`, form);

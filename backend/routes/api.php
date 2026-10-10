@@ -48,6 +48,7 @@ use App\Http\Controllers\Api\V1\SubscriptionCouponController;
 use App\Http\Controllers\Api\V1\ReferralController;
 use App\Http\Controllers\Api\V1\ReferralProgramController;
 use App\Http\Controllers\Api\V1\AppVersionController;
+use App\Http\Controllers\Api\V1\AdminKuickpayPlatformController;
 use App\Http\Controllers\Api\V1\AdminPaymentController;
 use App\Http\Controllers\Api\V1\KuickpayGatewayController;
 use App\Http\Controllers\Api\V1\KuickpayInstitutionController;
@@ -341,6 +342,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/payments', [PaymentController::class, 'index']);
         Route::post('/payments', [PaymentController::class, 'store'])->middleware('throttle:20,1');
         Route::get('/payments/{id}', [PaymentController::class, 'show'])->where('id', '[0-9a-fA-F-]{36}');
+        Route::post('/payments/{id}/cases', [PaymentController::class, 'openCase'])->where('id', '[0-9a-fA-F-]{36}');
         Route::post('/payments/{id}/cancel', [PaymentController::class, 'cancel'])->where('id', '[0-9a-fA-F-]{36}');
         Route::get('/utilities/billers', [UtilityBillController::class, 'billers']);
         Route::get('/utilities/accounts', [UtilityBillController::class, 'index']);
@@ -387,6 +389,10 @@ Route::prefix('v1')->group(function () {
                 Route::post('/users', [AdminUserController::class, 'store']);
 
                 /* Plaid (US) — platform operations: health, readiness, reconciliation */
+                Route::get('/kuickpay/overview', [AdminKuickpayPlatformController::class, 'overview']);
+                Route::get('/kuickpay/payments/export', [AdminKuickpayPlatformController::class, 'export']);
+                Route::get('/kuickpay/payments', [AdminKuickpayPlatformController::class, 'payments']);
+
                 Route::get('/plaid/overview', [AdminPlaidController::class, 'overview']);
                 Route::get('/plaid/transfers', [AdminPlaidController::class, 'transfers']);
                 Route::get('/plaid/transfers/{id}', [AdminPlaidController::class, 'show'])->where('id', '[0-9a-fA-F-]{36}');
@@ -548,12 +554,18 @@ Route::prefix('v1')->group(function () {
                 Route::get('/service-bills/{id}/reviews',     [UnitServiceBillController::class, 'adminReviews'])->whereNumber('id');
                 Route::patch('/service-bills/{id}/approve',   [UnitServiceBillController::class, 'adminApprove'])->whereNumber('id');
                 Route::patch('/service-bills/{id}/reject',    [UnitServiceBillController::class, 'adminReject'])->whereNumber('id');
+                Route::patch('/service-bills/{id}/clarify',   [UnitServiceBillController::class, 'adminClarify'])->whereNumber('id');
 
                 /* KuickPay (Pakistan) — payments ledger, exceptions, settings */
                 Route::get('/payments',                       [AdminPaymentController::class, 'index']);
                 Route::get('/payments/summary',               [AdminPaymentController::class, 'summary']);
+                Route::get('/payments/export',                [AdminPaymentController::class, 'export']);
+                Route::get('/payments/outstanding',           [AdminPaymentController::class, 'outstanding']);
+                Route::get('/payments/cases',                 [AdminPaymentController::class, 'cases']);
+                Route::post('/payments/cases/{case}/resolve', [AdminPaymentController::class, 'resolveCase']);
                 Route::patch('/payments/settings',            [AdminPaymentController::class, 'updateSettings']);
                 Route::get('/payments/{id}',                  [AdminPaymentController::class, 'show']);
+                Route::post('/payments/{id}/cases',           [AdminPaymentController::class, 'openCase']);
                 Route::post('/payments/{id}/reconcile',       [AdminPaymentController::class, 'reconcile']);
                 Route::post('/payments/{id}/refunded',        [AdminPaymentController::class, 'markRefunded']);
 
@@ -571,6 +583,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/amenities/{id}/resident-bills/{residentBillId}/reviews', [AmenitySharedBillController::class, 'adminReviews']);
                 Route::match(['patch', 'post'],'/amenities/{id}/resident-bills/{residentBillId}/approve', [AmenitySharedBillController::class, 'adminApprove']);
                 Route::match(['patch', 'post'],'/amenities/{id}/resident-bills/{residentBillId}/reject', [AmenitySharedBillController::class, 'adminReject']);
+                Route::match(['patch', 'post'],'/amenities/{id}/resident-bills/{residentBillId}/clarify', [AmenitySharedBillController::class, 'adminClarify']);
 
                 /* Amenity bookings — admin can still review community-wide */
                 Route::get('/bookings',                       [AmenityController::class, 'adminBookings']);

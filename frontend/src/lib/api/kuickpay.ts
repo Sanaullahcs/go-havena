@@ -97,6 +97,9 @@ export type AdminPaymentsSummary = {
   processing: number;
   needs_attention: number;
   linked_utility_accounts: number;
+  outstanding?: { count: number; amount: number };
+  open_cases?: number;
+  fees?: { resident_fee: number | null; community_fee: number | null; note: string };
   profile: {
     payments_enabled: boolean;
     utilities_enabled: boolean;
@@ -113,7 +116,7 @@ export async function fetchAdminPaymentsSummary() {
   return data.data;
 }
 
-export async function fetchAdminPayments(params: { status?: string; type?: string; search?: string; page?: number }) {
+export async function fetchAdminPayments(params: { status?: string; type?: string; search?: string; page?: number; from?: string; to?: string }) {
   const { data } = await api.get<{ data: PaymentDetail[]; meta: { current_page: number; last_page: number; total: number } }>(
     "/v1/admin/payments",
     { params },
@@ -134,6 +137,107 @@ export async function reconcileAdminPayment(id: string) {
 export async function markAdminPaymentRefunded(id: string, note?: string) {
   const { data } = await api.post<{ data: PaymentDetail; message: string }>(`/v1/admin/payments/${id}/refunded`, { note });
   return data;
+}
+
+export async function downloadAdminPaymentsCsv(params: { status?: string; type?: string; search?: string; from?: string; to?: string }) {
+  const response = await api.get("/v1/admin/payments/export", { params, responseType: "blob" });
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "kuickpay-payments.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export type OutstandingBills = {
+  totals: { count: number; amount: number };
+  bills: { type: string; id: number; title: string; amount: number; due_date: string | null; status: string; resident: string | null; unit: string | null }[];
+};
+
+export async function fetchOutstandingBills() {
+  const { data } = await api.get<{ data: OutstandingBills }>("/v1/admin/payments/outstanding");
+  return data.data;
+}
+
+export type PaymentCaseRow = {
+  id: string;
+  kind: string;
+  kind_label: string;
+  status: string;
+  reason: string;
+  details: string | null;
+  amount: number;
+  resolution_note: string | null;
+  payment_id: string | null;
+  payment_reference: string | null;
+  resident: string | null;
+  title: string | null;
+  created_at: string | null;
+};
+
+export async function fetchPaymentCases(status: "open" | "closed" | "all" = "open") {
+  const { data } = await api.get<{ data: PaymentCaseRow[] }>("/v1/admin/payments/cases", { params: { status } });
+  return data.data;
+}
+
+export async function openAdminPaymentCase(paymentId: string, payload: { kind: "dispute" | "refund_request" | "reversal"; reason: string; details?: string }) {
+  const { data } = await api.post<{ data: PaymentCaseRow }>(`/v1/admin/payments/${paymentId}/cases`, payload);
+  return data.data;
+}
+
+export async function resolvePaymentCase(id: string, payload: { decision: "needs_information" | "rejected" | "recorded"; note?: string; reopen_bill?: boolean }) {
+  const { data } = await api.post<{ data: PaymentCaseRow; message: string }>(`/v1/admin/payments/cases/${id}/resolve`, payload);
+  return data;
+}
+
+export type KuickpayPlatformOverview = {
+  mode: string;
+  operational: boolean;
+  checkout_status_api: "configured" | "not_published";
+  method_selection: string;
+  credentials: Record<string, boolean>;
+  counts: { succeeded: number; processing: number; failed: number; needs_attention: number; open_cases: number };
+  communities: { id: number; name: string; payments_enabled: boolean; utilities_enabled: boolean; rail: string | null }[];
+  note: string;
+};
+
+export async function fetchKuickpayPlatformOverview() {
+  const { data } = await api.get<{ data: KuickpayPlatformOverview }>("/v1/admin/kuickpay/overview");
+  return data.data;
+}
+
+export type PlatformPaymentRow = {
+  id: string;
+  community: string | null;
+  community_id: number;
+  resident: string | null;
+  title: string | null;
+  reference: string;
+  amount: number;
+  currency: string;
+  status: string;
+  method: string | null;
+  needs_attention: boolean;
+  transaction_id: string | null;
+  created_at: string | null;
+};
+
+export async function fetchKuickpayPlatformPayments(params: { status?: string; page?: number }) {
+  const { data } = await api.get<{ data: PlatformPaymentRow[]; meta: { current_page: number; last_page: number; total: number } }>(
+    "/v1/admin/kuickpay/payments",
+    { params },
+  );
+  return data;
+}
+
+export async function downloadKuickpayPlatformCsv(status?: string) {
+  const response = await api.get("/v1/admin/kuickpay/payments/export", { params: { status }, responseType: "blob" });
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "kuickpay-platform.csv";
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export async function updateAdminPaymentSettings(payload: Partial<AdminPaymentsSummary["profile"]>) {

@@ -9,6 +9,7 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,7 +27,7 @@ import { KuickpayColors, KuickpayMark, TestModeBadge } from "../../../components
 import { Fonts } from "../../../constants/font";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { useKuickpayPay } from "../../../hooks/use-kuickpay-pay";
-import { cancelPayment, fetchPayment } from "../../../services/payments-api";
+import { cancelPayment, fetchPayment, openPaymentCase } from "../../../services/payments-api";
 import { markPaymentResultShown } from "../../../utils/payment-result-registry";
 import { sf, sw } from "../../../utils/responsive";
 
@@ -78,6 +79,10 @@ export default function PaymentResultScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [pollRound, setPollRound] = useState(0);
   const [sharing, setSharing] = useState(false);
+  const [caseKind, setCaseKind] = useState(null);
+  const [caseReason, setCaseReason] = useState("");
+  const [caseBusy, setCaseBusy] = useState(false);
+  const [caseSent, setCaseSent] = useState(false);
   const receiptRef = useRef(null);
   const [anim] = useState(() => ({ scale: new Animated.Value(0.6), opacity: new Animated.Value(0) }));
 
@@ -153,6 +158,25 @@ export default function PaymentResultScreen() {
     } finally {
       setChecking(false);
       setPollRound((round) => round + 1);
+    }
+  }
+
+  async function submitCase() {
+    const reason = caseReason.trim();
+    if (reason.length < 3) {
+      await dialog.showError(t("payments.reportProblem"), t("payments.caseReason"));
+      return;
+    }
+    setCaseBusy(true);
+    try {
+      await openPaymentCase(paymentId, { kind: caseKind, reason });
+      setCaseKind(null);
+      setCaseReason("");
+      setCaseSent(true);
+    } catch (err) {
+      await showFailure(t("payments.reportProblem"), err);
+    } finally {
+      setCaseBusy(false);
     }
   }
 
@@ -281,6 +305,9 @@ export default function PaymentResultScreen() {
             <ReceiptRow label={t("payments.paidTo")} value={receipt?.paid_to} />
           )}
           <ReceiptRow label={t("payments.bill")} value={payment.subtitle || payment.title} />
+          <ReceiptRow label={t("payments.community")} value={receipt?.community_name || payment.community_name} />
+          <ReceiptRow label={t("payments.apartment")} value={receipt?.apartment || payment.apartment} />
+          <ReceiptRow label={t("payments.invoice")} value={receipt?.invoice_number || payment.invoice_number} />
           <ReceiptRow label={t("payments.method")} value={receipt?.method_label || payment.method_label || t("payments.kuickpay")} />
           <ReceiptRow label={t("payments.reference")} value={payment.reference} copyable onCopy={copy} />
           <ReceiptRow label={t("payments.transactionId")} value={receipt?.transaction_id} copyable onCopy={copy} />
@@ -297,7 +324,26 @@ export default function PaymentResultScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        {status === "succeeded" ? (
+        {caseKind ? (
+          <>
+            <Text style={styles.caseTitle}>{caseKind === "dispute" ? t("payments.reportProblem") : t("payments.requestRefund")}</Text>
+            <Text style={styles.caseHint}>{t("payments.caseHint")}</Text>
+            <TextInput
+              value={caseReason}
+              onChangeText={setCaseReason}
+              placeholder={t("payments.caseReason")}
+              placeholderTextColor="#94A3B8"
+              maxLength={120}
+              style={styles.caseInput}
+            />
+            <Pressable disabled={caseBusy} onPress={() => void submitCase()} style={styles.primaryBtn}>
+              {caseBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryText}>{t("payments.caseSubmit")}</Text>}
+            </Pressable>
+            <Pressable disabled={caseBusy} onPress={() => { setCaseKind(null); setCaseReason(""); }} style={styles.secondaryBtn}>
+              <Text style={styles.secondaryText}>{t("payments.caseCancel")}</Text>
+            </Pressable>
+          </>
+        ) : status === "succeeded" ? (
           <>
             <Pressable onPress={done} style={styles.primaryBtn}><Text style={styles.primaryText}>{t("payments.done")}</Text></Pressable>
             <Pressable onPress={() => void shareReceipt()} disabled={sharing} style={styles.secondaryBtn} accessibilityRole="button">
@@ -310,6 +356,18 @@ export default function PaymentResultScreen() {
                 </>
               )}
             </Pressable>
+            {caseSent ? (
+              <Text style={styles.caseSent}>{t("payments.caseSent")}</Text>
+            ) : (
+              <View style={styles.caseRow}>
+                <Pressable onPress={() => setCaseKind("dispute")} style={styles.caseBtn}>
+                  <Text style={styles.caseBtnText}>{t("payments.reportProblem")}</Text>
+                </Pressable>
+                <Pressable onPress={() => setCaseKind("refund_request")} style={styles.caseBtn}>
+                  <Text style={styles.caseBtnText}>{t("payments.requestRefund")}</Text>
+                </Pressable>
+              </View>
+            )}
           </>
         ) : isAwaiting ? (
           <>
@@ -334,6 +392,17 @@ export default function PaymentResultScreen() {
             <Pressable onPress={done} style={styles.primaryBtn}>
               <Text style={styles.primaryText}>{status === "refund_pending" || status === "refunded" ? t("payments.backToBills") : t("payments.tryAgain")}</Text>
             </Pressable>
+            {status === "refund_pending" && !caseSent ? (
+              <View style={styles.caseRow}>
+                <Pressable onPress={() => setCaseKind("dispute")} style={styles.caseBtn}>
+                  <Text style={styles.caseBtnText}>{t("payments.reportProblem")}</Text>
+                </Pressable>
+                <Pressable onPress={() => setCaseKind("refund_request")} style={styles.caseBtn}>
+                  <Text style={styles.caseBtnText}>{t("payments.requestRefund")}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {status === "refund_pending" && caseSent ? <Text style={styles.caseSent}>{t("payments.caseSent")}</Text> : null}
           </>
         )}
       </View>
@@ -414,6 +483,23 @@ const styles = StyleSheet.create({
     gap: sw(8),
   },
   secondaryText: { fontFamily: Fonts.semiBold, fontSize: sf(14), color: "#1B4F8A" },
+  caseRow: { flexDirection: "row", gap: sw(8) },
+  caseBtn: { flex: 1, minHeight: sw(40), alignItems: "center", justifyContent: "center", paddingHorizontal: sw(8) },
+  caseBtnText: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: "#1B4F8A", textAlign: "center" },
+  caseSent: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#047857", textAlign: "center" },
+  caseTitle: { fontFamily: Fonts.bold, fontSize: sf(15), color: KuickpayColors.ink },
+  caseHint: { fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(17), color: KuickpayColors.muted },
+  caseInput: {
+    minHeight: sw(46),
+    borderRadius: sw(12),
+    borderWidth: 1,
+    borderColor: KuickpayColors.line,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: sw(12),
+    fontFamily: Fonts.medium,
+    fontSize: sf(14),
+    color: KuickpayColors.ink,
+  },
   offscreen: { position: "absolute", top: 0, left: -10000 },
   payee: {
     flexDirection: "row",

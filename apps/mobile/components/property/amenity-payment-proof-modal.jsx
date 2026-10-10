@@ -134,6 +134,7 @@ export default function AmenityPaymentProofModal({
   const [showSources, setShowSources] = useState(false);
   const [picking, setPicking] = useState(false);
   const [reference, setReference] = useState("");
+  const [bank, setBank] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -162,6 +163,7 @@ export default function AmenityPaymentProofModal({
     setShowSources(false);
     setPicking(false);
     setReference("");
+    setBank("");
     setNote("");
     setError(null);
     setSubmitting(false);
@@ -308,12 +310,14 @@ export default function AmenityPaymentProofModal({
             file: fileAsset,
             payment_date: dateIso,
             payment_reference: reference.trim(),
+            payment_bank: bank.trim(),
             payment_note: note.trim(),
           }), message: t("propertyMgmt.paymentProofSubmitted") }
         : await submitAmenityBillProof(amenityId, bill.resident_bill_id, {
         fileAsset,
         paymentDate: dateIso,
         paymentReference: reference.trim(),
+        paymentBank: bank.trim(),
         paymentNote: note.trim(),
       });
       onSubmitted?.(result?.data ?? null);
@@ -450,6 +454,17 @@ export default function AmenityPaymentProofModal({
                 <Feather name="calendar" size={sf(16)} color="#1B4F8A" />
                 <Text style={styles.fileBtnText}>{formatDisplayDate(paymentDate)}</Text>
               </TouchableOpacity>
+
+              <Text style={styles.label}>{t("propertyMgmt.paymentBank")}</Text>
+              <TextInput
+                style={referenceInputStyle}
+                value={bank}
+                onChangeText={setBank}
+                placeholder={t("propertyMgmt.optional")}
+                placeholderTextColor={Colors.textMuted}
+                editable={!submitting}
+                returnKeyType="next"
+              />
 
               <Text style={styles.label}>{t("propertyMgmt.paymentReference")}</Text>
               <TextInput

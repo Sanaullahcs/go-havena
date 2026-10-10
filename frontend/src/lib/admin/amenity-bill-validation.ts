@@ -93,6 +93,9 @@ export function validatePaymentProofForm(form: AmenityPaymentProofForm): FieldEr
     errors.payment_date = "Payment date cannot be in the future.";
   }
 
+  if ((form.payment_bank ?? "").trim().length > 80) {
+    errors.payment_bank = "Bank name must be 80 characters or less.";
+  }
   if (form.payment_reference.trim().length > 100) {
     errors.payment_reference = "Reference number must be 100 characters or less.";
   }

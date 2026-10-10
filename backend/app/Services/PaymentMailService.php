@@ -41,7 +41,7 @@ class PaymentMailService
         $this->guard(fn () => $this->sendBillMail(self::AMENITY, $this->loadAmenityBill($residentBillId), $kind), ['amenity_bill' => $residentBillId, 'kind' => $kind]);
     }
 
-    /** KuickPay outcomes: succeeded, refund_pending, refunded. */
+    /** KuickPay outcomes: succeeded, failed, refund_pending, refunded. */
     public function onlinePayment(PaymentAttempt $attempt, string $kind): void
     {
         $this->guard(fn () => $this->sendOnlineMail($attempt, $kind), ['payment' => $attempt->public_id, 'kind' => $kind]);
@@ -323,6 +323,9 @@ class PaymentMailService
         $hello = $this->greeting($user);
         $details = array_values(array_filter([
             ['label' => 'Bill', 'value' => (string) $attempt->title],
+            filled($view['invoice_number'] ?? null) ? ['label' => 'Invoice', 'value' => (string) $view['invoice_number']] : null,
+            filled($view['community_name'] ?? null) ? ['label' => 'Community', 'value' => (string) $view['community_name']] : null,
+            filled($view['apartment'] ?? null) ? ['label' => 'Apartment', 'value' => (string) $view['apartment']] : null,
             filled($attempt->subtitle) ? ['label' => 'Details', 'value' => (string) $attempt->subtitle] : null,
             ['label' => 'Amount', 'value' => $amount],
             filled($receipt['paid_to'] ?? null) ? ['label' => 'Paid to', 'value' => (string) $receipt['paid_to']] : null,
@@ -344,6 +347,16 @@ class PaymentMailService
                 ctaLabel: 'View receipt',
                 ctaUrl: AppUrls::residentLogin(),
                 footerNote: $attempt->simulated ? 'This was a test-mode payment. No real money moved.' : null,
+            ),
+            'failed' => new HavenaTransactionalMail(
+                subjectLine: "Payment not completed · {$attempt->title}",
+                preheader: 'No money was taken. The bill is still unpaid.',
+                eyebrow: 'Payment not completed',
+                heading: 'This payment did not go through',
+                intro: "{$hello} ".($attempt->failure_message ?: 'your payment could not be completed. You have not been charged and the bill is still unpaid.'),
+                details: $details,
+                ctaLabel: 'Try again',
+                ctaUrl: AppUrls::residentLogin(),
             ),
             'refund_pending' => new HavenaTransactionalMail(
                 subjectLine: "Your {$amount} payment will be refunded",

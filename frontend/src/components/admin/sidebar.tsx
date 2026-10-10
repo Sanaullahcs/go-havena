@@ -61,6 +61,7 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/billing-plans", label: "Billing & Plans", icon: CreditCard },
   { href: "/admin/billing-coupons", label: "Coupons", icon: Ticket },
   { href: "/admin/bank-payments", label: "US Bank Payments", icon: Landmark },
+  { href: "/admin/kuickpay-oversight", label: "KuickPay Oversight", icon: Wallet },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/app-version", label: "App Version", icon: Smartphone },
   { href: "/admin/activity", label: "Activity Logs", icon: Activity },

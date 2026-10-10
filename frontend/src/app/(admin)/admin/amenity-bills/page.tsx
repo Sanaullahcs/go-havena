@@ -26,6 +26,7 @@ import { adminClientTableBusy, isAdminSearchPending } from "@/lib/admin/table-lo
 import { apiError } from "@/lib/api/client";
 import {
   approveAmenityResidentPayment,
+  clarifyAmenityResidentPayment,
   fetchAdminAmenityResidentBillReviews,
   fetchAdminCommunityAmenityBills,
   rejectAmenityResidentPayment,
@@ -218,6 +219,22 @@ export default function AdminAmenityBillsPage() {
     }
   }
 
+  async function handleClarify(bill: AmenityResidentPayment) {
+    const message = window.prompt("What should the resident clarify on this receipt?");
+    if (!message?.trim()) return;
+    setSaving(true);
+    try {
+      await clarifyAmenityResidentPayment(bill.amenity_id, bill.resident_bill_id, message.trim());
+      toastSuccess("The resident was asked for a clearer receipt. The bill stays unpaid.");
+      setViewing(null);
+      await load(true);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function openDetails(bill: AmenityResidentPayment) {
     setViewing(bill);
     setViewingReviews([]);
@@ -361,6 +378,13 @@ export default function AdminAmenityBillsPage() {
                           hidden: !reviewable,
                           onClick: () => setRejecting(bill),
                         },
+                        {
+                          label: "Ask for a clearer receipt",
+                          icon: "edit",
+                          tone: "warning",
+                          hidden: !reviewable,
+                          onClick: () => void handleClarify(bill),
+                        },
                       ]}
                     />
                   </DtCell>
@@ -389,6 +413,7 @@ export default function AdminAmenityBillsPage() {
           }}
           onApprove={canReviewBill(viewing) ? () => void handleApprove(viewing) : undefined}
           onReject={canReviewBill(viewing) ? () => setRejecting(viewing) : undefined}
+          onClarify={canReviewBill(viewing) ? () => void handleClarify(viewing) : undefined}
         />
       )}
 
@@ -423,6 +448,7 @@ function AmenityBillDetailModal({
   onClose,
   onApprove,
   onReject,
+  onClarify,
 }: {
   bill: AmenityResidentPayment;
   reviews: AmenityPaymentReview[];
@@ -430,6 +456,7 @@ function AmenityBillDetailModal({
   onClose: () => void;
   onApprove?: () => void;
   onReject?: () => void;
+  onClarify?: () => void;
 }) {
   const status = billStatusMeta(bill);
   const proof = bill.payment_proof;
@@ -481,6 +508,7 @@ function AmenityBillDetailModal({
             {proof ? (
               <dl className="mt-3 grid gap-3 sm:grid-cols-2">
                 <DetailRow label="Payment date" value={formatBillDate(proof.payment_date)} />
+                <DetailRow label="Bank" value={proof.payment_bank || "—"} />
                 <DetailRow label="Reference" value={proof.payment_reference || "—"} />
                 <div className="sm:col-span-2">
                   <DetailRow label="Resident note" value={proof.payment_note || "—"} />
@@ -519,6 +547,11 @@ function AmenityBillDetailModal({
 
         <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
           <button type="button" className="nl-btn-secondary" onClick={onClose}>Close</button>
+          {onClarify ? (
+            <button type="button" disabled={busy} className="nl-btn-secondary" onClick={onClarify}>
+              Ask for details
+            </button>
+          ) : null}
           {onReject ? (
             <button type="button" disabled={busy} className="nl-btn-secondary text-rose-700" onClick={onReject}>
               Reject
