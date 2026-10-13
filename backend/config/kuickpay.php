@@ -39,8 +39,10 @@ return [
     'checkout' => [
         'base_url' => env('KUICKPAY_CHECKOUT_BASE_URL', 'https://sandbox-api.kuickpay.com'),
         'session_path' => env('KUICKPAY_CHECKOUT_SESSION_PATH', '/checkout/api/session'),
-        // KuickPay's session status endpoint, issued during onboarding. Empty means
-        // reconciliation relies on the signed return only.
+        // KuickPay's checkout docs mention a Status API but do not publish its path
+        // or request body (developers.kuickpay.com/docs/checkout/status returns 404).
+        // Leave this empty until KuickPay documents it. Do not point it at Hybrid
+        // Payment Inquiry — that API is only for vouchers created with insertPPMVoucher.
         'status_path' => env('KUICKPAY_CHECKOUT_STATUS_PATH', ''),
         'company_id' => env('KUICKPAY_COMPANY_ID'),
         'secured_key' => env('KUICKPAY_SECURED_KEY'),
@@ -94,7 +96,10 @@ return [
     /** Only these app schemes are accepted as a post-payment deep link target. */
     'app_return_schemes' => ['havena', 'exp', 'exps'],
 
-    /** Payment methods shown on the checkout page, in display order. */
+    /**
+     * Methods the resident can choose on KuickPay's hosted page.
+     * Create Session does not accept a method, so Havena must not charge these directly.
+     */
     'methods' => [
         ['id' => 'easypaisa', 'label' => 'Easypaisa'],
         ['id' => 'jazzcash', 'label' => 'JazzCash'],

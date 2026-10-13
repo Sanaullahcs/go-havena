@@ -5,12 +5,19 @@ import { AlertTriangle, Loader2, RefreshCw, Search, Wallet, X } from "lucide-rea
 import { toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import {
+  downloadAdminPaymentsCsv,
   fetchAdminPayment,
   fetchAdminPayments,
   fetchAdminPaymentsSummary,
+  fetchOutstandingBills,
+  fetchPaymentCases,
   markAdminPaymentRefunded,
   reconcileAdminPayment,
+  openAdminPaymentCase,
+  resolvePaymentCase,
   updateAdminPaymentSettings,
+  type OutstandingBills,
+  type PaymentCaseRow,
   type AdminPaymentsSummary,
   type PaymentDetail,
 } from "@/lib/api/kuickpay";
@@ -22,6 +29,7 @@ const STATUS_FILTERS = [
   { id: "processing", label: "Processing" },
   { id: "attention", label: "Needs attention" },
   { id: "unsuccessful", label: "Unsuccessful" },
+  { id: "disputed", label: "Disputed" },
 ];
 
 const TYPE_LABEL: Record<string, string> = {
@@ -52,23 +60,33 @@ export default function AdminKuickpayPage() {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<PaymentDetail | null>(null);
   const [acting, setActing] = useState(false);
+  const [outstanding, setOutstanding] = useState<OutstandingBills | null>(null);
+  const [cases, setCases] = useState<PaymentCaseRow[]>([]);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  const filters = { status, search: search.trim() || undefined, from: from || undefined, to: to || undefined };
 
   const load = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const [nextSummary, list] = await Promise.all([
+      const [nextSummary, list, nextOutstanding, nextCases] = await Promise.all([
         fetchAdminPaymentsSummary(),
-        fetchAdminPayments({ status, search: search.trim() || undefined, page }),
+        fetchAdminPayments({ status, search: search.trim() || undefined, from: from || undefined, to: to || undefined, page }),
+        fetchOutstandingBills(),
+        fetchPaymentCases("open"),
       ]);
       setSummary(nextSummary);
       setRows(list.data);
       setMeta(list.meta);
+      setOutstanding(nextOutstanding);
+      setCases(nextCases);
     } catch (err) {
       toastError(apiError(err));
     } finally {
       setLoading(false);
     }
-  }, [search, status]);
+  }, [from, search, status, to]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -109,6 +127,37 @@ export default function AdminKuickpayPage() {
     }
   }
 
+  async function startCase(id: string, kind: "dispute" | "refund_request" | "reversal") {
+    const reason = window.prompt("Reason");
+    if (!reason?.trim()) return;
+    setActing(true);
+    try {
+      await openAdminPaymentCase(id, { kind, reason: reason.trim() });
+      toastSuccess("Case opened. No money was moved.");
+      void load(meta.current_page);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function resolveCase(id: string, decision: "needs_information" | "rejected" | "recorded", kind?: string) {
+    const note = decision === "recorded" ? window.prompt("KuickPay reference or reason") : window.prompt("Note for the resident (optional)");
+    if (note === null || (decision === "recorded" && !note.trim())) return;
+    const reopen = decision === "recorded" && kind === "reversal" && window.confirm("Reopen the bill? Do this only when this payment is the one that marked it paid.");
+    setActing(true);
+    try {
+      const result = await resolvePaymentCase(id, { decision, note: note.trim() || undefined, reopen_bill: decision === "recorded" ? reopen : false });
+      toastSuccess(result.message);
+      void load(meta.current_page);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setActing(false);
+    }
+  }
+
   async function toggle(key: "payments_enabled" | "utilities_enabled" | "residents_can_link_utilities", value: boolean) {
     try {
       const result = await updateAdminPaymentSettings({ [key]: value });
@@ -129,12 +178,15 @@ export default function AdminKuickpayPage() {
             KuickPay
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Residents pay unit, amenity and utility bills with Easypaisa, JazzCash, cards, bank accounts or Raast. Bills mark themselves paid once KuickPay confirms — no screenshots to check.
+            Residents continue to KuickPay and choose Easypaisa, JazzCash, Raast, a bank, or a card there. Havena marks a bill paid only after KuickPay confirms. Receipt uploads stay pending until you approve them.
           </p>
         </div>
-        <button type="button" onClick={() => void load(meta.current_page)} className="nl-btn-secondary inline-flex items-center gap-2">
-          <RefreshCw className="h-4 w-4" /> Refresh
-        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => void downloadAdminPaymentsCsv(filters)} className="nl-btn-secondary">Download CSV</button>
+          <button type="button" onClick={() => void load(meta.current_page)} className="nl-btn-secondary inline-flex items-center gap-2">
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </button>
+        </div>
       </div>
 
       {summary?.test_mode ? (
@@ -147,8 +199,40 @@ export default function AdminKuickpayPage() {
         <Stat label="Collected this month" value={formatMoney(summary?.collected_this_month ?? 0, "PKR")} sub={`${summary?.collected_count_this_month ?? 0} payments`} />
         <Stat label="Processing" value={String(summary?.processing ?? 0)} sub="Waiting for KuickPay" />
         <Stat label="Needs attention" value={String(summary?.needs_attention ?? 0)} sub="Refunds and mismatches" tone={summary?.needs_attention ? "warn" : undefined} />
-        <Stat label="Linked utility accounts" value={String(summary?.linked_utility_accounts ?? 0)} sub="K-Electric, LESCO, SNGPL…" />
+        <Stat label="Outstanding bills" value={formatMoney(outstanding?.totals.amount ?? summary?.outstanding?.amount ?? 0, "PKR")} sub={`${outstanding?.totals.count ?? summary?.outstanding?.count ?? 0} unpaid`} />
       </div>
+
+      {outstanding && outstanding.bills.length > 0 ? (
+        <section className="rounded-2xl border border-slate-200 bg-white">
+          <h2 className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-900">Outstanding bills</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-[11px] uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="px-4 py-2">Bill</th>
+                  <th className="px-4 py-2">Resident</th>
+                  <th className="px-4 py-2">Apartment</th>
+                  <th className="px-4 py-2">Due</th>
+                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {outstanding.bills.map((bill) => (
+                  <tr key={`${bill.type}-${bill.id}`}>
+                    <td className="px-4 py-2.5 font-medium text-slate-900">{bill.title}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{bill.resident || "—"}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{bill.unit || "—"}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{bill.due_date || "—"}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{bill.status.replaceAll("_", " ")}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-slate-900">{formatMoney(bill.amount, "PKR")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       {summary ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -173,13 +257,21 @@ export default function AdminKuickpayPage() {
               {filter.label}
             </button>
           ))}
+          <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-500">
+            From
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="text-sm text-slate-800 outline-none" />
+          </label>
+          <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-500">
+            To
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="text-sm text-slate-800 outline-none" />
+          </label>
           <label className="ml-auto flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5">
             <Search className="h-4 w-4 text-slate-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void load(); }}
-              placeholder="Reference, resident or bill"
+              placeholder="Reference, resident, apartment or bill"
               className="w-56 text-sm outline-none"
             />
           </label>
@@ -239,6 +331,32 @@ export default function AdminKuickpayPage() {
         ) : null}
       </section>
 
+      {summary?.fees?.note ? <p className="text-xs text-slate-500">{summary.fees.note}</p> : null}
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-bold text-slate-900">Open disputes, refunds and reversals</h2>
+        <p className="mt-1 text-xs text-slate-500">Recording an outcome does not send money to KuickPay. Refunds are noted only after KuickPay confirms them outside Havena.</p>
+        {cases.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-500">No open cases.</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-slate-100">
+            {cases.map((item) => (
+              <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                <div>
+                  <p className="font-semibold text-slate-900">{item.kind_label} · {item.resident ?? "Resident"}</p>
+                  <p className="text-slate-500">{item.reason}{item.payment_reference ? ` · ${item.payment_reference}` : ""}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" className="nl-btn-secondary" onClick={() => void resolveCase(item.id, "needs_information")}>Ask for details</button>
+                  <button type="button" className="nl-btn-secondary" onClick={() => void resolveCase(item.id, "rejected")}>Reject</button>
+                  <button type="button" className="nl-btn-primary" onClick={() => void resolveCase(item.id, "recorded", item.kind)}>Record outcome</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {detail ? (
         <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40" onClick={() => setDetail(null)}>
           <aside className="h-full w-full max-w-md overflow-y-auto bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -271,6 +389,15 @@ export default function AdminKuickpayPage() {
               ) : null}
               {detail.status === "refund_pending" ? (
                 <button type="button" disabled={acting} onClick={() => void refunded(detail.id)} className="nl-btn-primary">Mark refunded</button>
+              ) : null}
+              {["succeeded", "refund_pending", "refunded"].includes(detail.status) ? (
+                <button type="button" disabled={acting} className="nl-btn-secondary" onClick={() => void startCase(detail.id, "dispute")}>Open dispute</button>
+              ) : null}
+              {["succeeded", "refund_pending"].includes(detail.status) ? (
+                <button type="button" disabled={acting} className="nl-btn-secondary" onClick={() => void startCase(detail.id, "refund_request")}>Request refund record</button>
+              ) : null}
+              {["succeeded", "refund_pending", "refunded"].includes(detail.status) ? (
+                <button type="button" disabled={acting} className="nl-btn-secondary" onClick={() => void startCase(detail.id, "reversal")}>Record reversal</button>
               ) : null}
             </div>
 

@@ -423,6 +423,7 @@ export type AmenityPaymentProof = {
   mime_type?: string | null;
   payment_date: string | null;
   payment_reference: string | null;
+  payment_bank?: string | null;
   payment_note: string | null;
   submitted_at?: string | null;
 };
@@ -430,6 +431,7 @@ export type AmenityPaymentProof = {
 export type AmenityPaymentProofForm = {
   file: File | null;
   payment_date: string;
+  payment_bank: string;
   payment_reference: string;
   payment_note: string;
 };
@@ -505,6 +507,14 @@ export async function approveAmenityResidentPayment(amenityId: number, residentB
   };
 }
 
+export async function clarifyAmenityResidentPayment(amenityId: number, residentBillId: number, message: string) {
+  const res = await api.patch(`/v1/admin/amenities/${amenityId}/resident-bills/${residentBillId}/clarify`, { message });
+  return {
+    data: res.data.data as AmenityResidentPayment,
+    message: (res.data.message as string | undefined) ?? "The resident was asked for a clearer receipt.",
+  };
+}
+
 export async function rejectAmenityResidentPayment(
   amenityId: number,
   residentBillId: number,
@@ -525,6 +535,7 @@ export async function submitAmenityBillProof(
   const form = new FormData();
   if (payload.file) form.append("file", payload.file);
   form.append("payment_date", payload.payment_date);
+  if (payload.payment_bank.trim()) form.append("payment_bank", payload.payment_bank.trim());
   if (payload.payment_reference.trim()) form.append("payment_reference", payload.payment_reference.trim());
   if (payload.payment_note.trim()) form.append("payment_note", payload.payment_note.trim());
   const res = await api.post(`/v1/amenities/${amenityId}/bills/${residentBillId}/proof`, form);

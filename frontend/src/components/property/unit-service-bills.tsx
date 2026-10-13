@@ -193,6 +193,7 @@ export function UnitServiceWorkspace() {
               file: payload.file,
               payment_date: payload.payment_date,
               payment_reference: payload.payment_reference,
+              payment_bank: payload.payment_bank,
               payment_note: payload.payment_note,
             });
             toastSuccess("Payment proof submitted.");

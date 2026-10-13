@@ -49,6 +49,15 @@ export async function cancelPayment(id) {
   return res?.data;
 }
 
+/** Opens a dispute or refund record. Does not move money. kind is dispute or refund_request. */
+export async function openPaymentCase(id, { kind, reason, details }) {
+  const res = await apiRequest(`/payments/${id}/cases`, {
+    method: "POST",
+    body: { kind, reason, details: details || null },
+  });
+  return res?.data;
+}
+
 export async function fetchPayments({ status = "all", page = 1 } = {}) {
   const res = await apiRequest(`/payments?status=${encodeURIComponent(status)}&page=${page}`, { cache: "no-store" });
   return { items: res?.data ?? [], meta: res?.meta ?? {} };

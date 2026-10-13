@@ -6,6 +6,7 @@ use App\Models\PaymentAttempt;
 use App\Models\UtilityBill;
 use App\Models\UtilityBiller;
 use App\Services\Kuickpay\KuickpayGateway;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class OnlinePaymentPresenter
@@ -106,6 +107,8 @@ class OnlinePaymentPresenter
                 'brand_color' => $biller->brand_color,
             ] : null,
             'community_name' => $attempt->community?->name,
+            'apartment' => $this->apartment($attempt),
+            'invoice_number' => $this->invoiceNumber($attempt),
             'internal_status' => $attempt->status,
             'message' => $this->message($attempt),
             'tone' => $this->tone($display),
@@ -135,6 +138,11 @@ class OnlinePaymentPresenter
                 'paid_at' => $attempt->confirmed_at?->toIso8601String(),
                 'paid_to' => $biller?->name ?? $attempt->community?->name,
                 'payer' => $attempt->user?->name,
+                'community_name' => $attempt->community?->name,
+                'apartment' => $this->apartment($attempt),
+                'invoice_number' => $this->invoiceNumber($attempt),
+                'status' => 'Paid',
+                'fees' => null,
                 'method_label' => $attempt->methodLabel() ?? 'KuickPay',
                 'channel_label' => match ($attempt->channel) {
                     PaymentAttempt::CHANNEL_KUICKPAY => 'KuickPay voucher',
@@ -195,6 +203,28 @@ class OnlinePaymentPresenter
             'reversed' => 'This payment was reversed. Contact your community office if the bill status does not update.',
             default => $attempt->failure_message ?: 'Your payment was not completed. You have not been charged and the bill is still unpaid.',
         };
+    }
+
+    private function apartment(PaymentAttempt $attempt): ?string
+    {
+        if (! $attempt->unit_id) {
+            return null;
+        }
+
+        $number = DB::table('units')->where('id', $attempt->unit_id)->value('unit_number');
+
+        return is_string($number) && $number !== '' ? $number : null;
+    }
+
+    private function invoiceNumber(PaymentAttempt $attempt): string
+    {
+        $prefix = match ($attempt->payable_type) {
+            PaymentAttempt::PAYABLE_SERVICE_BILL => 'UB',
+            PaymentAttempt::PAYABLE_AMENITY_BILL => 'AB',
+            default => 'UT',
+        };
+
+        return 'INV-'.$prefix.'-'.str_pad((string) $attempt->payable_id, 6, '0', STR_PAD_LEFT);
     }
 
     private function tone(string $display): string

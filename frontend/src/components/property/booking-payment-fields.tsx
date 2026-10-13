@@ -7,6 +7,7 @@ import { inputClass, type FieldErrors } from "@/lib/admin/form-validation-utils"
 export type BookingPaymentForm = {
   file: File | null;
   payment_date: string;
+  payment_bank: string;
   payment_reference: string;
   payment_note: string;
   method: "bank_ach" | "proof";

@@ -40,6 +40,8 @@ class UnitServiceBillService
 
     public const ACTION_REJECTED = 'rejected';
 
+    public const ACTION_CLARIFICATION = 'clarification_requested';
+
     public const ACTION_ACKNOWLEDGED = 'acknowledged';
 
     public const FILE_RULE = 'required|file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,webp';
@@ -443,6 +445,7 @@ class UnitServiceBillService
                     'proof_mime_type' => $fileMeta['mime_type'],
                     'payment_date' => $data['payment_date'],
                     'payment_reference' => $data['payment_reference'] ?? null,
+                    'payment_bank' => $data['payment_bank'] ?? null,
                     'payment_note' => $data['payment_note'] ?? null,
                     'proof_submitted_at' => $now,
                     'proof_submitted_by' => (int) $ownedBill->billing_contact_user_id,
@@ -469,6 +472,7 @@ class UnitServiceBillService
                     'proof_mime_type' => $fileMeta['mime_type'],
                     'payment_date' => $data['payment_date'],
                     'payment_reference' => $data['payment_reference'] ?? null,
+                    'payment_bank' => $data['payment_bank'] ?? null,
                     'payment_note' => $data['payment_note'] ?? null,
                 ]);
             });
@@ -504,6 +508,23 @@ class UnitServiceBillService
         abort_if(! $updated, 500, 'Payment could not be loaded after rejection.');
 
         app(UnitServiceBillReminderService::class)->notifyRejected($updated);
+
+        return $this->formatAdminBill($updated, $request);
+    }
+
+    public function requestClarification(object $bill, int $adminId, string $message, Request $request): array
+    {
+        $this->reviewPayment($bill, $adminId, self::ACTION_CLARIFICATION, self::STATUS_REJECTED, $message);
+        $updated = $this->findAdminBill((int) $bill->id, (int) $bill->community_id);
+        abort_if(! $updated, 500, 'Payment could not be loaded after the request.');
+        NotificationService::send(
+            (int) $updated->billing_contact_user_id,
+            'warning',
+            'More information needed',
+            'Your community asked for a clearer payment receipt: '.$message,
+            '/screens/property-management/unit-bills',
+            ['kind' => 'unit_bill_clarification', 'bill_id' => (int) $updated->id],
+        );
 
         return $this->formatAdminBill($updated, $request);
     }
@@ -1376,6 +1397,12 @@ class UnitServiceBillService
                     'bill' => 'Only payments pending verification can be reviewed.',
                 ]);
             }
+            if ($action === self::ACTION_APPROVED) {
+                \App\Services\Payments\OnlineSettlementGuard::assertManualApprovalAllowed(
+                    \App\Models\PaymentAttempt::PAYABLE_SERVICE_BILL,
+                    (int) $locked->id,
+                );
+            }
 
             $now = now();
             $updates = [
@@ -1730,6 +1757,7 @@ class UnitServiceBillService
             'file_url' => ! empty($row->proof_file_path) ? MediaUrl::toPublic($row->proof_file_path, $request) : null,
             'payment_date' => $row->payment_date ?? null,
             'payment_reference' => $row->payment_reference ?? null,
+            'payment_bank' => $row->payment_bank ?? null,
             'payment_note' => $row->payment_note ?? null,
         ];
     }

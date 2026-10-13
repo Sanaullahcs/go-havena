@@ -101,6 +101,9 @@ const ReceiptCard = forwardRef(function ReceiptCard({ payment, t }, ref) {
         <View style={styles.rows}>
           <Row label={t("payments.bill")} value={payment.title} />
           <Row label={t("payments.billDetails")} value={payment.subtitle} />
+          <Row label={t("payments.community")} value={receipt.community_name || payment.community_name} />
+          <Row label={t("payments.apartment")} value={receipt.apartment || payment.apartment} />
+          <Row label={t("payments.invoice")} value={receipt.invoice_number || payment.invoice_number} />
           <Row label={t("payments.paidBy")} value={receipt.payer} />
           <Row label={t("payments.method")} value={receipt.method_label} />
           <Row label={t("payments.channel")} value={receipt.channel_label} />

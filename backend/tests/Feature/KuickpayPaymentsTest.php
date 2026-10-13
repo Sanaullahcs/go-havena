@@ -509,6 +509,110 @@ class KuickpayPaymentsTest extends TestCase
         $this->assertSame(['amenity_resident_bill', 42], HavenaConsumerNumber::decode((string) $consumer));
     }
 
+    public function test_manual_approval_cannot_settle_a_bill_kuickpay_already_paid(): void
+    {
+        ['community' => $community, 'resident' => $resident, 'admin' => $admin] = $this->seedCommunity('Pakistan - Lahore');
+        $billId = $this->serviceBill($community, $resident, 1500);
+        Sanctum::actingAs($resident);
+        $start = $this->postJson('/api/v1/payments', ['payable_type' => 'unit_service_bill', 'payable_id' => $billId])->json('data');
+        $this->get($this->completeSandbox($start['next_action']['url'], [
+            'method' => 'bank', 'bank_account' => '12345678901234',
+        ]))->assertOk();
+
+        DB::table('unit_service_bills')->where('id', $billId)->update(['status' => 'pending_verification']);
+        Sanctum::actingAs($admin);
+        $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->patchJson('/api/v1/admin/service-bills/'.$billId.'/approve')
+            ->assertStatus(422)
+            ->assertJsonPath('errors.bill.0', 'This bill was already paid through KuickPay. Do not approve a second payment.');
+        $this->assertSame('pending_verification', DB::table('unit_service_bills')->where('id', $billId)->value('status'));
+    }
+
+    public function test_refund_record_does_not_reopen_the_bill_and_cannot_be_repeated(): void
+    {
+        ['community' => $community, 'resident' => $resident, 'admin' => $admin] = $this->seedCommunity('Pakistan - Lahore');
+        $billId = $this->serviceBill($community, $resident, 2200);
+        Sanctum::actingAs($resident);
+        $start = $this->postJson('/api/v1/payments', ['payable_type' => 'unit_service_bill', 'payable_id' => $billId])->json('data');
+        $this->get($this->completeSandbox($start['next_action']['url'], [
+            'method' => 'raast', 'bank_account' => '03001234567',
+        ]))->assertOk();
+        $case = $this->postJson('/api/v1/payments/'.$start['payment']['id'].'/cases', [
+            'kind' => 'refund_request',
+            'reason' => 'Charged twice',
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->postJson('/api/v1/admin/payments/cases/'.$case['id'].'/resolve', [
+                'decision' => 'recorded',
+                'note' => 'KuickPay confirmed refund KP-100',
+                'reopen_bill' => true,
+            ])->assertOk();
+
+        $this->assertSame('paid', DB::table('unit_service_bills')->where('id', $billId)->value('status'));
+        $this->assertSame('refunded', PaymentAttempt::query()->where('public_id', $start['payment']['id'])->value('status'));
+        $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->postJson('/api/v1/admin/payments/cases/'.$case['id'].'/resolve', [
+                'decision' => 'recorded',
+                'note' => 'again',
+            ])->assertStatus(422);
+    }
+
+    public function test_export_is_scoped_and_reconcile_explains_missing_status_api(): void
+    {
+        ['community' => $community, 'resident' => $resident, 'admin' => $admin] = $this->seedCommunity('Pakistan - Lahore');
+        $billId = $this->serviceBill($community, $resident, 800);
+        Sanctum::actingAs($resident);
+        $start = $this->postJson('/api/v1/payments', ['payable_type' => 'unit_service_bill', 'payable_id' => $billId])->json('data');
+        $reference = $start['payment']['reference'];
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->postJson('/api/v1/admin/payments/'.$start['payment']['id'].'/reconcile')
+            ->assertOk()
+            ->assertJsonPath('message', 'KuickPay has not published a checkout status API. This payment stays unpaid until a signed return or an institution payment arrives.');
+        $csv = $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->get('/api/v1/admin/payments/export');
+        $csv->assertOk();
+        $this->assertStringContainsString($reference, $csv->streamedContent());
+        $this->assertStringNotContainsString('kp-pass', $csv->streamedContent());
+
+        ['admin' => $otherAdmin, 'community' => $other] = $this->seedCommunity('Pakistan - Karachi', 4);
+        Sanctum::actingAs($otherAdmin);
+        $otherCsv = $this->withHeaders(['X-Community-Id' => (string) $other->id])->get('/api/v1/admin/payments/export');
+        $this->assertStringNotContainsString($reference, $otherCsv->streamedContent());
+    }
+
+    public function test_system_admin_overview_shows_health_without_secrets(): void
+    {
+        config(['kuickpay.checkout.secured_key' => 'super-secret-key', 'kuickpay.checkout.status_path' => '']);
+        ['admin' => $admin] = $this->seedCommunity('Pakistan - Lahore');
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/kuickpay/overview')->assertForbidden();
+
+        $system = User::factory()->create(['role' => 'system_admin', 'status' => 'active']);
+        Sanctum::actingAs($system);
+        $response = $this->getJson('/api/v1/admin/kuickpay/overview')->assertOk();
+        $response->assertJsonPath('data.checkout_status_api', 'not_published');
+        $response->assertJsonPath('data.method_selection', 'hosted_page');
+        $response->assertJsonPath('data.credentials.secured_key', true);
+        $this->assertStringNotContainsString('super-secret-key', $response->getContent());
+    }
+
+    public function test_clarification_returns_the_receipt_to_the_resident(): void
+    {
+        ['community' => $community, 'resident' => $resident, 'admin' => $admin] = $this->seedCommunity('Pakistan - Lahore');
+        $billId = $this->serviceBill($community, $resident, 400);
+        DB::table('unit_service_bills')->where('id', $billId)->update(['status' => 'pending_verification']);
+        Sanctum::actingAs($admin);
+        $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->patchJson('/api/v1/admin/service-bills/'.$billId.'/clarify', ['message' => 'The amount on the slip is unreadable.'])
+            ->assertOk();
+        $this->assertSame('rejected', DB::table('unit_service_bills')->where('id', $billId)->value('status'));
+        $this->assertSame('clarification_requested', DB::table('unit_service_bill_reviews')->where('bill_id', $billId)->value('action'));
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     /** Follows launch → sandbox page → submit, returning the signed return path KuickPay would redirect to. */
