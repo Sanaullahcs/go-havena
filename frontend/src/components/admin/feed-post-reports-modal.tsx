@@ -2,7 +2,8 @@
 
 import { X } from "lucide-react";
 import { AdminBadge } from "@/components/admin/ui";
-import { postReportStatusLabel, type AdminPost, type AdminPostReport } from "@/lib/api/posts";
+import { FeedPostStatus } from "@/components/admin/feed-post-status";
+import type { AdminPost, AdminPostReport } from "@/lib/api/posts";
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
   harassment: "Harassment or bullying",
@@ -27,16 +28,30 @@ function reportTypeLabel(type?: string | null) {
   return REPORT_TYPE_LABELS[type] ?? type.replace(/_/g, " ");
 }
 
+function reportStatusLabel(status?: string | null) {
+  if (status === "dismissed") return "Dismissed";
+  if (status === "resolved") return "Resolved";
+  return "Pending review";
+}
+
 export function FeedPostReportsModal({
   post,
   reports,
   loading,
+  busy,
   onClose,
+  onDismiss,
+  onMarkSensitive,
+  onRemove,
 }: {
   post: AdminPost | null;
   reports: AdminPostReport[];
   loading?: boolean;
+  busy?: boolean;
   onClose: () => void;
+  onDismiss?: (report: AdminPostReport) => void;
+  onMarkSensitive?: () => void;
+  onRemove?: () => void;
 }) {
   if (!post) return null;
 
@@ -61,21 +76,11 @@ export function FeedPostReportsModal({
         </div>
 
         <div className="border-b border-slate-100 px-5 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {(() => {
-              const status = postReportStatusLabel(post);
-              if (status === "Sensitive") {
-                return <AdminBadge tone="amber">Sensitive</AdminBadge>;
-              }
-              if (status === "Reported") {
-                return <AdminBadge tone="red">Reported</AdminBadge>;
-              }
-              return <AdminBadge tone="slate">Published</AdminBadge>;
-            })()}
-            <span className="text-sm font-semibold text-slate-700">
-              {reports.length} {reports.length === 1 ? "report" : "reports"}
-            </span>
-          </div>
+          <FeedPostStatus post={post} />
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{post.body}</p>
+          <p className="mt-2 text-sm font-semibold text-slate-700">
+            {reports.length} {reports.length === 1 ? "report" : "reports"}
+          </p>
         </div>
 
         <div className="overflow-y-auto px-5 py-4">
@@ -108,7 +113,10 @@ export function FeedPostReportsModal({
                         {report.comment_id ? "Comment report" : "Post report"}
                       </AdminBadge>
                       <AdminBadge tone={report.source === "admin" ? "amber" : "red"}>
-                        {report.source === "admin" ? "Admin report" : "Resident report"}
+                        {report.source === "admin" ? "Admin action" : "Resident report"}
+                      </AdminBadge>
+                      <AdminBadge tone={report.status === "pending_review" || !report.status ? "red" : "slate"}>
+                        {reportStatusLabel(report.status)}
                       </AdminBadge>
                     </div>
                   </div>
@@ -131,14 +139,38 @@ export function FeedPostReportsModal({
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
                     {report.reason}
                   </p>
+                  {report.status === "pending_review" || !report.status ? (
+                    report.source !== "admin" && onDismiss ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onDismiss(report)}
+                        className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Dismiss report
+                      </button>
+                    ) : null
+                  ) : report.resolution ? (
+                    <p className="mt-2 text-xs text-slate-500">Outcome: {report.resolution.replace(/_/g, " ")}</p>
+                  ) : null}
                 </article>
               ))}
             </div>
           )}
         </div>
 
-        <div className="border-t border-slate-100 px-5 py-4">
-          <button type="button" onClick={onClose} className="nl-btn-secondary w-full justify-center">
+        <div className="flex flex-col gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+          {post.can_mark_sensitive && onMarkSensitive ? (
+            <button type="button" disabled={busy} onClick={onMarkSensitive} className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 disabled:opacity-50">
+              Mark as Sensitive
+            </button>
+          ) : null}
+          {post.can_remove_post && onRemove ? (
+            <button type="button" disabled={busy} onClick={onRemove} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              Remove Post
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose} className="nl-btn-secondary justify-center">
             Close
           </button>
         </div>

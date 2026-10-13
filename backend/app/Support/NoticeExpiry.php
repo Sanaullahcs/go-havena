@@ -157,6 +157,26 @@ SQL;
      * stored) is behind community-local now. Start time alone must not hide Edit
      * for same-day upcoming or ongoing events.
      */
+    /**
+     * Published, approved events whose schedule has not ended.
+     * Dated events with no end time stay active through the end date.
+     *
+     * @param  \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder  $query
+     */
+    public static function applyUpcomingEventConstraints($query, string $table = 'notices', ?int $communityId = null): void
+    {
+        $now = self::nowInTimezone($communityId);
+
+        $query->where("{$table}.category", 'event')
+            ->where("{$table}.status", 'published')
+            ->where(function ($status) use ($table) {
+                $status->whereNull("{$table}.review_status")
+                    ->orWhere("{$table}.review_status", 'approved');
+            });
+
+        self::applyActiveScheduleConstraints($query, $table, $now->toDateString(), $now->format('H:i'));
+    }
+
     public static function isEventSchedulePast(object $notice, ?int $communityId = null): bool
     {
         if (strtolower((string) ($notice->category ?? '')) !== 'event') {

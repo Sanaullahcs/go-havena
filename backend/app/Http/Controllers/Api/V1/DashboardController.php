@@ -12,6 +12,7 @@ use App\Services\AdminRoleService;
 use App\Services\AmenitySharedBillService;
 use App\Services\MemberLifecycleStatus;
 use App\Services\UnitServiceBillService;
+use App\Support\NoticeExpiry;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -90,6 +91,9 @@ class DashboardController extends Controller
             ->where('status', 'published')
             ->whereNotIn('category', ['event', 'emergency'])
             ->count();
+        $upcomingEventsQuery = clone $noticesQuery;
+        NoticeExpiry::applyUpcomingEventConstraints($upcomingEventsQuery, 'notices', $communityId);
+        $upcomingEvents = $upcomingEventsQuery->count();
         $postCounts = (clone $postsQuery)
             ->selectRaw('status, COUNT(*) as aggregate')
             ->groupBy('status')
@@ -346,6 +350,7 @@ class DashboardController extends Controller
                     'pending_businesses'         => $pendingBusinesses,
                     'total_businesses'           => $totalBusinesses,
                     'published_notices'          => $publishedNotices,
+                    'upcoming_events'            => $upcomingEvents,
                     'total_posts'                => $totalPosts,
                     'pending_posts'              => $pendingPosts,
                     'approved_posts'             => $approvedPosts,

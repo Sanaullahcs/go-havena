@@ -502,7 +502,8 @@
     },
     "options": {
       "reportSubmitted": "Report submitted",
-      "adminWillReview": "Community admins will review this post.",
+      "adminWillReview": "Your report is pending review. The post stays in the feed until a community admin decides.",
+      "systemAdminWillReview": "Your report is pending review. A system admin will review this post. It stays in the feed until they decide.",
       "downloadPhoto": "Download photo",
       "reportPost": "Report post",
       "reportComment": "Report",
@@ -515,7 +516,7 @@
       "postDeleted": "Post deleted",
       "postDeletedMsg": "Your post was removed.",
       "postOptions": "Post options",
-      "optionsMessage": "Download the photo or report this post to community admins.",
+      "optionsMessage": "Report this post to the community admin if it contains inappropriate content or violates community guidelines.",
       "ownOptionsMessage": "Edit or delete this post."
     },
     "report": {
@@ -558,9 +559,11 @@
       "help": "Help",
       "neighborhood": "Neighborhood",
       "announcements": "Announcements",
-      "poll": "Poll"
+      "poll": "Poll",
+      "polls": "Polls"
     },
     "poll": {
+      "details": "Poll Details",
       "feedback": "This poll is for community feedback.",
       "vote": "Vote",
       "voting": "Voting...",
@@ -598,6 +601,8 @@
     "couldNotLoadFeed": "Could not load feed",
     "joinCommunity": "Join your community",
     "noPostsYet": "No posts yet",
+    "noPollsYet": "No polls yet",
+    "noPollsHint": "Published polls from your community will appear here.",
     "selectRegion": "Select region",
     "createPostBtn": "Create Post",
     "postPublished": "Post published to your community feed.",
@@ -605,7 +610,9 @@
     "sensitiveContent": {
       "title": "Sensitive Content",
       "compactMessage": "This content has been flagged as sensitive.",
-      "defaultMessage": "This post has been flagged as sensitive by community moderators."
+      "defaultMessage": "This post has been flagged as sensitive by community moderators.",
+      "showPost": "Show Post",
+      "hidePost": "Hide Post"
     }
   },
   "reportReasons": {
@@ -4475,7 +4482,12 @@
     "uploadPhoto": "Upload photo",
     "chooseHowToAdd": "Choose how you want to add a photo",
     "signInRequired": "You must be signed in to upload an image.",
-    "uploadFailed": "Image upload failed. Please try again."
+    "uploadFailed": "Image upload failed. Please try again.",
+    "crop": "Crop",
+    "useOriginal": "Use original",
+    "cropHint": "Drag the frame to choose an area, then crop, or keep the original photo.",
+    "shrinkCrop": "Shrink crop area",
+    "expandCrop": "Expand crop area"
   },
   "time": {
     "justNow": "Just now",

@@ -1,8 +1,8 @@
 "use client";
 
 import { X } from "lucide-react";
-import { AdminBadge } from "@/components/admin/ui";
-import { postReportStatusLabel, type AdminPost } from "@/lib/api/posts";
+import { FeedPostStatus } from "@/components/admin/feed-post-status";
+import type { AdminPost } from "@/lib/api/posts";
 import { resolveMediaUrl } from "@/lib/media/resolve-url";
 
 export function FeedPostViewModal({
@@ -15,6 +15,9 @@ export function FeedPostViewModal({
   if (!post) return null;
 
   const imageUrl = resolveMediaUrl(post.image_url);
+  const isPoll = post.category === "poll" || post.poll != null;
+  const pollQuestion = (post.poll?.question || post.body || post.content || "").trim();
+  const pollDescription = (post.poll?.description ?? "").trim();
   const avatarUrl = resolveMediaUrl(post.author_avatar);
   const submitted = new Date(post.created_at).toLocaleDateString("en-GB", {
     weekday: "short",
@@ -45,16 +48,7 @@ export function FeedPostViewModal({
 
         <div className="space-y-4 overflow-y-auto px-5 py-4">
           <div className="flex items-center justify-between gap-3">
-            {(() => {
-              const status = postReportStatusLabel(post);
-              if (status === "Sensitive") {
-                return <AdminBadge tone="amber">Sensitive</AdminBadge>;
-              }
-              if (status === "Reported") {
-                return <AdminBadge tone="red">Reported</AdminBadge>;
-              }
-              return <AdminBadge tone="green">Published</AdminBadge>;
-            })()}
+            <FeedPostStatus post={post} />
             <span className="text-xs text-slate-500">{submitted}</span>
           </div>
 
@@ -90,10 +84,27 @@ export function FeedPostViewModal({
           </section>
 
           <section className="rounded-xl border border-slate-100 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Content</p>
-            <p className="mt-3 whitespace-pre-wrap text-[14px] leading-relaxed text-slate-700">
-              {post.body || post.content}
-            </p>
+            {isPoll ? (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Question</p>
+                <p className="mt-2 whitespace-pre-wrap text-[16px] font-semibold leading-6 text-[#0A2A43]">
+                  {pollQuestion}
+                </p>
+                {pollDescription ? (
+                  <>
+                    <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Description</p>
+                    <p className="mt-2 whitespace-pre-wrap text-[15px] leading-6 text-slate-600">{pollDescription}</p>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Content</p>
+                <p className="mt-3 whitespace-pre-wrap text-[14px] leading-relaxed text-slate-700">
+                  {post.body || post.content}
+                </p>
+              </>
+            )}
             {imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img

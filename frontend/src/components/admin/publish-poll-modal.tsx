@@ -2,7 +2,7 @@
 
 import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
 
-import { useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { createPost } from "@/lib/api/feed";
 import { apiError } from "@/lib/api/client";
@@ -13,6 +13,34 @@ const DURATIONS = [
   { days: 3, label: "3 days" },
   { days: 7, label: "7 days" },
 ];
+
+const POLL_DESCRIPTION_MAX = 500;
+const DESCRIPTION_MIN_HEIGHT = 88;
+const DESCRIPTION_MAX_HEIGHT = 220;
+
+const FIELD_LABEL = "text-[16px] font-semibold leading-6 text-[#0A2A43]";
+const FIELD_CONTROL =
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-[15px] leading-6 text-[#0A2A43] outline-none placeholder:text-[15px] placeholder:text-slate-400 focus:border-[#1B4F8A] focus:bg-white focus:ring-2 focus:ring-[#1B4F8A]/15 disabled:opacity-60";
+
+function pollOptionsState(options: string[]) {
+  const labels: string[] = [];
+  const seen = new Set<string>();
+  let duplicate = false;
+
+  for (const option of options) {
+    const label = option.trim();
+    if (!label) continue;
+    const key = label.toLocaleLowerCase();
+    if (seen.has(key)) {
+      duplicate = true;
+      continue;
+    }
+    seen.add(key);
+    labels.push(label);
+  }
+
+  return { labels, duplicate };
+}
 
 export function PublishPollModal({
   open,
@@ -29,6 +57,27 @@ export function PublishPollModal({
   const [duration, setDuration] = useState(3);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [descriptionHeight, setDescriptionHeight] = useState(DESCRIPTION_MIN_HEIGHT);
+  const [descriptionOverflow, setDescriptionOverflow] = useState(false);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const optionState = useMemo(() => pollOptionsState(options), [options]);
+
+  useLayoutEffect(() => {
+    const node = descriptionRef.current;
+    if (!node) return;
+    node.style.minHeight = "0px";
+    node.style.height = "0px";
+    const contentHeight = node.scrollHeight;
+    const next = Math.min(DESCRIPTION_MAX_HEIGHT, Math.max(DESCRIPTION_MIN_HEIGHT, contentHeight));
+    const overflows = contentHeight > DESCRIPTION_MAX_HEIGHT;
+    node.style.minHeight = "";
+    node.style.height = `${next}px`;
+    node.style.overflowY = overflows ? "auto" : "hidden";
+    setDescriptionHeight((current) => (current === next ? current : next));
+    setDescriptionOverflow((current) => (current === overflows ? current : overflows));
+  }, [description, open]);
+  const canPublish =
+    question.trim().length > 0 && optionState.labels.length >= 2 && !optionState.duplicate && !busy;
 
   if (!open) return null;
 
@@ -41,14 +90,9 @@ export function PublishPollModal({
   };
 
   const publish = async () => {
-    const labels = options.map((option) => option.trim()).filter(Boolean);
-    const unique = new Set(labels.map((label) => label.toLowerCase()));
-    if (!question.trim()) {
-      setError("Enter a poll question.");
-      return;
-    }
-    if (labels.length < 2 || unique.size !== labels.length) {
-      setError("Add at least 2 different options.");
+    const labels = pollOptionsState(options);
+    if (!question.trim() || labels.labels.length < 2 || labels.duplicate) {
+      setError(labels.duplicate ? "Each option must be different." : "Enter a question and at least 2 different options.");
       return;
     }
     setBusy(true);
@@ -60,7 +104,7 @@ export function PublishPollModal({
           question: question.trim(),
           description: description.trim(),
           duration_days: duration,
-          options: labels,
+          options: labels.labels,
         },
       });
       toastSuccess("Poll published to your community feed.");
@@ -75,92 +119,161 @@ export function PublishPollModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button type="button" className="absolute inset-0 bg-slate-900/45" aria-label="Close" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">Publish Poll</h3>
-            <p className="mt-1 text-sm text-slate-500">This poll is for community feedback. It does not change rules, notices, or events.</p>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100" aria-label="Close">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-slate-700">
-            Poll question
-            <ClearableInput
-              value={question}
-              maxLength={200}
-              onChange={(e) => setQuestion(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              placeholder="Ask your community a question"
-            />
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
-            Short description (optional)
-            <ClearableTextarea
-              value={description}
-              maxLength={500}
-              onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              rows={2}
-            />
-          </label>
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-slate-700">Options</p>
-            {options.map((option, index) => (
-              <div key={index} className="flex gap-2">
-                <ClearableInput
-                  value={option}
-                  maxLength={80}
-                  onChange={(e) => setOptions((current) => current.map((item, itemIndex) => (itemIndex === index ? e.target.value : item)))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                  placeholder={`Option ${index + 1}`}
-                />
-                {options.length > 2 ? (
-                  <button type="button" className="text-sm text-slate-400" onClick={() => setOptions((current) => current.filter((_, itemIndex) => itemIndex !== index))}>
-                    Remove
-                  </button>
-                ) : null}
-              </div>
-            ))}
-            {options.length < 4 ? (
-              <button type="button" className="text-sm font-semibold text-[#1B4F8A]" onClick={() => setOptions((current) => [...current, ""])}>
-                Add option
-              </button>
-            ) : null}
-          </div>
-          <div>
-            <p className="text-sm font-medium text-slate-700">Poll duration</p>
-            <div className="mt-2 flex gap-2">
-              {DURATIONS.map((item) => (
-                <button
-                  key={item.days}
-                  type="button"
-                  onClick={() => setDuration(item.days)}
-                  className="rounded-full border px-3 py-1 text-sm"
-                  style={{
-                    borderColor: duration === item.days ? "#1B4F8A" : "#e2e8f0",
-                    background: duration === item.days ? "#E0F2FE" : "#fff",
-                    color: "#0A2A43",
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 sm:items-center sm:p-4">
+      <button type="button" className="absolute inset-0" aria-label="Close" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="publish-poll-title"
+        className="relative z-10 flex max-h-[min(92vh,100%)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl"
+      >
+        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-slate-200 sm:hidden" />
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-6 sm:pt-6">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h3 id="publish-poll-title" className="text-[24px] font-bold leading-8 text-[#0A2A43]">
+                Publish Poll
+              </h3>
+              <p className="mt-2 text-[15px] leading-6 text-slate-500">
+                Create a poll to gather opinions and feedback from your community members.
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-1 shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
           </div>
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={publish}
-            className="w-full rounded-xl bg-[#1B4F8A] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {busy ? "Publishing…" : "Publish Poll"}
-          </button>
+
+          <div className="space-y-5">
+            <label className={`block ${FIELD_LABEL}`}>
+              Poll question
+              <ClearableInput
+                value={question}
+                maxLength={200}
+                disabled={busy}
+                onChange={(e) => {
+                  setQuestion(e.target.value);
+                  setError("");
+                }}
+                className={`mt-2 ${FIELD_CONTROL}`}
+                placeholder="Ask your community a question"
+              />
+            </label>
+
+            <label className={`block ${FIELD_LABEL}`} htmlFor="publish-poll-description">
+              Short description (optional)
+              <ClearableTextarea
+                ref={descriptionRef}
+                id="publish-poll-description"
+                value={description}
+                maxLength={POLL_DESCRIPTION_MAX}
+                disabled={busy}
+                onChange={(e) => setDescription(e.target.value.slice(0, POLL_DESCRIPTION_MAX))}
+                className={`mt-2 resize-none ${FIELD_CONTROL}`}
+                rows={3}
+                placeholder="Add a short note for residents"
+                aria-describedby={description.length > 0 ? "publish-poll-description-count" : undefined}
+                style={{
+                  height: descriptionHeight,
+                  overflowY: descriptionOverflow ? "auto" : "hidden",
+                }}
+              />
+              {description.length > 0 ? (
+                <p
+                  id="publish-poll-description-count"
+                  className="mt-1.5 text-right text-[15px] leading-6 text-slate-500 tabular-nums"
+                  aria-live="polite"
+                >
+                  {description.length}/{POLL_DESCRIPTION_MAX}
+                </p>
+              ) : null}
+            </label>
+
+            <div>
+              <p className={FIELD_LABEL}>Options</p>
+              <div className="mt-2 space-y-2.5">
+                {options.map((option, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <ClearableInput
+                      value={option}
+                      maxLength={80}
+                      disabled={busy}
+                      onChange={(e) => {
+                        setOptions((current) => current.map((item, itemIndex) => (itemIndex === index ? e.target.value : item)));
+                        setError("");
+                      }}
+                      className={FIELD_CONTROL}
+                      placeholder={`Option ${index + 1}`}
+                      aria-label={`Option ${index + 1}`}
+                    />
+                    {options.length > 2 ? (
+                      <button
+                        type="button"
+                        className="shrink-0 px-1 text-[15px] font-medium text-slate-500 hover:text-slate-800"
+                        onClick={() => setOptions((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                        disabled={busy}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              {options.length < 4 ? (
+                <button
+                  type="button"
+                  className="mt-3 text-[15px] font-semibold text-[#1B4F8A] hover:underline"
+                  onClick={() => setOptions((current) => [...current, ""])}
+                  disabled={busy}
+                >
+                  Add option
+                </button>
+              ) : null}
+              <p className={`mt-2 text-[15px] leading-6 ${optionState.duplicate ? "text-red-600" : "text-slate-500"}`}>
+                {optionState.duplicate ? "Each option must be different." : "Add at least 2 different options."}
+              </p>
+            </div>
+
+            <div>
+              <p className={FIELD_LABEL}>Poll duration</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {DURATIONS.map((item) => {
+                  const selected = duration === item.days;
+                  return (
+                    <button
+                      key={item.days}
+                      type="button"
+                      onClick={() => setDuration(item.days)}
+                      disabled={busy}
+                      className="min-h-11 min-w-[5.75rem] flex-1 rounded-full border px-4 py-2 text-[15px] font-medium transition disabled:opacity-60"
+                      style={{
+                        borderColor: selected ? "#1B4F8A" : "#e2e8f0",
+                        background: selected ? "#E0F2FE" : "#fff",
+                        color: "#0A2A43",
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {error ? <p className="text-[15px] leading-6 text-red-600">{error}</p> : null}
+
+            <button
+              type="button"
+              disabled={!canPublish}
+              onClick={publish}
+              className="mt-1 w-full rounded-xl bg-[#1B4F8A] px-4 py-3 text-[16px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy ? "Publishing…" : "Publish Poll"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

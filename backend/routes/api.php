@@ -523,6 +523,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/posts/{id}',                [FeedController::class, 'adminShow']);
                 Route::post('/posts/{id}/report',        [FeedController::class, 'adminReportPost']);
                 Route::get('/posts/{id}/reports',        [FeedController::class, 'adminPostReports']);
+                Route::post('/posts/{id}/reports/{reportId}/dismiss', [FeedController::class, 'adminDismissPostReport'])->whereNumber('reportId');
                 Route::delete('/posts/{id}',             [FeedController::class, 'adminDestroy']);
                 Route::post('/posts/{id}/delete',        [FeedController::class, 'adminDestroy']);
                 Route::match(['patch', 'post'],'/posts/{id}/approve',     [FeedController::class, 'adminApprove']);

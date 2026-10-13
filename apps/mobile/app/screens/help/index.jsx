@@ -16,7 +16,7 @@ import InternalScreenHeader from "../../../components/layout/internal-screen-hea
 import UserAvatar from "../../../components/ui/user-avatar";
 import CrispImage from "../../../components/ui/crisp-image";
 import { NeighborhoodHelpSkeleton } from "../../../components/ui/skeleton-loader";
-import { fetchFeed } from "../../../services/feed-api";
+import { fetchFeed, feedDetailsParams } from "../../../services/feed-api";
 import { mediaImageSource } from "../../../utils/profile-display";
 import { getFeedTagTheme } from "../../../constants/feed-theme";
 import { Fonts } from "../../../constants/font";
@@ -132,7 +132,7 @@ export default function HelpScreen() {
   const openPost = (post) =>
     router.push({
       pathname: "/screens/community-feed/comments",
-      params: { postId: String(post.id) },
+      params: feedDetailsParams(post),
     });
 
   return (

@@ -33,7 +33,7 @@ import { PageLoader, PageError } from "@/components/shared/page-states";
 
 export type ContentBoardKind = "notices" | "events" | "alerts";
 
-type BoardFilter = "all" | "draft" | "scheduled" | "published" | "pending" | "rejected";
+type BoardFilter = "all" | "draft" | "scheduled" | "published" | "pending" | "rejected" | "upcoming";
 
 const EMPTY_STATS: NoticeStats = {
   total: 0,
@@ -188,20 +188,23 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
   const searchParams = useSearchParams();
   const reviewParam = searchParams.get("review_status");
   const statusParam = searchParams.get("status");
+  const whenParam = searchParams.get("when");
   const initialFilter: BoardFilter =
-    reviewParam === "pending" && showPendingReview
-      ? "pending"
-      : reviewParam === "rejected" && showPendingReview
-        ? "rejected"
-        : statusParam === "draft" || statusParam === "scheduled" || statusParam === "published"
-          ? statusParam
-          : reviewParam === "approved"
-            ? "published"
-            : "all";
+    kind === "events" && whenParam === "upcoming"
+      ? "upcoming"
+      : reviewParam === "pending" && showPendingReview
+        ? "pending"
+        : reviewParam === "rejected" && showPendingReview
+          ? "rejected"
+          : statusParam === "draft" || statusParam === "scheduled" || statusParam === "published"
+            ? statusParam
+            : reviewParam === "approved"
+              ? "published"
+              : "all";
   const highlightNoticeId = searchParams.get("notice");
 
   const [boardFilter, setBoardFilter] = useState<BoardFilter>(
-    (["all", "draft", "scheduled", "published", "pending", "rejected"] as BoardFilter[]).includes(initialFilter)
+    (["all", "draft", "scheduled", "published", "pending", "rejected", "upcoming"] as BoardFilter[]).includes(initialFilter)
       ? initialFilter
       : "all",
   );
@@ -236,7 +239,9 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
         ...(scopedCommunityId ? { community_id: scopedCommunityId } : { community_id: "all" }),
         category_group: config.categoryGroup,
       };
-      if (boardFilter === "pending") {
+      if (boardFilter === "upcoming") {
+        params.when = "upcoming";
+      } else if (boardFilter === "pending") {
         params.review_status = "pending";
       } else if (boardFilter === "rejected") {
         params.review_status = "rejected";
@@ -341,32 +346,36 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
 
   const boardFilters = useMemo(() => {
     const keys: BoardFilter[] = showPendingReview
-      ? ["all", "pending", "rejected", "draft", "scheduled", "published"]
+      ? ["all", "upcoming", "pending", "rejected", "draft", "scheduled", "published"]
       : ["all", "draft", "scheduled", "published"];
     return keys.map((s) => ({
       key: s,
       label:
         s === "all"
           ? "All"
-          : s === "pending"
-            ? "Pending"
-            : s === "rejected"
-              ? "Rejected"
-              : s === "draft"
-                ? "Draft"
-                : s === "scheduled"
-                  ? "Scheduled for later"
-                  : "Published",
+          : s === "upcoming"
+            ? "Upcoming"
+            : s === "pending"
+              ? "Pending"
+              : s === "rejected"
+                ? "Rejected"
+                : s === "draft"
+                  ? "Draft"
+                  : s === "scheduled"
+                    ? "Scheduled for later"
+                    : "Published",
       count:
         s === "all"
           ? stats.total
-          : s === "pending"
-            ? (stats.pending ?? 0)
-            : s === "rejected"
-              ? (stats.rejected ?? 0)
-              : s === "scheduled"
-                ? (stats.scheduled ?? 0)
-                : stats[s],
+          : s === "upcoming"
+            ? (stats.upcoming ?? 0)
+            : s === "pending"
+              ? (stats.pending ?? 0)
+              : s === "rejected"
+                ? (stats.rejected ?? 0)
+                : s === "scheduled"
+                  ? (stats.scheduled ?? 0)
+                  : stats[s],
     }));
   }, [stats, showPendingReview]);
 
@@ -476,7 +485,7 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
         activeFilter={boardFilter}
         onFilter={(key) => setBoardFilter(key as BoardFilter)}
         isEmpty={notices.length === 0}
-        empty="No items match your filters."
+        empty={boardFilter === "upcoming" ? "No upcoming events." : "No items match your filters."}
       >
         <DtTable>
           <DtHead cols={tableColumns} />

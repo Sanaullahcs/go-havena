@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { APP_NAME } from "@/lib/constants";
+import { ModalScrollLock } from "@/components/shared/modal-scroll-lock";
 import { StripTrailingSlash } from "@/components/shared/strip-trailing-slash";
 
 const GOOGLE_FONTS_HREF =
@@ -47,6 +48,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full overflow-x-hidden" suppressHydrationWarning>
         <StripTrailingSlash />
+        <ModalScrollLock />
         {children}
       </body>
     </html>

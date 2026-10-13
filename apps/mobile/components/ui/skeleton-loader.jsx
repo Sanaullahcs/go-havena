@@ -933,7 +933,9 @@ export function SidebarWellnessHubSkeleton({ count = 5 }) {
 }
 
 /** Full comments screen — post card + comment list, matches comments.jsx layout. */
-export function CommentScreenSkeleton() {
+export function CommentScreenSkeleton({ variant = "comments" } = {}) {
+  const isPoll = variant === "poll";
+
   return (
     <View>
       <View style={styles.commentScreenPost}>
@@ -946,20 +948,24 @@ export function CommentScreenSkeleton() {
         </View>
         <SkeletonLine width="92%" height={12} style={{ marginTop: 14 }} />
         <SkeletonLine width="78%" height={12} style={{ marginTop: 8 }} />
-        <SkeletonLine width="100%" height={sw(160)} style={{ marginTop: 14, borderRadius: sw(12) }} />
-        <View style={styles.commentScreenEngagement}>
-          <SkeletonLine width="48%" height={sw(36)} style={{ borderRadius: sw(10) }} />
-          <SkeletonLine width="48%" height={sw(36)} style={{ borderRadius: sw(10) }} />
-        </View>
+        <SkeletonLine width="100%" height={sw(isPoll ? 96 : 160)} style={{ marginTop: 14, borderRadius: sw(12) }} />
+        {isPoll ? null : (
+          <View style={styles.commentScreenEngagement}>
+            <SkeletonLine width="48%" height={sw(36)} style={{ borderRadius: sw(10) }} />
+            <SkeletonLine width="48%" height={sw(36)} style={{ borderRadius: sw(10) }} />
+          </View>
+        )}
       </View>
 
-      <View style={styles.commentScreenList}>
-        <View style={styles.commentScreenListHead}>
-          <SkeletonLine width={sw(110)} height={14} />
-          <SkeletonLine width={sw(88)} height={18} radius={999} />
+      {isPoll ? null : (
+        <View style={styles.commentScreenList}>
+          <View style={styles.commentScreenListHead}>
+            <SkeletonLine width={sw(110)} height={14} />
+            <SkeletonLine width={sw(88)} height={18} radius={999} />
+          </View>
+          <CommentListSkeleton count={4} />
         </View>
-        <CommentListSkeleton count={4} />
-      </View>
+      )}
     </View>
   );
 }

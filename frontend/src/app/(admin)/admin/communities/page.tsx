@@ -518,28 +518,40 @@ export default function CommunitiesPage() {
         ))}
       </div>
 
-      <div className="flex gap-1 overflow-x-auto border-b border-slate-200 pb-1">
-        {COMMUNITY_TABS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => setTab(item.key)}
-            className={[
-              "inline-flex shrink-0 items-center gap-2 rounded-t-lg px-3 py-2.5 text-sm font-semibold transition sm:px-4",
-              tab === item.key
-                ? "border-b-2 border-blue-600 bg-blue-50 text-blue-700"
-                : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
-            ].join(" ")}
-          >
-            {item.label}
-            <span className={[
-              "rounded-full px-2 py-0.5 text-[11px] font-bold",
-              tab === item.key ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500",
-            ].join(" ")}>
-              {tabCount(item.key, stats)}
-            </span>
-          </button>
-        ))}
+      <div className="min-w-0 border-b border-slate-200">
+        <div
+          role="tablist"
+          aria-label="Community filters"
+          className="flex gap-1 overflow-x-auto lg:grid lg:grid-cols-6 lg:gap-0 lg:overflow-visible"
+        >
+          {COMMUNITY_TABS.map((item) => {
+            const selected = tab === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setTab(item.key)}
+                className={[
+                  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-t-lg border-b-2 px-3 py-2.5 text-sm font-semibold transition",
+                  "lg:min-w-0 lg:shrink lg:flex-col lg:gap-1 lg:whitespace-normal lg:rounded-none lg:px-2 lg:py-2 lg:text-[13px] lg:leading-snug xl:py-2.5 xl:text-sm",
+                  selected
+                    ? "border-blue-600 bg-blue-50 text-blue-700"
+                    : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700",
+                ].join(" ")}
+              >
+                <span className="lg:text-balance lg:text-center">{item.label}</span>
+                <span className={[
+                  "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums",
+                  selected ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500",
+                ].join(" ")}>
+                  {tabCount(item.key, stats)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="relative">

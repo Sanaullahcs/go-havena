@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Services\CommunityBillingService;
 use App\Services\ContactIdentityService;
 use App\Services\InviteCodeService;
+use App\Services\MemberWelcomeNotification;
+use Illuminate\Support\Facades\DB;
 use Database\Seeders\SystemAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -767,5 +769,155 @@ class MemberInviteTest extends TestCase
             'status' => 'approved',
         ]);
         $this->assertSame(1, User::query()->where('email', 'former.member@example.com')->count());
+    }
+
+    public function test_welcome_notification_is_sent_once_after_profile_completion(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $community->update(['name' => 'Japanese Community']);
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Welcome Resident',
+            'email'       => 'welcome.resident@example.com',
+            'phone'       => '+12025550666',
+            'unit_number' => 'Unit 8',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $invitedUserId = (int) $inviteResponse->json('data.id');
+
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $invitedUserId,
+            'title'   => 'Welcome to Japanese Community!',
+        ]);
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $admin->id,
+            'title'   => 'Welcome to Japanese Community!',
+        ]);
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email'  => 'welcome.resident@example.com',
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email'  => 'welcome.resident@example.com',
+            'code'   => '123456',
+            'intent' => 'login',
+        ])->assertOk();
+
+        $this->assertSame(0, $this->welcomeCount($invitedUserId));
+
+        Sanctum::actingAs(User::query()->findOrFail($invitedUserId));
+        User::query()->whereKey($invitedUserId)->update(['push_notifications_enabled' => false]);
+
+        $this->postJson('/api/v1/communities/join-by-invite', ['invite_code' => $inviteCode])
+            ->assertCreated()
+            ->assertJsonPath('data.membership.status', 'approved');
+
+        $this->assertSame(0, $this->welcomeCount($invitedUserId));
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $invitedUserId,
+            'title'   => 'Community invitation',
+        ]);
+
+        $this->putJson('/api/v1/me', [
+            'display_name' => 'Welcome Resident',
+            'bio'          => 'Happy to be here',
+            'unit_number'  => 'Unit 8',
+        ])->assertUnprocessable();
+
+        $this->assertSame(0, $this->welcomeCount($invitedUserId));
+
+        DB::table('profiles')->where('user_id', $invitedUserId)->update([
+            'utility_bill_url' => '/storage/utility-bills/welcome.jpg',
+        ]);
+
+        $beforeUnread = $this->getJson('/api/v1/notifications')->json('unread');
+
+        $this->putJson('/api/v1/me', [
+            'display_name' => 'Welcome Resident',
+            'bio'          => 'Happy to be here',
+            'unit_number'  => 'Unit 8',
+        ])->assertOk();
+
+        $this->assertSame(1, $this->welcomeCount($invitedUserId));
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id'    => $invitedUserId,
+            'title'      => 'Welcome to Japanese Community!',
+            'body'       => "You're now a member of Japanese Community! Explore your community and stay connected with your neighbors.",
+            'action_url' => '/(tabs)/home',
+            'read_at'    => null,
+        ]);
+        $welcome = DB::table('app_notifications')
+            ->where('user_id', $invitedUserId)
+            ->where('title', 'Welcome to Japanese Community!')
+            ->first();
+        $welcomeData = json_decode((string) $welcome->data, true);
+        $this->assertSame('member_welcome', $welcomeData['kind'] ?? null);
+        $this->assertSame($community->id, (int) ($welcomeData['community_id'] ?? 0));
+
+        $after = $this->getJson('/api/v1/notifications')->assertOk();
+        $this->assertSame($beforeUnread + 1, $after->json('unread'));
+        $this->assertSame('Welcome to Japanese Community!', $after->json('data.0.title'));
+
+        $this->putJson('/api/v1/me', [
+            'display_name' => 'Welcome Resident',
+            'bio'          => 'Updated bio',
+        ])->assertOk();
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email'  => 'welcome.resident@example.com',
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email'  => 'welcome.resident@example.com',
+            'code'   => '123456',
+            'intent' => 'login',
+        ])->assertOk();
+
+        $this->assertSame(1, $this->welcomeCount($invitedUserId));
+
+        $second = Community::query()->create([
+            'name'          => 'Cedar Hills',
+            'region_id'     => $community->region_id,
+            'region'        => $community->region,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+        $membership = CommunityMembership::query()->create([
+            'user_id'      => $invitedUserId,
+            'community_id' => $second->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        MemberWelcomeNotification::sendIfReady(User::query()->findOrFail($invitedUserId), $membership);
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $invitedUserId,
+            'title'   => 'Welcome to Cedar Hills!',
+        ]);
+        $this->assertSame(1, $this->welcomeCount($invitedUserId, 'Welcome to Japanese Community!'));
+        $this->assertSame(1, $this->welcomeCount($invitedUserId, 'Welcome to Cedar Hills!'));
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $admin->id,
+            'title'   => 'Welcome to Japanese Community!',
+        ]);
+    }
+
+    private function welcomeCount(int $userId, ?string $title = null): int
+    {
+        return DB::table('app_notifications')
+            ->where('user_id', $userId)
+            ->when($title, fn ($query) => $query->where('title', $title))
+            ->where('title', 'like', 'Welcome to %')
+            ->count();
     }
 }

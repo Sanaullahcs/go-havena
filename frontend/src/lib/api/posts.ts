@@ -2,6 +2,15 @@ import api, { isProxyMethodBlocked } from "./client";
 
 export type PostStatus = "pending" | "approved" | "rejected";
 
+export interface AdminPoll {
+  question: string;
+  description?: string | null;
+  duration_days?: number;
+  ends_at?: string;
+  closed?: boolean;
+  options?: { id: number; label: string }[];
+}
+
 export interface AdminPost {
   id: number;
   community_id: number;
@@ -15,6 +24,10 @@ export interface AdminPost {
   reports_count?: number | null;
   resident_reports_count?: number | null;
   report_status?: "published" | "reported" | "sensitive";
+  reports_restricted?: boolean;
+  can_mark_sensitive?: boolean;
+  can_remove_post?: boolean;
+  author_role?: string | null;
   tag: string;
   image_url: string | null;
   likes_count: number;
@@ -24,6 +37,7 @@ export interface AdminPost {
   author_unit: string | null;
   created_at: string;
   is_mine?: boolean;
+  poll?: AdminPoll | null;
 }
 
 export interface AdminPostStats {
@@ -67,6 +81,9 @@ export interface AdminPostReport {
   comment_author_name?: string | null;
   comment_body?: string | null;
   source?: "resident" | "admin" | string;
+  status?: "pending_review" | "dismissed" | "resolved" | string | null;
+  resolution?: string | null;
+  review_queue?: string | null;
   type?: string | null;
   reason: string;
   created_at: string;
@@ -124,6 +141,14 @@ export async function reportAdminPost(id: number, reason: string, type = "other"
   return res.data as {
     message: string;
     data: { post_id: number; is_sensitive: boolean; reports_count: number };
+  };
+}
+
+export async function dismissAdminPostReport(postId: number, reportId: number) {
+  const res = await api.post(`/v1/admin/posts/${postId}/reports/${reportId}/dismiss`);
+  return res.data as {
+    message: string;
+    data: { report_id: number; status: string; post_status: string; is_sensitive: boolean };
   };
 }
 

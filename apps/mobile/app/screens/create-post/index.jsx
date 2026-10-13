@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, Keyboard, Modal } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, Keyboard, Modal, Platform, ScrollView, useWindowDimensions } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -9,7 +9,7 @@ import UserAvatar from "../../../components/ui/user-avatar";
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout } from "../../../constants/tokens";
 import { Image } from "expo-image";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { createPost, fetchPost, POST_TYPE_OPTIONS, parsePostBodyForEdit, updatePost, uploadPostImage } from "../../../services/feed-api";
 import { fetchMe } from "../../../services/profile-api";
@@ -20,7 +20,9 @@ import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { pickImage } from "../../../utils/pickImage";
+import PostImageCropSheet from "../../../components/feed/post-image-crop-sheet";
 import { sw, sf, hp } from "../../../utils/responsive";
+import { androidFeelingSheetMetrics } from "../../../utils/feeling-sheet-layout";
 import { hasFieldErrors, LIMITS, validateFeedPostForm } from "../../../utils/form-validation";
 import GuestFeatureErrorState from "../../../components/guest/guest-permission-denied-state";
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
@@ -101,6 +103,8 @@ export default function CreatePost() {
   const [successModal, setSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [attachedImage, setAttachedImage] = useState(null);
+  const [cropSheetOpen, setCropSheetOpen] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(0);
   const [initialRemoteImageUrl, setInitialRemoteImageUrl] = useState(null);
   const [loadingPost, setLoadingPost] = useState(isEditing);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
@@ -111,6 +115,24 @@ export default function CreatePost() {
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [pollDuration, setPollDuration] = useState(3);
   const [feelingModal, setFeelingModal] = useState(false);
+  const [feelingHeaderHeight, setFeelingHeaderHeight] = useState(0);
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const isAndroid = Platform.OS === "android";
+  const feelingSheet = isAndroid
+    ? androidFeelingSheetMetrics({
+        windowHeight,
+        windowWidth,
+        topInset: insets.top,
+        bottomInset: insets.bottom,
+        headerHeight: feelingHeaderHeight || sw(4) + sw(16) + sf(22) + sw(16),
+        paddingTop: sw(12),
+        contentPadding: sw(28),
+        topGap: sw(16),
+        horizontalPadding: sw(20),
+        columnGap: sw(10),
+      })
+    : null;
   const [user, setUser] = useState(null);
   const [restrictionError, setRestrictionError] = useState(null);
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
@@ -248,6 +270,7 @@ export default function CreatePost() {
         promptTitle: t("feed.createPost.addPhoto"),
         promptMessage: t("feed.createPost.photoPrompt"),
         showError: (title, message) => showFailure(title, { message }),
+        preserveGalleryOriginal: true,
       });
       if (asset?.uri) {
         setAttachedImage(asset);
@@ -266,11 +289,20 @@ export default function CreatePost() {
   };
 
   const removeImage = () => {
+    setCropSheetOpen(false);
     setAttachedImage(null);
     setShowDone(
       postText.trim().length > 0 || Boolean(feeling) || Boolean(location),
     );
   };
+
+  const previewRatio =
+    attachedImage?.galleryOriginal && attachedImage.width > 0 && attachedImage.height > 0
+      ? attachedImage.width / attachedImage.height
+      : null;
+  const previewHeight = previewRatio && previewWidth > 0
+    ? Math.min(hp(42), Math.max(sw(120), previewWidth / previewRatio))
+    : hp(24);
 
   const handlePost = () => {
     if (submitting || loadingPost) return;
@@ -447,8 +479,29 @@ export default function CreatePost() {
                 />
 
                 {attachedImage?.uri ? (
-                  <View style={styles.previewWrap}>
-                    <Image source={{ uri: attachedImage.uri }} style={styles.previewImage} contentFit="cover" />
+                  <View
+                    style={styles.previewWrap}
+                    onLayout={(event) => {
+                      const nextWidth = event.nativeEvent.layout.width;
+                      if (nextWidth > 0 && nextWidth !== previewWidth) setPreviewWidth(nextWidth);
+                    }}
+                  >
+                    <Image
+                      source={{ uri: attachedImage.uri }}
+                      style={[styles.previewImage, previewRatio ? { height: previewHeight } : null]}
+                      contentFit={previewRatio ? "contain" : "cover"}
+                    />
+                    {attachedImage.galleryOriginal ? (
+                      <TouchableOpacity
+                        style={styles.previewCrop}
+                        activeOpacity={0.9}
+                        onPress={() => setCropSheetOpen(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel={t("imagePicker.crop")}
+                      >
+                        <Feather name="crop" size={sf(14)} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    ) : null}
                     <TouchableOpacity style={styles.previewRemove} activeOpacity={0.9} onPress={removeImage}>
                       <Feather name="x" size={sf(14)} color="#FFFFFF" />
                     </TouchableOpacity>
@@ -479,16 +532,20 @@ export default function CreatePost() {
                   </View>
                 ) : null}
 
-                <View style={styles.inputFoot}>
-                  {showError("body", liveErrors) ? (
-                    <Text style={styles.errorText}>{showError("body", liveErrors)}</Text>
-                  ) : (
-                    <View />
-                  )}
-                  <Text style={styles.counter}>
-                    {postText.length}/{LIMITS.feedPost}
-                  </Text>
-                </View>
+                {showError("body", liveErrors) || postText.length > 0 ? (
+                  <View style={styles.inputFoot}>
+                    {showError("body", liveErrors) ? (
+                      <Text style={styles.errorText}>{showError("body", liveErrors)}</Text>
+                    ) : (
+                      <View />
+                    )}
+                    {postText.length > 0 ? (
+                      <Text style={styles.counter}>
+                        {postText.length}/{LIMITS.feedPost}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
               </>
             ) : null}
           </View>
@@ -690,34 +747,98 @@ export default function CreatePost() {
         )}
       </SafeAreaView>
 
+      <PostImageCropSheet
+        visible={cropSheetOpen && Boolean(attachedImage?.galleryOriginal)}
+        asset={attachedImage}
+        onUseOriginal={() => setCropSheetOpen(false)}
+        onCropped={(next) => {
+          setAttachedImage(next);
+          setCropSheetOpen(false);
+        }}
+      />
+
       <Modal
         visible={feelingModal}
         transparent
         animationType="fade"
         onRequestClose={() => setFeelingModal(false)}
+        {...(isAndroid ? { statusBarTranslucent: true, navigationBarTranslucent: true } : null)}
       >
-        <Pressable style={styles.sheetOverlay} onPress={() => setFeelingModal(false)}>
-          <Pressable style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>{t("feed.createPost.howFeeling")}</Text>
-            <View style={styles.feelingGrid}>
-              {FEELINGS.map((item) => {
-                const selected = feeling?.labelKey === item.labelKey;
-                return (
-                  <TouchableOpacity
-                    key={item.labelKey}
-                    activeOpacity={0.85}
-                    style={[styles.feelingItem, selected && styles.feelingItemActive]}
-                    onPress={() => selectFeeling(item)}
-                  >
-                    <Text style={styles.feelingEmoji}>{item.emoji}</Text>
-                    <Text style={styles.feelingLabel}>{t(`feed.createPost.feelings.${item.labelKey}`)}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+        {isAndroid ? (
+          <View style={styles.sheetOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setFeelingModal(false)} />
+            <View
+              style={[
+                styles.sheet,
+                {
+                  maxHeight: feelingSheet.maxHeight,
+                  paddingBottom: feelingSheet.paddingBottom,
+                },
+              ]}
+            >
+              <View
+                onLayout={(event) => {
+                  const next = Math.round(event.nativeEvent.layout.height);
+                  if (next > 0 && next !== feelingHeaderHeight) setFeelingHeaderHeight(next);
+                }}
+              >
+                <View style={styles.sheetHandle} />
+                <Text style={styles.sheetTitle}>{t("feed.createPost.howFeeling")}</Text>
+              </View>
+              <ScrollView
+                style={{ maxHeight: feelingSheet.gridMaxHeight, flexGrow: 0 }}
+                contentContainerStyle={styles.feelingGrid}
+                showsVerticalScrollIndicator
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+                {FEELINGS.map((item) => {
+                  const selected = feeling?.labelKey === item.labelKey;
+                  return (
+                    <TouchableOpacity
+                      key={item.labelKey}
+                      activeOpacity={0.85}
+                      style={[
+                        styles.feelingItem,
+                        { width: feelingSheet.cardWidth },
+                        selected && styles.feelingItemActive,
+                      ]}
+                      onPress={() => selectFeeling(item)}
+                    >
+                      <Text style={styles.feelingEmoji}>{item.emoji}</Text>
+                      <Text style={styles.feelingLabel} numberOfLines={2}>
+                        {t(`feed.createPost.feelings.${item.labelKey}`)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </View>
+          </View>
+        ) : (
+          <Pressable style={styles.sheetOverlay} onPress={() => setFeelingModal(false)}>
+            <Pressable style={styles.sheet}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>{t("feed.createPost.howFeeling")}</Text>
+              <View style={styles.feelingGrid}>
+                {FEELINGS.map((item) => {
+                  const selected = feeling?.labelKey === item.labelKey;
+                  return (
+                    <TouchableOpacity
+                      key={item.labelKey}
+                      activeOpacity={0.85}
+                      style={[styles.feelingItem, selected && styles.feelingItemActive]}
+                      onPress={() => selectFeeling(item)}
+                    >
+                      <Text style={styles.feelingEmoji}>{item.emoji}</Text>
+                      <Text style={styles.feelingLabel}>{t(`feed.createPost.feelings.${item.labelKey}`)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        )}
       </Modal>
 
       <Modal visible={successModal} transparent animationType="fade" onRequestClose={closeSuccessModal}>
@@ -969,6 +1090,17 @@ const styles = StyleSheet.create({
     borderRadius: sw(14),
     backgroundColor: "#EEF2F7",
   },
+  previewCrop: {
+    position: "absolute",
+    top: sw(8),
+    start: sw(8),
+    width: sw(28),
+    height: sw(28),
+    borderRadius: sw(14),
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   previewRemove: {
     position: "absolute",
     top: sw(8),
@@ -1195,11 +1327,24 @@ const styles = StyleSheet.create({
   },
   feelingEmoji: {
     fontSize: sf(22),
+    ...Platform.select({
+      android: { lineHeight: sf(30), includeFontPadding: false },
+      default: {},
+    }),
   },
   feelingLabel: {
     fontFamily: Fonts.medium,
     fontWeight: "500",
     fontSize: sf(11),
     color: Colors.textBody,
+    ...Platform.select({
+      android: {
+        textAlign: "center",
+        lineHeight: sf(15),
+        includeFontPadding: false,
+        alignSelf: "stretch",
+      },
+      default: {},
+    }),
   },
 });

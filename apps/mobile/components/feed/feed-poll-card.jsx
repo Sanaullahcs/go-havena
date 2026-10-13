@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
@@ -14,6 +14,7 @@ const RESULT_TRACK = "#E8EEF5";
 const RESULT_BAR = "#93C5FD";
 const RESULT_BAR_SELECTED = "#1B4F8A";
 const SELECTED_BLUE = "#1B4F8A";
+const UNSELECTED_MARK = "#D1D5DB";
 
 const OPTION_ICON_TONES = [
   { bg: "#DBEAFE", color: "#1B4F8A", icon: "activity" },
@@ -22,18 +23,81 @@ const OPTION_ICON_TONES = [
   { bg: "#E8F0F7", color: "#1B4F8A", icon: "monitor" },
 ];
 
+function votePercents(counts) {
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  if (counts.length === 0 || total <= 0) return counts.map(() => 0);
+
+  const floors = counts.map((votes) => Math.floor((votes / total) * 100));
+  let left = 100 - floors.reduce((sum, value) => sum + value, 0);
+  const order = counts
+    .map((votes, index) => ({ index, remainder: (votes / total) * 100 - floors[index] }))
+    .sort((a, b) => b.remainder - a.remainder);
+
+  for (const item of order) {
+    if (left <= 0) break;
+    floors[item.index] += 1;
+    left -= 1;
+  }
+
+  return floors;
+}
+
+function shiftVote(poll, nextOptionId) {
+  const previousId = poll?.voted_option_id ?? null;
+  if (previousId != null && String(previousId) === String(nextOptionId)) return poll;
+
+  const options = (poll?.options ?? []).map((option) => ({
+    ...option,
+    votes: Number(option.votes ?? 0),
+  }));
+  if (previousId != null) {
+    const previous = options.find((option) => String(option.id) === String(previousId));
+    if (previous) previous.votes = Math.max(0, previous.votes - 1);
+  }
+  const next = options.find((option) => String(option.id) === String(nextOptionId));
+  if (next) next.votes += 1;
+
+  const percents = votePercents(options.map((option) => option.votes));
+  options.forEach((option, index) => {
+    option.percent = percents[index] ?? 0;
+  });
+
+  return {
+    ...poll,
+    voted_option_id: nextOptionId,
+    results_visible: true,
+    total_votes: options.reduce((sum, option) => sum + option.votes, 0),
+    options,
+  };
+}
+
+function PollOptionMark({ selected }) {
+  return (
+    <View style={[styles.optionMark, selected && styles.optionMarkSelected]}>
+      {selected ? <Feather name="check" size={sf(12)} color="#FFFFFF" /> : null}
+    </View>
+  );
+}
+
 export default function FeedPollCard({ post, now, onVoted }) {
   const { t } = useTranslation();
   const poll = post?.poll;
   const [selectedId, setSelectedId] = useState(poll?.voted_option_id ?? null);
   const [voting, setVoting] = useState(false);
   const [error, setError] = useState("");
+  const runningRef = useRef(false);
+  const pendingRef = useRef(null);
+  const shownRef = useRef(poll);
+  const confirmedRef = useRef(poll);
 
   useEffect(() => {
+    if (runningRef.current) return;
+    shownRef.current = poll;
+    confirmedRef.current = poll;
     if (poll?.voted_option_id != null) {
       setSelectedId(poll.voted_option_id);
     }
-  }, [poll?.voted_option_id]);
+  }, [poll]);
 
   if (!poll) return null;
 
@@ -45,21 +109,44 @@ export default function FeedPollCard({ post, now, onVoted }) {
   const hasVoted = poll.voted_option_id != null;
 
   const submit = async (optionId) => {
-    const targetId = optionId ?? selectedId;
-    if (voting || resultsVisible || closed) return;
-    if (!targetId) {
-      setError(t("feed.poll.selectOption"));
+    if (closed || optionId == null) return;
+    if (String(optionId) === String(shownRef.current?.voted_option_id)) {
+      pendingRef.current = null;
       return;
     }
-    setSelectedId(targetId);
-    setVoting(true);
+
+    const nextPoll = shiftVote(shownRef.current ?? poll, optionId);
+    shownRef.current = nextPoll;
+    setSelectedId(optionId);
     setError("");
+    onVoted?.({ ...post, poll: nextPoll });
+    pendingRef.current = optionId;
+    if (runningRef.current) return;
+
+    runningRef.current = true;
+    setVoting(true);
     try {
-      const updated = await voteOnPoll(post.id, targetId);
-      onVoted?.(updated);
-    } catch (err) {
-      setError(err?.message || t("feed.poll.couldNotVote"));
+      while (pendingRef.current != null) {
+        const targetId = pendingRef.current;
+        pendingRef.current = null;
+        try {
+          const updated = await voteOnPoll(post.id, targetId);
+          confirmedRef.current = updated?.poll ?? confirmedRef.current;
+          if (pendingRef.current == null) {
+            shownRef.current = confirmedRef.current;
+            setSelectedId(confirmedRef.current?.voted_option_id ?? targetId);
+            onVoted?.(updated);
+          }
+        } catch (err) {
+          if (pendingRef.current != null) continue;
+          shownRef.current = confirmedRef.current;
+          setSelectedId(confirmedRef.current?.voted_option_id ?? null);
+          onVoted?.({ ...post, poll: confirmedRef.current });
+          setError(err?.message || t("feed.poll.couldNotVote"));
+        }
+      }
     } finally {
+      runningRef.current = false;
       setVoting(false);
     }
   };
@@ -91,27 +178,20 @@ export default function FeedPollCard({ post, now, onVoted }) {
         <View style={styles.options}>
           {(poll.options ?? []).map((option, index) => {
             const selected = String(selectedId) === String(option.id);
-            const voted = String(poll.voted_option_id) === String(option.id);
             const percent = Number(option.percent ?? 0);
             const tone = OPTION_ICON_TONES[index % OPTION_ICON_TONES.length];
 
             if (resultsVisible) {
-              return (
-                <View key={option.id} style={styles.resultOuter}>
-                  {voted ? (
-                    <View style={styles.checkBadge}>
-                      <Feather name="check" size={sf(12)} color="#FFFFFF" />
-                    </View>
-                  ) : (
-                    <View style={styles.checkSpacer} />
-                  )}
-                  <View style={[styles.resultCard, voted && styles.resultCardVoted]}>
+              const row = (
+                <>
+                  <PollOptionMark selected={selected} />
+                  <View style={[styles.resultCard, selected && styles.resultCardVoted]}>
                     <View style={styles.resultTop}>
-                      <View style={[styles.optionIcon, { backgroundColor: voted ? "#DBEAFE" : tone.bg }]}>
+                      <View style={[styles.optionIcon, { backgroundColor: selected ? "#DBEAFE" : tone.bg }]}>
                         <Feather
                           name={tone.icon}
                           size={sf(14)}
-                          color={voted ? SELECTED_BLUE : tone.color}
+                          color={selected ? SELECTED_BLUE : tone.color}
                         />
                       </View>
                       <Text style={styles.optionLabel} numberOfLines={2}>
@@ -125,13 +205,34 @@ export default function FeedPollCard({ post, now, onVoted }) {
                           styles.fill,
                           {
                             width: `${Math.max(percent, 0)}%`,
-                            backgroundColor: voted ? RESULT_BAR_SELECTED : RESULT_BAR,
+                            backgroundColor: selected ? RESULT_BAR_SELECTED : RESULT_BAR,
                           },
                         ]}
                       />
                     </View>
                   </View>
-                </View>
+                </>
+              );
+
+              if (closed) {
+                return (
+                  <View key={option.id} style={styles.resultOuter}>
+                    {row}
+                  </View>
+                );
+              }
+
+              return (
+                <Pressable
+                  key={option.id}
+                  style={styles.resultOuter}
+                  onPress={() => {
+                    setError("");
+                    void submit(option.id);
+                  }}
+                >
+                  {row}
+                </Pressable>
               );
             }
 
@@ -145,15 +246,13 @@ export default function FeedPollCard({ post, now, onVoted }) {
                 }}
                 style={[styles.option, selected && styles.optionSelected]}
               >
+                <PollOptionMark selected={selected} />
                 <View style={[styles.optionIcon, { backgroundColor: tone.bg }]}>
                   <Feather name={tone.icon} size={sf(14)} color={tone.color} />
                 </View>
                 <Text style={styles.optionLabel} numberOfLines={2}>
                   {option.label}
                 </Text>
-                <View style={[styles.radio, selected && styles.radioOn]}>
-                  {selected ? <View style={styles.radioDot} /> : null}
-                </View>
               </Pressable>
             );
           })}
@@ -183,7 +282,6 @@ export default function FeedPollCard({ post, now, onVoted }) {
 
 const styles = StyleSheet.create({
   root: {
-    marginBottom: sw(10),
     gap: sw(10),
   },
   intro: {
@@ -277,38 +375,21 @@ const styles = StyleSheet.create({
     fontSize: sf(14),
     color: T.navy,
   },
-  radio: {
-    width: sw(20),
-    height: sw(20),
-    borderRadius: sw(10),
-    borderWidth: 1.5,
-    borderColor: "#CBD5E1",
+  optionMark: {
+    width: sw(22),
+    height: sw(22),
+    borderRadius: sw(11),
+    backgroundColor: UNSELECTED_MARK,
     alignItems: "center",
     justifyContent: "center",
   },
-  radioOn: { borderColor: POLL_PRIMARY },
-  radioDot: {
-    width: sw(9),
-    height: sw(9),
-    borderRadius: sw(5),
-    backgroundColor: POLL_PRIMARY,
+  optionMarkSelected: {
+    backgroundColor: SELECTED_BLUE,
   },
   resultOuter: {
     flexDirection: "row",
     alignItems: "center",
     gap: sw(8),
-  },
-  checkBadge: {
-    width: sw(22),
-    height: sw(22),
-    borderRadius: sw(11),
-    backgroundColor: SELECTED_BLUE,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkSpacer: {
-    width: sw(22),
-    height: sw(22),
   },
   resultCard: {
     flex: 1,

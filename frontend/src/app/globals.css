@@ -769,9 +769,23 @@ body {
   color: #475569;
 }
 .nl-notice-modal-body {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 1rem 1.125rem;
+}
+html.nl-scroll-locked,
+html.nl-scroll-locked body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+html.nl-scroll-locked .nl-notice-modal-body,
+html.nl-scroll-locked .overflow-y-auto,
+html.nl-scroll-locked .overflow-auto,
+html.nl-scroll-locked .overflow-y-scroll {
+  overscroll-behavior: contain;
 }
 .nl-notice-form {
   display: grid;
@@ -3284,6 +3298,14 @@ input[type="email"],
 input[type="text"]:not(.nl-phone-national-input),
 input[type="password"] {
   padding-right: 2.75rem;
+}
+
+/* Feed moderation search keeps its placeholder fully visible on a narrow row. */
+@media (max-width: 639px) {
+  input[type="text"].nl-moderation-search {
+    font-size: 12px;
+    padding-right: 2rem;
+  }
 }
 
 /* ─── Global scrollbars ─── */

@@ -21,9 +21,11 @@ import {
   fetchFeed,
   likePost,
   applyLikeToPost,
-  FEED_TOPICS,
+  FEED_CATEGORY_TABS,
   TOPIC_LABEL_KEY,
   areFeedPostsUnchanged,
+  feedDetailsParams,
+  isPublishedPollPost,
 } from "../../services/feed-api";
 import { useTranslation } from "react-i18next";
 import { getUser } from "../../services/auth-session";
@@ -46,9 +48,12 @@ export default function CommunityFeedPanel() {
   const now = useNow(30000);
   const [activeTopic, setActiveTopic] = useState(null);
   const [posts, setPosts] = useState([]);
+  const [pollPosts, setPollPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pollsLoading, setPollsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [pollsError, setPollsError] = useState(null);
   const [emptyReason, setEmptyReason] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [sharePost, setSharePost] = useState(null);
@@ -87,16 +92,63 @@ export default function CommunityFeedPanel() {
   }, []);
 
   const hasLoadedRef = React.useRef(false);
+  const pollsLoadedRef = React.useRef(false);
+  const showingPolls = activeTopic === "Poll";
+
+  const loadPolls = useCallback(async (silent = false) => {
+    if (!silent) setPollsLoading(true);
+    setPollsError(null);
+    try {
+      const blocked = await resolveLoadRestriction("feed");
+      if (blocked) {
+        setPollPosts([]);
+        setPollsError(blocked);
+        return;
+      }
+
+      const result = await fetchFeed({ perPage: 20, topic: "Poll" });
+      const nextPosts = (result.posts ?? []).filter(isPublishedPollPost);
+      setPollPosts((prev) => {
+        const same = prev.length === nextPosts.length && prev.every((post, index) => {
+          const other = nextPosts[index];
+          return post.id === other.id
+            && post.content === other.content
+            && post.status === other.status
+            && JSON.stringify(post.poll ?? null) === JSON.stringify(other.poll ?? null);
+        });
+        return same ? prev : nextPosts;
+      });
+      pollsLoadedRef.current = true;
+    } catch (err) {
+      const restricted = await resolveLoadRestriction("feed", err);
+      if (restricted) {
+        setPollPosts([]);
+        setPollsError(restricted);
+        return;
+      }
+      setPollsError(err);
+      if (!silent) setPollPosts([]);
+    } finally {
+      setPollsLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     load();
     getUser().then(setCurrentUser);
   }, [load]);
 
+  useEffect(() => {
+    if (!showingPolls) return;
+    loadPolls(pollsLoadedRef.current);
+  }, [showingPolls, loadPolls]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    load(true);
-  }, [load]);
+    if (showingPolls) loadPolls(true);
+    else load(true);
+  }, [load, loadPolls, showingPolls]);
 
   useFocusEffect(
     useCallback(() => {
@@ -105,7 +157,8 @@ export default function CommunityFeedPanel() {
         return;
       }
       load(true);
-    }, [load]),
+      if (pollsLoadedRef.current) loadPolls(true);
+    }, [load, loadPolls]),
   );
 
   const handleLike = useCallback(
@@ -140,14 +193,30 @@ export default function CommunityFeedPanel() {
   }, []);
 
   const filtered = useMemo(() => {
+    if (showingPolls) return pollPosts;
     if (!activeTopic) return posts;
     return posts.filter((post) => post.tag === activeTopic);
-  }, [posts, activeTopic]);
+  }, [posts, pollPosts, activeTopic, showingPolls]);
 
   const displayName =
     currentUser?.profile?.display_name ?? currentUser?.name ?? t("common.you");
 
-  const accessBlocked = Boolean(error && isFeatureAccessBlockedError(error));
+  const visibleError = showingPolls && !isFeatureAccessBlockedError(error) ? pollsError : error;
+  const visibleLoading = showingPolls ? pollsLoading && pollPosts.length === 0 : loading;
+  const accessBlocked = Boolean(visibleError && isFeatureAccessBlockedError(visibleError));
+  const pollsFilterEmpty = showingPolls && emptyReason !== "no_approved_membership";
+
+  const dropPost = useCallback((postId) => {
+    const remove = (prev) => prev.filter((item) => String(item.id) !== String(postId));
+    setPosts(remove);
+    setPollPosts(remove);
+  }, []);
+
+  const dropAuthor = useCallback((userId) => {
+    const remove = (prev) => prev.filter((item) => String(item.user_id ?? item.user?.id) !== String(userId));
+    setPosts(remove);
+    setPollPosts(remove);
+  }, []);
 
   return (
     <>
@@ -187,6 +256,7 @@ export default function CommunityFeedPanel() {
 
           <ScrollView
             horizontal
+            nestedScrollEnabled
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.chipsRow}
             style={styles.chipsScroll}
@@ -199,9 +269,10 @@ export default function CommunityFeedPanel() {
                 {t("common.all")}
               </Text>
             </Pressable>
-            {FEED_TOPICS.map((topic) => {
+            {FEED_CATEGORY_TABS.map((topic) => {
               const theme = getFeedTagTheme(topic);
               const isActive = activeTopic === topic;
+              const labelKey = topic === "Poll" ? "feed.topics.polls" : TOPIC_LABEL_KEY[topic];
               return (
                 <Pressable
                   key={topic}
@@ -212,7 +283,11 @@ export default function CommunityFeedPanel() {
                       borderColor: theme.border || theme.text,
                     },
                   ]}
-                  onPress={() => setActiveTopic(isActive ? null : topic)}
+                  onPress={() => {
+                    const next = isActive ? null : topic;
+                    if (next === "Poll" && !pollsLoadedRef.current) setPollsLoading(true);
+                    setActiveTopic(next);
+                  }}
                 >
                   <Text
                     style={[
@@ -224,7 +299,7 @@ export default function CommunityFeedPanel() {
                       },
                     ]}
                   >
-                    {TOPIC_LABEL_KEY[topic] ? t(TOPIC_LABEL_KEY[topic]) : topic}
+                    {labelKey ? t(labelKey) : topic}
                   </Text>
                 </Pressable>
               );
@@ -233,7 +308,7 @@ export default function CommunityFeedPanel() {
         </>
       ) : null}
 
-      {!loading && !accessBlocked && filtered.length > 0 ? (
+      {!visibleLoading && !accessBlocked && filtered.length > 0 ? (
         <View style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>{t("feed.recentPosts")}</Text>
           <View style={styles.countBadge}>
@@ -242,14 +317,14 @@ export default function CommunityFeedPanel() {
         </View>
       ) : null}
 
-      {loading ? (
+      {visibleLoading ? (
         <CommunityFeedSkeleton count={4} />
-      ) : error ? (
+      ) : visibleError ? (
         <GuestFeatureErrorState
-          error={error}
+          error={visibleError}
           fallbackFeature="feed"
           defaultTitle={t("feed.couldNotLoadFeed")}
-          onRetry={() => load()}
+          onRetry={() => (showingPolls ? loadPolls() : load())}
         />
       ) : filtered.length === 0 ? (
         <View style={styles.empty}>
@@ -257,9 +332,15 @@ export default function CommunityFeedPanel() {
             <Feather name="message-square" size={sf(28)} color={T.teal} />
           </View>
           <Text style={styles.emptyTitle}>
-            {emptyReason === "no_approved_membership" ? t("feed.joinCommunity") : t("feed.noPostsYet")}
+            {emptyReason === "no_approved_membership"
+              ? t("feed.joinCommunity")
+              : pollsFilterEmpty
+                ? t("feed.noPollsYet")
+                : t("feed.noPostsYet")}
           </Text>
-          <Text style={styles.emptyText}>{getFeedEmptyMessage(emptyReason)}</Text>
+          <Text style={styles.emptyText}>
+            {pollsFilterEmpty ? t("feed.noPollsHint") : getFeedEmptyMessage(emptyReason)}
+          </Text>
           <Pressable
             style={styles.emptyBtn}
             onPress={() =>
@@ -291,18 +372,13 @@ export default function CommunityFeedPanel() {
             onComments={() =>
               router.push({
                 pathname: "/screens/community-feed/comments",
-                params: { postId: String(post.id) },
+                params: feedDetailsParams(post),
               })
             }
             onShare={() => handleShare(post)}
-            onDeleted={(postId) =>
-              setPosts((prev) => prev.filter((item) => String(item.id) !== String(postId)))
-            }
-            onUserBlocked={(userId) =>
-              setPosts((prev) =>
-                prev.filter((item) => String(item.user_id ?? item.user?.id) !== String(userId)),
-              )
-            }
+            onDeleted={dropPost}
+            onReported={dropPost}
+            onUserBlocked={dropAuthor}
           />
         ))
       )}

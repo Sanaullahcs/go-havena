@@ -11,6 +11,7 @@ use App\Services\ActivityLogService;
 use App\Services\CommunityLifecycleService;
 use App\Services\UserActingContextService;
 use App\Services\ContactIdentityService;
+use App\Services\MemberWelcomeNotification;
 use App\Services\MembershipService;
 use App\Services\PointsRewardService;
 use App\Services\UserBlockService;
@@ -279,21 +280,10 @@ class ProfileController extends Controller
         }
 
         if (! empty($profileData)) {
-            $profile = $user->profile()->updateOrCreate(
+            $user->profile()->updateOrCreate(
                 ['user_id' => $user->id],
                 $profileData
             );
-            $profile->refresh();
-            // Same-second SQLite timestamps would still look like a provisioned stub.
-            if (
-                $profile->created_at
-                && $profile->updated_at
-                && $profile->updated_at->getTimestamp() <= $profile->created_at->getTimestamp() + 2
-            ) {
-                $profile->forceFill([
-                    'updated_at' => $profile->created_at->copy()->addSeconds(5),
-                ])->saveQuietly();
-            }
 
             if ($request->filled('display_name') && ! $request->filled('name')) {
                 $user->update(['name' => $request->display_name]);
@@ -305,6 +295,9 @@ class ProfileController extends Controller
                 $this->syncUnitAssignments($user);
             }
             $this->maybeAwardProfileCompleted($user);
+            // Unit sync rewrites updated_at, which would hide a same-second profile submit.
+            $this->markInviteProfileSubmitted($user);
+            MemberWelcomeNotification::sendForApprovedMemberships($user);
         }
 
         $user->load(['profile.region', 'memberships.community']);
@@ -514,6 +507,29 @@ class ProfileController extends Controller
         throw ValidationException::withMessages([
             'office_address' => ['Office address is required.'],
         ]);
+    }
+
+    /**
+     * An invite stores the profile at the same moment it is created. A real
+     * submit must remain distinguishable even when unit sync rewrites updated_at
+     * in that same second.
+     */
+    private function markInviteProfileSubmitted(User $user): void
+    {
+        $user->unsetRelation('profile');
+        $profile = $user->profile;
+        if (! $profile?->created_at || ! $profile->updated_at) {
+            return;
+        }
+
+        if ($profile->updated_at->getTimestamp() > $profile->created_at->getTimestamp() + 2) {
+            return;
+        }
+
+        DB::table('profiles')->where('id', $profile->id)->update([
+            'updated_at' => $profile->created_at->copy()->addSeconds(5),
+        ]);
+        $user->unsetRelation('profile');
     }
 
     private function maybeAwardProfileCompleted($user): void

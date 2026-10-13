@@ -192,10 +192,12 @@ class NoticeController extends Controller
 
         $this->applyCategoryGroupFilter($query, $request->input('category_group'), $request->input('category'));
 
-        if ($request->filled('status') && $request->status !== 'all') {
+        if ($request->input('when') === 'upcoming') {
+            NoticeExpiry::applyUpcomingEventConstraints($query, 'notices', $scopeId);
+        } elseif ($request->filled('status') && $request->status !== 'all') {
             $this->applyAdminStatusFilter($query, (string) $request->status);
         }
-        if ($request->filled('review_status') && $request->review_status !== 'all') {
+        if ($request->input('when') !== 'upcoming' && $request->filled('review_status') && $request->review_status !== 'all') {
             $query->where('notices.review_status', $request->review_status);
         }
         if ($request->filled('search')) {
@@ -238,6 +240,9 @@ class NoticeController extends Controller
                 })
                 ->count(),
             'archived' => (clone $statsQuery)->where('status', 'archived')->count(),
+            'upcoming' => tap(clone $statsQuery, function ($upcoming) use ($scopeId) {
+                NoticeExpiry::applyUpcomingEventConstraints($upcoming, 'notices', $scopeId);
+            })->count(),
         ];
 
         $items     = $notices->items();

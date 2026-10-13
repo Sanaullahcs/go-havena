@@ -499,7 +499,8 @@
     },
     "options": {
       "reportSubmitted": "Reporte enviado",
-      "adminWillReview": "Los administradores revisarán esta publicación.",
+      "adminWillReview": "Tu reporte está pendiente de revisión. La publicación sigue en el feed hasta que un administrador de la comunidad decida.",
+      "systemAdminWillReview": "Tu reporte está pendiente de revisión. Un administrador del sistema lo revisará. La publicación sigue en el feed hasta que decida.",
       "downloadPhoto": "Descargar foto",
       "reportPost": "Reportar publicación",
       "reportComment": "Reportar",
@@ -512,7 +513,7 @@
       "postDeleted": "Publicación eliminada",
       "postDeletedMsg": "Tu publicación fue eliminada.",
       "postOptions": "Opciones de publicación",
-      "optionsMessage": "Descarga la foto o reporta esta publicación a los administradores.",
+      "optionsMessage": "Reporta esta publicación al administrador de la comunidad si contiene contenido inapropiado o infringe las normas de la comunidad.",
       "ownOptionsMessage": "Edita o elimina esta publicación."
     },
     "report": {
@@ -555,9 +556,11 @@
       "help": "Ayuda",
       "neighborhood": "Vecindario",
       "announcements": "Anuncios",
-      "poll": "Encuesta"
+      "poll": "Encuesta",
+      "polls": "Encuestas"
     },
     "poll": {
+      "details": "Detalles de la encuesta",
       "feedback": "Esta encuesta es para conocer la opinión de la comunidad.",
       "vote": "Votar",
       "voting": "Votando...",
@@ -592,6 +595,8 @@
     "couldNotLoadFeed": "No se pudo cargar el feed",
     "joinCommunity": "Únete a tu comunidad",
     "noPostsYet": "Aún no hay publicaciones",
+    "noPollsYet": "Aún no hay encuestas",
+    "noPollsHint": "Las encuestas publicadas de tu comunidad aparecerán aquí.",
     "selectRegion": "Seleccionar región",
     "createPostBtn": "Crear publicación",
     "postPublished": "Publicación enviada a tu comunidad.",
@@ -599,7 +604,9 @@
     "sensitiveContent": {
       "title": "Contenido sensible",
       "compactMessage": "Este contenido ha sido marcado como sensible.",
-      "defaultMessage": "Esta publicación ha sido marcada como sensible por los moderadores de la comunidad."
+      "defaultMessage": "Esta publicación ha sido marcada como sensible por los moderadores de la comunidad.",
+      "showPost": "Mostrar publicación",
+      "hidePost": "Ocultar publicación"
     }
   },
   "reportReasons": {
@@ -4459,7 +4466,12 @@
     "uploadPhoto": "Subir foto",
     "chooseHowToAdd": "Elige cómo deseas agregar una foto",
     "signInRequired": "Debes iniciar sesión para subir una imagen.",
-    "uploadFailed": "Error al subir la imagen. Inténtalo de nuevo."
+    "uploadFailed": "Error al subir la imagen. Inténtalo de nuevo.",
+    "crop": "Recortar",
+    "useOriginal": "Usar original",
+    "cropHint": "Arrastra el marco para elegir un área y recorta, o conserva la foto original.",
+    "shrinkCrop": "Reducir el área de recorte",
+    "expandCrop": "Ampliar el área de recorte"
   },
   "time": {
     "justNow": "Ahora mismo",

@@ -530,4 +530,62 @@ class AdminDashboardStatsTest extends TestCase
         $this->assertTrue($types->contains('booking'));
         $this->assertTrue($types->contains('amenity_review'));
     }
+
+    public function test_upcoming_events_count_published_events_that_have_not_ended(): void
+    {
+        $this->seed(SystemAdminSeeder::class);
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
+
+        $region = Region::query()->create([
+            'title'       => 'Cairo Metro',
+            'area'        => 'Cairo',
+            'state'       => 'EG',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $community = Community::query()->create([
+            'name'          => 'Oak Valley',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $admin = User::factory()->create([
+            'role'   => 'community_admin',
+            'status' => 'active',
+        ]);
+
+        $now = now();
+        $rows = [
+            ['title' => 'Block party', 'category' => 'event', 'status' => 'published', 'event_date' => $now->copy()->addDays(3)->toDateString()],
+            ['title' => 'Past picnic', 'category' => 'event', 'status' => 'published', 'event_date' => $now->copy()->subDays(3)->toDateString()],
+            ['title' => 'Draft social', 'category' => 'event', 'status' => 'draft', 'event_date' => $now->copy()->addDays(4)->toDateString()],
+            ['title' => 'Pool hours', 'category' => 'general', 'status' => 'published', 'event_date' => null],
+        ];
+
+        foreach ($rows as $row) {
+            \Illuminate\Support\Facades\DB::table('notices')->insert([
+                'community_id'  => $community->id,
+                'author_id'     => $admin->id,
+                'title'         => $row['title'],
+                'body'          => 'Details',
+                'category'      => $row['category'],
+                'status'        => $row['status'],
+                'review_status' => 'approved',
+                'event_date'    => $row['event_date'],
+                'published_at'  => $now,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ]);
+        }
+
+        $response = $this->getJson('/api/v1/admin/dashboard/stats');
+
+        $response->assertOk();
+        $this->assertSame(1, $response->json('data.stats.upcoming_events'));
+        $this->assertSame(1, $response->json('data.stats.published_notices'));
+    }
 }

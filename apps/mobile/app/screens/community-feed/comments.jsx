@@ -23,6 +23,7 @@ import {
   fetchComments,
   fetchPost,
   formatCount,
+  isPollPost,
   isSensitivePost,
   likePost,
   toggleCommentLike,
@@ -124,7 +125,8 @@ export default function FeedCommentsScreen() {
   const { isRTL } = useLanguage();
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
-  const { postId = "1" } = useLocalSearchParams();
+  const { postId = "1", poll: pollParam } = useLocalSearchParams();
+  const openedAsPoll = pollParam === "1" || pollParam === "true";
   const now = useNow(30000);
   const { bottomOffset, safeBottom } = useKeyboardBottomOffset();
   const keyboardOpen = bottomOffset > 0;
@@ -153,13 +155,16 @@ export default function FeedCommentsScreen() {
     try {
       const [postData, commentsData] = await Promise.all([
         fetchPost(postId).catch(() => null),
-        fetchComments(postId),
+        openedAsPoll ? Promise.resolve([]) : fetchComments(postId),
       ]);
-      const realCount = commentsData.length;
-      setComments(commentsData);
+      const pollPost = openedAsPoll || isPollPost(postData);
+      const realCount = pollPost ? 0 : commentsData.length;
+      setComments(pollPost ? [] : commentsData);
       setPost(
         postData
-          ? { ...postData, comments_count: realCount, comments: realCount }
+          ? pollPost
+            ? postData
+            : { ...postData, comments_count: realCount, comments: realCount }
           : null,
       );
     } catch (err) {
@@ -170,7 +175,7 @@ export default function FeedCommentsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [postId, showFailure, t]);
+  }, [openedAsPoll, postId, showFailure, t]);
 
   useEffect(() => {
     load();
@@ -392,26 +397,27 @@ export default function FeedCommentsScreen() {
   const focusComposer = () => inputRef.current?.focus();
 
   const commentCountLabel = loading ? "..." : formatCount(comments.length);
-  const isPoll = post?.category === "poll" || Boolean(post?.poll);
+  const isPoll = openedAsPoll || isPollPost(post);
   const commentPlaceholder = replyTo
     ? t("feed.comments.replyPlaceholder", { name: replyTo.name })
-    : isPoll
-      ? t("feed.comments.addThought")
-      : t("feed.comments.writeComment");
+    : t("feed.comments.writeComment");
   const showPlaceholder = draft.length === 0;
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
-        title={t("feed.comments.title")}
-        subtitle={post ? t("feed.comments.subtitle", { count: commentCountLabel }) : undefined}
+        title={isPoll ? t("feed.poll.details") : t("feed.comments.title")}
+        subtitle={post && !isPoll ? t("feed.comments.subtitle", { count: commentCountLabel }) : undefined}
       />
 
       <View style={[styles.flex, { paddingBottom: bottomOffset }]}>
         <ScrollView
           ref={scrollRef}
           style={styles.flex}
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[
+            styles.scroll,
+            isPoll && { paddingBottom: safeBottom + sw(12), flexGrow: 0 },
+          ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           onScrollBeginDrag={Keyboard.dismiss}
@@ -422,7 +428,7 @@ export default function FeedCommentsScreen() {
           }
         >
           {loading && !post ? (
-            <CommentScreenSkeleton />
+            <CommentScreenSkeleton variant={isPoll ? "poll" : "comments"} />
           ) : (
             <Pressable style={styles.dismissArea} onPress={Keyboard.dismiss}>
           {post ? (
@@ -431,10 +437,14 @@ export default function FeedCommentsScreen() {
                 post={post}
                 now={now}
                 footerVariant="engagement"
-                style={styles.postCard}
-                onLike={handleLike}
-                onComments={focusComposer}
+                showFooter={!isPoll}
+                style={[styles.postCard, isPoll && styles.pollCard]}
+                onLike={isPoll ? undefined : handleLike}
+                onComments={isPoll ? undefined : focusComposer}
                 onDeleted={() => {
+                  if (router.canGoBack?.()) router.back();
+                }}
+                onReported={() => {
                   if (router.canGoBack?.()) router.back();
                 }}
                 onUserBlocked={(userId) => {
@@ -457,6 +467,7 @@ export default function FeedCommentsScreen() {
             </>
           ) : null}
 
+          {isPoll ? null : (
           <View style={styles.commentsCard}>
             <View style={styles.commentsHeader}>
               <Text style={styles.sectionTitle}>{t("feed.comments.allComments")}</Text>
@@ -535,10 +546,12 @@ export default function FeedCommentsScreen() {
               })
             )}
           </View>
+          )}
             </Pressable>
           )}
         </ScrollView>
 
+        {isPoll ? null : (
         <View
           style={[
             styles.composerWrap,
@@ -621,6 +634,7 @@ export default function FeedCommentsScreen() {
             </>
           )}
         </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -634,6 +648,9 @@ const styles = StyleSheet.create({
   postCard: {
     marginBottom: sw(10),
     marginTop: sw(8),
+  },
+  pollCard: {
+    marginBottom: 0,
   },
   commentsCard: {
     alignSelf: "stretch",

@@ -248,9 +248,9 @@ const STATUS_ORDER = ["approved", "pending", "invitation_sent", "onboarding", "b
 const STATUS_LABELS: Record<string, string> = {
   approved: "Active",
   pending: "Pending",
-  invitation_sent: "Invitation Sent",
+  invitation_sent: "Pending Invitations",
   onboarding: "Onboarding",
-  banned: "Suspended",
+  banned: "Suspended Members",
   rejected: "Rejected",
 };
 
@@ -367,7 +367,7 @@ export function DashboardMembersPieChart({
       <div className="flex flex-wrap gap-2">
         <MetricPill label="Active rate" value={`${activeRate}%`} accent={activeRate >= 80} compact />
         <MetricPill label="Pending" value={pending.toLocaleString()} accent={pending > 0} compact />
-        <MetricPill label="Invitation Sent" value={invitationSent.toLocaleString()} compact />
+        <MetricPill label="Pending Invitations" value={invitationSent.toLocaleString()} compact />
         <MetricPill label="Onboarding" value={onboarding.toLocaleString()} compact />
       </div>
 

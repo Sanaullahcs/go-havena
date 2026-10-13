@@ -8,14 +8,14 @@ import {
   FlatList,
 } from "react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LIKE_HEART_RED } from "../feed/feed-engagement";
 import UserAvatar from "../ui/user-avatar";
 import CrispImage from "../ui/crisp-image";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
-import { TOPIC_LABEL_KEY } from "../../services/feed-api";
+import { TOPIC_LABEL_KEY, feedDetailsParams } from "../../services/feed-api";
 import { homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
 import HomeSectionHeader from "./section-header";
@@ -84,19 +84,41 @@ function FeedCardInner({
   const display = parsePostDisplayContent(post);
   const relativeTime = timeAgo(post.created_at, now) || post.user?.time || "";
   const sensitive = isSensitivePost(post);
-  const bodyText = sensitive
-    ? null
-    : display.mainText || (display.hasImage ? t("feed.sharedPhoto") : "");
-  const hasImage = !sensitive && display.hasImage;
-  const isTextOnly = !hasImage && !sensitive;
+  const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
+  const ignoreCardPress = useRef(false);
+
+  useEffect(() => {
+    setSensitiveRevealed(false);
+  }, [post?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setSensitiveRevealed(false);
+    }, []),
+  );
+
+  const showOriginal = !sensitive || sensitiveRevealed;
+  const bodyText = showOriginal
+    ? display.mainText || (display.hasImage ? t("feed.sharedPhoto") : "")
+    : null;
+  const hasImage = showOriginal && display.hasImage;
+  const isTextOnly = showOriginal && !hasImage;
   const showImageCaption = hasImage && Boolean(bodyText) && bodyText !== t("feed.sharedPhoto");
 
   return (
     <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.card, { width, minHeight: height }, pressed && styles.cardPressed]}
+      onPress={() => {
+        if (ignoreCardPress.current) return;
+        onPress?.();
+      }}
+      style={({ pressed }) => [
+        styles.card,
+        { width },
+        !sensitive && { minHeight: height },
+        pressed && styles.cardPressed,
+      ]}
     >
-      <View style={[styles.cardInner, { minHeight: height }]}>
+      <View style={[styles.cardInner, !sensitive && { minHeight: height }]}>
         {hasImage ? (
           <View style={[styles.imageWrap, { height: imageH }]}>
             <CrispImage
@@ -109,7 +131,7 @@ function FeedCardInner({
           </View>
         ) : null}
 
-        {isTextOnly && bodyText ? (
+        {isTextOnly && bodyText && !sensitive ? (
           <View style={[styles.quoteBlock, { height: imageH }]}>
             <Ionicons
               name="chatbox-ellipses-outline"
@@ -152,19 +174,32 @@ function FeedCardInner({
           </Pressable>
 
           {sensitive ? (
-            <View style={styles.sensitiveWrap}>
-              <FeedSensitiveContent compact />
-            </View>
+            <FeedSensitiveContent
+              message={post.sensitive_message}
+              revealed={sensitiveRevealed}
+              onToggle={() => {
+                ignoreCardPress.current = true;
+                setSensitiveRevealed((current) => !current);
+                setTimeout(() => {
+                  ignoreCardPress.current = false;
+                }, 300);
+              }}
+              style={styles.sensitiveWarning}
+            />
+          ) : null}
+
+          {sensitive && sensitiveRevealed && !hasImage && bodyText ? (
+            <Text style={styles.revealedText}>{bodyText}</Text>
           ) : null}
 
           {showImageCaption ? (
             <Text style={styles.bodyText} numberOfLines={2}>
               {bodyText}
             </Text>
-          ) : (
+          ) : sensitive ? null : (
             <View style={styles.bodySpacer} />
           )}
-<View style={styles.engagementBar}>
+          <View style={[styles.engagementBar, sensitive && styles.engagementBarTight]}>
             <Pressable style={styles.engBtn} onPress={onLike} disabled={sensitive}>
               <Animated.View style={{ transform: [{ scale: likeScale }] }}>
                 <Ionicons
@@ -212,6 +247,8 @@ export default function Communities({ posts = [], onPostsChange }) {
   const { t } = useTranslation();
   const now = useNow(30000);
   const [sharePost, setSharePost] = useState(null);
+  const [rowHeight, setRowHeight] = useState(0);
+  const cardHeights = useRef({});
   const frame = useHomeFrame();
   const sessionUser = useSessionUser();
 
@@ -227,6 +264,19 @@ export default function Communities({ posts = [], onPostsChange }) {
     const cardHeight = imageH + bottom;
     return { cardWidth, cardHeight, imageH, snap: cardWidth + gap, gap, bottom };
   }, [frame]);
+
+  useEffect(() => {
+    cardHeights.current = {};
+    setRowHeight(0);
+  }, [layout.cardWidth]);
+
+  const rememberCardHeight = useCallback((id, height) => {
+    const next = Math.ceil(height);
+    if (!id || next <= 0 || cardHeights.current[id] === next) return;
+    cardHeights.current[id] = next;
+    const tallest = Math.max(...Object.values(cardHeights.current));
+    setRowHeight((current) => (Math.abs(current - tallest) > 1 ? tallest : current));
+  }, []);
 
   const handleLike = useCallback(
     async (postId) => {
@@ -259,7 +309,10 @@ export default function Communities({ posts = [], onPostsChange }) {
 
   const renderItem = useCallback(
     ({ item }) => (
-      <View style={{ width: layout.cardWidth, minHeight: layout.cardHeight, flexShrink: 0 }}>
+      <View
+        onLayout={(event) => rememberCardHeight(item.id, event.nativeEvent.layout.height)}
+        style={{ width: layout.cardWidth, flexShrink: 0 }}
+      >
         <FeedCard
           post={item}
           width={layout.cardWidth}
@@ -269,7 +322,7 @@ export default function Communities({ posts = [], onPostsChange }) {
           onPress={() =>
             router.push({
               pathname: "/screens/community-feed/comments",
-              params: { postId: String(item.id) },
+              params: feedDetailsParams(item),
             })
           }
           onLike={() => handleLike(item.id)}
@@ -283,13 +336,13 @@ export default function Communities({ posts = [], onPostsChange }) {
           onComments={() =>
             router.push({
               pathname: "/screens/community-feed/comments",
-              params: { postId: String(item.id) },
+              params: feedDetailsParams(item),
             })
           }
         />
       </View>
     ),
-    [layout.cardWidth, layout.cardHeight, layout.imageH, now, router, handleLike, handleShare],
+    [layout.cardWidth, layout.cardHeight, layout.imageH, now, rememberCardHeight, router, handleLike, handleShare],
   );
 
   if (!isHomeSectionEnabled(sessionUser, "feed")) return null;
@@ -317,7 +370,7 @@ export default function Communities({ posts = [], onPostsChange }) {
       <FlatList
         data={posts}
         horizontal
-        style={[styles.carousel, { width: frame.contentWidth, minHeight: layout.cardHeight }]}
+        style={[styles.carousel, { width: frame.contentWidth, height: rowHeight || layout.cardHeight }]}
         showsHorizontalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={layout.snap}
@@ -439,10 +492,20 @@ const styles = StyleSheet.create({
   },
   chipWarn: { backgroundColor: "rgba(217, 119, 6, 0.12)" },
   chipWarnText: { color: "#D97706" },
-  sensitiveWrap: {
-    paddingVertical: sw(4),
-    overflow: "hidden",
-    marginBottom: sw(4),
+  sensitiveWarning: {
+    width: "100%",
+    marginBottom: sw(8),
+  },
+  revealedText: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    color: T.navy,
+    marginBottom: sw(8),
+    writingDirection: "auto",
+  },
+  engagementBarTight: {
+    marginTop: sw(2),
   },
   bodyText: {
     fontFamily: Fonts.regular,

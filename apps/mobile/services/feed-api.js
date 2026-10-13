@@ -19,6 +19,16 @@ export const FEED_TOPICS = [
   "Announcements",
 ];
 
+/** Community Feed chips. Poll is omitted from FEED_TOPICS so Create Post order stays the same. */
+export const FEED_CATEGORY_TABS = [
+  "Recommendations",
+  "Events",
+  "Help",
+  "Neighborhood",
+  "Poll",
+  "Announcements",
+];
+
 const TOPIC_TO_CATEGORY = {
   Recommendations: "general",
   Events: "event",
@@ -148,7 +158,7 @@ function pushUniqueImageUrl(urls, value) {
 
 /** All viewable image URLs on a feed post (single image_url plus any gallery arrays). */
 export function getPostImageUrls(post) {
-  if (!post || isSensitivePost(post)) return [];
+  if (!post) return [];
   const urls = [];
   pushUniqueImageUrl(urls, post.image_url);
   const extras = post.images ?? post.image_urls ?? post.media;
@@ -164,9 +174,9 @@ export function normalizePost(raw) {
   const authorName = raw.author_name ?? raw.user?.display_name ?? raw.user?.name ?? i18n.t("feed.neighbor");
   const avatarUrl = resolveMediaUrl(raw.author_avatar ?? raw.user?.avatar);
   const sensitive = isSensitivePost(raw);
-  const text = sensitive ? "" : (raw.body ?? raw.content ?? "");
-  const imageUrl = sensitive ? null : (resolveMediaUrl(raw.image_url) ?? raw.image_url);
-  const images = sensitive ? [] : getPostImageUrls({ ...raw, image_url: imageUrl });
+  const text = raw.body ?? raw.content ?? "";
+  const imageUrl = resolveMediaUrl(raw.image_url) ?? raw.image_url;
+  const images = getPostImageUrls({ ...raw, image_url: imageUrl });
 
   return {
     ...raw,
@@ -477,6 +487,22 @@ export async function voteOnPoll(postId, optionId) {
     body: { option_id: optionId },
   });
   return normalizePost(res.data);
+}
+
+export function isPollPost(post) {
+  return post?.category === "poll" || Boolean(post?.poll);
+}
+
+/** Approved polls only. A resident's own pending poll stays on All, not the Polls tab. */
+export function isPublishedPollPost(post) {
+  if (!isPollPost(post)) return false;
+  return (post?.status ?? "approved") === "approved";
+}
+
+export function feedDetailsParams(post) {
+  const params = { postId: String(post?.id ?? "") };
+  if (isPollPost(post)) params.poll = "1";
+  return params;
 }
 
 export function pollTimeLeftLabel(endsAt, closed, t, now = Date.now()) {
