@@ -391,7 +391,10 @@ export function resolveNotificationRoute(notification) {
   if (pathname.includes("/community-feed/comments")) {
     const postId = queryParams.postId ?? queryParams.post_id;
     if (postId) {
-      return withParams("/screens/community-feed/comments", { postId });
+      return withParams("/screens/community-feed/comments", {
+        postId,
+        ...(queryParams.poll ? { poll: queryParams.poll } : {}),
+      });
     }
     return { pathname: "/screens/community-feed" };
   }

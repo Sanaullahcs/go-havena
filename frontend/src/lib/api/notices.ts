@@ -67,6 +67,7 @@ export interface NoticeStats {
   pending?: number;
   approved?: number;
   rejected?: number;
+  upcoming?: number;
 }
 
 export interface NoticeFormData {

@@ -13,6 +13,7 @@ use App\Services\CommunityBillingService;
 use App\Services\CommunityLifecycleService;
 use App\Services\InviteCodeService;
 use App\Services\MembershipService;
+use App\Services\MemberWelcomeNotification;
 use App\Services\OsmGeocodingService;
 use App\Support\CommunityLocation;
 use App\Support\CommunityNameUniqueness;
@@ -165,6 +166,7 @@ class CommunityController extends Controller
                 }
 
                 $this->syncUnitAssignment($user, (int) $community->id);
+                MemberWelcomeNotification::sendIfReady($user, $existing);
 
                 return response()->json([
                     'data' => [
@@ -190,6 +192,7 @@ class CommunityController extends Controller
             }
 
             $this->syncUnitAssignment($user, (int) $community->id);
+            MemberWelcomeNotification::sendIfReady($user, $existing);
 
             return response()->json([
                 'data' => [
@@ -286,6 +289,9 @@ class CommunityController extends Controller
         // Family create/join is handled by Complete Profile (ensure / join-request),
         // or by MemberController when community membership is approved.
         $this->syncUnitAssignment($user, (int) $community->id);
+        if ($membership) {
+            MemberWelcomeNotification::sendIfReady($user, $membership);
+        }
 
         return response()->json([
             'data' => [

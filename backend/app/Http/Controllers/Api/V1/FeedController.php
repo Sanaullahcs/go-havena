@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Services\FcmNotificationService;
 use App\Services\NotificationService;
+use App\Services\PostReportModeration;
 use App\Services\PushNotificationService;
 use App\Services\UserBlockService;
 use App\Support\MediaUrl;
@@ -67,6 +68,7 @@ class FeedController extends Controller
 
         $query = $this->basePostQuery($communityId);
         $this->excludeBlockedAuthors($query, (int) $user->id, 'posts.user_id');
+        $this->excludePostsReportedByViewer($query, (int) $user->id);
         $query
             ->where(function ($w) use ($user) {
                 $w->where('posts.status', 'approved')
@@ -105,7 +107,7 @@ class FeedController extends Controller
             $this->hydrateEngagementCounts($posts->items()),
             (int) $user->id,
         );
-        $items = collect($pageItems)->map(fn ($p) => $this->formatPost($p, $likedPostIds, $user->id, ['mask_sensitive' => true]));
+        $items = collect($pageItems)->map(fn ($p) => $this->formatPost($p, $likedPostIds, $user->id));
 
         return response()->json([
             'data' => $items,
@@ -136,6 +138,8 @@ class FeedController extends Controller
             'poll.duration_days' => 'required_if:category,poll|integer|in:1,3,7',
             'poll.options' => 'required_if:category,poll|array|min:2|max:4',
             'poll.options.*' => 'required|string|max:80',
+        ], [
+            'poll.description.max' => 'Short description must be 500 characters or fewer.',
         ]);
 
         $user = $request->user();
@@ -248,7 +252,7 @@ class FeedController extends Controller
         ]);
     }
 
-    /** POST /v1/feed/{id}/vote — one vote per resident. */
+    /** POST /v1/feed/{id}/vote — one vote per resident, replaceable until the poll ends. */
     public function vote(Request $request, int $id): JsonResponse
     {
         $this->assertNotGuestWrite($request, 'vote_poll');
@@ -293,27 +297,49 @@ class FeedController extends Controller
             return response()->json(['message' => 'That option is not part of this poll.'], 422);
         }
 
-        if (DB::table('poll_votes')->where('poll_id', $poll->id)->where('user_id', $user->id)->exists()) {
-            return response()->json(['message' => 'You have already voted in this poll.'], 422);
-        }
+        $replaced = false;
+        DB::transaction(function () use ($poll, $option, $user, &$replaced) {
+            $existing = DB::table('poll_votes')
+                ->where('poll_id', $poll->id)
+                ->where('user_id', $user->id)
+                ->lockForUpdate()
+                ->first();
 
-        try {
-            DB::table('poll_votes')->insert([
-                'poll_id'    => $poll->id,
-                'option_id'  => $option->id,
-                'user_id'    => $user->id,
-                'created_at' => now(),
-            ]);
-        } catch (UniqueConstraintViolationException) {
-            return response()->json(['message' => 'You have already voted in this poll.'], 422);
-        }
+            if ($existing) {
+                if ((int) $existing->option_id === (int) $option->id) {
+                    return;
+                }
+
+                DB::table('poll_votes')->where('id', $existing->id)->update([
+                    'option_id' => $option->id,
+                ]);
+                $replaced = true;
+
+                return;
+            }
+
+            try {
+                DB::table('poll_votes')->insert([
+                    'poll_id'    => $poll->id,
+                    'option_id'  => $option->id,
+                    'user_id'    => $user->id,
+                    'created_at' => now(),
+                ]);
+            } catch (UniqueConstraintViolationException) {
+                DB::table('poll_votes')
+                    ->where('poll_id', $poll->id)
+                    ->where('user_id', $user->id)
+                    ->update(['option_id' => $option->id]);
+                $replaced = true;
+            }
+        });
 
         $fresh = $this->basePostQuery($communityId)->where('posts.id', $id)->first();
         [$fresh] = $this->hydratePolls($this->hydrateEngagementCounts([$fresh]), (int) $user->id);
 
         return response()->json([
             'data'    => $this->formatPost($fresh, [], $user->id),
-            'message' => 'Vote recorded.',
+            'message' => $replaced ? 'Vote updated.' : 'Vote recorded.',
         ]);
     }
 
@@ -448,6 +474,7 @@ class FeedController extends Controller
         }
 
         $this->excludeBlockedAuthors($query, (int) $user->id, 'posts.user_id');
+        $this->excludePostsReportedByViewer($query, (int) $user->id);
 
         $query->where(function ($w) use ($user) {
             $w->where('posts.status', 'approved')
@@ -472,7 +499,7 @@ class FeedController extends Controller
         [$post] = $this->hydratePolls($this->hydrateEngagementCounts([$post]), (int) $user->id);
 
         return response()->json([
-            'data' => $this->formatPost($post, $likedPostIds, $user->id, ['mask_sensitive' => true]),
+            'data' => $this->formatPost($post, $likedPostIds, $user->id),
         ]);
     }
 
@@ -553,8 +580,9 @@ class FeedController extends Controller
         }
 
         [$type, $reason] = ReportTypes::resolvePayload($request);
+        $queue = PostReportModeration::reviewQueueForUser((int) $post->user_id);
 
-        DB::table('post_reports')->insert([
+        $payload = [
             'post_id'     => $id,
             'reporter_id' => $userId,
             'reason'      => $reason,
@@ -562,7 +590,16 @@ class FeedController extends Controller
             'type'        => $type,
             'created_at'  => now(),
             'updated_at'  => now(),
-        ]);
+        ];
+        if (Schema::hasColumn('post_reports', 'reported_user_id')) {
+            $payload['reported_user_id'] = (int) $post->user_id;
+        }
+        if (Schema::hasColumn('post_reports', 'status')) {
+            $payload['status'] = PostReportModeration::PENDING;
+            $payload['review_queue'] = $queue;
+        }
+
+        DB::table('post_reports')->insert($payload);
 
         ActivityLogService::user(
             'post_reported_by_resident',
@@ -571,8 +608,14 @@ class FeedController extends Controller
             $id,
             'warning',
             null,
-            ['reason' => \Illuminate\Support\Str::limit($reason, 120)],
+            [
+                'reason' => \Illuminate\Support\Str::limit($reason, 120),
+                'status' => PostReportModeration::PENDING,
+                'review_queue' => $queue,
+            ],
         );
+
+        PostReportModeration::notifyReviewers($post, $userId, (int) $post->user_id);
 
         $reportsCount = (int) DB::table('post_reports')->where('post_id', $id)->count();
         $residentReportsCount = (int) DB::table('post_reports')
@@ -581,10 +624,14 @@ class FeedController extends Controller
             ->count();
 
         return response()->json([
-            'message' => 'Report submitted. Community admins will review this post.',
+            'message' => $queue === PostReportModeration::QUEUE_SYSTEM
+                ? 'Report submitted. It is pending review by a system admin.'
+                : 'Report submitted. It is pending review.',
             'data'    => [
                 'post_id'                => $id,
                 'is_sensitive'           => false,
+                'status'                 => PostReportModeration::PENDING,
+                'review_queue'           => $queue,
                 'reports_count'          => $reportsCount,
                 'resident_reports_count' => $residentReportsCount,
                 'report_status'          => 'reported',
@@ -855,6 +902,7 @@ class FeedController extends Controller
         }
 
         [$type, $reason] = ReportTypes::resolvePayload($request);
+        $queue = PostReportModeration::reviewQueueForUser((int) $comment->user_id);
 
         $payload = [
             'post_id'     => $postId,
@@ -871,6 +919,10 @@ class FeedController extends Controller
         if (Schema::hasColumn('post_reports', 'reported_user_id')) {
             $payload['reported_user_id'] = (int) $comment->user_id;
         }
+        if (Schema::hasColumn('post_reports', 'status')) {
+            $payload['status'] = PostReportModeration::PENDING;
+            $payload['review_queue'] = $queue;
+        }
 
         DB::table('post_reports')->insert($payload);
 
@@ -885,8 +937,12 @@ class FeedController extends Controller
                 'comment_id' => $commentId,
                 'reported_user_id' => (int) $comment->user_id,
                 'reason' => \Illuminate\Support\Str::limit($reason, 120),
+                'status' => PostReportModeration::PENDING,
+                'review_queue' => $queue,
             ],
         );
+
+        PostReportModeration::notifyReviewers($post, $userId, (int) $comment->user_id);
 
         $reportsCount = (int) DB::table('post_reports')->where('post_id', $postId)->count();
         $residentReportsCount = (int) DB::table('post_reports')
@@ -895,11 +951,15 @@ class FeedController extends Controller
             ->count();
 
         return response()->json([
-            'message' => 'Report submitted. Community admins will review this comment.',
+            'message' => $queue === PostReportModeration::QUEUE_SYSTEM
+                ? 'Report submitted. It is pending review by a system admin.'
+                : 'Report submitted. It is pending review.',
             'data'    => [
                 'post_id'                => $postId,
                 'comment_id'             => $commentId,
                 'reported_user_id'       => (int) $comment->user_id,
+                'status'                 => PostReportModeration::PENDING,
+                'review_queue'           => $queue,
                 'reports_count'          => $reportsCount,
                 'resident_reports_count' => $residentReportsCount,
                 'report_status'          => 'reported',
@@ -920,6 +980,7 @@ class FeedController extends Controller
             ->select(array_merge([
                 'posts.*',
                 DB::raw('COALESCE(profiles.display_name, users.name) as author_name'),
+                'users.role as author_role',
                 'profiles.avatar_url as author_avatar',
                 'profiles.unit_number as author_unit',
                 'communities.name as community_name',
@@ -953,10 +1014,19 @@ class FeedController extends Controller
 
         $stats = $this->adminPostStats($communityScope, $request);
 
-        $pageItems = $this->hydrateEngagementCounts($posts->items());
+        $pageItems = $this->hydratePolls(
+            $this->hydrateEngagementCounts($posts->items()),
+            (int) $user->id,
+        );
 
         return response()->json([
-            'data' => collect($pageItems)->map(fn ($p) => $this->formatPost($p, [], auth()->id()))->values(),
+            'data' => collect($pageItems)->map(function ($p) use ($user) {
+                return PostReportModeration::presentForAdmin(
+                    $this->formatPost($p, [], (int) $user->id),
+                    $p,
+                    $user,
+                );
+            })->values(),
             'meta' => [
                 'current_page' => $posts->currentPage(),
                 'last_page'    => $posts->lastPage(),
@@ -977,6 +1047,7 @@ class FeedController extends Controller
             ->select(array_merge([
                 'posts.*',
                 DB::raw('COALESCE(profiles.display_name, users.name) as author_name'),
+                'users.role as author_role',
                 'profiles.avatar_url as author_avatar',
                 'profiles.unit_number as author_unit',
                 'communities.name as community_name',
@@ -991,7 +1062,8 @@ class FeedController extends Controller
 
         $this->assertCanModeratePost($post);
 
-        [$post] = $this->hydrateEngagementCounts([$post]);
+        $userId = (int) auth()->id();
+        [$post] = $this->hydratePolls($this->hydrateEngagementCounts([$post]), $userId);
 
         $comments = $this->commentQuery()
             ->where('post_comments.post_id', $id)
@@ -999,10 +1071,8 @@ class FeedController extends Controller
             ->orderBy('post_comments.created_at')
             ->get();
 
-        $userId = (int) auth()->id();
-
         return response()->json([
-            'data'     => $this->formatPost($post, [], $userId),
+            'data'     => PostReportModeration::presentForAdmin($this->formatPost($post, [], $userId), $post, auth()->user()),
             'comments' => $this->formatCommentsWithDepth($comments, $userId),
         ]);
     }
@@ -1124,6 +1194,10 @@ class FeedController extends Controller
         }
 
         $this->assertCanModeratePost($post);
+        $this->assertCanRemovePost($post);
+
+        $actorId = (int) auth()->id();
+        $reporterIds = PostReportModeration::resolveOpenReports($id, 'removed', $actorId, true);
 
         DB::table('posts')->where('id', $id)->update([
             'deleted_at' => now(),
@@ -1132,23 +1206,21 @@ class FeedController extends Controller
 
         ActivityLogService::user(
             'post_deleted',
-            'Deleted community post #'.$id,
+            'Removed community post #'.$id,
             'Post',
             $id,
             'warning',
+            null,
+            ['resolution' => 'removed'],
         );
 
-        NotificationService::send(
-            $post->user_id,
-            'warning',
-            'Post removed from feed',
-            'Your post was removed from the community feed by a community administrator.',
-            $this->postCommentsActionUrl((int) $id),
-            [
-                'kind'    => 'post_moderation',
-                'post_id' => (int) $id,
-            ],
-        );
+        PostReportModeration::notifyAuthorOfModeration($post, $actorId, 'removed');
+        foreach ($reporterIds as $reporterId) {
+            if ($reporterId === $actorId) {
+                continue;
+            }
+            PostReportModeration::notifyReporter($reporterId, $id, (int) $post->community_id, 'removed');
+        }
 
         return response()->json(['message' => 'Post deleted from the community feed']);
     }
@@ -1167,12 +1239,14 @@ class FeedController extends Controller
         }
 
         $this->assertCanModeratePost($post);
+        $this->assertCanMarkSensitive($post);
 
         $reporterId = (int) auth()->id();
         $reason = trim((string) $request->reason);
         $type = $request->input('type', 'other');
+        $queue = PostReportModeration::reviewQueueForUser((int) $post->user_id);
 
-        DB::table('post_reports')->insert([
+        $adminReport = [
             'post_id'     => $id,
             'reporter_id' => $reporterId,
             'reason'      => $reason,
@@ -1180,12 +1254,26 @@ class FeedController extends Controller
             'type'        => $type,
             'created_at'  => now(),
             'updated_at'  => now(),
-        ]);
+        ];
+        if (Schema::hasColumn('post_reports', 'status')) {
+            $adminReport['status'] = PostReportModeration::RESOLVED;
+            $adminReport['resolution'] = 'marked_sensitive';
+            $adminReport['review_queue'] = $queue;
+            $adminReport['resolved_by'] = $reporterId;
+            $adminReport['resolved_at'] = now();
+        }
+        if (Schema::hasColumn('post_reports', 'reported_user_id')) {
+            $adminReport['reported_user_id'] = (int) $post->user_id;
+        }
+
+        DB::table('post_reports')->insert($adminReport);
 
         DB::table('posts')->where('id', $id)->update([
             'is_sensitive' => true,
             'updated_at'   => now(),
         ]);
+
+        $reporterIds = PostReportModeration::resolveOpenReports($id, 'marked_sensitive', $reporterId, false);
 
         ActivityLogService::user(
             'post_reported',
@@ -1197,6 +1285,14 @@ class FeedController extends Controller
             ['reason' => \Illuminate\Support\Str::limit($reason, 120)],
         );
 
+        PostReportModeration::notifyAuthorOfModeration($post, $reporterId, 'marked_sensitive');
+        foreach ($reporterIds as $residentReporterId) {
+            if ($residentReporterId === $reporterId) {
+                continue;
+            }
+            PostReportModeration::notifyReporter($residentReporterId, $id, (int) $post->community_id, 'marked_sensitive');
+        }
+
         $reportsCount = (int) DB::table('post_reports')->where('post_id', $id)->count();
         $residentReportsCount = (int) DB::table('post_reports')
             ->where('post_id', $id)
@@ -1204,7 +1300,7 @@ class FeedController extends Controller
             ->count();
 
         return response()->json([
-            'message' => 'Post reported and marked as sensitive content',
+            'message' => 'Post marked as sensitive for resident app users.',
             'data'    => [
                 'post_id'                => $id,
                 'is_sensitive'           => true,
@@ -1224,6 +1320,9 @@ class FeedController extends Controller
         }
 
         $this->assertCanModeratePost($post);
+        if (! PostReportModeration::canReview(auth()->user(), $post)) {
+            return response()->json(['message' => 'Reports on community admin posts are reviewed by a system admin.'], 403);
+        }
 
         $query = DB::table('post_reports')
             ->join('users', 'users.id', '=', 'post_reports.reporter_id')
@@ -1241,6 +1340,22 @@ class FeedController extends Controller
             )
             ->where('post_reports.post_id', $id)
             ->orderByDesc('post_reports.created_at');
+
+        if (Schema::hasColumn('post_reports', 'status')) {
+            $query->addSelect(
+                'post_reports.status',
+                'post_reports.resolution',
+                'post_reports.review_queue',
+                'post_reports.resolved_at',
+            );
+        }
+
+        if (! AdminRoleService::isSystemAdmin(auth()->user()) && Schema::hasColumn('post_reports', 'review_queue')) {
+            $query->where(function ($inner) {
+                $inner->where('post_reports.review_queue', PostReportModeration::QUEUE_COMMUNITY)
+                    ->orWhereNull('post_reports.review_queue');
+            });
+        }
 
         if (Schema::hasColumn('post_reports', 'comment_id')) {
             $query->leftJoin('post_comments', 'post_comments.id', '=', 'post_reports.comment_id')
@@ -1273,11 +1388,91 @@ class FeedController extends Controller
                 'comment_body'        => $report->comment_body,
                 'source'              => $report->source ?? 'resident',
                 'type'                => $report->type,
+                'status'              => $report->status ?? PostReportModeration::PENDING,
+                'resolution'          => $report->resolution ?? null,
+                'review_queue'        => $report->review_queue ?? PostReportModeration::QUEUE_COMMUNITY,
                 'reason'              => $report->reason,
                 'created_at'          => $this->formatTimestamp($report->created_at),
+                'resolved_at'         => isset($report->resolved_at) && $report->resolved_at
+                    ? $this->formatTimestamp($report->resolved_at)
+                    : null,
             ])->values(),
             'meta' => [
                 'total' => $reports->count(),
+            ],
+        ]);
+    }
+
+    /** POST /v1/admin/posts/{id}/reports/{reportId}/dismiss */
+    public function adminDismissPostReport(int $id, int $reportId): JsonResponse
+    {
+        $post = $this->findPostForAdmin($id);
+        if (! $post) {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
+
+        $this->assertCanModeratePost($post);
+        if (! PostReportModeration::canReview(auth()->user(), $post)) {
+            return response()->json(['message' => 'Reports on community admin posts are reviewed by a system admin.'], 403);
+        }
+
+        $report = DB::table('post_reports')
+            ->where('id', $reportId)
+            ->where('post_id', $id)
+            ->first();
+
+        if (! $report) {
+            return response()->json(['message' => 'Report not found'], 404);
+        }
+
+        if (Schema::hasColumn('post_reports', 'review_queue')
+            && ($report->review_queue ?? PostReportModeration::QUEUE_COMMUNITY) === PostReportModeration::QUEUE_SYSTEM
+            && ! AdminRoleService::isSystemAdmin(auth()->user())) {
+            return response()->json(['message' => 'Reports on community admin posts are reviewed by a system admin.'], 403);
+        }
+
+        $status = $report->status ?? PostReportModeration::PENDING;
+        if ($status !== PostReportModeration::PENDING) {
+            return response()->json(['message' => 'This report has already been reviewed.'], 422);
+        }
+
+        if (Schema::hasColumn('post_reports', 'status')) {
+            DB::table('post_reports')->where('id', $reportId)->update([
+                'status'      => PostReportModeration::DISMISSED,
+                'resolution'  => 'dismissed',
+                'resolved_by' => (int) auth()->id(),
+                'resolved_at' => now(),
+                'updated_at'  => now(),
+            ]);
+        }
+
+        ActivityLogService::user(
+            'post_report_dismissed',
+            'Dismissed report #'.$reportId.' on post #'.$id,
+            'Post',
+            $id,
+            'info',
+            null,
+            [
+                'report_id' => $reportId,
+                'resolution' => 'dismissed',
+            ],
+        );
+
+        PostReportModeration::notifyReporter(
+            (int) $report->reporter_id,
+            $id,
+            (int) $post->community_id,
+            'dismissed',
+        );
+
+        return response()->json([
+            'message' => 'Report dismissed. The post was not changed.',
+            'data' => [
+                'report_id' => $reportId,
+                'status' => PostReportModeration::DISMISSED,
+                'post_status' => $post->status ?? 'approved',
+                'is_sensitive' => (bool) ($post->is_sensitive ?? false),
             ],
         ]);
     }
@@ -1297,7 +1492,10 @@ class FeedController extends Controller
         ];
 
         if (Schema::hasColumn('post_reports', 'source')) {
-            $expressions[] = DB::raw("(SELECT COUNT(*) FROM post_reports WHERE post_reports.post_id = posts.id AND post_reports.source = 'resident') as resident_reports_count");
+            $pending = Schema::hasColumn('post_reports', 'status')
+                ? " AND (post_reports.status = 'pending_review' OR post_reports.status IS NULL)"
+                : '';
+            $expressions[] = DB::raw("(SELECT COUNT(*) FROM post_reports WHERE post_reports.post_id = posts.id AND post_reports.source = 'resident'{$pending}) as resident_reports_count");
         } else {
             // Fallback before source column migration: treat non-sensitive report counts as resident reports.
             $expressions[] = DB::raw('(SELECT COUNT(*) FROM post_reports WHERE post_reports.post_id = posts.id) as resident_reports_count');
@@ -1343,7 +1541,22 @@ class FeedController extends Controller
                 if (Schema::hasColumn('post_reports', 'source')) {
                     $q->where('post_reports.source', 'resident');
                 }
+                if (Schema::hasColumn('post_reports', 'status')) {
+                    $q->where(function ($inner) {
+                        $inner->where('post_reports.status', PostReportModeration::PENDING)
+                            ->orWhereNull('post_reports.status');
+                    });
+                }
             });
+
+            if (! AdminRoleService::isSystemAdmin($request->user())) {
+                $reportedQuery->whereNotExists(function ($q) {
+                    $q->select(DB::raw(1))
+                        ->from('users')
+                        ->whereColumn('users.id', 'posts.user_id')
+                        ->whereIn('users.role', ['community_admin', 'system_admin', 'admin']);
+                });
+            }
 
             $reported = $reportedQuery->count();
         }
@@ -1378,6 +1591,40 @@ class FeedController extends Controller
         if (! AdminRoleService::canManageCommunity($user, (int) $post->community_id)) {
             abort(403, 'You cannot moderate posts in this community');
         }
+    }
+
+    private function assertCanRemovePost(object $post): void
+    {
+        $user = auth()->user();
+        if (PostReportModeration::canReview($user, $post)) {
+            return;
+        }
+
+        $isAuthor = (int) $post->user_id === (int) ($user->id ?? 0);
+        if ($isAuthor && PostReportModeration::pendingCount((int) $post->id) === 0) {
+            return;
+        }
+
+        abort(403, 'Reports on community admin posts are reviewed by a system admin.');
+    }
+
+    private function assertCanMarkSensitive(object $post): void
+    {
+        $user = auth()->user();
+        if ((bool) ($post->is_sensitive ?? false)) {
+            abort(422, 'This post is already marked as sensitive content');
+        }
+
+        if (PostReportModeration::canReview($user, $post)) {
+            return;
+        }
+
+        $isAuthor = (int) $post->user_id === (int) ($user->id ?? 0);
+        if ($isAuthor && PostReportModeration::pendingCount((int) $post->id) === 0) {
+            return;
+        }
+
+        abort(403, 'Reports on community admin posts are reviewed by a system admin.');
     }
 
     private function findApprovedPostForMember(int $id, ?Request $request = null): ?object
@@ -1419,6 +1666,28 @@ class FeedController extends Controller
         }
     }
 
+    /** A resident who reported a post no longer sees it. Other members still do. */
+    private function excludePostsReportedByViewer($query, int $viewerId): void
+    {
+        if (! Schema::hasTable('post_reports')) {
+            return;
+        }
+
+        $query->whereNotExists(function ($hidden) use ($viewerId) {
+            $hidden->select(DB::raw(1))
+                ->from('post_reports')
+                ->whereColumn('post_reports.post_id', 'posts.id')
+                ->where('post_reports.reporter_id', $viewerId);
+
+            if (Schema::hasColumn('post_reports', 'source')) {
+                $hidden->where('post_reports.source', 'resident');
+            }
+            if (Schema::hasColumn('post_reports', 'comment_id')) {
+                $hidden->whereNull('post_reports.comment_id');
+            }
+        });
+    }
+
     private function basePostQuery(int $communityId)
     {
         return DB::table('posts')
@@ -1435,13 +1704,12 @@ class FeedController extends Controller
             ->whereNull('posts.deleted_at');
     }
 
-    private function formatPost(object $post, array $likedPostIds, int $userId, array $options = []): array
+    private function formatPost(object $post, array $likedPostIds, int $userId): array
     {
         $categoryLabels = collect(self::TOPICS)->pluck('label', 'id');
         $categoryLabels->put('poll', 'Poll');
         $isSensitive = (bool) ($post->is_sensitive ?? false);
-        $maskSensitive = ($options['mask_sensitive'] ?? false) && $isSensitive;
-        $body = $maskSensitive ? null : $post->body;
+        $body = $post->body;
         $reportsCount = isset($post->reports_count) ? (int) $post->reports_count : null;
         $residentReportsCount = isset($post->resident_reports_count)
             ? (int) $post->resident_reports_count
@@ -1462,20 +1730,20 @@ class FeedController extends Controller
             'author_role'    => $post->author_role ?? null,
             'can_block'      => UserBlockService::canBlock($userId, (int) $post->user_id, isset($post->community_id) ? (int) $post->community_id : null),
             'body'           => $body,
-            'body_es'        => $maskSensitive ? null : ($post->body_es ?? null),
-            'body_ar'        => $maskSensitive ? null : ($post->body_ar ?? null),
+            'body_es'        => $post->body_es ?? null,
+            'body_ar'        => $post->body_ar ?? null,
             'content'        => $body,
             'category'       => $post->category,
             'status'         => $post->status ?? 'approved',
             'is_sensitive'   => $isSensitive,
-            'sensitive_message' => $maskSensitive
+            'sensitive_message' => $isSensitive
                 ? 'This post has been reported and hidden due to community guidelines.'
                 : null,
             'reports_count'  => $reportsCount,
             'resident_reports_count' => $residentReportsCount,
             'report_status'  => $reportStatus,
             'tag'            => $categoryLabels[$post->category] ?? ucfirst($post->category),
-            'image_url'      => $maskSensitive ? null : MediaUrl::toPublic($post->image_url, request()),
+            'image_url'      => MediaUrl::toPublic($post->image_url, request()),
             'likes_count'    => (int) $post->likes_count,
             'comments_count' => (int) $post->comments_count,
             'likes'          => (int) $post->likes_count,
@@ -1558,6 +1826,7 @@ class FeedController extends Controller
             ->select(
                 'post_comments.*',
                 DB::raw('COALESCE(profiles.display_name, users.name) as author_name'),
+                'users.role as author_role',
                 'profiles.avatar_url as author_avatar',
             );
     }

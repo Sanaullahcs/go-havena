@@ -253,9 +253,9 @@ export function DataTable<K extends string>({
             {visibleCount}/{totalCount}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
           {/* Search */}
-          <div className="relative">
+          <div className="relative min-w-0 w-full sm:w-auto">
             <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
                 <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />
@@ -269,10 +269,9 @@ export function DataTable<K extends string>({
               hideClear={showProgress}
               onChange={(e) => onSearch(e.target.value)}
               className={[
-                "h-8 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition",
+                "h-8 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-[1.875rem] pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition",
                 searchClassName ?? "min-w-[14rem] max-w-[18rem] sm:w-64",
               ].join(" ")}
-              style={{ paddingLeft: "1.875rem" }}
             />
             {showProgress ? (
               <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
@@ -381,9 +380,22 @@ export function DataTable<K extends string>({
   );
 }
 
-export function DtTable({ children, contained = false }: { children: ReactNode; contained?: boolean }) {
+export function DtTable({
+  children,
+  contained = false,
+  className,
+}: {
+  children: ReactNode;
+  contained?: boolean;
+  className?: string;
+}) {
   return (
-    <table className={contained ? "w-full table-fixed border-collapse text-sm" : "w-full min-w-[920px] border-collapse text-sm"}>
+    <table
+      className={[
+        contained ? "w-full table-fixed border-collapse text-sm" : "w-full min-w-[920px] border-collapse text-sm",
+        className ?? "",
+      ].join(" ")}
+    >
       {children}
     </table>
   );

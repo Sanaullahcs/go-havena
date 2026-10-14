@@ -64,9 +64,9 @@ export function FeedPostReportModal({
             <Flag className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-[17px] font-bold text-slate-900">Report post</h3>
+            <h3 className="text-[17px] font-bold text-slate-900">Mark as Sensitive</h3>
             <p className="mt-1 text-[13px] leading-5 text-slate-500">
-              Tell why this post from {post.author_name} should be marked as sensitive for mobile users.
+              Flag {post.author_name}&apos;s post as sensitive for resident app users. Resident reports stay separate and are not changed.
             </p>
           </div>
           <button
@@ -144,11 +144,11 @@ export function FeedPostReportModal({
             style={{ background: NL.fillCta }}
           >
             {busy ? (
-              "Submitting…"
+              "Marking…"
             ) : (
               <>
                 <Send className="h-4 w-4" />
-                Submit report
+                Mark as Sensitive
               </>
             )}
           </button>

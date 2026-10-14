@@ -6,14 +6,15 @@ import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { FeedPostViewModal } from "@/components/admin/feed-post-view-modal";
 import { FeedPostReportModal } from "@/components/admin/feed-post-report-modal";
 import { FeedPostReportsModal } from "@/components/admin/feed-post-reports-modal";
-import { AdminBadge, StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
+import { FeedPostStatus } from "@/components/admin/feed-post-status";
+import { StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
 import { confirmAction, toastSuccess, toastError } from "@/lib/alert";
 import {
   fetchAdminPosts,
   deleteAdminPost,
   reportAdminPost,
+  dismissAdminPostReport,
   fetchAdminPostReports,
-  postReportStatusLabel,
   type AdminPost,
   type AdminPostReport,
   type AdminPostStats,
@@ -25,6 +26,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
 import { PublishPollModal } from "@/components/admin/publish-poll-modal";
+import { CreatePostModal } from "@/components/admin/create-post-modal";
 
 const EMPTY_STATS: AdminPostStats = {
   total: 0,
@@ -56,22 +58,23 @@ export default function AdminFeedPage() {
   const [postReports, setPostReports] = useState<AdminPostReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [pollOpen, setPollOpen] = useState(false);
-  const canPublishPoll = !isSystemAdminUser() && Boolean(getManagedCommunityId());
+  const [postOpen, setPostOpen] = useState(false);
+  const canPublish = !isSystemAdminUser() && Boolean(getManagedCommunityId());
   const prevFilterKey = useRef(`|${debouncedSearch}`);
 
   const handleDelete = async (post: AdminPost) => {
     if (actionId !== null) return;
     const r = await confirmAction({
-      title: "Delete this post?",
-      text: `This will permanently remove ${post.author_name}'s post from ${post.community_name ?? "the community"} feed.`,
-      confirmText: "Delete post",
+      title: "Remove this post?",
+      text: `This removes ${post.author_name}'s post from the community feed. Pending reports on it will be marked resolved.`,
+      confirmText: "Remove Post",
       color: "red",
     });
     if (!r.isConfirmed) return;
     setActionId(post.id);
     try {
       await deleteAdminPost(post.id);
-      toastSuccess("Post deleted from the feed.");
+      toastSuccess("Post removed from the feed.");
       if (viewing?.id === post.id) setViewing(null);
       await load(true);
     } catch (err) {
@@ -86,8 +89,30 @@ export default function AdminFeedPage() {
     setActionId(reporting.id);
     try {
       const result = await reportAdminPost(reporting.id, payload.reason, payload.type);
-      toastSuccess(result.message ?? "Post reported and marked as sensitive.");
+      toastSuccess(result.message ?? "Post marked as sensitive for resident app users.");
       setReporting(null);
+      await load(true);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleDismissReport = async (report: AdminPostReport) => {
+    if (!reportsPost || actionId !== null) return;
+    const r = await confirmAction({
+      title: "Dismiss this report?",
+      text: "The post stays published and is not marked sensitive. The reporter will be told the report was reviewed.",
+      confirmText: "Dismiss report",
+    });
+    if (!r.isConfirmed) return;
+    setActionId(reportsPost.id);
+    try {
+      const result = await dismissAdminPostReport(reportsPost.id, report.id);
+      toastSuccess(result.message ?? "Report dismissed. The post was not changed.");
+      const res = await fetchAdminPostReports(reportsPost.id);
+      setPostReports(res.data);
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -150,7 +175,7 @@ export default function AdminFeedPage() {
 
   const statTiles = useMemo(() => [
     { label: "Live Posts", value: String(stats.approved), hint: "Published in feeds", tone: "blue" as const, icon: <IcoFeed /> },
-    { label: "Reported", value: String(stats.reported ?? 0), hint: "Flagged by residents", tone: "red" as const, icon: <IcoFlag /> },
+    { label: "Pending review", value: String(stats.reported ?? 0), hint: "Resident reports awaiting a decision", tone: "red" as const, icon: <IcoFlag /> },
     { label: "Sensitive", value: String(stats.sensitive ?? 0), hint: "Marked by community admin", tone: "amber" as const, icon: <IcoWarn /> },
     { label: "This page", value: String(posts.length), hint: `${total} total matching`, tone: "green" as const, icon: <IcoCheck /> },
   ], [stats.approved, stats.reported, stats.sensitive, posts.length, total]);
@@ -165,17 +190,26 @@ export default function AdminFeedPage() {
           <p className="nl-eyebrow">Community</p>
           <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Feed moderation</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Resident reports show as Reported. Admin reports mark posts as Sensitive for mobile users.
+            Resident reports stay pending until you dismiss them, mark the post sensitive, or remove it.
           </p>
         </div>
-        {canPublishPoll ? (
-          <button
-            type="button"
-            onClick={() => setPollOpen(true)}
-            className="rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white"
-          >
-            Publish Poll
-          </button>
+        {canPublish ? (
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setPostOpen(true)}
+              className="rounded-xl border border-[#1B4F8A] bg-white px-4 py-2 text-sm font-semibold text-[#1B4F8A]"
+            >
+              Create Post
+            </button>
+            <button
+              type="button"
+              onClick={() => setPollOpen(true)}
+              className="rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white"
+            >
+              Publish Poll
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -189,13 +223,22 @@ export default function AdminFeedPage() {
         visibleCount={posts.length}
         search={searchInput}
         onSearch={setSearchInput}
-        searchPlaceholder="Search by author, community, or content…"
+        searchPlaceholder="Search by author, community"
+        searchClassName="nl-moderation-search w-full max-w-none sm:w-[19.5rem] sm:min-w-[19.5rem] sm:max-w-[19.5rem]"
         isEmpty={posts.length === 0}
         empty="No posts in the feed yet."
         searching={isSearchPending}
         loading={adminTableBusy(refreshing, actionId !== null)}
       >
-        <DtTable>
+        <DtTable className="table-fixed">
+          <colgroup>
+            <col className="w-[40%]" />
+            <col className="w-[16%]" />
+            <col className="w-[12%]" />
+            <col className="w-[14%]" />
+            <col className="w-[12%]" />
+            <col className="w-[6%]" />
+          </colgroup>
           <DtHead cols={[
             { label: "Post" },
             { label: "Community" },
@@ -214,13 +257,17 @@ export default function AdminFeedPage() {
                   id={`feed-post-${post.id}`}
                   className={highlighted ? "bg-teal-50/80 ring-2 ring-teal-200 ring-inset" : undefined}
                 >
-                  <DtCell first>
-                    <p className="font-semibold text-slate-900">{post.author_name}</p>
-                    <p className="mt-1 line-clamp-2 text-[12.5px] text-slate-500">{post.body}</p>
-                    <p className="mt-1.5 flex items-center gap-3 text-[11px] text-slate-400">
-                      <span>{post.likes_count} {post.likes_count === 1 ? "like" : "likes"}</span>
-                      <span>{post.comments_count} {post.comments_count === 1 ? "comment" : "comments"}</span>
-                    </p>
+                  <DtCell first className="overflow-hidden">
+                    <div className="max-w-full max-sm:max-w-[calc(100vw-8rem)]">
+                      <p className="truncate font-semibold leading-5 text-slate-900">{post.author_name}</p>
+                      <p className="mt-1 truncate text-[12.5px] leading-5 text-slate-500">{post.body}</p>
+                      {post.category === "poll" ? null : (
+                        <p className="mt-1.5 flex items-center gap-3 whitespace-nowrap text-[11px] leading-4 text-slate-400">
+                          <span>{post.likes_count} {post.likes_count === 1 ? "like" : "likes"}</span>
+                          <span>{post.comments_count} {post.comments_count === 1 ? "comment" : "comments"}</span>
+                        </p>
+                      )}
+                    </div>
                   </DtCell>
                   <DtCell nowrap muted>{post.community_name ?? "—"}</DtCell>
                   <DtCell nowrap>{post.tag}</DtCell>
@@ -228,39 +275,36 @@ export default function AdminFeedPage() {
                     {new Date(post.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                   </DtCell>
                   <DtCell>
-                    {(() => {
-                      const status = postReportStatusLabel(post);
-                      if (status === "Sensitive") return <AdminBadge tone="amber">Sensitive</AdminBadge>;
-                      if (status === "Reported") return <AdminBadge tone="red">Reported</AdminBadge>;
-                      return <AdminBadge tone="green">Published</AdminBadge>;
-                    })()}
+                    <FeedPostStatus post={post} />
                   </DtCell>
                   <DtCell last right>
                     <AdminActionsMenu
                       disabled={busy}
                       actions={[
                         {
-                          label: "View post",
+                          label: "View Details",
                           icon: "view",
                           onClick: () => setViewing(post),
                         },
                         {
-                          label: "Report post",
+                          label: "Mark as Sensitive",
                           icon: "ban",
                           tone: "warning",
                           onClick: () => setReporting(post),
-                          hidden: post.is_sensitive || post.report_status === "sensitive",
+                          hidden: post.can_mark_sensitive === false || Boolean(post.is_sensitive),
                         },
                         {
                           label: "View reports",
                           icon: "view",
                           onClick: () => handleViewReports(post),
+                          hidden: Boolean(post.reports_restricted),
                         },
                         {
-                          label: "Delete post",
+                          label: "Remove Post",
                           icon: "ban",
                           tone: "danger",
                           onClick: () => handleDelete(post),
+                          hidden: post.can_remove_post === false,
                         },
                       ]}
                     />
@@ -279,6 +323,11 @@ export default function AdminFeedPage() {
         />
       </DataTable>
 
+      <CreatePostModal
+        open={postOpen}
+        onClose={() => setPostOpen(false)}
+        onPublished={() => load(true)}
+      />
       <PublishPollModal
         open={pollOpen}
         onClose={() => setPollOpen(false)}
@@ -295,6 +344,21 @@ export default function AdminFeedPage() {
         post={reportsPost}
         reports={postReports}
         loading={reportsLoading}
+        busy={actionId !== null}
+        onDismiss={handleDismissReport}
+        onMarkSensitive={() => {
+          if (!reportsPost) return;
+          setReporting(reportsPost);
+          setReportsPost(null);
+          setPostReports([]);
+        }}
+        onRemove={() => {
+          if (!reportsPost) return;
+          const current = reportsPost;
+          setReportsPost(null);
+          setPostReports([]);
+          void handleDelete(current);
+        }}
         onClose={() => {
           setReportsPost(null);
           setPostReports([]);

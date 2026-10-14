@@ -27,6 +27,7 @@ import {
   likePost,
   parsePostDisplayContent,
   isSensitivePost,
+  feedDetailsParams,
   TOPIC_LABEL_KEY,
 } from "../../../../services/feed-api";
 import FeedSensitiveContent from "../../../../components/feed/feed-sensitive-content";
@@ -46,6 +47,17 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
   const theme = getFeedTagTheme(post.tag);
   const display = parsePostDisplayContent(post);
   const sensitive = isSensitivePost(post);
+  const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
+
+  useEffect(() => {
+    setSensitiveRevealed(false);
+  }, [post?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setSensitiveRevealed(false);
+    }, []),
+  );
 
   return (
     <View style={styles.card}>
@@ -104,8 +116,13 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
         </View>
 
         {sensitive ? (
-          <FeedSensitiveContent message={post.sensitive_message} />
-        ) : (
+          <FeedSensitiveContent
+            message={post.sensitive_message}
+            revealed={sensitiveRevealed}
+            onToggle={() => setSensitiveRevealed((current) => !current)}
+          />
+        ) : null}
+        {!sensitive || sensitiveRevealed ? (
           <>
             {display.mainText ? (
               <Text style={styles.bodyText}>{display.mainText}</Text>
@@ -146,15 +163,16 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
               </View>
             ) : null}
           </>
-        )}
+        ) : null}
       </View>
 
       <FeedCardFooter
         likesCount={post.likes_count ?? post.likes ?? 0}
         commentsCount={post.comments_count ?? post.comments ?? 0}
         liked={post.liked_by_me ?? false}
-        onLike={() => onLike(post.id)}
-        onComment={() => onComment(post.id)}
+        onLike={sensitive ? undefined : () => onLike(post.id)}
+        onComment={sensitive ? undefined : () => onComment(post)}
+        disabled={sensitive}
         style={styles.cardFooter}
       />
     </View>
@@ -291,10 +309,10 @@ export default function MyPosts() {
   }, []);
 
   const handleComment = useCallback(
-    (postId) => {
+    (post) => {
       router.push({
         pathname: "/screens/community-feed/comments",
-        params: { postId: String(postId) },
+        params: feedDetailsParams(post),
       });
     },
     [router],

@@ -49,10 +49,20 @@ export async function fetchFeed(params?: Record<string, unknown>) {
 export async function createPost(data: {
   body?: string;
   category?: string;
+  image_url?: string;
   poll?: { question: string; description?: string; duration_days: number; options: string[] };
 }) {
   const res = await api.post("/v1/feed", data);
   return res.data;
+}
+
+export async function uploadPostImage(file: File) {
+  const form = new FormData();
+  form.append("image", file);
+  const res = await api.post("/v1/feed/upload-image", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data.data.image_url as string;
 }
 
 export async function voteOnPoll(postId: number, optionId: number) {

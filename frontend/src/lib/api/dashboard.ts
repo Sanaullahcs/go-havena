@@ -16,6 +16,7 @@ export interface AdminDashboardStats {
   pending_service_payments?: number;
   pending_businesses?: number;
   published_notices: number;
+  upcoming_events?: number;
   total_posts: number;
   total_communities: number;
   active_regions: number;

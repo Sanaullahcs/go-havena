@@ -8,6 +8,7 @@ import {
   Animated,
 } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
 import UserAvatar from "../ui/user-avatar";
 import FeedPostContent from "./feed-post-content";
@@ -19,7 +20,7 @@ import { FeedCardFooter, LIKE_HEART_RED } from "./feed-engagement";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { getFeedTagTheme } from "../../constants/feed-theme";
-import { formatCount, getPostImageUrls, isSensitivePost, timeAgo, TOPIC_LABEL_KEY } from "../../services/feed-api";
+import { formatCount, getPostImageUrls, isPollPost, isSensitivePost, timeAgo, TOPIC_LABEL_KEY } from "../../services/feed-api";
 import { sw, sf } from "../../utils/responsive";
 import { rnShadow } from "../../utils/shadow";
 
@@ -31,8 +32,10 @@ export default function FeedPostCard({
   onProfile,
   onShare,
   onDeleted,
+  onReported,
   onUserBlocked,
   footerVariant = "compact",
+  showFooter = true,
   showOptions = true,
   style,
   contentTextStyle,
@@ -40,6 +43,7 @@ export default function FeedPostCard({
   const { t } = useTranslation();
   const [votedPost, setVotedPost] = useState(null);
   const viewPost = votedPost && String(votedPost.id) === String(post.id) ? { ...post, poll: votedPost.poll } : post;
+  const pollPost = isPollPost(viewPost);
   const authorName = post.user?.display_name ?? post.user?.name ?? t("feed.neighbor");
   const isLiked = post.liked_by_me ?? false;
   const likeCount = formatCount(post.likes_count ?? post.likes);
@@ -47,7 +51,18 @@ export default function FeedPostCard({
   const theme = getFeedTagTheme(post.tag);
   const relativeTime = timeAgo(post.created_at, now) || post.user?.time || "";
   const isSensitive = isSensitivePost(post);
+  const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
   const isEngagement = footerVariant === "engagement";
+
+  useEffect(() => {
+    setSensitiveRevealed(false);
+  }, [post?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setSensitiveRevealed(false);
+    }, []),
+  );
 
   const likeScale = useRef(new Animated.Value(1)).current;
 
@@ -68,8 +83,8 @@ export default function FeedPostCard({
   }, [isSensitive, onComments]);
 
   const handleShare = useCallback(() => {
-    onShare?.();
-  }, [onShare]);
+    if (!isSensitive) onShare?.();
+  }, [isSensitive, onShare]);
 
   return (
     <View style={[styles.card, style]}>
@@ -109,15 +124,20 @@ export default function FeedPostCard({
               </View>
             ) : null}
             {showOptions && !isSensitive ? (
-              <FeedPostOptions post={post} onDeleted={onDeleted} onUserBlocked={onUserBlocked} />
+              <FeedPostOptions post={post} onDeleted={onDeleted} onReported={onReported} onUserBlocked={onUserBlocked} />
             ) : null}
           </View>
         </View>
 
         {/* Content */}
         {isSensitive ? (
-          <FeedSensitiveContent message={post.sensitive_message} />
-        ) : (
+          <FeedSensitiveContent
+            message={post.sensitive_message}
+            revealed={sensitiveRevealed}
+            onToggle={() => setSensitiveRevealed((current) => !current)}
+          />
+        ) : null}
+        {!isSensitive || sensitiveRevealed ? (
           <>
             {viewPost.poll ? (
               <FeedPollCard post={viewPost} now={now} onVoted={setVotedPost} />
@@ -136,10 +156,10 @@ export default function FeedPostCard({
               />
             ) : null}
           </>
-        )}
+        ) : null}
 
         {/* Footer */}
-        {isEngagement ? (
+        {!showFooter || pollPost ? null : isEngagement ? (
           <FeedCardFooter
             likesCount={post.likes_count}
             commentsCount={post.comments_count}
@@ -200,10 +220,11 @@ export default function FeedPostCard({
               <Pressable
                 style={styles.actionBtn}
                 onPress={handleShare}
+                disabled={isSensitive}
                 hitSlop={4}
               >
-                <Feather name="share-2" size={sf(15)} color={T.gray} />
-                <Text style={styles.actionText}>{t("feed.share")}</Text>
+                <Feather name="share-2" size={sf(15)} color={isSensitive ? T.border : T.gray} />
+                <Text style={[styles.actionText, isSensitive && styles.actionTextDisabled]}>{t("feed.share")}</Text>
               </Pressable>
             </View>
           </View>

@@ -179,6 +179,8 @@ class FeedPostTest extends TestCase
             'X-Community-Id' => (string) $community->id,
         ])->assertCreated()->json('data.id');
 
+        app(\App\Services\CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
         Sanctum::actingAs($admin);
 
         $this->postJson('/api/v1/admin/posts/'.$postId.'/report', [
@@ -207,7 +209,7 @@ class FeedPostTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('data.0.is_sensitive', true)
-            ->assertJsonPath('data.0.body', null)
+            ->assertJsonPath('data.0.body', 'Inappropriate community post content.')
             ->assertJsonPath('data.0.sensitive_message', 'This post has been reported and hidden due to community guidelines.');
     }
 
@@ -248,6 +250,8 @@ class FeedPostTest extends TestCase
             ->assertJsonPath('data.report_status', 'reported')
             ->assertJsonPath('data.is_sensitive', false);
 
+        app(\App\Services\CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
         Sanctum::actingAs($admin);
 
         $this->getJson('/api/v1/admin/posts')
@@ -258,6 +262,18 @@ class FeedPostTest extends TestCase
             ->assertJsonPath('data.0.resident_reports_count', 1);
 
         Sanctum::actingAs($resident);
+
+        $this->getJson('/api/v1/feed?community_id='.$community->id, [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this->getJson('/api/v1/feed/'.$postId, [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertNotFound();
+
+        Sanctum::actingAs($author);
 
         $this->getJson('/api/v1/feed?community_id='.$community->id, [
             'X-Community-Id' => (string) $community->id,
@@ -388,6 +404,62 @@ class FeedPostTest extends TestCase
             ->assertJsonPath('data.comment_id', $commentId);
     }
 
+    public function test_poll_description_is_optional_and_capped_at_500_characters(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($admin);
+        $headers = ['X-Community-Id' => (string) $community->id];
+
+        $this->postJson('/api/v1/feed', [
+            'category' => 'poll',
+            'poll' => [
+                'question' => 'Should we add a weekend market?',
+                'description' => str_repeat('a', 501),
+                'duration_days' => 3,
+                'options' => ['Yes', 'No'],
+            ],
+        ], $headers)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'poll.description' => 'Short description must be 500 characters or fewer.',
+            ]);
+
+        $this->assertSame(0, DB::table('polls')->count());
+
+        $description = str_repeat('b', 500);
+        $this->postJson('/api/v1/feed', [
+            'category' => 'poll',
+            'poll' => [
+                'question' => 'Should we add a weekend market?',
+                'description' => $description,
+                'duration_days' => 3,
+                'options' => ['Yes', 'No'],
+            ],
+        ], $headers)
+            ->assertCreated()
+            ->assertJsonPath('data.poll.description', $description);
+
+        app(\App\Services\CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
+        $this->postJson('/api/v1/feed', [
+            'body' => 'Community update from the admin.',
+            'category' => 'announcement',
+        ], $headers)
+            ->assertCreated()
+            ->assertJsonPath('data.category', 'announcement')
+            ->assertJsonPath('data.body', 'Community update from the admin.')
+            ->assertJsonPath('message', 'Post published to your community feed.');
+
+        $this->getJson('/api/v1/admin/posts')
+            ->assertOk()
+            ->assertJsonPath('data.0.category', 'announcement')
+            ->assertJsonPath('data.0.body', 'Community update from the admin.')
+            ->assertJsonPath('data.1.category', 'poll')
+            ->assertJsonPath('data.1.poll.question', 'Should we add a weekend market?')
+            ->assertJsonPath('data.1.poll.description', $description);
+    }
+
     public function test_resident_and_admin_can_create_polls_and_vote_once(): void
     {
         ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
@@ -434,11 +506,36 @@ class FeedPostTest extends TestCase
         $vote->assertJsonPath('data.poll.options.0.percent', 100);
         $vote->assertJsonPath('message', 'Vote recorded.');
 
+        $noId = $create->json('data.poll.options.1.id');
+        $changed = $this->postJson('/api/v1/feed/'.$postId.'/vote', [
+            'option_id' => $noId,
+        ], ['X-Community-Id' => (string) $community->id])->assertOk();
+
+        $changed->assertJsonPath('message', 'Vote updated.');
+        $changed->assertJsonPath('data.poll.voted_option_id', $noId);
+        $changed->assertJsonPath('data.poll.total_votes', 1);
+        $changed->assertJsonPath('data.poll.options.0.votes', 0);
+        $changed->assertJsonPath('data.poll.options.0.percent', 0);
+        $changed->assertJsonPath('data.poll.options.1.votes', 1);
+        $changed->assertJsonPath('data.poll.options.1.percent', 100);
+        $this->assertSame(1, DB::table('poll_votes')->where('user_id', $resident->id)->count());
+        $this->assertSame((int) $noId, (int) DB::table('poll_votes')->where('user_id', $resident->id)->value('option_id'));
+
         $this->postJson('/api/v1/feed/'.$postId.'/vote', [
-            'option_id' => $create->json('data.poll.options.1.id'),
+            'option_id' => $yesId,
         ], ['X-Community-Id' => (string) $community->id])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'You have already voted in this poll.');
+            ->assertOk()
+            ->assertJsonPath('data.poll.voted_option_id', $yesId)
+            ->assertJsonPath('data.poll.total_votes', 1)
+            ->assertJsonPath('data.poll.options.0.percent', 100)
+            ->assertJsonPath('data.poll.options.1.percent', 0);
+
+        $this->getJson('/api/v1/feed/'.$postId, [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.poll.voted_option_id', $yesId)
+            ->assertJsonPath('data.poll.total_votes', 1);
 
         $this->assertSame(1, DB::table('poll_votes')->where('user_id', $resident->id)->count());
 
@@ -469,5 +566,229 @@ class FeedPostTest extends TestCase
         $this->postJson('/api/v1/feed/'.$postId.'/comments', [
             'body' => 'Four hours is enough overnight.',
         ], ['X-Community-Id' => (string) $community->id])->assertCreated();
+    }
+
+    public function test_resident_report_stays_pending_until_an_admin_resolves_it(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        $author = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'phone'  => '+201700000041',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $author->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        Sanctum::actingAs($author);
+        $postId = $this->postJson('/api/v1/feed', [
+            'body' => 'A neighbor post that needs review.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/feed/'.$postId.'/report', [
+            'type'        => 'spam',
+            'description' => 'This looks like spam to me.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'pending_review')
+            ->assertJsonPath('data.review_queue', 'community_admin')
+            ->assertJsonPath('data.is_sensitive', false);
+
+        $this->assertDatabaseHas('post_reports', [
+            'post_id'      => $postId,
+            'reporter_id'  => $resident->id,
+            'status'       => 'pending_review',
+            'review_queue' => 'community_admin',
+        ]);
+        $this->assertDatabaseHas('posts', [
+            'id'           => $postId,
+            'status'       => 'approved',
+            'is_sensitive' => false,
+            'deleted_at'   => null,
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $admin->id,
+            'title'   => 'Post reported',
+        ]);
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $author->id,
+            'title'   => 'Post reported',
+        ]);
+        $this->assertDatabaseHas('activity_logs', [
+            'action'      => 'post_reported_by_resident',
+            'entity_type' => 'Post',
+            'entity_id'   => $postId,
+        ]);
+
+        app(\App\Services\CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $reportId = $this->getJson('/api/v1/admin/posts/'.$postId.'/reports')
+            ->assertOk()
+            ->assertJsonPath('data.0.status', 'pending_review')
+            ->assertJsonPath('data.0.reporter_name', $resident->name)
+            ->json('data.0.id');
+
+        $this->postJson('/api/v1/admin/posts/'.$postId.'/reports/'.$reportId.'/dismiss')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'dismissed')
+            ->assertJsonPath('data.is_sensitive', false);
+
+        $this->assertDatabaseHas('posts', [
+            'id'           => $postId,
+            'status'       => 'approved',
+            'is_sensitive' => false,
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $resident->id,
+            'title'   => 'Report reviewed',
+        ]);
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $author->id,
+            'title'   => 'Post marked as sensitive',
+        ]);
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/feed/'.$postId.'/report', [
+            'type'        => 'spam',
+            'description' => 'Reporting it again after review.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertStatus(422);
+
+        $second = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'phone'  => '+201700000042',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $second->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+        Sanctum::actingAs($second);
+        $this->postJson('/api/v1/feed/'.$postId.'/report', [
+            'type'        => 'harassment',
+            'description' => 'This post targets a neighbor.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated();
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/posts/'.$postId.'/report', [
+            'reason' => 'Violates community guidelines.',
+        ])->assertOk()->assertJsonPath('data.is_sensitive', true);
+
+        $this->assertDatabaseHas('posts', [
+            'id'           => $postId,
+            'status'       => 'approved',
+            'is_sensitive' => true,
+        ]);
+        $this->assertDatabaseHas('post_reports', [
+            'post_id'     => $postId,
+            'reporter_id' => $second->id,
+            'status'      => 'resolved',
+            'resolution'  => 'marked_sensitive',
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $author->id,
+            'title'   => 'Post marked as sensitive',
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $second->id,
+            'title'   => 'Report reviewed',
+        ]);
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'post_reported',
+        ]);
+    }
+
+    public function test_reports_against_community_admin_posts_go_to_system_admin(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        $systemAdmin = User::factory()->create([
+            'role'   => 'system_admin',
+            'status' => 'active',
+            'phone'  => '+201700000043',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $postId = $this->postJson('/api/v1/feed', [
+            'body' => 'A community admin post.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/feed/'.$postId.'/report', [
+            'type'        => 'spam',
+            'description' => 'This admin post should be reviewed higher up.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.review_queue', 'system_admin')
+            ->assertJsonPath('data.is_sensitive', false);
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $systemAdmin->id,
+            'title'   => 'Community admin post reported',
+        ]);
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $admin->id,
+            'title'   => 'Post reported',
+        ]);
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $admin->id,
+            'title'   => 'Community admin post reported',
+        ]);
+
+        app(\App\Services\CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
+        $reportId = (int) DB::table('post_reports')->where('post_id', $postId)->value('id');
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/posts/'.$postId.'/reports')->assertForbidden();
+        $this->postJson('/api/v1/admin/posts/'.$postId.'/reports/'.$reportId.'/dismiss')->assertForbidden();
+        $this->postJson('/api/v1/admin/posts/'.$postId.'/report', [
+            'reason' => 'Trying to hide this myself.',
+        ])->assertForbidden();
+
+        $this->getJson('/api/v1/admin/posts')
+            ->assertOk()
+            ->assertJsonPath('data.0.reports_restricted', true)
+            ->assertJsonPath('data.0.resident_reports_count', 0)
+            ->assertJsonPath('data.0.is_sensitive', false);
+
+        Sanctum::actingAs($systemAdmin);
+        $this->getJson('/api/v1/admin/posts/'.$postId.'/reports')
+            ->assertOk()
+            ->assertJsonPath('data.0.status', 'pending_review')
+            ->assertJsonPath('data.0.review_queue', 'system_admin');
+
+        $this->postJson('/api/v1/admin/posts/'.$postId.'/reports/'.$reportId.'/dismiss')
+            ->assertOk()
+            ->assertJsonPath('data.is_sensitive', false);
+
+        $this->assertDatabaseHas('posts', [
+            'id'           => $postId,
+            'is_sensitive' => false,
+            'status'       => 'approved',
+        ]);
+        $this->assertDatabaseHas('activity_logs', [
+            'action'  => 'post_report_dismissed',
+            'user_id' => $systemAdmin->id,
+        ]);
     }
 }

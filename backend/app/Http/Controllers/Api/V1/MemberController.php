@@ -18,7 +18,9 @@ use App\Services\InviteCodeService;
 use App\Services\LifecycleMailService;
 use App\Services\MemberBatchInviteService;
 use App\Services\ResidentInviteService;
+use App\Models\CommunityMembership;
 use App\Services\MemberLifecycleStatus;
+use App\Services\MemberWelcomeNotification;
 use App\Services\NotificationService;
 use App\Support\ActivityActionCatalog;
 use App\Support\PhoneNormalizer;
@@ -1105,6 +1107,15 @@ class MemberController extends Controller
             $member = User::query()->find($id);
             if ($community && $member) {
                 app(LifecycleMailService::class)->residentApproved($member, $community);
+            }
+            if (($membership->status ?? '') !== 'inactive' && $member instanceof User) {
+                $freshMembership = CommunityMembership::query()
+                    ->where('user_id', $id)
+                    ->where('community_id', $communityId)
+                    ->first();
+                if ($freshMembership) {
+                    MemberWelcomeNotification::sendIfReady($member, $freshMembership);
+                }
             }
         }
 

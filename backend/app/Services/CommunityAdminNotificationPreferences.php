@@ -97,7 +97,7 @@ class CommunityAdminNotificationPreferences
         }
 
         if (
-            in_array($kind, ['ugc_report', 'user_blocked'], true)
+            in_array($kind, ['ugc_report', 'user_blocked', 'post_report'], true)
             || str_contains($url, '/admin/moderation')
             || str_contains($url, '/moderation')
         ) {

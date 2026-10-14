@@ -3,6 +3,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { promptImageSourceAsync } from "../providers/image-source-picker-provider";
 import { persistUploadAsset } from "./upload-form-data";
+import { resolveLibraryPicker } from "./gallery-image-options";
 import i18n from "../i18n";
 
 function notifyError(showError, title, message) {
@@ -214,6 +215,7 @@ export async function pickImageFile(onSuccess, options = {}) {
  *   promptMessage?: string,
  *   uploadBaseName?: string,
  *   cameraFirst?: boolean,
+ *   preserveGalleryOriginal?: boolean,
  * }} [options]
  */
 export const pickImage = async (onSuccess, options = {}) => {
@@ -227,9 +229,25 @@ export const pickImage = async (onSuccess, options = {}) => {
     promptMessage,
     uploadBaseName = "document",
     cameraFirst = false,
+    preserveGalleryOriginal = false,
   } = options;
 
-  const pickerOptions = documentPick ? DOCUMENT_PICKER : DEFAULT_PICKER;
+  const libraryPick = resolveLibraryPicker({
+    documentPick,
+    preserveGalleryOriginal,
+    platform: Platform.OS,
+  });
+  const pickerOptions =
+    libraryPick.kind === "document"
+      ? DOCUMENT_PICKER
+      : libraryPick.kind === "original"
+        ? {
+            mediaTypes: libraryPick.mediaTypes,
+            allowsEditing: false,
+            quality: libraryPick.quality,
+            exif: true,
+          }
+        : DEFAULT_PICKER;
   const fileOptions = { showError, allowPdf: allowPdf || documentPick, uploadBaseName };
   const photoOptions = { showError, documentPick, uploadBaseName };
 
@@ -258,6 +276,9 @@ export const pickImage = async (onSuccess, options = {}) => {
 
     if (!result.canceled && result.assets?.[0]) {
       let asset = result.assets[0];
+      if (libraryPick.kind === "original") {
+        asset = { ...asset, galleryOriginal: true };
+      }
       if (documentPick) {
         asset = await finalizeDocumentAsset(asset, uploadBaseName, showError);
         if (!asset) return null;

@@ -975,8 +975,9 @@ class FamilyService
                 'Membership Approved',
                 'Your membership has been approved. Welcome to the community!',
             );
+            MemberWelcomeNotification::sendIfReady($candidate, $membership->fresh());
         } elseif (! $membership) {
-            CommunityMembership::query()->create([
+            $created = CommunityMembership::query()->create([
                 'user_id'      => $candidate->id,
                 'community_id' => $communityId,
                 'role'         => 'member',
@@ -988,6 +989,7 @@ class FamilyService
                 'Membership Approved',
                 'Your membership has been approved. Welcome to the community!',
             );
+            MemberWelcomeNotification::sendIfReady($candidate, $created);
         } elseif ($membership->status !== 'approved') {
             abort(422, 'This resident must be an approved community member before joining a family.');
         }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { StatTile } from "@/components/admin/ui";
 import NoticeFormModal from "@/components/admin/notice-form-modal";
 import { MemberInviteModal } from "@/components/admin/member-invite-modal";
 import {
@@ -26,7 +26,6 @@ import {
   Ban,
   Building2,
   Calendar,
-  CheckCircle2,
   ClipboardList,
   Clock,
   dashIcon,
@@ -35,8 +34,13 @@ import {
   ShoppingCart,
   Activity,
   TrendingUp,
+  UserCheck,
+  UserPlus,
   Users,
 } from "@/components/admin/dashboard/dashboard-icons";
+import { NL } from "@/lib/design-tokens";
+import type { AdminTone } from "@/lib/admin/admin-tones";
+import { ADMIN_TONE } from "@/lib/admin/admin-tones";
 import {
   fetchAdminStats,
   type AdminDashboardData,
@@ -71,7 +75,90 @@ import {
   confirmPublishCommunityContent,
   type PendingVerb,
 } from "@/lib/admin/dashboard-confirmations";
-import { PendingReviewBreakdown } from "@/lib/admin/pending-review-breakdown";
+type MetricCard = {
+  label: string;
+  value: string;
+  hint: string;
+  tone: AdminTone;
+  href: string;
+  icon: ReactNode;
+};
+
+function DashboardMetricCard({ label, value, hint, tone, href, icon }: MetricCard) {
+  const palette = ADMIN_TONE[tone] ?? ADMIN_TONE.blue;
+
+  return (
+    <Link
+      href={href}
+      aria-label={`${label}: ${value}. ${hint}`}
+      onClick={(event) => {
+        const id = href.split("#")[1];
+        if (!id) return;
+        const target = document.getElementById(id);
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        window.history.replaceState(null, "", `#${id}`);
+      }}
+      className="group flex min-h-[7.25rem] flex-col justify-between rounded-2xl border bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:p-5"
+      style={{
+        borderColor: palette.border,
+        boxShadow: NL.shadowCard,
+        outlineColor: NL.teal,
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[13px] font-semibold leading-5 sm:text-sm" style={{ color: NL.textPrimary }}>
+          {label}
+        </p>
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl [&_svg]:h-[18px] [&_svg]:w-[18px]"
+          style={{ background: palette.iconBg, color: palette.iconColor }}
+        >
+          {icon}
+        </span>
+      </div>
+      <div className="mt-4">
+        <p className="text-[1.75rem] font-bold leading-none tabular-nums tracking-tight" style={{ color: NL.textPrimary }}>
+          {value}
+        </p>
+        <p className="mt-2 text-[12.5px] leading-5" style={{ color: NL.textSecondary }}>
+          {hint}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function MetricSection({
+  title,
+  description,
+  cards,
+}: {
+  title: string;
+  description: string;
+  cards: MetricCard[];
+}) {
+  if (cards.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold leading-6 sm:text-[17px]" style={{ color: NL.textPrimary }}>
+          {title}
+        </h2>
+        <p className="mt-0.5 text-[13px] leading-5" style={{ color: NL.textSecondary }}>
+          {description}
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 min-[520px]:gap-4 xl:grid-cols-4">
+        {cards.map((card) => (
+          <DashboardMetricCard key={card.label} {...card} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
 type CreateKind = "notice" | "event" | "alert" | null;
 
@@ -107,7 +194,9 @@ export default function CommunityAdminDashboard() {
       setData(result);
       setAdminCache("dashboard:community-stats", result);
     } catch (err) {
-      setError(apiError(err));
+      const message = apiError(err);
+      setError(message);
+      if (silent) toastError(message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -236,88 +325,102 @@ export default function CommunityAdminDashboard() {
     }
   };
 
-  const kpis = useMemo(() => {
+  const overviewCards = useMemo(() => {
     if (!data) return [];
     const { stats } = data;
-    return [
+    const invitations = stats.invitation_sent_members ?? 0;
+    const bookingsOnOwnCard = communityFeatureVisible("/admin/bookings");
+    const bookingCount = stats.pending_bookings ?? 0;
+    const approvals = bookingsOnOwnCard
+      ? Math.max(0, stats.pending_approval_total - bookingCount)
+      : stats.pending_approval_total;
+    const cards: MetricCard[] = [
       {
-        label: "Total Members",
+        label: "Active Members",
         value: String(stats.total_members),
-        hint: stats.pending_members
-          ? `${stats.pending_members} pending approval`
-          : "Active members who have joined",
-        tone: "blue" as const,
-        href: "/admin/members",
-        icon: dashIcon(Users),
+        hint: stats.total_members > 0 ? "Approved residents" : "No active members yet",
+        tone: "blue",
+        href: "/admin/members?status=approved",
+        icon: dashIcon(UserCheck),
       },
       {
-        label: "Pending Review",
-        value: String(stats.pending_approval_total),
-        hint: <PendingReviewBreakdown stats={stats} />,
-        tone: "amber" as const,
-        ...(stats.pending_approval_total > 0
-          ? { href: `/admin#${ADMIN_REVIEW_QUEUE_ID}` as const }
-          : {}),
+        label: "Pending Invitations",
+        value: String(invitations),
+        hint: stats.onboarding_members
+          ? `${stats.onboarding_members} still completing setup`
+          : invitations > 0
+            ? "Waiting to join"
+            : "No invitations waiting",
+        tone: "slate",
+        href: "/admin/members?status=invitation_sent",
+        icon: dashIcon(UserPlus),
+      },
+      {
+        label: "Pending Approvals",
+        value: String(approvals),
+        hint: approvals > 0
+          ? "Members, content, and other requests"
+          : bookingsOnOwnCard && bookingCount > 0
+            ? "Pending amenity requests have their own card"
+            : "Nothing awaiting review",
+        tone: "amber",
+        href: `/admin#${ADMIN_REVIEW_QUEUE_ID}`,
         icon: dashIcon(Clock),
       },
       {
-        label: "Marketplace",
-        value: String(stats.active_listings),
-        hint: `${stats.pending_listings ?? 0} awaiting approval`,
-        tone: "green" as const,
-        href: "/admin/marketplace?status=pending",
-        icon: dashIcon(ShoppingCart),
-      },
-      {
-        label: "Community Posts",
-        value: String(stats.total_posts),
-        hint: `${stats.pending_posts} pending moderation`,
-        tone: "violet" as const,
-        href: "/admin/feed?status=pending",
-        icon: dashIcon(MessageSquare),
-      },
-    ].filter((item) => communityFeatureVisible(item.href));
-  }, [data, featureRevision]);
-
-  const secondaryKpis = useMemo(() => {
-    if (!data) return [];
-    const { stats } = data;
-    return [
-      {
-        label: "Published Notices",
-        value: String(stats.published_notices),
-        hint: "Live announcements",
-        tone: "cyan" as const,
-        href: "/admin/notices",
-        icon: dashIcon(FileText),
-      },
-      {
-        label: "Approved Posts",
-        value: String(stats.approved_posts),
-        hint: "Visible in community feed",
-        tone: "blue" as const,
-        href: "/admin/feed",
-        icon: dashIcon(CheckCircle2),
-      },
-      {
-        label: "Invitation Sent",
-        value: String(stats.invitation_sent_members ?? 0),
-        hint: stats.onboarding_members
-          ? `${stats.onboarding_members} in onboarding`
-          : "Awaiting signup",
-        tone: "slate" as const,
-        href: "/admin/members?status=invitation_sent",
-        icon: dashIcon(Users),
-      },
-      {
-        label: "Suspended",
+        label: "Suspended Members",
         value: String(stats.banned_members),
-        hint: "Banned members",
-        tone: "red" as const,
+        hint: stats.banned_members > 0 ? "Restricted from the community" : "No suspended members",
+        tone: "red",
         href: "/admin/members?status=banned",
         icon: dashIcon(Ban),
       },
-    ].filter((item) => communityFeatureVisible(item.href));
+    ];
+    return cards.filter((item) => communityFeatureVisible(item.href));
+  }, [data, featureRevision]);
+
+  const engagementCards = useMemo(() => {
+    if (!data) return [];
+    const { stats } = data;
+    const posts = stats.approved_posts;
+    const notices = stats.published_notices;
+    const events = stats.upcoming_events ?? 0;
+    const bookings = stats.pending_bookings ?? 0;
+    const cards: MetricCard[] = [
+      {
+        label: "Community Posts",
+        value: String(posts),
+        hint: posts > 0 ? "Published in the feed" : "No posts in the feed yet",
+        tone: "violet",
+        href: "/admin/feed",
+        icon: dashIcon(MessageSquare),
+      },
+      {
+        label: "Published Notices",
+        value: String(notices),
+        hint: notices > 0 ? "Live announcements" : "No live announcements",
+        tone: "cyan",
+        href: "/admin/notices?status=published",
+        icon: dashIcon(FileText),
+      },
+      {
+        label: "Upcoming Events",
+        value: String(events),
+        hint: events > 0 ? "Published and still ahead" : "No upcoming events",
+        tone: "teal",
+        href: "/admin/events?when=upcoming",
+        icon: dashIcon(Calendar),
+      },
+      {
+        label: "Amenity Bookings",
+        value: String(bookings),
+        hint: bookings > 0 ? "Pending requests" : "No requests waiting",
+        tone: "green",
+        href: "/admin/bookings?status=pending",
+        icon: dashIcon(Building2),
+      },
+    ];
+    return cards.filter((item) => communityFeatureVisible(item.href));
   }, [data, featureRevision]);
 
   const quickActions = useMemo(
@@ -477,17 +580,29 @@ export default function CommunityAdminDashboard() {
       />
 
       <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((item) => (
-          <StatTile key={item.label} {...item} />
-        ))}
-      </div>
+      {error ? (
+        <div className="flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => load(true)}
+            className="self-start rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[13px] font-semibold text-red-800"
+          >
+            Try again
+          </button>
+        </div>
+      ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {secondaryKpis.map((item) => (
-          <StatTile key={item.label} {...item} />
-        ))}
-      </div>
+      <MetricSection
+        title="Community Overview"
+        description="Membership and requests for this community."
+        cards={overviewCards}
+      />
+      <MetricSection
+        title="Community Engagement"
+        description="Posts, notices, events, and amenity requests."
+        cards={engagementCards}
+      />
 
       <div className="grid items-stretch gap-5 lg:grid-cols-3">
         <DashboardPanel className="h-full lg:col-span-2" title="Member Growth" description="New memberships by month" icon={TrendingUp} tone="violet" tall>

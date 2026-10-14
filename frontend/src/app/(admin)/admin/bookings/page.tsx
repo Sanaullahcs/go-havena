@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { CalendarCheck2, Check, Clock3, Receipt, X } from "lucide-react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { BookingInfoModal } from "@/components/admin/booking-info-modal";
@@ -117,6 +118,8 @@ function DomainTabs({
 }
 
 export default function AdminBookingsPage() {
+  const searchParams = useSearchParams();
+  const requestedStatus = searchParams.get("status");
   const cached = readBookingsCache(getAdminCache<unknown>("bookings:inbox"));
   const [domainTab, setDomainTab] = useState<DomainTab>("amenity");
   const [amenityBookings, setAmenityBookings] = useState<Booking[]>(cached?.amenity ?? []);
@@ -125,7 +128,11 @@ export default function AdminBookingsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [servicesError, setServicesError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    requestedStatus === "all" || requestedStatus === "pending" || requestedStatus === "confirmed" || requestedStatus === "rejected"
+      ? requestedStatus
+      : "pending",
+  );
   const [search, setSearch] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import SearchInput from "../../../components/ui/search-input";
@@ -22,6 +22,7 @@ import {
   timeAgo,
   isSensitivePost,
   TOPIC_LABEL_KEY,
+  feedDetailsParams,
 } from "../../../services/feed-api";
 import { getFeedTagTheme } from "../../../constants/feed-theme";
 import { Fonts } from "../../../constants/font";
@@ -84,10 +85,35 @@ export default function FeedSearchScreen() {
     };
   }, [trimmedQuery, activeTopic, hasFilter]);
 
-  const openPost = (postId) => {
+  const hasOpenedRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasOpenedRef.current) {
+        hasOpenedRef.current = true;
+        return;
+      }
+      if (!hasFilter) return undefined;
+
+      let cancelled = false;
+      searchFeed({
+        q: trimmedQuery || undefined,
+        topic: activeTopic ?? undefined,
+      })
+        .then(({ posts }) => {
+          if (!cancelled) setResults(posts ?? []);
+        })
+        .catch(() => {});
+
+      return () => {
+        cancelled = true;
+      };
+    }, [activeTopic, hasFilter, trimmedQuery]),
+  );
+
+  const openPost = (post) => {
     router.push({
       pathname: "/screens/community-feed/comments",
-      params: { postId: String(postId) },
+      params: feedDetailsParams(post),
     });
   };
 
@@ -203,7 +229,7 @@ export default function FeedSearchScreen() {
                   <Pressable
                     key={post.id}
                     style={styles.resultCard}
-                    onPress={() => openPost(post.id)}
+                    onPress={() => openPost(post)}
                   >
                     <UserAvatar
                       source={post.user?.avatar}

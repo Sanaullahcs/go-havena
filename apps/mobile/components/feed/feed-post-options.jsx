@@ -20,7 +20,7 @@ function postIsOwnedByCurrentUser(post, user) {
 /**
  * More-menu for feed posts: own posts get Edit/Delete; others get Report.
  */
-export default function FeedPostOptions({ post, onDeleted, onUserBlocked }) {
+export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlocked }) {
   const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
@@ -121,12 +121,19 @@ export default function FeedPostOptions({ post, onDeleted, onUserBlocked }) {
           }),
         close: () => setReportOpen(false),
         setBusy: setReporting,
-        notifySuccess: () =>
-          showSuccess(t("feed.options.reportSubmitted"), t("feed.options.adminWillReview")),
+        notifySuccess: (result) => {
+          onReported?.(post.id);
+          showSuccess(
+            t("feed.options.reportSubmitted"),
+            result?.data?.review_queue === "system_admin"
+              ? t("feed.options.systemAdminWillReview")
+              : t("feed.options.adminWillReview"),
+          );
+        },
         notifyFailure: (error) => showFailure(t("apiAction.actionFailed"), error),
       });
     },
-    [post?.id, showFailure, showSuccess, t],
+    [onReported, post?.id, showFailure, showSuccess, t],
   );
 
   const actions = useMemo(() => {
