@@ -301,9 +301,7 @@ export default function Communities({ posts = [], onPostsChange }) {
           label={t("community.feed")}
           onPress={() => navigateAppRoute(router, COMMUNITY_FEED_ROUTE)}
         />
-        <HomeSectionEmpty
-          message={t("common.noResults")}
-        />
+        <HomeSectionEmpty variant="quiet" message={t("common.noResults")} />
       </View>
     );
   }

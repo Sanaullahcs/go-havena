@@ -22,6 +22,32 @@ class TlsCaBundle
         return $path;
     }
 
+    /**
+     * Guzzle does not pick up curl.cainfo on WAMP, so HTTPS clients must
+     * receive the bundle as a request option.
+     *
+     * @return array<string, mixed>
+     */
+    public static function httpOptions(): array
+    {
+        $path = self::path();
+        if ($path === null) {
+            return [];
+        }
+
+        $curl = [
+            CURLOPT_CAINFO => $path,
+        ];
+        if (defined('CURL_HTTP_VERSION_1_1')) {
+            $curl[CURLOPT_HTTP_VERSION] = CURL_HTTP_VERSION_1_1;
+        }
+
+        return [
+            'verify' => $path,
+            'curl' => $curl,
+        ];
+    }
+
     public static function path(): ?string
     {
         foreach (self::candidates() as $candidate) {

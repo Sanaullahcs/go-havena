@@ -7,6 +7,7 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import BaseTap from "../../../components/ui/tap";
+import HeroMoney from "../../../components/payments/hero-money";
 import { KuickpayColors, KuickpayMark, KuickpayMethodsStrip } from "../../../components/payments/kuickpay-brand";
 import { UTILITY_CATEGORIES } from "../../../components/payments/utility-meta";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
@@ -156,7 +157,7 @@ export default function BillsHubScreen() {
                 <Feather name={hidden ? "eye-off" : "eye"} size={sf(16)} color="rgba(255,255,255,0.8)" />
               </Pressable>
             </View>
-            <Text style={styles.heroAmount} numberOfLines={1} adjustsFontSizeToFit>{amountText}</Text>
+            <HeroMoney text={amountText} />
 
             <View style={styles.heroChips}>
               {due > 0 ? (
@@ -372,8 +373,7 @@ const styles = StyleSheet.create({
   orbOne: { width: sw(190), height: sw(190), top: -sw(70), right: -sw(50) },
   orbTwo: { width: sw(120), height: sw(120), bottom: -sw(50), left: -sw(30) },
   heroRow: { flexDirection: "row", alignItems: "center", gap: sw(8) },
-  heroLabel: { fontFamily: Fonts.medium, fontSize: sf(13), color: "rgba(255,255,255,0.82)" },
-  heroAmount: { fontFamily: Fonts.bold, fontSize: sf(34), color: "#FFFFFF", marginTop: sw(4), letterSpacing: 0.3 },
+  heroLabel: { fontFamily: Fonts.semiBold, fontSize: sf(13), letterSpacing: 0.4, color: "rgba(255,255,255,0.82)" },
   heroChips: { flexDirection: "row", flexWrap: "wrap", gap: sw(6), marginTop: sw(10) },
   chip: {
     flexDirection: "row",

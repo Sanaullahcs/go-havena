@@ -130,10 +130,7 @@ export default function WellnessNew({ items = [] }) {
     return (
       <View style={[homeStyles.section, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
         <HomeSectionHeader label={t("wellness.title")} onPress={() => router.push("/wellness")} />
-        <HomeSectionEmpty
-          message={t("home.noWellnessPrograms")}
-          hint={t("home.noWellnessHint")}
-        />
+        <HomeSectionEmpty variant="quiet" message={t("home.noWellnessPrograms")} />
       </View>
     );
   }

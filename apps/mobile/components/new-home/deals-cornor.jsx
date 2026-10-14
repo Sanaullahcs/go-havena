@@ -10,8 +10,8 @@ import { HomeTheme as T } from "../../constants/home-theme";
 import { Media } from "../../constants/media";
 import CrispImage from "../ui/crisp-image";
 import HomeSectionHeader from "./section-header";
-import { timeAgo } from "../../services/feed-api";
 import HomeSectionEmpty from "./home-section-empty";
+import { timeAgo } from "../../services/feed-api";
 import { sw, sf } from "../../utils/responsive";
 import { useHomeFrame } from "../../hooks/use-home-frame";
 import { rnShadow } from "../../utils/shadow";
@@ -153,9 +153,7 @@ export default function DealsCornor({ items = [] }) {
           label={t("home.deals")}
           onPress={() => router.push(MarketplaceRoutes.DEALS)}
         />
-        <HomeSectionEmpty
-          message={t("common.noResults")}
-        />
+        <HomeSectionEmpty message={t("home.noDeals")} icon="tag" />
       </View>
     );
   }

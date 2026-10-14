@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Support\DemoNearbyPlaces;
 use App\Support\NearbyDiscovery;
 use App\Support\OsmPlaceCategories;
+use App\Support\TlsCaBundle;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -88,7 +89,7 @@ class OsmNearbyPlacesService
 
         $ttl = (int) config('osm.cache_seconds', 3600);
         $cacheKey = sprintf(
-            'osm_nearby:v7:%s:%s:%s',
+            'osm_nearby:v8:%s:%s:%s',
             $communityId ?: 'none',
             round($lat, 4),
             round($lng, 4),
@@ -218,18 +219,21 @@ QL;
         ];
         $lastEmpty = null;
         $anyFailure = false;
-        $deadline = microtime(true) + ($timeout + 4);
+        $mirrors = array_slice($urls, 0, 2);
+        $deadline = microtime(true) + ($timeout * max(1, count($mirrors))) + 2;
 
-        foreach (array_slice($urls, 0, 2) as $url) {
-            if (microtime(true) >= $deadline) {
+        foreach ($mirrors as $url) {
+            $remaining = $deadline - microtime(true);
+            if ($remaining < 3) {
                 break;
             }
 
             try {
                 $response = Http::withHeaders($headers)
+                    ->withOptions(TlsCaBundle::httpOptions())
                     ->asForm()
                     ->connectTimeout(3)
-                    ->timeout($timeout)
+                    ->timeout((int) min($timeout, floor($remaining)))
                     ->post((string) $url, [
                         'data' => $query,
                     ]);
@@ -271,12 +275,12 @@ QL;
         return null;
     }
 
-    /** Wall-clock budget for one Overpass call. Kept short so the API stays responsive. */
+    /** Wall-clock budget for one Overpass call. Dense cities need more than a few seconds. */
     private function overpassBudgetSeconds(): int
     {
-        $configured = (int) config('osm.overpass_timeout', 8);
+        $configured = (int) config('osm.overpass_timeout', 18);
 
-        return min(8, max(4, $configured));
+        return min(20, max(8, $configured));
     }
 
     /**

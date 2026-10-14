@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
+import HeroMoney from "../../../components/payments/hero-money";
 import KuickpayPaySheet from "../../../components/payments/kuickpay-pay-sheet";
 import { KuickpayColors } from "../../../components/payments/kuickpay-brand";
 import Tap from "../../../components/ui/tap";
@@ -232,7 +233,7 @@ export default function UtilitiesScreen() {
             <View style={[styles.orb, styles.orbTwo]} />
             <View style={{ flex: 1 }}>
               <Text style={styles.heroLabel}>{due.count > 0 ? t("utilities.totalDue") : t("utilities.allCaughtUp")}</Text>
-              <Text style={styles.heroValue} numberOfLines={1} adjustsFontSizeToFit>{formatMoney(due.total, "PKR")}</Text>
+              <HeroMoney text={formatMoney(due.total, "PKR")} />
               <Text style={styles.heroMeta}>
                 {due.count > 0
                   ? t("utilities.billsDue", { count: due.count }) + (due.overdue ? ` · ${t("utilities.overdueCount", { count: due.overdue })}` : "")
@@ -344,8 +345,7 @@ const styles = StyleSheet.create({
   orb: { position: "absolute", borderRadius: 999, backgroundColor: "rgba(255,255,255,0.07)" },
   orbOne: { width: sw(180), height: sw(180), top: -sw(70), right: -sw(50) },
   orbTwo: { width: sw(110), height: sw(110), bottom: -sw(50), left: -sw(30) },
-  heroLabel: { fontFamily: Fonts.medium, fontSize: sf(13), color: "rgba(255,255,255,0.82)" },
-  heroValue: { fontFamily: Fonts.bold, fontSize: sf(30), color: "#FFFFFF", marginTop: sw(4) },
+  heroLabel: { fontFamily: Fonts.semiBold, fontSize: sf(13), letterSpacing: 0.4, color: "rgba(255,255,255,0.82)" },
   heroMeta: { fontFamily: Fonts.regular, fontSize: sf(12), color: "rgba(255,255,255,0.85)", marginTop: sw(4) },
   heroBadge: {
     width: sw(52),

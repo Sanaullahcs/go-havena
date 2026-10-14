@@ -170,7 +170,7 @@ export default function HappeningSoon({ items = [] }) {
           label={t("home.happeningSoon")}
           onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
         />
-        <HomeSectionEmpty message={t("home.noEvents")} />
+        <HomeSectionEmpty variant="quiet" message={t("home.noEvents")} />
       </View>
     );
   }

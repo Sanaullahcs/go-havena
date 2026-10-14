@@ -4,19 +4,20 @@ import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sf, sw, hp } from "../../utils/responsive";
 
-/** @param {{ message: string, hint?: string, icon?: string, variant?: "default" | "accent" }} props */
+/** @param {{ message: string, hint?: string, icon?: string, variant?: "default" | "accent" | "quiet" }} props */
 export default function HomeSectionEmpty({ message, hint, icon, variant = "default" }) {
   const accent = variant === "accent";
+  const quiet = variant === "quiet";
 
   return (
-    <View style={[styles.box, accent && styles.boxAccent]}>
-      {icon ? (
+    <View style={[styles.box, accent && styles.boxAccent, quiet && styles.boxQuiet]}>
+      {icon && !quiet ? (
         <View style={styles.iconWell}>
           <Feather name={icon} size={sf(15)} color={T.teal} />
         </View>
       ) : null}
-      <Text style={[styles.message, accent && styles.messageAccent]}>{message}</Text>
-      {hint ? (
+      <Text style={[styles.message, accent && styles.messageAccent, quiet && styles.messageQuiet]}>{message}</Text>
+      {hint && !quiet ? (
         <Text style={[styles.hint, accent && styles.hintAccent]}>{hint}</Text>
       ) : null}
     </View>
@@ -67,5 +68,20 @@ const styles = StyleSheet.create({
   },
   hintAccent: {
     color: T.white,
+  },
+  boxQuiet: {
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    alignItems: "flex-start",
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+  },
+  messageQuiet: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    fontWeight: "400",
+    color: T.gray,
+    textAlign: "left",
   },
 });

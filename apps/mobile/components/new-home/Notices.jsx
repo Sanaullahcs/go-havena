@@ -314,8 +314,6 @@ export default function Notices({ items = [], noticesLoaded = false }) {
   const activeIndexRef = useRef(0);
   const userScrollingRef = useRef(false);
 
-  const noticesOn = isHomeSectionEnabled(sessionUser, "notices");
-
   const carouselItems = useMemo(
     () =>
       items
@@ -324,7 +322,6 @@ export default function Notices({ items = [], noticesLoaded = false }) {
         .map((n) => mapNoticeToHero(n, t)),
     [items, sessionUser, t, i18n.language],
   );
-  const showNoticeEmpty = noticesOn && noticesLoaded && carouselItems.length === 0;
 
   useEffect(() => {
     activeIndexRef.current = activeIndex;
@@ -467,7 +464,7 @@ export default function Notices({ items = [], noticesLoaded = false }) {
             </View>
           ) : null}
         </View>
-      ) : showNoticeEmpty ? (
+      ) : noticesLoaded ? (
         <View style={[styles.heroEmptyWrap, { width: "100%", paddingHorizontal: frame.sideInset }]}>
           <HomeSectionEmpty message={t("home.noNotices")} icon="bell" />
         </View>

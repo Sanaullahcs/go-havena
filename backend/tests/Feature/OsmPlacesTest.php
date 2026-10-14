@@ -257,7 +257,7 @@ class OsmPlacesTest extends TestCase
 
         Http::fake([
             'overpass-api.de/*' => Http::response(['elements' => []], 503),
-            'overpass.osm.ch/*' => Http::response(['elements' => []], 503),
+            'overpass.openstreetmap.fr/*' => Http::response(['elements' => []], 503),
             'overpass.kumi.systems/*' => Http::response(['elements' => []], 503),
         ]);
 

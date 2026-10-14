@@ -124,12 +124,9 @@ export default function PropertyNew({ items = [] }) {
         onPress={() => openServicesHub(navigation, router)}
       />
       {cards.length === 0 ? (
-        <HomeSectionEmpty
-          message={t("home.noAmenities")}
-          hint={t("home.noAmenitiesHint")}
-        />
+        <HomeSectionEmpty variant="quiet" message={t("home.noAmenities")} />
       ) : (
-        <FlatList
+      <FlatList
           data={cards}
           horizontal
           style={[styles.carousel, { width: frame.contentWidth }]}
