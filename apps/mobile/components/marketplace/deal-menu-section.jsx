@@ -25,7 +25,7 @@ export default function DealMenuSection({ menuImageUrl, menuItems }) {
             ) : null}
             <View style={styles.itemBody}>
               <View style={styles.itemHeader}>
-                <Text style={styles.itemName}>{item.name}</Text>
+                <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
                 {item.price ? <Text style={styles.itemPrice}>{item.price}</Text> : null}
               </View>
               {item.description ? <Text style={styles.itemDesc}>{item.description}</Text> : null}
@@ -74,6 +74,7 @@ const styles = StyleSheet.create({
   },
   itemBody: {
     flex: 1,
+    minWidth: 0,
   },
   itemHeader: {
     flexDirection: "row",
@@ -83,12 +84,17 @@ const styles = StyleSheet.create({
   },
   itemName: {
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.bodyMd,
     color: "#111827",
     fontWeight: "700",
   },
   itemPrice: {
+    flexShrink: 0,
+    maxWidth: "42%",
+    textAlign: "right",
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.body,
     color: "#0F766E",

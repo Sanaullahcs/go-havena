@@ -305,7 +305,7 @@ export default function DealDetails() {
                     accessibilityRole="link"
                   >
                     <Feather name="map-pin" size={13} color="#1B4F8A" />
-                    <Text style={styles.vendorLink}>{distance}</Text>
+                    <Text style={styles.vendorLink} numberOfLines={2}>{distance}</Text>
                   </TouchableOpacity>
                 ) : null}
                 {phone ? (
@@ -318,13 +318,13 @@ export default function DealDetails() {
                     accessibilityRole="link"
                   >
                     <Feather name="phone" size={13} color="#1B4F8A" />
-                    <Text style={styles.vendorLink}>{phone}</Text>
+                    <Text style={styles.vendorLink} numberOfLines={1}>{phone}</Text>
                   </TouchableOpacity>
                 ) : null}
                 {hours ? (
                   <View style={styles.vendorDistRow}>
                     <Feather name="clock" size={13} color="#6A7282" />
-                    <Text style={styles.vendorDist}>{hours}</Text>
+                    <Text style={styles.vendorDist} numberOfLines={2}>{hours}</Text>
                   </View>
                 ) : null}
                 {website ? (
@@ -337,7 +337,7 @@ export default function DealDetails() {
                     accessibilityRole="link"
                   >
                     <Feather name="external-link" size={13} color="#1B4F8A" />
-                    <Text style={styles.vendorLink}>{t("deals.viewMenu")}</Text>
+                    <Text style={styles.vendorLink} numberOfLines={1}>{t("deals.viewMenu")}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -455,40 +455,39 @@ export default function DealDetails() {
                 <View style={styles.secondaryRow}>
                   {canCall ? (
                     <TouchableOpacity
-                      style={styles.callBtn}
+                      style={styles.iconBtn}
                       activeOpacity={0.85}
                       onPress={handleCall}
                       accessibilityLabel={t("deals.callBusiness")}
                     >
-                      <Ionicons name="call-outline" size={18} color={MarketplaceTheme.accent} />
-                      <Text style={styles.callBtnText}>{t("deals.call")}</Text>
+                      <Ionicons name="call-outline" size={20} color={MarketplaceTheme.accent} />
                     </TouchableOpacity>
                   ) : null}
                   {canOpenMenu ? (
                     <TouchableOpacity
-                      style={styles.menuBtn}
+                      style={styles.actionBtn}
                       activeOpacity={0.85}
                       onPress={handleMenu}
                       accessibilityLabel={t("deals.viewMenu")}
                     >
-                      <Ionicons name="restaurant-outline" size={18} color="#FFFFFF" />
-                      <Text style={styles.menuBtnText}>{t("deals.menu")}</Text>
+                      <Ionicons name="restaurant-outline" size={18} color={MarketplaceTheme.accent} />
+                      <Text style={styles.actionBtnText} numberOfLines={1}>
+                        {t("deals.menu")}
+                      </Text>
                     </TouchableOpacity>
                   ) : null}
                   {canContact ? (
                     <TouchableOpacity
-                      style={[styles.messageBtn, contactBusy && styles.btnDisabled]}
+                      style={[styles.iconBtn, contactBusy && styles.btnDisabled]}
                       activeOpacity={0.85}
                       onPress={handleMessage}
                       disabled={contactBusy || interestBusy}
+                      accessibilityLabel={t("marketplace.message")}
                     >
                       {contactBusy ? (
                         <ActivityIndicator size="small" color={MarketplaceTheme.accent} />
                       ) : (
-                        <>
-                          <Ionicons name="chatbubble-outline" size={17} color={MarketplaceTheme.accent} />
-                          <Text style={styles.messageBtnText}>{t("marketplace.message")}</Text>
-                        </>
+                        <Ionicons name="chatbubble-outline" size={20} color={MarketplaceTheme.accent} />
                       )}
                     </TouchableOpacity>
                   ) : null}
@@ -507,7 +506,9 @@ export default function DealDetails() {
                   ) : (
                     <>
                       <Ionicons name="pricetag-outline" size={18} color="#FFFFFF" />
-                      <Text style={styles.primaryBtnText}>{t("deals.imInterested")}</Text>
+                      <Text style={styles.primaryBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                        {t("deals.imInterested")}
+                      </Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -627,8 +628,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     marginTop: 2,
+    minWidth: 0,
   },
   vendorDist: {
+    flex: 1,
+    minWidth: 0,
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.body,
     color: "#6A7282",
@@ -637,6 +641,8 @@ const styles = StyleSheet.create({
   },
   vendorLink: {
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.body,
     color: "#1B4F8A",
@@ -644,23 +650,41 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textDecorationLine: "underline",
   },
-  menuBtn: {
+  iconBtn: {
+    width: 46,
+    height: 46,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: MarketplaceTheme.accentBorder,
+  },
+  actionBtn: {
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    height: 46,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    minWidth: sw(96),
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+    paddingHorizontal: 10,
     borderRadius: 12,
-    backgroundColor: MarketplaceTheme.accent,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: MarketplaceTheme.accentBorder,
+    overflow: "hidden",
   },
-  menuBtnText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(14),
-    color: "#FFFFFF",
-    fontWeight: "700",
+  actionBtnText: {
+    flexShrink: 1,
+    minWidth: 0,
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    color: MarketplaceTheme.navy,
+    fontWeight: "600",
   },
   validBox: {
     marginHorizontal: 20,
@@ -798,44 +822,8 @@ const styles = StyleSheet.create({
   },
   secondaryRow: {
     flexDirection: "row",
-    gap: 10,
-  },
-  callBtn: {
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    minWidth: sw(96),
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderRadius: 12,
-    backgroundColor: MarketplaceTheme.accentSoft,
-    borderWidth: 1,
-    borderColor: MarketplaceTheme.accentBorder,
-  },
-  callBtnText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(14),
-    color: MarketplaceTheme.accent,
-    fontWeight: "700",
-  },
-  messageBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    paddingVertical: 13,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1.5,
-    borderColor: MarketplaceTheme.accent,
-  },
-  messageBtnText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(14),
-    color: MarketplaceTheme.accent,
-    fontWeight: "700",
+    gap: 8,
   },
   primaryBtn: {
     flexDirection: "row",
@@ -847,11 +835,14 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   primaryBtnText: {
+    flexShrink: 1,
+    minWidth: 0,
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.heading,
     color: "#FFFFFF",
     fontWeight: "700",
     lineHeight: MarketplaceType.stat,
+    textAlign: "center",
   },
   redeemBtn: {
     backgroundColor: "#059669",
