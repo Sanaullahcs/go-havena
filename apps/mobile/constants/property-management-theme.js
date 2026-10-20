@@ -270,7 +270,6 @@ export function getPropertyResidentServices(t) {
       subtitle: t("services.billingContactSub"),
       routeKey: "BILLING_CONTACT",
     },
-    ...getPropertyCommunityServices(t),
   ];
 }
 
@@ -327,7 +326,6 @@ export function getPropertyAdminServices(t) {
       subtitle: t("services.amenityBillsSub"),
       routeKey: "ADMIN_AMENITY_BILLS",
     },
-    ...getPropertyCommunityServices(t),
   ];
 }
 
@@ -339,25 +337,6 @@ export function getPropertyResidentBookActions(t) {
 /** @deprecated Use getPropertyAdminServices(t) */
 export function getPropertyAdminBookActions(t) {
   return getPropertyAdminServices(t).slice(0, 2);
-}
-
-export function getPropertyCommunityServices(t) {
-  return [
-    {
-      id: "rules",
-      key: "rules",
-      title: t("services.communityRules"),
-      subtitle: t("services.communityRulesSub"),
-      routeKey: "COMMUNITY_RULES",
-    },
-    {
-      id: "documents",
-      key: "documents",
-      title: t("services.documents"),
-      subtitle: t("services.documentsSub"),
-      routeKey: "DOCUMENTS",
-    },
-  ];
 }
 
 export function getPropertyHelpServices(t) {

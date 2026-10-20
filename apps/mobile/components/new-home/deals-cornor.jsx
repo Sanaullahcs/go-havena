@@ -21,6 +21,7 @@ import { MarketplaceRoutes, dealDetailsParams } from "../../constants/marketplac
 import { useSessionUser } from "../../hooks/use-session-user";
 import { isHomeSectionEnabled } from "../../constants/resident-features";
 import { localizedField } from "../../i18n";
+import { homeSectionEmptyHintKey } from "../../utils/home-section-empty-copy";
 
 const CARD_GAP = sw(12);
 const PEEK = sw(32);
@@ -153,7 +154,11 @@ export default function DealsCornor({ items = [] }) {
           label={t("home.deals")}
           onPress={() => router.push(MarketplaceRoutes.DEALS)}
         />
-        <HomeSectionEmpty message={t("home.noDeals")} icon="tag" />
+        <HomeSectionEmpty
+          icon="tag"
+          message={t("home.noDeals")}
+          hint={t(homeSectionEmptyHintKey(sessionUser, "noDealsHint"))}
+        />
       </View>
     );
   }

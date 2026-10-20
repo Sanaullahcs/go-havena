@@ -14,6 +14,7 @@ import { sw, sf } from "../../utils/responsive";
 import { useHomeFrame } from "../../hooks/use-home-frame";
 import { useSessionUser } from "../../hooks/use-session-user";
 import { isHomeSectionEnabled } from "../../constants/resident-features";
+import { homeSectionEmptyHintKey } from "../../utils/home-section-empty-copy";
 import { arrowForward } from "../../utils/rtl";
 import { rnShadow } from "../../utils/shadow";
 import {
@@ -130,7 +131,11 @@ export default function WellnessNew({ items = [] }) {
     return (
       <View style={[homeStyles.section, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
         <HomeSectionHeader label={t("wellness.title")} onPress={() => router.push("/wellness")} />
-        <HomeSectionEmpty variant="quiet" message={t("home.noWellnessPrograms")} />
+        <HomeSectionEmpty
+          icon="heart"
+          message={t("home.noWellnessPrograms")}
+          hint={t(homeSectionEmptyHintKey(sessionUser, "noWellnessHint"))}
+        />
       </View>
     );
   }

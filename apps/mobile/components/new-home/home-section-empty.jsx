@@ -4,44 +4,51 @@ import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sf, sw, hp } from "../../utils/responsive";
 
-/** @param {{ message: string, hint?: string, icon?: string, variant?: "default" | "accent" | "quiet" }} props */
+/** Empty section card — matches Notices / Deals Corner home placeholders. */
 export default function HomeSectionEmpty({ message, hint, icon, variant = "default" }) {
   const accent = variant === "accent";
-  const quiet = variant === "quiet";
 
   return (
-    <View style={[styles.box, accent && styles.boxAccent, quiet && styles.boxQuiet]}>
-      {icon && !quiet ? (
-        <View style={styles.iconWell}>
-          <Feather name={icon} size={sf(15)} color={T.teal} />
+    <View style={[styles.box, accent && styles.boxAccent]}>
+      {icon ? (
+        <View style={[styles.iconWell, accent && styles.iconWellAccent]}>
+          <Feather name={icon} size={sf(18)} color={accent ? T.white : T.teal} />
         </View>
       ) : null}
-      <Text style={[styles.message, accent && styles.messageAccent, quiet && styles.messageQuiet]}>{message}</Text>
-      {hint && !quiet ? (
-        <Text style={[styles.hint, accent && styles.hintAccent]}>{hint}</Text>
-      ) : null}
+      <Text style={[styles.message, accent && styles.messageAccent]}>{message}</Text>
+      {hint ? <Text style={[styles.hint, accent && styles.hintAccent]}>{hint}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   box: {
-    borderWidth: StyleSheet.hairlineWidth,
+    width: "100%",
+    alignSelf: "stretch",
+    borderWidth: 1,
     borderColor: T.border,
-    borderRadius: sw(12),
+    borderRadius: sw(14),
     backgroundColor: T.white,
-    paddingVertical: hp(1.6),
-    paddingHorizontal: sw(14),
+    paddingVertical: hp(2.4),
+    paddingHorizontal: sw(18),
     alignItems: "center",
+    minHeight: hp(13),
+    justifyContent: "center",
   },
   iconWell: {
-    width: sw(32),
-    height: sw(32),
-    borderRadius: sw(16),
+    width: sw(40),
+    height: sw(40),
+    borderRadius: sw(12),
     backgroundColor: T.mint,
+    borderWidth: 1,
+    borderColor: "rgba(20, 184, 166, 0.28)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: sw(8),
+    marginBottom: sw(10),
+  },
+  iconWellAccent: {
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderColor: "rgba(255,255,255,0.35)",
   },
   boxAccent: {
     backgroundColor: T.teal,
@@ -49,10 +56,9 @@ const styles = StyleSheet.create({
   },
   message: {
     fontFamily: Fonts.semiBold,
-    fontSize: sf(13),
-    lineHeight: sf(18),
+    fontSize: sf(14),
+    lineHeight: sf(20),
     color: T.navy,
-    fontWeight: "600",
     textAlign: "center",
   },
   messageAccent: {
@@ -60,28 +66,14 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontFamily: Fonts.regular,
-    fontSize: sf(11),
-    lineHeight: sf(15),
+    fontSize: sf(12),
+    lineHeight: sf(17),
     color: T.gray,
-    marginTop: hp(0.3),
+    marginTop: hp(0.5),
     textAlign: "center",
+    maxWidth: "92%",
   },
   hintAccent: {
-    color: T.white,
-  },
-  boxQuiet: {
-    borderWidth: 0,
-    backgroundColor: "transparent",
-    alignItems: "flex-start",
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-  },
-  messageQuiet: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(13),
-    lineHeight: sf(18),
-    fontWeight: "400",
-    color: T.gray,
-    textAlign: "left",
+    color: "rgba(255,255,255,0.88)",
   },
 });

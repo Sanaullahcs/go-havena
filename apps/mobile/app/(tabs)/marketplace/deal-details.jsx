@@ -35,7 +35,8 @@ import { chevronForward } from "../../../utils/rtl";
 import { localizedField } from "../../../i18n";
 import { rnShadow } from "../../../utils/shadow";
 import MenuList from "../../../components/marketplace/menu-list";
-import { mapsUrl, openExternalUrl, telUrl } from "../../../utils/open-contact";
+import { mapsUrl, openExternalUrl } from "../../../utils/open-contact";
+import { callPlace, telUrl } from "../../../utils/open-place-actions";
 import DealMenuSection from "../../../components/marketplace/deal-menu-section";
 
 
@@ -142,7 +143,7 @@ export default function DealDetails() {
     deal?.imageUrl || imageUrlParam || IMAGE_MAP[imageKey] || IMAGE_MAP["food-bowl"];
 
   const canContact = Boolean(recipientId) && !isOwner;
-  const canCall = Boolean(phone);
+  const canCall = Boolean(telUrl(phone));
   const canOpenMenu = Boolean(website);
   const showResidentActions = canContact || canCall || canOpenMenu || MARKETPLACE_FEATURES.coupons;
 
@@ -172,11 +173,14 @@ export default function DealDetails() {
   };
 
   const handleCall = async () => {
-    await openExternalUrl(telUrl(phone), {
-      showError,
-      title: t("deals.unableToCall"),
-      unsupported: t("deals.callingNotSupported"),
-    });
+    try {
+      await callPlace(phone);
+    } catch (err) {
+      await showError(
+        t("deals.unableToCall"),
+        err?.code === "no-phone" ? t("deals.callingNotSupported") : t("deals.callingNotSupported"),
+      );
+    }
   };
 
   const handleMenu = async () => {
@@ -275,74 +279,83 @@ export default function DealDetails() {
 
         <View style={{ paddingHorizontal: 20, paddingBottom: 1 }}>
           {vendor ? (
-            <TouchableOpacity
-              style={styles.vendorRow}
-              activeOpacity={0.7}
-              onPress={() => {
-                if (!businessId) return;
-                router.push({
-                  pathname: MarketplaceRoutes.PROVIDER_PROFILE,
-                  params: providerProfileParams(
-                    { id: businessId, name: vendor, distance },
-                    activeRole,
-                  ),
-                });
-              }}
-            >
-              <ThemedIconBox name="briefcase" size="md" />
-              <View style={styles.vendorLeft}>
-                <Text style={styles.vendorName}>{vendor}</Text>
-                <Text style={styles.vendorHint}>
-                  {businessId ? t("deals.viewBusinessProfile") : t("deals.localBusinessOffer")}
-                </Text>
-                {distance ? (
-                  <TouchableOpacity
-                    style={styles.vendorDistRow}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      handleAddress();
-                    }}
-                    accessibilityRole="link"
-                  >
-                    <Feather name="map-pin" size={13} color="#1B4F8A" />
-                    <Text style={styles.vendorLink} numberOfLines={2}>{distance}</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {phone ? (
-                  <TouchableOpacity
-                    style={styles.vendorDistRow}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      handleCall();
-                    }}
-                    accessibilityRole="link"
-                  >
-                    <Feather name="phone" size={13} color="#1B4F8A" />
-                    <Text style={styles.vendorLink} numberOfLines={1}>{phone}</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {hours ? (
-                  <View style={styles.vendorDistRow}>
-                    <Feather name="clock" size={13} color="#6A7282" />
-                    <Text style={styles.vendorDist} numberOfLines={2}>{hours}</Text>
-                  </View>
-                ) : null}
-                {website ? (
-                  <TouchableOpacity
-                    style={styles.vendorDistRow}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      handleMenu();
-                    }}
-                    accessibilityRole="link"
-                  >
-                    <Feather name="external-link" size={13} color="#1B4F8A" />
-                    <Text style={styles.vendorLink} numberOfLines={1}>{t("deals.viewMenu")}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-              {businessId ? <Feather name={chevronForward()} size={18} color="#CBD5E1" /> : null}
-            </TouchableOpacity>
+            <View style={styles.vendorCard}>
+              <TouchableOpacity
+                style={styles.vendorHeaderRow}
+                activeOpacity={0.7}
+                onPress={() => {
+                  if (!businessId) return;
+                  router.push({
+                    pathname: MarketplaceRoutes.PROVIDER_PROFILE,
+                    params: providerProfileParams(
+                      { id: businessId, name: vendor, distance },
+                      activeRole,
+                    ),
+                  });
+                }}
+                disabled={!businessId}
+              >
+                <ThemedIconBox name="briefcase" size="md" />
+                <View style={styles.vendorTitleBlock}>
+                  <Text style={styles.vendorName}>{vendor}</Text>
+                  <Text style={styles.vendorHint}>
+                    {businessId ? t("deals.viewBusinessProfile") : t("deals.localBusinessOffer")}
+                  </Text>
+                </View>
+                {businessId ? <Feather name={chevronForward()} size={18} color="#CBD5E1" /> : null}
+              </TouchableOpacity>
+
+              {distance || phone || hours || website ? (
+                <View style={styles.vendorDetails}>
+                  {distance ? (
+                    <TouchableOpacity
+                      style={styles.vendorDistRow}
+                      onPress={handleAddress}
+                      accessibilityRole="link"
+                    >
+                      <Feather name="map-pin" size={13} color="#1B4F8A" />
+                      <Text style={styles.vendorLink} numberOfLines={2}>
+                        {distance}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {phone ? (
+                    <TouchableOpacity
+                      style={styles.vendorDistRow}
+                      onPress={() => void handleCall()}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("deals.callBusiness")}
+                      accessibilityHint={phone}
+                    >
+                      <Feather name="phone" size={14} color="#0D9488" style={styles.vendorDistIcon} />
+                      <Text style={styles.vendorPhoneLink} numberOfLines={1}>
+                        {phone}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {hours ? (
+                    <View style={styles.vendorDistRow}>
+                      <Feather name="clock" size={13} color="#6A7282" />
+                      <Text style={styles.vendorDist} numberOfLines={2}>
+                        {hours}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {website ? (
+                    <TouchableOpacity
+                      style={styles.vendorDistRow}
+                      onPress={handleMenu}
+                      accessibilityRole="link"
+                    >
+                      <Feather name="external-link" size={13} color="#1B4F8A" />
+                      <Text style={styles.vendorLink} numberOfLines={1}>
+                        {t("deals.viewMenu")}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
           ) : null}
         </View>
 
@@ -451,47 +464,18 @@ export default function DealDetails() {
             <ActivityIndicator color={MarketplaceTheme.accent} />
           ) : (
             <>
-              {(canCall || canOpenMenu || canContact) ? (
-                <View style={styles.secondaryRow}>
-                  {canCall ? (
-                    <TouchableOpacity
-                      style={styles.iconBtn}
-                      activeOpacity={0.85}
-                      onPress={handleCall}
-                      accessibilityLabel={t("deals.callBusiness")}
-                    >
-                      <Ionicons name="call-outline" size={20} color={MarketplaceTheme.accent} />
-                    </TouchableOpacity>
-                  ) : null}
-                  {canOpenMenu ? (
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      activeOpacity={0.85}
-                      onPress={handleMenu}
-                      accessibilityLabel={t("deals.viewMenu")}
-                    >
-                      <Ionicons name="restaurant-outline" size={18} color={MarketplaceTheme.accent} />
-                      <Text style={styles.actionBtnText} numberOfLines={1}>
-                        {t("deals.menu")}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-                  {canContact ? (
-                    <TouchableOpacity
-                      style={[styles.iconBtn, contactBusy && styles.btnDisabled]}
-                      activeOpacity={0.85}
-                      onPress={handleMessage}
-                      disabled={contactBusy || interestBusy}
-                      accessibilityLabel={t("marketplace.message")}
-                    >
-                      {contactBusy ? (
-                        <ActivityIndicator size="small" color={MarketplaceTheme.accent} />
-                      ) : (
-                        <Ionicons name="chatbubble-outline" size={20} color={MarketplaceTheme.accent} />
-                      )}
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
+              {canOpenMenu ? (
+                <TouchableOpacity
+                  style={styles.actionBtnWide}
+                  activeOpacity={0.85}
+                  onPress={handleMenu}
+                  accessibilityLabel={t("deals.viewMenu")}
+                >
+                  <Ionicons name="restaurant-outline" size={18} color={MarketplaceTheme.accent} />
+                  <Text style={styles.actionBtnText} numberOfLines={1}>
+                    {t("deals.menu")}
+                  </Text>
+                </TouchableOpacity>
               ) : null}
 
               {canContact ? (
@@ -595,21 +579,33 @@ const styles = StyleSheet.create({
     lineHeight: MarketplaceType.bodyMdLine,
     color: "#475467",
   },
-  vendorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  vendorCard: {
+    alignSelf: "stretch",
     paddingHorizontal: 14,
     paddingVertical: 14,
-    gap: 12,
+    gap: 0,
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-  vendorLeft: {
+  vendorHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  vendorTitleBlock: {
     flex: 1,
+    minWidth: 0,
     gap: 4,
+    alignItems: "flex-start",
+  },
+  vendorDetails: {
+    marginTop: 12,
+    alignSelf: "stretch",
+    alignItems: "flex-start",
+    gap: 6,
   },
   vendorName: {
     fontFamily: Fonts.bold,
@@ -625,9 +621,10 @@ const styles = StyleSheet.create({
   },
   vendorDistRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    alignSelf: "stretch",
+    gap: 6,
     minWidth: 0,
   },
   vendorDist: {
@@ -650,21 +647,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textDecorationLine: "underline",
   },
-  iconBtn: {
-    width: 46,
-    height: 46,
-    flexShrink: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: MarketplaceTheme.accentBorder,
-  },
-  actionBtn: {
+  vendorPhoneLink: {
     flex: 1,
-    flexBasis: 0,
+    flexShrink: 1,
     minWidth: 0,
+    fontFamily: Fonts.semiBold,
+    fontSize: MarketplaceType.body,
+    color: "#0D9488",
+    lineHeight: MarketplaceType.headingLine,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  vendorDistIcon: {
+    marginTop: 2,
+  },
+  actionBtnWide: {
+    width: "100%",
     height: 46,
     flexDirection: "row",
     alignItems: "center",
@@ -819,11 +817,6 @@ const styles = StyleSheet.create({
       },
       android: { elevation: 8 },
     }),
-  },
-  secondaryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
   },
   primaryBtn: {
     flexDirection: "row",

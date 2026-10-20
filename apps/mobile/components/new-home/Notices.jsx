@@ -41,6 +41,7 @@ import { arrowForward } from "../../utils/rtl";
 import { localizedField } from "../../i18n";
 import { useSessionUser } from "../../hooks/use-session-user";
 import { isHomeSectionEnabled, isResidentFeatureEnabled } from "../../constants/resident-features";
+import { homeSectionEmptyHintKey } from "../../utils/home-section-empty-copy";
 
 const QUICK_ACTIONS = [
   { id: "bills", titleKey: "home.qa.bills", icon: "credit-card", route: "/screens/bills", feature: null, highlight: true },
@@ -466,7 +467,11 @@ export default function Notices({ items = [], noticesLoaded = false }) {
         </View>
       ) : noticesLoaded ? (
         <View style={[styles.heroEmptyWrap, { width: "100%", paddingHorizontal: frame.sideInset }]}>
-          <HomeSectionEmpty message={t("home.noNotices")} icon="bell" />
+          <HomeSectionEmpty
+            icon="bell"
+            message={t("home.noNotices")}
+            hint={t(homeSectionEmptyHintKey(sessionUser, "noNoticesHint"))}
+          />
         </View>
       ) : null}
 

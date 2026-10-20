@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -43,7 +43,7 @@ import HavenaWordmark from "./havena-wordmark";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { wellnessDetailRouteParams } from "../../constants/wellness-categories";
 import { getWellnessCategoryMeta } from "../../constants/wellness-theme";
-import { fetchWellnessHub } from "../../services/wellness-api";
+import { fetchWellnessHub, getCachedWellnessHub, subscribeWellnessHub } from "../../services/wellness-api";
 import { fetchMyFamily } from "../../services/family-api";
 import { SidebarWellnessHubSkeleton } from "./skeleton-loader";
 import { dismissImageSourcePicker } from "../../providers/image-source-picker-provider";
@@ -241,9 +241,25 @@ function SideMenuPanel({ visible, onClose }) {
     navigateAndClose("/(tabs)/profile");
   };
 
-  const [wellnessHub, setWellnessHub] = useState([]);
+  const [wellnessHub, setWellnessHub] = useState(() => getCachedWellnessHub()?.categories ?? []);
   const [wellnessHubLoading, setWellnessHubLoading] = useState(false);
   const [familyPendingCount, setFamilyPendingCount] = useState(0);
+
+  const residentFeaturesSig = user?.resident_features?.features
+    ? JSON.stringify(user.resident_features.features)
+    : "";
+
+  const wellnessMenuScope = useMemo(() => {
+    if (!user) return "pending";
+    if (!isResidentFeatureEnabled(user, "wellness")) return "off";
+    return `on:${currentCommunityId(user) ?? "none"}:${residentFeaturesSig}`;
+  }, [user, residentFeaturesSig]);
+
+  const familyMenuScope = useMemo(() => {
+    if (!user || isGuestUser(user)) return "off";
+    if (!isResidentFeatureEnabled(user, "family")) return "off";
+    return `on:${currentCommunityId(user) ?? "none"}`;
+  }, [user]);
 
   const menuItems = [
     isResidentFeatureEnabled(user, "feed")
@@ -345,34 +361,75 @@ function SideMenuPanel({ visible, onClose }) {
   }, [visible, slideAnim]);
 
   useEffect(() => {
+    if (!visible) return undefined;
+    return subscribeWellnessHub((hub) => {
+      setWellnessHub(hub?.categories ?? []);
+      setWellnessHubLoading(false);
+    });
+  }, [visible]);
+
+  useEffect(() => {
     if (!visible) {
       setWellnessHubLoading(false);
       return undefined;
     }
 
-    if (isResidentFeatureEnabled(user, "wellness")) {
-      setWellnessHubLoading(true);
-      fetchWellnessHub()
-        .then((hub) => setWellnessHub(hub.categories ?? []))
-        .catch(() => setWellnessHub([]))
-        .finally(() => setWellnessHubLoading(false));
-    } else {
+    if (wellnessMenuScope === "pending") return undefined;
+
+    if (wellnessMenuScope === "off") {
       setWellnessHub([]);
       setWellnessHubLoading(false);
+      return undefined;
     }
 
-    if (user && !isGuestUser(user) && isResidentFeatureEnabled(user, "family")) {
-      fetchMyFamily()
-        .then((payload) => {
-          setFamilyPendingCount(payload?.family?.pending_requests_count ?? 0);
-        })
-        .catch(() => setFamilyPendingCount(0));
+    const cached = getCachedWellnessHub();
+    if (cached?.categories?.length) {
+      setWellnessHub(cached.categories);
+      setWellnessHubLoading(false);
     } else {
-      setFamilyPendingCount(0);
+      setWellnessHubLoading(true);
     }
 
-    return undefined;
-  }, [visible, user]);
+    let cancelled = false;
+    fetchWellnessHub()
+      .then((hub) => {
+        if (!cancelled) setWellnessHub(hub.categories ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setWellnessHub([]);
+      })
+      .finally(() => {
+        if (!cancelled) setWellnessHubLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, wellnessMenuScope]);
+
+  useEffect(() => {
+    if (!visible) return undefined;
+
+    if (familyMenuScope === "off") {
+      setFamilyPendingCount(0);
+      return undefined;
+    }
+
+    let cancelled = false;
+    fetchMyFamily()
+      .then((payload) => {
+        if (!cancelled) {
+          setFamilyPendingCount(payload?.family?.pending_requests_count ?? 0);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFamilyPendingCount(0);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, familyMenuScope]);
 
   const openWellness = () => {
     navigateAndClose("/(tabs)/wellness");

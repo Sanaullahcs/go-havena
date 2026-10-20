@@ -438,6 +438,11 @@ export function resolvePushNotificationRoute(data = {}) {
         conversationId: String(data.conversationId ?? data.conversation_id),
         listingId: data.listingId ?? data.listing_id,
         recipientName: data.recipientName ?? data.actor_name ?? data.actorName,
+        recipientRole:
+          data.recipientRole ??
+          data.recipient_role ??
+          data.senderRole ??
+          data.sender_role,
       },
     };
   }

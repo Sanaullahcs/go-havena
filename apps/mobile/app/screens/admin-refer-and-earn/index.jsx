@@ -10,8 +10,10 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
+import { getUser } from "../../../services/auth-session";
+import { isPakistanCommunityRegion } from "../../../services/community-access";
 import { Feather } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useTranslation } from "react-i18next";
@@ -120,6 +122,7 @@ function HistoryRow({ row, t, showDivider }) {
 
 export default function AdminReferAndEarnScreen() {
   useRequireCommunityAdmin();
+  const router = useRouter();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { showSuccess } = useApiAction();
@@ -144,8 +147,20 @@ export default function AdminReferAndEarnScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load]),
+      let cancelled = false;
+      (async () => {
+        const user = await getUser();
+        if (cancelled) return;
+        if (isPakistanCommunityRegion(user)) {
+          router.replace("/screens/admin-dashboard");
+          return;
+        }
+        load();
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [load, router]),
   );
 
   const rewardLabel = useMemo(

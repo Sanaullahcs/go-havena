@@ -17,6 +17,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ScrollView } from "react-native";
 
+import HomeSectionEmpty from "../new-home/home-section-empty";
 import CommunityListingsBanner from "../marketplace/community-listings-banner";
 import MarketplaceSectionHeader from "../marketplace/marketplace-section-header";
 import ThemedIconBox from "../ui/themed-icon-box";
@@ -394,7 +395,7 @@ export default function MarketplaceHubPanel() {
     <ScrollView
       style={styles.panelScroll}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[marketplaceSharedStyles.scrollContent, styles.scrollContent]}
     >
         {accessBlocked ? (
           <GuestFeatureErrorState
@@ -434,7 +435,13 @@ export default function MarketplaceHubPanel() {
               {loadingData ? (
                 <SectionLoader />
               ) : featuredDeals.length === 0 ? (
-                <Text style={marketplaceSharedStyles.emptyHint}>{t("deals.noneYet")}</Text>
+                <View style={styles.sectionEmptyWrap}>
+                  <HomeSectionEmpty
+                    icon="tag"
+                    message={t("home.noDeals")}
+                    hint={t(isAdmin ? "home.noDealsHintAdmin" : "home.noDealsHint")}
+                  />
+                </View>
               ) : (
                 featuredDeals.map((deal, index) => (
                   <FeaturedDealCard
@@ -463,7 +470,13 @@ export default function MarketplaceHubPanel() {
               {loadingData ? (
                 <SectionLoader />
               ) : popularBiz.length === 0 ? (
-                <Text style={marketplaceSharedStyles.emptyHint}>{t("marketplace.noBusinesses")}</Text>
+                <View style={styles.sectionEmptyWrap}>
+                  <HomeSectionEmpty
+                    icon="map-pin"
+                    message={t("marketplace.noBusinesses")}
+                    hint={t(isAdmin ? "marketplace.noBusinessesHintAdmin" : "marketplace.noBusinessesHint")}
+                  />
+                </View>
               ) : (
                 popularBiz.map((business) => (
                   <PopularBusinessCard
@@ -519,9 +532,7 @@ export default function MarketplaceHubPanel() {
 const styles = StyleSheet.create({
   panelScroll: { flex: 1 },
   scrollContent: {
-    paddingHorizontal: 24,
     paddingTop: 4,
-    paddingBottom: 24,
     gap: 4,
   },
   panelBody: {
@@ -535,6 +546,10 @@ const styles = StyleSheet.create({
   },
   sectionBody: {
     paddingTop: 4,
+  },
+  sectionEmptyWrap: {
+    width: "100%",
+    alignSelf: "stretch",
   },
   exploreGrid: {
     flexDirection: "row",
