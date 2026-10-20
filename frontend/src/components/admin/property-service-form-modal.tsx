@@ -8,7 +8,11 @@ import { ThemedDatePicker } from "@/components/ui/themed-date-picker";
 import { ThemedSelect } from "@/components/ui/themed-select";
 import { confirmAction } from "@/lib/alert";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
-import { SERVICE_CATEGORY_OPTIONS, type PropertyServiceForm } from "@/lib/api/property-services";
+import {
+  SERVICE_CATEGORY_OPTIONS,
+  serviceNameContentError,
+  type PropertyServiceForm,
+} from "@/lib/api/property-services";
 import { formatCommunityMoney } from "@/lib/money";
 
 export const NOTICE_TITLE_TEMPLATE = "{{service}} — Unit {{unit}}";
@@ -216,7 +220,10 @@ function validateServiceForm(form: PropertyServiceForm, step: number): Record<st
   if (step >= 1) {
     if (!errors.name) {
       if (!form.name.trim()) errors.name = "Service name is required.";
-      else if (form.name.trim().length < 2) errors.name = "Service name must be at least 2 characters.";
+      else {
+        const contentError = serviceNameContentError(form.name);
+        if (contentError) errors.name = contentError;
+      }
     }
     if (!form.category) errors.category = "Category is required.";
     else if (!errors.custom_category && form.category === "other" && String(form.custom_category ?? "").trim().length < 2) {
@@ -428,6 +435,7 @@ export function PropertyServiceFormModal({
                 <FieldLabel required>Category</FieldLabel>
                 <ThemedSelect
                   value={form.category}
+                  placeholder="Select service category"
                   options={SERVICE_CATEGORY_OPTIONS}
                   onChange={(value) => {
                     const next = value as PropertyServiceForm["category"];

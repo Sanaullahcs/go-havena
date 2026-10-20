@@ -847,4 +847,83 @@ class AdminMembersListTest extends TestCase
         $this->assertSame(1, $cleared->json('meta.stats.approved'));
         $this->assertSame(1, $cleared->json('meta.stats.invitation_sent'));
     }
+
+    public function test_all_communities_onboarding_tab_lists_residents_with_pending_invite_membership(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $region = Region::query()->create([
+            'title' => 'Cairo Metro',
+            'area' => 'Cairo',
+            'state' => 'EG',
+            'users_label' => '0 users',
+            'sort_order' => 1,
+            'status' => 'active',
+        ]);
+
+        $community = Community::query()->create([
+            'name' => 'Oak Valley',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'growth',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_ACTIVE,
+            'seat_limit' => 100,
+            'meta' => ['card_on_file' => true, 'activated_via' => 'manual'],
+        ]);
+
+        $admin = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status' => 'active',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $admin->id,
+            'community_id' => $community->id,
+            'role' => 'admin',
+            'status' => 'approved',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'List Onboard',
+            'email' => 'list.onboard@example.com',
+            'phone' => '+12025550199',
+            'unit_number' => 'Unit 9',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $residentId = (int) $inviteResponse->json('data.id');
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => 'list.onboard@example.com',
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => 'list.onboard@example.com',
+            'code' => '123456',
+            'intent' => 'login',
+        ])->assertOk();
+
+        Sanctum::actingAs(User::query()->findOrFail($residentId));
+        $this->postJson('/api/v1/communities/join-by-invite', ['invite_code' => $inviteCode])
+            ->assertCreated()
+            ->assertJsonPath('data.membership.status', 'pending');
+
+        $this->seed(SystemAdminSeeder::class);
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
+
+        $response = $this->getJson('/api/v1/admin/members?community_id=all&status=onboarding')->assertOk();
+        $this->assertSame(1, $response->json('meta.total'));
+        $this->assertSame(1, $response->json('meta.stats.onboarding'));
+        $this->assertSame('onboarding', $response->json('data.0.status'));
+        $this->assertSame($residentId, (int) $response->json('data.0.id'));
+    }
 }

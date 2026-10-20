@@ -13,6 +13,8 @@ type ThemedSelectProps = {
   options: Option[];
   label?: string;
   placeholder?: string;
+  emptyMessage?: string;
+  disabled?: boolean;
   fieldKey?: string;
   error?: string;
   onBlur?: () => void;
@@ -25,6 +27,8 @@ export function ThemedSelect({
   options,
   label,
   placeholder = "Select…",
+  emptyMessage = "No options available",
+  disabled = false,
   fieldKey,
   error,
   onBlur,
@@ -81,12 +85,17 @@ export function ThemedSelect({
           onBlur={() => {
             if (!open) onBlur?.();
           }}
-          onClick={() => setOpen((v) => !v)}
+          disabled={disabled}
+          onClick={() => {
+            if (disabled) return;
+            setOpen((v) => !v);
+          }}
           className={[
             "nl-picker-trigger",
             selected ? "has-value" : "",
             error ? "border-red-300 ring-1 ring-red-100" : "",
             open ? "nl-picker-trigger-open" : "",
+            disabled ? "cursor-not-allowed opacity-60" : "",
           ].join(" ")}
         >
           <span className={["nl-picker-text flex-1", selected ? "" : "is-placeholder"].join(" ")}>
@@ -97,27 +106,38 @@ export function ThemedSelect({
 
         {open && mounted
           ? createPortal(
-              <div ref={popoverRef} className="nl-themed-popover nl-select-popover" style={popoverStyle} role="listbox">
-                {options.map((opt) => {
-                  const active = opt.value === value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      role="option"
-                      aria-selected={active}
-                      onClick={() => {
-                        onChange(opt.value);
-                        setOpen(false);
-                        onBlur?.();
-                      }}
-                      className={["nl-select-option", active ? "nl-select-option-selected" : ""].join(" ")}
-                    >
-                      <span className="min-w-0 whitespace-normal break-words text-left">{opt.label}</span>
-                      {active ? <Check size={14} strokeWidth={2.5} aria-hidden /> : null}
-                    </button>
-                  );
-                })}
+              <div
+                ref={popoverRef}
+                className="nl-themed-popover nl-select-popover !overflow-hidden flex min-h-0 flex-col p-0"
+                style={popoverStyle}
+                role="listbox"
+              >
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5 [scrollbar-width:thin]">
+                  {options.length === 0 ? (
+                    <p className="px-2.5 py-3 text-[13px] leading-snug text-slate-500">{emptyMessage}</p>
+                  ) : (
+                    options.map((opt) => {
+                      const active = opt.value === value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          role="option"
+                          aria-selected={active}
+                          onClick={() => {
+                            onChange(opt.value);
+                            setOpen(false);
+                            onBlur?.();
+                          }}
+                          className={["nl-select-option", active ? "nl-select-option-selected" : ""].join(" ")}
+                        >
+                          <span className="min-w-0 whitespace-normal break-words text-left">{opt.label}</span>
+                          {active ? <Check size={14} strokeWidth={2.5} aria-hidden /> : null}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>,
               document.body,
             )

@@ -1811,6 +1811,33 @@ class PropertyServiceBillingTest extends TestCase
         ));
     }
 
+    public function test_service_name_rejects_numeric_or_symbol_only_values(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity(421);
+        Sanctum::actingAs($admin);
+        $headers = $this->headers($community->id);
+        $payload = [
+            'category' => 'water',
+            'application_type' => 'automatic',
+            'billing_frequency' => 'monthly',
+            'amount' => 25,
+            'due_day' => 10,
+            'first_billing_month' => '2026-09',
+        ];
+        $message = 'Service name must include at least 3 letters. Numbers and symbols alone are not allowed.';
+
+        foreach (['123456', '@#$%^&*'] as $badName) {
+            $this->withHeaders($headers)
+                ->postJson('/api/v1/admin/property-services', array_merge($payload, ['name' => $badName]))
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.name.0', $message);
+        }
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, ['name' => 'Parking 123']))
+            ->assertCreated();
+    }
+
     public function test_service_name_and_description_reject_text_past_the_character_limit(): void
     {
         ['community' => $community, 'admin' => $admin] = $this->seedCommunity(420);

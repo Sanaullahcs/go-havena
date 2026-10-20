@@ -245,7 +245,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     { label: "Pending Approval", value: String(stats.pending), hint: "Awaiting review", tone: "amber" as const, icon: <IcoClock /> },
     { label: "Active", value: String(stats.approved), hint: "Approved residents", tone: "green" as const, icon: <IcoActivity /> },
     { label: "Invitation Sent", value: String(stats.invitation_sent ?? 0), hint: "Awaiting signup", tone: "slate" as const, icon: <IcoUser /> },
-    { label: "Onboarding", value: String(stats.onboarding ?? 0), hint: "Signup started", tone: "cyan" as const, icon: <IcoUser /> },
+    { label: "Onboarding", value: String(stats.onboarding ?? 0), hint: "Signed in, profile incomplete", tone: "cyan" as const, icon: <IcoUser /> },
     { label: "Suspended", value: String(stats.banned), hint: "Banned from community", tone: "slate" as const, icon: <IcoBanStat /> },
     { label: "Inactive", value: String(stats.inactive ?? 0), hint: "Former members", tone: "slate" as const, icon: <IcoUser /> },
   ], [stats, isSystemResidents]);
@@ -623,8 +623,6 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
 
       <DataTable
         title={isSystemResidents ? "All Residents" : "All Members"}
-        totalCount={total}
-        visibleCount={members.length}
         search={searchInput}
         onSearch={setSearchInput}
         searchPlaceholder="Search by name or email"

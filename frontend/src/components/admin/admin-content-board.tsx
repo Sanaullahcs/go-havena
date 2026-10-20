@@ -494,8 +494,6 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
 
       <DataTable
         title={`All ${config.title}`}
-        totalCount={total}
-        visibleCount={notices.length}
         search={searchInput}
         onSearch={setSearchInput}
         searching={isSearchPending}

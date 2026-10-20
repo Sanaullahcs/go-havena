@@ -137,6 +137,18 @@ class UserBlockService
         return self::isBlockableResident($target, $communityId);
     }
 
+    /** Residents may report posts/comments only from other residents (not community admins). */
+    public static function canReportContentAuthor(int $authorId, ?int $communityId = null): bool
+    {
+        if ($authorId < 1) {
+            return false;
+        }
+
+        $author = DB::table('users')->where('id', $authorId)->where('status', '!=', 'deleted')->first();
+
+        return self::isBlockableResident($author, $communityId);
+    }
+
     public static function assertBlockableUser(int $blockerId, int $targetId, ?int $communityId = null): void
     {
         if ($blockerId === $targetId) {

@@ -60,7 +60,7 @@ const SUBSCRIPTIONS_PAGE_SIZE = 6;
 
 const emptyForm: PropertyServiceForm = {
   name: "",
-  category: "water",
+  category: "",
   custom_category: "",
   description: "",
   icon_key: "droplet",
@@ -408,7 +408,7 @@ export default function AdminServicesPage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Unit billing</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Services</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Automatic services bill every residential unit. Optional services bill the unit billing contact only after you approve the subscription request.
+            Automatic Services Bills are automatically generated for every residential unit in the community. Optional Services Bills are generated for the unit's designated billing contact only after the Community Admin approves the subscription request.
           </p>
         </div>
         <button type="button" onClick={openCreate} className="nl-btn-primary inline-flex items-center gap-2">
@@ -438,8 +438,6 @@ export default function AdminServicesPage() {
 
       <DataTable
         title="Community services"
-        totalCount={scoped.length}
-        visibleCount={filtered.length}
         search={searchInput}
         onSearch={(value) => startTransition(() => { setSearchInput(value); setPage(1); })}
         searching={isSearchPending}

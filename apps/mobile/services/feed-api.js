@@ -200,6 +200,7 @@ export function normalizePost(raw) {
     is_mine: raw.is_mine ?? false,
     author_role: raw.author_role ?? raw.user?.role ?? null,
     can_block: raw.can_block,
+    can_report: raw.can_report,
     status: raw.status ?? "approved",
     is_sensitive: sensitive,
     sensitive_message: sensitive

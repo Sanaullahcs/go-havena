@@ -33,6 +33,23 @@ export const SERVICE_CATEGORY_OPTIONS: Array<{ value: Exclude<ServiceCategory, "
   { value: "other", label: "Other" },
 ];
 
+const SERVICE_NAME_LETTER_MIN = 3;
+
+export function serviceNameLetterCount(name: string): number {
+  const matches = name.match(/\p{L}/gu);
+  return matches?.length ?? 0;
+}
+
+/** Step-1 service name content rule (after trim); empty string is handled separately as required. */
+export function serviceNameContentError(name: string): string | undefined {
+  const trimmed = name.trim();
+  if (!trimmed) return undefined;
+  if (serviceNameLetterCount(trimmed) < SERVICE_NAME_LETTER_MIN) {
+    return "Service name must include at least 3 letters. Numbers and symbols alone are not allowed.";
+  }
+  return undefined;
+}
+
 export function serviceCategoryLabel(category?: string | null, customCategory?: string | null): string {
   if (category === "other" && customCategory?.trim()) return customCategory.trim();
   return SERVICE_CATEGORY_OPTIONS.find((item) => item.value === category)?.label
@@ -198,7 +215,7 @@ export interface ServiceSubscription {
 
 export type PropertyServiceForm = {
   name: string;
-  category: ServiceCategory;
+  category: ServiceCategory | "";
   custom_category?: string | null;
   description?: string;
   icon_key?: string;

@@ -562,6 +562,10 @@ class FeedController extends Controller
             return response()->json(['message' => 'You cannot report your own post'], 422);
         }
 
+        if (! UserBlockService::canReportContentAuthor((int) $post->user_id, (int) $post->community_id)) {
+            return response()->json(['message' => 'You cannot report posts from community admins.'], 422);
+        }
+
         if ((bool) ($post->is_sensitive ?? false)) {
             return response()->json(['message' => 'This post is already marked as sensitive content'], 422);
         }
@@ -1729,6 +1733,7 @@ class FeedController extends Controller
             'user_id'        => (int) $post->user_id,
             'author_role'    => $post->author_role ?? null,
             'can_block'      => UserBlockService::canBlock($userId, (int) $post->user_id, isset($post->community_id) ? (int) $post->community_id : null),
+            'can_report'     => UserBlockService::canReportContentAuthor((int) $post->user_id, isset($post->community_id) ? (int) $post->community_id : null),
             'body'           => $body,
             'body_es'        => $post->body_es ?? null,
             'body_ar'        => $post->body_ar ?? null,

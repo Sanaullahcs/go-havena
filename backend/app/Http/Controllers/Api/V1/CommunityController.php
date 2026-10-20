@@ -153,7 +153,7 @@ class CommunityController extends Controller
                     }
 
                     $existing->update([
-                        'status' => 'approved',
+                        'status' => filled($locked->invited_user_id) ? 'pending' : 'approved',
                         'invite_code_used' => $locked->code,
                     ]);
                     $locked->increment('used_count');
@@ -224,8 +224,9 @@ class CommunityController extends Controller
                 ]);
             }
 
-            $status = 'approved';
             $inviteUsed = $inviteModel->code;
+            // Admin member invites stay pending until the resident completes profile setup.
+            $status = filled($inviteModel->invited_user_id) ? 'pending' : 'approved';
             // Admin member invites already allocated a seat to the placeholder user.
             $seatAlreadyHeldByInvite = filled($inviteModel->invited_user_id);
         } else {

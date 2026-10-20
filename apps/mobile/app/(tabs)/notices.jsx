@@ -42,6 +42,7 @@ import { getUser } from "../../services/auth-session";
 import { isCommunityAdminRole, isGuestUser, isResidentMode } from "../../services/community-access";
 import { useSessionUser } from "../../hooks/use-session-user";
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
+import { communityUpdatesSubtitle } from "../../utils/community-updates-subtitle";
 
 
 const BASE_TABS = [
@@ -101,7 +102,7 @@ function formatCardDate(notice) {
 }
 
 export default function Notifications() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const sessionUser = useSessionUser();
   const [selectedTab, setSelectedTab] = useState("all");
@@ -117,7 +118,15 @@ export default function Notifications() {
   const [showYoursTab, setShowYoursTab] = useState(false);
   const { unread: unreadNotifications } = useNotificationUnread();
   const hasLoadedRef = useRef(false);
+  const loadSeqRef = useRef(0);
   const listRef = useRef(null);
+  const sessionUserRef = useRef(sessionUser);
+  sessionUserRef.current = sessionUser;
+
+  const sessionFeaturesSig = useMemo(
+    () => JSON.stringify(sessionUser?.resident_features?.features ?? null),
+    [sessionUser?.resident_features?.features],
+  );
 
   const tabs = useMemo(
     () =>
@@ -132,12 +141,20 @@ export default function Notifications() {
     [showYoursTab, sessionUser],
   );
 
+  const pageSubtitle = useMemo(
+    () => communityUpdatesSubtitle(sessionUser, t, i18n.language),
+    [sessionUser, t, i18n.language],
+  );
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), 350);
     return () => clearTimeout(timer);
   }, [query]);
 
-  const currentTab = tabs.find((tab) => tab.id === selectedTab) ?? tabs[0];
+  const currentTab = useMemo(
+    () => tabs.find((tab) => tab.id === selectedTab) ?? tabs[0],
+    [tabs, selectedTab],
+  );
 
   useEffect(() => {
     getUser()
@@ -161,6 +178,7 @@ export default function Notifications() {
 
   const load = useCallback(
     async (silent = false) => {
+      const seq = ++loadSeqRef.current;
       if (!silent) {
         setLoading(true);
         setNotices([]);
@@ -173,6 +191,7 @@ export default function Notifications() {
         const feature = noticePermissionFeature(currentTab);
         const blocked = await resolveLoadRestriction(feature);
         if (blocked) {
+          if (seq !== loadSeqRef.current) return;
           setNotices([]);
           setResultCount(0);
           setError(blocked);
@@ -209,9 +228,10 @@ export default function Notifications() {
         }
 
         items = items.filter((notice) =>
-          isResidentFeatureEnabled(sessionUser, contentFeatureKey(notice)),
+          isResidentFeatureEnabled(sessionUserRef.current, contentFeatureKey(notice)),
         );
 
+        if (seq !== loadSeqRef.current) return;
         const serverTotal = Number(meta?.total);
         const hiddenByFeature = Math.max(0, data.length - items.length);
         setNotices(items);
@@ -225,6 +245,7 @@ export default function Notifications() {
       } catch (err) {
         const feature = noticePermissionFeature(currentTab);
         const restricted = await resolveLoadRestriction(feature, err);
+        if (seq !== loadSeqRef.current) return;
         if (restricted) {
           setNotices([]);
           setResultCount(0);
@@ -237,36 +258,38 @@ export default function Notifications() {
           setResultCount(0);
         }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (seq === loadSeqRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [currentTab, debouncedQuery, sessionUser, sort],
+    [currentTab, debouncedQuery, sort],
   );
+
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
   useFocusEffect(
     useCallback(() => {
-      load(hasLoadedRef.current);
+      loadRef.current(hasLoadedRef.current);
       hasLoadedRef.current = true;
-    }, [load]),
+    }, []),
   );
 
-  const filtersReady = useRef(false);
   useEffect(() => {
-    if (!filtersReady.current) {
-      filtersReady.current = true;
-      return;
-    }
+    if (!hasLoadedRef.current) return;
     setNotices([]);
     setLoading(true);
+    setError(null);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-    load(false);
-  }, [selectedTab, debouncedQuery, sort, load]);
+    loadRef.current(true);
+  }, [selectedTab, debouncedQuery, sort, sessionFeaturesSig]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    load(true);
-  }, [load]);
+    loadRef.current(true);
+  }, []);
 
   const toggleSaved = useCallback(async (id) => {
     try {
@@ -542,7 +565,7 @@ export default function Notifications() {
             {!accessBlocked ? (
             <>
             <View>
-              <Text style={styles.subtitle}>{t("notices.subtitle")}</Text>
+              <Text style={styles.subtitle}>{pageSubtitle}</Text>
             </View>
 
             <View style={{ marginTop: 12 }}>
@@ -618,7 +641,7 @@ export default function Notifications() {
       <FlatList
         ref={listRef}
         style={styles.cardList}
-        data={notices}
+        data={loading ? [] : notices}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderNoticeCard}
         ListEmptyComponent={listEmpty}

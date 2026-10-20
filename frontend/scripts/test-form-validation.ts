@@ -987,6 +987,7 @@ console.log("\nProvision user validation");
     },
     emptyPhoneField(),
   );
+  assertHasError(invalidAdmin, "name", "admin name required");
   assertHasError(invalidAdmin, "email", "admin email");
   assertHasError(invalidAdmin, "phone", "admin phone");
   assertHasError(invalidAdmin, "region_id", "admin region");

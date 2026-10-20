@@ -212,8 +212,9 @@ export function DataTable<K extends string>({
   contained = false,
 }: {
   title: string;
-  totalCount: number;
-  visibleCount: number;
+  /** When omitted, no visible/total badge is shown beside the table title. */
+  totalCount?: number;
+  visibleCount?: number;
   search: string;
   onSearch: (v: string) => void;
   searchPlaceholder?: string;
@@ -249,9 +250,11 @@ export function DataTable<K extends string>({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
         <div className="flex items-center gap-3">
           <h3 className="text-[15px] font-semibold text-slate-900">{title}</h3>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-slate-500">
-            {visibleCount}/{totalCount}
-          </span>
+          {totalCount != null && visibleCount != null ? (
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-slate-500">
+              {visibleCount}/{totalCount}
+            </span>
+          ) : null}
         </div>
         <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
           {/* Search */}

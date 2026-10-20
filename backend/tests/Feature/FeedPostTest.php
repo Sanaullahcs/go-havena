@@ -713,15 +713,9 @@ class FeedPostTest extends TestCase
         ]);
     }
 
-    public function test_reports_against_community_admin_posts_go_to_system_admin(): void
+    public function test_resident_cannot_report_community_admin_post(): void
     {
         ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
-
-        $systemAdmin = User::factory()->create([
-            'role'   => 'system_admin',
-            'status' => 'active',
-            'phone'  => '+201700000043',
-        ]);
 
         Sanctum::actingAs($admin);
         $postId = $this->postJson('/api/v1/feed', [
@@ -731,64 +725,28 @@ class FeedPostTest extends TestCase
         ])->assertCreated()->json('data.id');
 
         Sanctum::actingAs($resident);
+
+        $this->getJson('/api/v1/feed?community_id='.$community->id, [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $postId)
+            ->assertJsonPath('data.0.can_report', false)
+            ->assertJsonPath('data.0.can_block', false);
+
         $this->postJson('/api/v1/feed/'.$postId.'/report', [
             'type'        => 'spam',
-            'description' => 'This admin post should be reviewed higher up.',
+            'description' => 'Trying to report an admin post.',
         ], [
             'X-Community-Id' => (string) $community->id,
         ])
-            ->assertCreated()
-            ->assertJsonPath('data.review_queue', 'system_admin')
-            ->assertJsonPath('data.is_sensitive', false);
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'You cannot report posts from community admins.');
 
-        $this->assertDatabaseHas('app_notifications', [
-            'user_id' => $systemAdmin->id,
-            'title'   => 'Community admin post reported',
-        ]);
-        $this->assertDatabaseMissing('app_notifications', [
-            'user_id' => $admin->id,
-            'title'   => 'Post reported',
-        ]);
-        $this->assertDatabaseMissing('app_notifications', [
-            'user_id' => $admin->id,
-            'title'   => 'Community admin post reported',
-        ]);
-
-        app(\App\Services\CommunityBillingService::class)->activateManualSubscription($community, 'growth');
-
-        $reportId = (int) DB::table('post_reports')->where('post_id', $postId)->value('id');
-
-        Sanctum::actingAs($admin);
-        $this->getJson('/api/v1/admin/posts/'.$postId.'/reports')->assertForbidden();
-        $this->postJson('/api/v1/admin/posts/'.$postId.'/reports/'.$reportId.'/dismiss')->assertForbidden();
-        $this->postJson('/api/v1/admin/posts/'.$postId.'/report', [
-            'reason' => 'Trying to hide this myself.',
-        ])->assertForbidden();
-
-        $this->getJson('/api/v1/admin/posts')
-            ->assertOk()
-            ->assertJsonPath('data.0.reports_restricted', true)
-            ->assertJsonPath('data.0.resident_reports_count', 0)
-            ->assertJsonPath('data.0.is_sensitive', false);
-
-        Sanctum::actingAs($systemAdmin);
-        $this->getJson('/api/v1/admin/posts/'.$postId.'/reports')
-            ->assertOk()
-            ->assertJsonPath('data.0.status', 'pending_review')
-            ->assertJsonPath('data.0.review_queue', 'system_admin');
-
-        $this->postJson('/api/v1/admin/posts/'.$postId.'/reports/'.$reportId.'/dismiss')
-            ->assertOk()
-            ->assertJsonPath('data.is_sensitive', false);
-
-        $this->assertDatabaseHas('posts', [
-            'id'           => $postId,
-            'is_sensitive' => false,
-            'status'       => 'approved',
-        ]);
-        $this->assertDatabaseHas('activity_logs', [
-            'action'  => 'post_report_dismissed',
-            'user_id' => $systemAdmin->id,
+        $this->assertDatabaseMissing('post_reports', [
+            'post_id'     => $postId,
+            'reporter_id' => $resident->id,
+            'source'      => 'resident',
         ]);
     }
 }

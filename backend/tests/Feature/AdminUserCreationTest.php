@@ -6,6 +6,7 @@ use App\Models\Community;
 use App\Models\CommunityMembership;
 use App\Models\Region;
 use App\Models\User;
+use App\Services\CommunityBillingService;
 use Database\Seeders\SystemAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -41,7 +42,7 @@ class AdminUserCreationTest extends TestCase
             'type' => 'community_admin',
             'name' => 'Ahmed Admin',
             'email' => 'ahmed.admin@example.com',
-            'phone' => '+2017777777',
+            'phone' => '+14155552671',
             'region_id' => $region->id,
             'community_name' => 'Nile Gardens',
             'community_address' => '123 Nile St',
@@ -49,12 +50,12 @@ class AdminUserCreationTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonPath('data.role', 'community_admin')
-            ->assertJsonPath('data.phone', '+2017777777')
+            ->assertJsonPath('data.phone', '+14155552671')
             ->assertJsonPath('data.community.name', 'Nile Gardens');
 
         $this->assertDatabaseHas('users', [
             'email' => 'ahmed.admin@example.com',
-            'phone' => '+2017777777',
+            'phone' => '+14155552671',
             'role' => 'community_admin',
             'community_admin_status' => 'approved',
         ]);
@@ -153,7 +154,7 @@ class AdminUserCreationTest extends TestCase
             'type' => 'community_admin',
             'name' => 'Lina Admin',
             'email' => 'lina.admin@example.com',
-            'phone' => '+201700000010',
+            'phone' => '+14155552672',
             'region_id' => $region->id,
             'community_id' => $community->id,
         ]);
@@ -198,7 +199,7 @@ class AdminUserCreationTest extends TestCase
             'community_admin_status' => 'approved',
             'status' => 'active',
             'email' => 'existing.admin@example.com',
-            'phone' => '+201700000011',
+            'phone' => '+14155552673',
         ]);
 
         CommunityMembership::query()->create([
@@ -212,7 +213,7 @@ class AdminUserCreationTest extends TestCase
             'type' => 'community_admin',
             'name' => 'Second Admin',
             'email' => 'second.admin@example.com',
-            'phone' => '+201700000012',
+            'phone' => '+14155552674',
             'region_id' => $region->id,
             'community_id' => $community->id,
         ])->assertUnprocessable()
@@ -251,7 +252,7 @@ class AdminUserCreationTest extends TestCase
             'type' => 'community_admin',
             'name' => 'Wrong Region Admin',
             'email' => 'wrong.admin@example.com',
-            'phone' => '+201700000013',
+            'phone' => '+14155552675',
             'region_id' => $regionA->id,
             'community_id' => $community->id,
         ])->assertUnprocessable()
@@ -260,6 +261,7 @@ class AdminUserCreationTest extends TestCase
 
     public function test_system_admin_can_create_resident_in_existing_community(): void
     {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
         $this->actingAsSystemAdmin();
 
         $region = Region::query()->create([
@@ -279,28 +281,39 @@ class AdminUserCreationTest extends TestCase
             'review_status' => 'approved',
         ]);
 
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
         $response = $this->postJson('/api/v1/admin/users', [
             'type' => 'resident',
             'name' => 'Sara Resident',
             'email' => 'sara.resident@example.com',
-            'phone' => '+201700000001',
+            'phone' => '+14155552676',
             'region_id' => $region->id,
             'community_id' => $community->id,
         ]);
 
         $response->assertCreated()
             ->assertJsonPath('data.role', 'resident')
-            ->assertJsonPath('data.community.id', $community->id);
+            ->assertJsonPath('data.status', 'invitation_sent')
+            ->assertJsonPath('data.community.id', $community->id)
+            ->assertJsonPath('data.membership', null);
+
+        $userId = (int) $response->json('data.id');
 
         $this->assertDatabaseHas('users', [
             'email' => 'sara.resident@example.com',
             'role' => 'resident',
+            'phone_verified_at' => null,
         ]);
 
-        $this->assertDatabaseHas('community_memberships', [
+        $this->assertDatabaseMissing('community_memberships', [
+            'user_id' => $userId,
             'community_id' => $community->id,
-            'role' => 'member',
-            'status' => 'approved',
+        ]);
+
+        $this->assertDatabaseHas('invite_codes', [
+            'invited_user_id' => $userId,
+            'community_id' => $community->id,
         ]);
     }
 
@@ -336,7 +349,7 @@ class AdminUserCreationTest extends TestCase
             'type' => 'resident',
             'name' => 'Wrong Region',
             'email' => 'wrong@example.com',
-            'phone' => '+201700000002',
+            'phone' => '+14155552677',
             'region_id' => $regionA->id,
             'community_id' => $community->id,
         ])->assertUnprocessable()
@@ -345,6 +358,7 @@ class AdminUserCreationTest extends TestCase
 
     public function test_system_admin_can_reprovision_deleted_resident_with_same_phone(): void
     {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
         $this->actingAsSystemAdmin();
 
         $region = Region::query()->create([
@@ -364,11 +378,13 @@ class AdminUserCreationTest extends TestCase
             'review_status' => 'approved',
         ]);
 
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
         $payload = [
             'type' => 'resident',
             'name' => 'Sara Resident',
             'email' => 'sara.resident@example.com',
-            'phone' => '+201700000001',
+            'phone' => '+14155552676',
             'region_id' => $region->id,
             'community_id' => $community->id,
         ];
@@ -376,12 +392,12 @@ class AdminUserCreationTest extends TestCase
         $this->postJson('/api/v1/admin/users', $payload)->assertCreated();
 
         $userId = User::query()->where('email', $payload['email'])->value('id');
-
-        $this->deleteJson("/api/v1/admin/members/{$userId}?community_id={$community->id}")
-            ->assertOk();
+        User::query()->whereKey($userId)->delete();
 
         $this->postJson('/api/v1/admin/users', $payload)
             ->assertCreated()
+            ->assertJsonPath('data.id', $userId)
+            ->assertJsonPath('data.status', 'invitation_sent')
             ->assertJsonPath('data.phone', $payload['phone'])
             ->assertJsonPath('data.community.id', $community->id);
 
@@ -392,10 +408,9 @@ class AdminUserCreationTest extends TestCase
             'deleted_at' => null,
         ]);
 
-        $this->assertDatabaseHas('community_memberships', [
-            'user_id' => $userId,
+        $this->assertDatabaseHas('invite_codes', [
+            'invited_user_id' => $userId,
             'community_id' => $community->id,
-            'status' => 'approved',
         ]);
     }
 }

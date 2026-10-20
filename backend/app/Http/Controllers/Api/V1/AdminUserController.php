@@ -12,7 +12,9 @@ use App\Services\ActivityLogService;
 use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\LifecycleMailService;
+use App\Services\MemberLifecycleStatus;
 use App\Services\OsmGeocodingService;
+use App\Services\ResidentInviteService;
 use App\Support\CommunityLocation;
 use App\Support\CommunityNameUniqueness;
 use App\Support\PhoneNormalizer;
@@ -31,7 +33,8 @@ class AdminUserController extends Controller
     {
         $validated = $request->validate([
             'type' => ['required', 'string', Rule::in(['community_admin', 'resident'])],
-            'name' => ['nullable', 'string', 'max:100'],
+            'name' => ['required', 'string', 'max:100'],
+            'unit_number' => ['nullable', 'string', 'max:20'],
             'email' => [
                 'required',
                 'email',
@@ -77,13 +80,14 @@ class AdminUserController extends Controller
 
         $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
         $displayName = trim($validated['name'] ?? '') ?: 'Neighbor';
+        $actor = $request->user();
 
-        $result = DB::transaction(function () use ($validated, $phone, $region, $displayName, $restorableUser) {
+        $result = DB::transaction(function () use ($validated, $phone, $region, $displayName, $restorableUser, $actor) {
             if ($validated['type'] === 'community_admin') {
                 return $this->createCommunityAdmin($validated, $phone, $region, $displayName);
             }
 
-            return $this->createResident($validated, $phone, $region, $displayName, $restorableUser);
+            return $this->createResident($validated, $phone, $region, $displayName, $restorableUser, $actor);
         });
 
         ActivityLogService::user(
@@ -96,12 +100,10 @@ class AdminUserController extends Controller
         $provisioned = $result['user']->fresh(['profile', 'memberships.community']);
         $community = $result['community'] ?? $provisioned?->memberships->first()?->community;
         $emailSent = false;
-        if ($provisioned && $community) {
-            if ($validated['type'] === 'community_admin') {
-                $emailSent = app(LifecycleMailService::class)->communityAdminProvisioned($provisioned, $community);
-            } else {
-                $emailSent = app(LifecycleMailService::class)->residentProvisioned($provisioned, $community, true);
-            }
+        if ($validated['type'] === 'resident') {
+            $emailSent = (bool) ($result['email_sent'] ?? false);
+        } elseif ($provisioned && $community) {
+            $emailSent = app(LifecycleMailService::class)->communityAdminProvisioned($provisioned, $community);
         } else {
             Log::warning('Provisioned user email skipped', [
                 'type' => $validated['type'],
@@ -113,10 +115,14 @@ class AdminUserController extends Controller
 
         $payload = array_merge($result['payload'], ['email_sent' => $emailSent]);
         $message = $result['message'];
-        if ($provisioned && $community) {
+        if ($validated['type'] === 'community_admin' && $provisioned && $community) {
             $message = $emailSent
                 ? $result['message'].' A welcome email was sent.'
                 : $result['message'].' The welcome email could not be sent — share sign-in instructions manually.';
+        } elseif ($validated['type'] === 'resident') {
+            $message = $emailSent
+                ? $result['message'].' An invitation email was sent.'
+                : $result['message'].' Share the invite code with the resident — the invitation email could not be sent.';
         }
 
         return response()->json([
@@ -222,8 +228,14 @@ class AdminUserController extends Controller
         ]);
     }
 
-    private function createResident(array $validated, ?string $phone, Region $region, string $displayName, ?User $restorableUser = null): array
-    {
+    private function createResident(
+        array $validated,
+        ?string $phone,
+        Region $region,
+        string $displayName,
+        ?User $restorableUser,
+        User $actor,
+    ): array {
         $community = Community::query()
             ->where('id', $validated['community_id'])
             ->where('status', 'active')
@@ -239,50 +251,58 @@ class AdminUserController extends Controller
             ]);
         }
 
+        $unitNumber = trim((string) ($validated['unit_number'] ?? ''));
+
         if ($restorableUser) {
-            return $this->restoreResident($restorableUser, $validated, $phone, $region, $displayName, $community);
+            return $this->restoreAndInviteResident(
+                $restorableUser,
+                $validated,
+                $phone,
+                $region,
+                $displayName,
+                $community,
+                $actor,
+                $unitNumber,
+            );
         }
 
-        $user = User::query()->create([
-            'uuid' => (string) Str::ulid(),
-            'name' => $displayName,
-            'email' => $validated['email'],
-            'phone' => $phone,
-            'phone_verified_at' => $phone ? now() : null,
-            'password' => Str::random(32),
-            'status' => 'active',
-            'role' => 'resident',
-            'community_admin_status' => null,
-        ]);
+        $sent = app(ResidentInviteService::class)->send(
+            $actor,
+            (int) $community->id,
+            $displayName,
+            (string) $validated['email'],
+            (string) $phone,
+            $unitNumber,
+            null,
+            'member',
+        );
 
-        Profile::query()->create([
-            'user_id' => $user->id,
-            'display_name' => $displayName,
-            'region_id' => $region->id,
-        ]);
+        DB::table('profiles')
+            ->where('user_id', $sent['id'])
+            ->update(['region_id' => $region->id, 'updated_at' => now()]);
 
-        CommunityMembership::query()->create([
-            'user_id' => $user->id,
-            'community_id' => $community->id,
-            'role' => 'member',
-            'status' => 'approved',
-        ]);
+        $user = User::query()->findOrFail($sent['id']);
 
         return [
             'user' => $user,
             'community' => $community,
-            'message' => 'Resident created and added to the community successfully.',
-            'payload' => $this->transformUser($user->fresh(['profile', 'memberships.community']), $community),
+            'email_sent' => $sent['email_sent'] ?? false,
+            'message' => ($sent['reactivated'] ?? false)
+                ? 'Existing member re-invited successfully.'
+                : 'Resident invited successfully.',
+            'payload' => $this->transformInvitedResident($user, $community, $sent),
         ];
     }
 
-    private function restoreResident(
+    private function restoreAndInviteResident(
         User $user,
         array $validated,
         ?string $phone,
         Region $region,
         string $displayName,
         Community $community,
+        User $actor,
+        string $unitNumber,
     ): array {
         if ($user->trashed()) {
             $user->restore();
@@ -292,7 +312,8 @@ class AdminUserController extends Controller
             'name' => $displayName,
             'email' => $validated['email'],
             'phone' => $phone,
-            'phone_verified_at' => $phone ? now() : null,
+            'phone_verified_at' => null,
+            'email_verified_at' => null,
             'password' => Str::random(32),
             'status' => 'active',
             'role' => 'resident',
@@ -300,6 +321,11 @@ class AdminUserController extends Controller
             'community_admin_rejection_reason' => null,
             'suspension_reason' => null,
         ]);
+
+        CommunityMembership::query()
+            ->where('user_id', $user->id)
+            ->where('community_id', $community->id)
+            ->delete();
 
         Profile::query()->updateOrCreate(
             ['user_id' => $user->id],
@@ -309,24 +335,20 @@ class AdminUserController extends Controller
             ],
         );
 
-        CommunityMembership::query()->updateOrCreate(
-            [
-                'user_id' => $user->id,
-                'community_id' => $community->id,
-            ],
-            [
-                'role' => 'member',
-                'status' => 'approved',
-                'rejection_reason' => null,
-                'rejected_by' => null,
-            ],
+        $sent = app(ResidentInviteService::class)->inviteExisting(
+            $actor,
+            $user->fresh(),
+            (int) $community->id,
+            $displayName,
+            $unitNumber,
         );
 
         return [
-            'user' => $user,
+            'user' => $user->fresh(['profile', 'memberships.community']),
             'community' => $community,
-            'message' => 'Resident restored and added to the community successfully.',
-            'payload' => $this->transformUser($user->fresh(['profile', 'memberships.community']), $community),
+            'email_sent' => $sent['email_sent'] ?? false,
+            'message' => 'Resident restored and invited successfully.',
+            'payload' => $this->transformInvitedResident($user->fresh(['profile', 'memberships.community']), $community, $sent),
         ];
     }
 
@@ -345,6 +367,29 @@ class AdminUserController extends Controller
         }
 
         return null;
+    }
+
+    /** @param array<string, mixed> $invite */
+    private function transformInvitedResident(User $user, Community $community, array $invite): array
+    {
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'role' => $user->role,
+            'community_admin_status' => $user->community_admin_status,
+            'status' => MemberLifecycleStatus::INVITATION_SENT,
+            'region_id' => $user->profile?->region_id,
+            'invite_code' => $invite['invite_code'] ?? null,
+            'membership' => null,
+            'community' => [
+                'id' => $community->id,
+                'name' => $community->name,
+                'region_id' => $community->region_id,
+                'region' => $community->region,
+            ],
+        ];
     }
 
     private function transformUser(User $user, Community $community): array
