@@ -257,7 +257,7 @@ class OsmPlacesTest extends TestCase
 
         Http::fake([
             'overpass-api.de/*' => Http::response(['elements' => []], 503),
-            'overpass.osm.ch/*' => Http::response(['elements' => []], 503),
+            'overpass.openstreetmap.fr/*' => Http::response(['elements' => []], 503),
             'overpass.kumi.systems/*' => Http::response(['elements' => []], 503),
         ]);
 
@@ -288,6 +288,65 @@ class OsmPlacesTest extends TestCase
             ->assertJsonPath('meta.overpass_failed', false)
             ->assertJsonPath('data.cafes.0.name', 'Espresso Zone DHA')
             ->assertJsonPath('data.pharmacies.0.phone', '+92 300 765 4321');
+    }
+
+    public function test_nearby_places_uses_nominatim_when_overpass_fails(): void
+    {
+        config(['osm.geocode_in_tests' => true]);
+
+        Http::fake([
+            'overpass-api.de/*' => Http::response(['remark' => 'runtime error'], 503),
+            'overpass.openstreetmap.fr/*' => Http::response([], 503),
+            'overpass.kumi.systems/*' => Http::response([], 503),
+            'nominatim.openstreetmap.org/*' => Http::response([
+                [
+                    'place_id' => 99,
+                    'lat' => '42.4854',
+                    'lon' => '-71.4330',
+                    'name' => 'Madhuri Indian Restaurant',
+                    'category' => 'amenity',
+                    'type' => 'restaurant',
+                    'address' => [
+                        'road' => 'Great Road',
+                        'town' => 'Acton',
+                        'state' => 'Massachusetts',
+                    ],
+                    'extratags' => [
+                        'phone' => '+1 978-555-0100',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $region = $this->activeRegion();
+        $community = Community::query()->create([
+            'name' => 'Acton Nearby',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'address' => '472 Main Street, Acton, MA',
+            'latitude' => 42.4851,
+            'longitude' => -71.4328,
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        CommunityMembership::query()->create([
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+
+        Sanctum::actingAs($resident);
+
+        $this->getJson('/api/v1/nearby-places?all=1&community_id='.$community->id)
+            ->assertOk()
+            ->assertJsonPath('meta.overpass_failed', false)
+            ->assertJsonPath('meta.has_coordinates', true)
+            ->assertJsonPath('data.restaurants.0.name', 'Madhuri Indian Restaurant')
+            ->assertJsonPath('data.restaurants.0.phone', '+1 978-555-0100')
+            ->assertJsonPath('data.cafes', []);
     }
 
     public function test_nearby_places_filters_results_beyond_3km(): void

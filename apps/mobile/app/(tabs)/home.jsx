@@ -95,7 +95,7 @@ export default function Home() {
             </View>
           ) : (
             <>
-              <Notices items={carouselNotices} noticesLoaded={featureOn("notices") && noticesLoaded} />
+              <Notices items={carouselNotices} noticesLoaded={noticesLoaded} />
               {featureOn("events") ? <HappeningSoon items={upcomingEvents} /> : null}
               {featureOn("feed") ? <Communities posts={posts} onPostsChange={setPosts} /> : null}
               {featureOn("marketplace") ? <DealsCornor items={deals} /> : null}

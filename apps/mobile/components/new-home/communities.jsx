@@ -22,6 +22,7 @@ import HomeSectionHeader from "./section-header";
 import HomeSectionEmpty from "./home-section-empty";
 import { useSessionUser } from "../../hooks/use-session-user";
 import { isHomeSectionEnabled } from "../../constants/resident-features";
+import { homeSectionEmptyHintKey } from "../../utils/home-section-empty-copy";
 import {
   likePost,
   applyLikeToPost,
@@ -355,7 +356,9 @@ export default function Communities({ posts = [], onPostsChange }) {
           onPress={() => navigateAppRoute(router, COMMUNITY_FEED_ROUTE)}
         />
         <HomeSectionEmpty
-          message={t("common.noResults")}
+          icon="message-circle"
+          message={t("home.noFeedPosts")}
+          hint={t(homeSectionEmptyHintKey(sessionUser, "noFeedHint"))}
         />
       </View>
     );

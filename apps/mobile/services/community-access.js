@@ -305,6 +305,12 @@ export function isBillingExempt(user) {
   return Boolean(user?.access?.billing_exempt);
 }
 
+/** True when the managed community's region country is Pakistan (Refer & Earn / Plaid are US-only). */
+export function isPakistanCommunityRegion(user) {
+  const code = String(user?.access?.country_code ?? "").trim().toUpperCase();
+  return code === "PK";
+}
+
 /** Joined because a community admin (or invite code) added them — not a self-serve request. */
 export function joinedViaAdminInvite(user) {
   return (user?.memberships ?? []).some((m) => Boolean(m?.invite_code_used));

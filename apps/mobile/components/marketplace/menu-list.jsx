@@ -47,7 +47,7 @@ export default function MenuList({ items, title, note }) {
           <View key={`${item.section}-${item.name}-${index}`}>
             {showSection ? <Text style={styles.section}>{item.section}</Text> : null}
             <View style={styles.row}>
-              <Text style={styles.name}>{item.name}</Text>
+              <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
               {item.price ? <Text style={styles.price}>{item.price}</Text> : null}
             </View>
           </View>
@@ -95,12 +95,17 @@ const styles = StyleSheet.create({
   },
   name: {
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.body,
     color: "#0F172A",
     lineHeight: MarketplaceType.bodyMdLine,
   },
   price: {
+    flexShrink: 0,
+    maxWidth: "42%",
+    textAlign: "right",
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.body,
     color: "#047857",

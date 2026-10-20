@@ -26,7 +26,12 @@ import { chevronForward } from "../../../utils/rtl";
 import { fetchAdminStats, approveMember } from "../../../services/admin-api";
 import { getCommunityId, getUser, setCommunityId } from "../../../services/auth-session";
 import { fetchMe } from "../../../services/auth-api";
-import { currentCommunityId, getAdminMembership, isCommunityAdmin } from "../../../services/community-access";
+import {
+  currentCommunityId,
+  getAdminMembership,
+  isCommunityAdmin,
+  isPakistanCommunityRegion,
+} from "../../../services/community-access";
 import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
 import { MarketplaceRoutes, withMarketplaceRole } from "../../../constants/marketplace-routes";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
@@ -417,7 +422,11 @@ export default function AdminDashboardScreen() {
     return () => loop.stop();
   }, [refreshing, spinAnim]);
 
-  const featureOn = (key) => !key || isResidentFeatureEnabled(sessionUser, key);
+  const featureOn = (key) => {
+    if (!key) return true;
+    if (key === "refer_and_earn" && isPakistanCommunityRegion(sessionUser)) return false;
+    return isResidentFeatureEnabled(sessionUser, key);
+  };
 
   const pendingTotal = useMemo(() => {
     let total = Number(stats?.pending_members ?? 0);

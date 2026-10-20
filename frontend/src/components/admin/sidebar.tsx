@@ -68,28 +68,48 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/feature-requests", label: "Feature Requests", icon: Settings },
 ];
 
-const communityAdminNav: NavItem[] = [
+const communityPeopleNav: NavItem[] = [
   { href: "/admin/members", label: "Members", icon: Users },
-  { href: "/admin/billing", label: "Billing", icon: CreditCard },
-  { href: "/admin/plaid", label: "Plaid", icon: Landmark },
-  { href: "/admin/kuickpay", label: "KuickPay", icon: Wallet },
-  { href: "/admin/refer-and-earn", label: "Refer & Earn", icon: Gift },
   { href: "/admin/guests", label: "Guest Users", icon: UserPlus },
   { href: "/admin/messages", label: "Messages", icon: MessageSquare },
+];
+
+const communityContentNav: NavItem[] = [
   { href: "/admin/notices", label: "Notices", icon: Megaphone },
   { href: "/admin/events", label: "Events", icon: CalendarDays },
   { href: "/admin/alerts", label: "Alerts", icon: TriangleAlert },
   { href: "/admin/community-rules", label: "Community Rules", icon: Scale },
   { href: "/admin/documents", label: "Documents", icon: FileText },
+  { href: "/admin/feed", label: "Feed Moderation", icon: Newspaper },
+];
+
+const communityPropertyNav: NavItem[] = [
   { href: "/admin/units", label: "Units", icon: Home },
   { href: "/admin/services", label: "Services", icon: Droplets },
   { href: "/admin/service-bills", label: "Service Bills", icon: CreditCard },
   { href: "/admin/amenities", label: "Amenities", icon: Building2 },
   { href: "/admin/amenity-bills", label: "Amenity Bills", icon: CreditCard },
   { href: "/admin/bookings", label: "Booking Request", icon: CalendarCheck },
-  { href: "/admin/feed", label: "Feed Moderation", icon: Newspaper },
+];
+
+const communityMarketplaceNav: NavItem[] = [
   { href: "/admin/marketplace", label: "Marketplace", icon: Store },
   { href: "/admin/businesses", label: "Businesses", icon: Store },
+];
+
+const communityFinanceNav: NavItem[] = [
+  { href: "/admin/billing", label: "Billing", icon: CreditCard },
+  { href: "/admin/plaid", label: "Plaid", icon: Landmark },
+  { href: "/admin/kuickpay", label: "KuickPay", icon: Wallet },
+  { href: "/admin/refer-and-earn", label: "Refer & Earn", icon: Gift },
+];
+
+const communityNavGroups: { title: string; items: NavItem[] }[] = [
+  { title: "People", items: communityPeopleNav },
+  { title: "Community", items: communityContentNav },
+  { title: "Property", items: communityPropertyNav },
+  { title: "Marketplace", items: communityMarketplaceNav },
+  { title: "Finance", items: communityFinanceNav },
 ];
 
 const communitySettingsNav: NavItem[] = [
@@ -251,18 +271,23 @@ function SidebarInner({
   }, [isSystemAdmin]);
 
   const hideReferAndEarn = isPakistanCommunityRegion(user) || !isResidentFeatureEnabled(user?.resident_features, "refer_and_earn");
-  const communityNav = communityAdminNav
-    .filter((item) => !(item.href === "/admin/billing" && user?.access?.billing_exempt))
-    .filter((item) => !(item.href === "/admin/plaid" && !isPlaidAvailable(user)))
-    .filter((item) => !(item.href === "/admin/kuickpay" && !isPakistanCommunityRegion(user)))
-    .filter((item) => !(hideReferAndEarn && item.href === "/admin/refer-and-earn"))
-    .filter((item) => {
-      const featureKey = adminFeatureForPath(item.href);
-      return !featureKey || isResidentFeatureEnabled(user?.resident_features, featureKey);
-    })
-    .map((item) =>
-      item.href === "/admin/messages" ? { ...item, badge: messageUnread } : item,
-    );
+  const visibleCommunityGroups = communityNavGroups
+    .map((group) => ({
+      title: group.title,
+      items: group.items
+        .filter((item) => !(item.href === "/admin/billing" && user?.access?.billing_exempt))
+        .filter((item) => !(item.href === "/admin/plaid" && !isPlaidAvailable(user)))
+        .filter((item) => !(item.href === "/admin/kuickpay" && !isPakistanCommunityRegion(user)))
+        .filter((item) => !(hideReferAndEarn && item.href === "/admin/refer-and-earn"))
+        .filter((item) => {
+          const featureKey = adminFeatureForPath(item.href);
+          return !featureKey || isResidentFeatureEnabled(user?.resident_features, featureKey);
+        })
+        .map((item) =>
+          item.href === "/admin/messages" ? { ...item, badge: messageUnread } : item,
+        ),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
@@ -285,7 +310,15 @@ function SidebarInner({
         ) : (
           <>
             <NavSection items={overviewNav} pathname={pathname} onNavigate={onNavigate} />
-            <NavSection title="Manage" items={communityNav} pathname={pathname} onNavigate={onNavigate} />
+            {visibleCommunityGroups.map((group) => (
+              <NavSection
+                key={group.title}
+                title={group.title}
+                items={group.items}
+                pathname={pathname}
+                onNavigate={onNavigate}
+              />
+            ))}
             <NavSection title="Settings" items={communitySettingsNav} pathname={pathname} onNavigate={onNavigate} />
             <p className="px-2 pt-3 text-[11px] leading-relaxed text-slate-400">
               Approve residents, publish content, and moderate your community marketplace.

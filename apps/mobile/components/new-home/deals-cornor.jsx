@@ -10,8 +10,8 @@ import { HomeTheme as T } from "../../constants/home-theme";
 import { Media } from "../../constants/media";
 import CrispImage from "../ui/crisp-image";
 import HomeSectionHeader from "./section-header";
-import { timeAgo } from "../../services/feed-api";
 import HomeSectionEmpty from "./home-section-empty";
+import { timeAgo } from "../../services/feed-api";
 import { sw, sf } from "../../utils/responsive";
 import { useHomeFrame } from "../../hooks/use-home-frame";
 import { rnShadow } from "../../utils/shadow";
@@ -21,6 +21,7 @@ import { MarketplaceRoutes, dealDetailsParams } from "../../constants/marketplac
 import { useSessionUser } from "../../hooks/use-session-user";
 import { isHomeSectionEnabled } from "../../constants/resident-features";
 import { localizedField } from "../../i18n";
+import { homeSectionEmptyHintKey } from "../../utils/home-section-empty-copy";
 
 const CARD_GAP = sw(12);
 const PEEK = sw(32);
@@ -154,7 +155,9 @@ export default function DealsCornor({ items = [] }) {
           onPress={() => router.push(MarketplaceRoutes.DEALS)}
         />
         <HomeSectionEmpty
-          message={t("common.noResults")}
+          icon="tag"
+          message={t("home.noDeals")}
+          hint={t(homeSectionEmptyHintKey(sessionUser, "noDealsHint"))}
         />
       </View>
     );

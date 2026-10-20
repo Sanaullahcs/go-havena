@@ -23,6 +23,7 @@ import { rnShadow } from "../../utils/shadow";
 import { sw, sf } from "../../utils/responsive";
 import { useHomeFrame } from "../../hooks/use-home-frame";
 import { localizedField } from "../../i18n";
+import { homeSectionEmptyHintKey } from "../../utils/home-section-empty-copy";
 
 const PEEK = sw(28);
 const CARD_RADIUS = sw(16);
@@ -170,7 +171,11 @@ export default function HappeningSoon({ items = [] }) {
           label={t("home.happeningSoon")}
           onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
         />
-        <HomeSectionEmpty message={t("home.noEvents")} />
+        <HomeSectionEmpty
+          icon="calendar"
+          message={t("home.noEvents")}
+          hint={t(homeSectionEmptyHintKey(sessionUser, "noEventsHint"))}
+        />
       </View>
     );
   }

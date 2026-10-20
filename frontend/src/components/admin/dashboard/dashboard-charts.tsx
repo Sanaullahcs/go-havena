@@ -58,7 +58,7 @@ function ChartEmpty({ message, fill = false }: { message: string; fill?: boolean
   return (
     <div
       className={`flex flex-col items-center justify-center rounded-2xl border border-dashed px-6 text-center ${
-        fill ? "min-h-[280px] flex-1" : "h-[280px]"
+        fill ? "min-h-[200px] flex-1" : "h-[200px]"
       }`}
       style={{ borderColor: NL.borderCard, background: NL.surfaceMuted }}
     >
@@ -70,7 +70,7 @@ function ChartEmpty({ message, fill = false }: { message: string; fill?: boolean
 }
 
 function ChartPlot({ children }: { children: ReactNode }) {
-  return <div className="min-h-[220px] w-full flex-1">{children}</div>;
+  return <div className="min-h-[160px] w-full flex-1">{children}</div>;
 }
 
 export function DashboardActivityChart({
@@ -88,7 +88,7 @@ export function DashboardActivityChart({
   if (chartData.length === 0) return <ChartEmpty message="No activity recorded in the last 7 days" fill />;
 
   return (
-    <div className="flex h-full min-h-[280px] flex-col">
+    <div className="flex h-full min-h-[200px] flex-col">
       <div className="mb-4 flex flex-wrap gap-3">
         <MetricPill label="7-Day Activity" value={total.toLocaleString()} />
         <MetricPill label="Peak Activity" value={peak.toLocaleString()} accent />
@@ -154,7 +154,7 @@ export function DashboardMembersBarChart({
 
   if (variant === "minimal") {
     return (
-      <div className="nl-chart-minimal flex h-full min-h-[240px] flex-col">
+      <div className="nl-chart-minimal flex h-full min-h-[180px] flex-col">
         <div className="nl-chart-minimal-stats">
           <div className="nl-chart-hero-stat">
             <span className="nl-chart-hero-value">{latest.new}</span>
@@ -198,7 +198,7 @@ export function DashboardMembersBarChart({
   }
 
   return (
-    <div className="flex h-full min-h-[280px] flex-col gap-3">
+    <div className="flex h-full min-h-[200px] flex-col gap-3">
       <div className="flex flex-wrap gap-2">
         <MetricPill label="New Members" value={total.toLocaleString()} accent={total > 0} compact />
         <MetricPill label="This Month" value={latest.new.toLocaleString()} compact />
@@ -298,7 +298,7 @@ export function DashboardMembersPieChart({
     const visibleStatuses = statusData.filter((item) => item.value > 0 || item.status === "approved" || item.status === "pending");
 
     return (
-      <div className="nl-chart-minimal flex h-full min-h-[240px] flex-col">
+      <div className="nl-chart-minimal flex h-full min-h-[180px] flex-col">
         <div className="nl-chart-minimal-stats">
           <div className="nl-chart-hero-stat">
             <span className="nl-chart-hero-value">{activeRate}%</span>
@@ -363,7 +363,7 @@ export function DashboardMembersPieChart({
   }
 
   return (
-    <div className="flex h-full min-h-[280px] flex-col gap-3">
+    <div className="flex h-full min-h-[200px] flex-col gap-3">
       <div className="flex flex-wrap gap-2">
         <MetricPill label="Active rate" value={`${activeRate}%`} accent={activeRate >= 80} compact />
         <MetricPill label="Pending" value={pending.toLocaleString()} accent={pending > 0} compact />
@@ -495,7 +495,7 @@ export function DashboardModerationChart({
 
   if (hasTrend) {
     return (
-      <div className="flex h-full min-h-[280px] flex-col">
+      <div className="flex h-full min-h-[200px] flex-col">
         <ChartPlot>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={trendData} margin={{ top: 8, right: 12, left: -16, bottom: 0 }} barSize={12} barGap={4}>
@@ -515,7 +515,7 @@ export function DashboardModerationChart({
   if (typeData.length === 0) return <ChartEmpty message="No moderation data yet" fill />;
 
   return (
-    <div className="flex h-full min-h-[280px] flex-col">
+    <div className="flex h-full min-h-[200px] flex-col">
       <ChartPlot>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={typeData} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }} barSize={14}>

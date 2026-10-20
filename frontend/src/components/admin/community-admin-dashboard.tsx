@@ -100,29 +100,29 @@ function DashboardMetricCard({ label, value, hint, tone, href, icon }: MetricCar
         target.scrollIntoView({ behavior: "smooth", block: "start" });
         window.history.replaceState(null, "", `#${id}`);
       }}
-      className="group flex min-h-[7.25rem] flex-col justify-between rounded-2xl border bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:p-5"
+      className="group flex flex-col rounded-xl border bg-white px-3.5 py-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       style={{
         borderColor: palette.border,
         boxShadow: NL.shadowCard,
         outlineColor: NL.teal,
       }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-[13px] font-semibold leading-5 sm:text-sm" style={{ color: NL.textPrimary }}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[13px] font-semibold leading-4" style={{ color: NL.textPrimary }}>
           {label}
         </p>
         <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl [&_svg]:h-[18px] [&_svg]:w-[18px]"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg [&_svg]:h-3.5 [&_svg]:w-3.5"
           style={{ background: palette.iconBg, color: palette.iconColor }}
         >
           {icon}
         </span>
       </div>
-      <div className="mt-4">
-        <p className="text-[1.75rem] font-bold leading-none tabular-nums tracking-tight" style={{ color: NL.textPrimary }}>
+      <div className="mt-2">
+        <p className="text-[1.35rem] font-bold leading-none tabular-nums tracking-tight" style={{ color: NL.textPrimary }}>
           {value}
         </p>
-        <p className="mt-2 text-[12.5px] leading-5" style={{ color: NL.textSecondary }}>
+        <p className="mt-1 line-clamp-2 text-[12px] leading-4" style={{ color: NL.textSecondary }}>
           {hint}
         </p>
       </div>
@@ -142,16 +142,16 @@ function MetricSection({
   if (cards.length === 0) return null;
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-2">
       <div>
-        <h2 className="text-base font-semibold leading-6 sm:text-[17px]" style={{ color: NL.textPrimary }}>
+        <h2 className="text-[15px] font-semibold leading-5" style={{ color: NL.textPrimary }}>
           {title}
         </h2>
-        <p className="mt-0.5 text-[13px] leading-5" style={{ color: NL.textSecondary }}>
+        <p className="text-[12px] leading-4" style={{ color: NL.textSecondary }}>
           {description}
         </p>
       </div>
-      <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 min-[520px]:gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2.5 min-[520px]:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
           <DashboardMetricCard key={card.label} {...card} />
         ))}
@@ -458,13 +458,6 @@ export default function CommunityAdminDashboard() {
       icon: dashIcon(Users),
     },
     {
-      label: "Billing",
-      href: "/admin/billing",
-      desc: "Plans, seats, and subscription status",
-      tone: "cyan",
-      icon: dashIcon(Building2),
-    },
-    {
       label: "Feed Moderation",
       href: "/admin/feed?status=pending",
       desc: "Review resident posts before publishing",
@@ -557,11 +550,18 @@ export default function CommunityAdminDashboard() {
       tone: "amber",
       icon: dashIcon(Calendar),
     },
+    {
+      label: "Billing",
+      href: "/admin/billing",
+      desc: "Plans, seats, and subscription status",
+      tone: "cyan",
+      icon: dashIcon(Building2),
+    },
   ].filter((link) => !(link.href === "/admin/billing" && getUser()?.access?.billing_exempt))
     .filter((link) => communityFeatureVisible(link.href));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <DashboardHero
         eyebrow="Community Admin"
         title={data.scope.label}
@@ -579,7 +579,7 @@ export default function CommunityAdminDashboard() {
         composeActions={<ComposeRail actions={quickActions} />}
       />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
       {error ? (
         <div className="flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
           <p>{error}</p>
@@ -604,7 +604,7 @@ export default function CommunityAdminDashboard() {
         cards={engagementCards}
       />
 
-      <div className="grid items-stretch gap-5 lg:grid-cols-3">
+      <div className="grid items-stretch gap-3 lg:grid-cols-3">
         <DashboardPanel className="h-full lg:col-span-2" title="Member Growth" description="New memberships by month" icon={TrendingUp} tone="violet" tall>
           <DashboardMembersBarChart data={data.member_growth} />
         </DashboardPanel>
@@ -613,7 +613,7 @@ export default function CommunityAdminDashboard() {
         </DashboardPanel>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">
+      <div className="grid gap-3 lg:grid-cols-3 lg:items-stretch">
         <DashboardPanel
           className="h-full lg:col-span-2"
           title="Community Activity"

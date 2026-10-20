@@ -142,7 +142,13 @@ export function formatEngagementSummary(likesCount, commentsCount) {
 export function isSensitivePost(post) {
   if (!post) return false;
   const flag = post.is_sensitive;
-  return flag === true || flag === 1 || flag === "1";
+  if (flag === true || flag === 1 || flag === "1") return true;
+  return String(post.report_status ?? "").toLowerCase() === "sensitive";
+}
+
+/** Sensitive / admin-hidden posts stay in the feed list but not on home carousel. */
+export function isExcludedFromHomeFeed(post) {
+  return isSensitivePost(post);
 }
 
 function getSensitivePostMessage() {
@@ -214,6 +220,7 @@ export function normalizePost(raw) {
 /** Latest community posts for the home feed carousel. */
 export function pickHomeFeedPosts(posts, limit = HOME_SECTION_CARD_LIMIT) {
   return [...(posts ?? [])]
+    .filter((post) => !isExcludedFromHomeFeed(post))
     .sort((a, b) => {
       const aTime = new Date(a.created_at ?? 0).getTime();
       const bTime = new Date(b.created_at ?? 0).getTime();
@@ -236,6 +243,8 @@ export function areFeedPostsUnchanged(prev, next) {
       && post.comments_count === other.comments_count
       && post.liked_by_me === other.liked_by_me
       && post.status === other.status
+      && post.is_sensitive === other.is_sensitive
+      && post.report_status === other.report_status
     );
   });
 }

@@ -325,8 +325,12 @@ export default function PropertyManagment() {
               />
             ) : (
               <EmptyApprovalQueue
-                title={t("admin.allClear")}
-                message={t("propertyMgmt.noPendingReservations")}
+                title={t("services.approvalQueueEmptyTitle")}
+                message={
+                  isAdmin
+                    ? t("services.approvalQueueEmptyAdmin")
+                    : t("services.approvalQueueEmptyResident")
+                }
               />
             )}
           </View>

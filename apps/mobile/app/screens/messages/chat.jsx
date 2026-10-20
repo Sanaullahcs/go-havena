@@ -181,7 +181,9 @@ export default function ChatScreen() {
   const [displayName, setDisplayName] = useState(routeRecipientName);
   const [messages, setMessages] = useState([]);
   const [listingContext, setListingContext] = useState(null);
-  const [peerRole, setPeerRole] = useState(recipientRoleParam ?? "resident");
+  const [peerRole, setPeerRole] = useState(() =>
+    recipientRoleParam ? String(recipientRoleParam) : null,
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -200,7 +202,7 @@ export default function ChatScreen() {
   const chatTitle = displayName || t("messages.chat.defaultTitle");
 
   const applyPeerMeta = useCallback((peer) => {
-    if (peer?.role) setPeerRole(peer.role);
+    if (peer?.role) setPeerRole(String(peer.role));
     if (peer?.name?.trim()) setDisplayName(peer.name.trim());
   }, []);
 
@@ -379,16 +381,19 @@ export default function ChatScreen() {
   }, [initialDraft]);
 
   useEffect(() => {
-    if (recipientRoleParam) setPeerRole(recipientRoleParam);
+    if (recipientRoleParam) setPeerRole(String(recipientRoleParam));
   }, [recipientRoleParam]);
 
   const chatItems = useMemo(() => buildChatItems(messages, now, t), [messages, now, t]);
   const isListingChat = Boolean(listingContext?.id);
-  const roleLabel = peerRoleLabel(peerRole);
+  const showPeerRole = Boolean(peerRole);
+  const roleLabel = showPeerRole ? peerRoleLabel(peerRole) : "";
 
   const headerSubtitle = isListingChat
     ? t("messages.chat.listingSubtitle", { title: listingContext.title })
-    : roleLabel;
+    : showPeerRole
+      ? roleLabel
+      : undefined;
 
   const quickReplies = isListingChat ? LISTING_QUICK_REPLIES : NEIGHBOR_QUICK_REPLIES;
   const emptyHint = isListingChat
@@ -540,9 +545,9 @@ export default function ChatScreen() {
             <TouchableOpacity style={styles.headerActionListing} onPress={openListing}>
               <Ionicons name="storefront-outline" size={18} color="#059669" />
             </TouchableOpacity>
-          ) : (
+          ) : showPeerRole ? (
             <HeaderRoleBadge role={peerRole} />
-          )
+          ) : null
         }
       />
 

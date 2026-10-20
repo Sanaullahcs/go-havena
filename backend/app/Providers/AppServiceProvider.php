@@ -10,6 +10,7 @@ use App\Support\EmailBrand;
 use App\Support\TlsCaBundle;
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -53,6 +54,10 @@ class AppServiceProvider extends ServiceProvider
         // WAMP ships MariaDB; utf8mb4 needs a shorter default index length.
         Schema::defaultStringLength(191);
         TlsCaBundle::apply();
+        $tlsOptions = TlsCaBundle::httpOptions();
+        if ($tlsOptions !== []) {
+            Http::globalOptions($tlsOptions);
+        }
 
         View::composer('emails.*', function ($view) {
             foreach (EmailBrand::viewData() as $key => $value) {

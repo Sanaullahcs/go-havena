@@ -370,6 +370,8 @@ export function resolveNotificationRoute(notification) {
     return withParams("/screens/messages/chat", {
       conversationId: conversationMatch[1],
       listingId: queryParams.listingId ?? queryParams.listing_id,
+      recipientName: queryParams.recipientName,
+      recipientRole: queryParams.recipientRole ?? queryParams.recipient_role,
     });
   }
 
@@ -378,6 +380,7 @@ export function resolveNotificationRoute(notification) {
       conversationId: queryParams.conversationId ?? queryParams.conversation_id,
       listingId: queryParams.listingId ?? queryParams.listing_id,
       recipientName: queryParams.recipientName,
+      recipientRole: queryParams.recipientRole ?? queryParams.recipient_role,
     });
   }
 

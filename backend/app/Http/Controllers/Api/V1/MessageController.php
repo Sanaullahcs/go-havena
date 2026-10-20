@@ -230,6 +230,8 @@ class MessageController extends Controller
 
         if ($recipientId) {
             $senderName = $this->senderDisplayName($user);
+            $communityId = $this->resolveCommunityId($request, $user);
+            $senderRole = $this->resolveUserPeerRole($user, $communityId);
             NotificationService::send(
                 (int) $recipientId,
                 'info',
@@ -239,11 +241,13 @@ class MessageController extends Controller
                     $id,
                     $conversation?->listing_id ? (int) $conversation->listing_id : null,
                     $senderName,
+                    $senderRole,
                 ),
                 [
                     'kind'            => 'message',
                     'actor_name'      => $senderName,
                     'conversation_id' => (int) $id,
+                    'sender_role'     => $senderRole,
                 ],
             );
         }
@@ -342,32 +346,36 @@ class MessageController extends Controller
             $createdMessage = $this->insertMessage($convId, $user->id, $offerBody, 'offer', $metadata);
 
             $senderName = $this->senderDisplayName($user);
+            $senderRole = $this->resolveUserPeerRole($user, $communityId);
             NotificationService::send(
                 $recipientId,
                 'info',
                 'New offer received',
                 $senderName.' offered $'.number_format((float) $offerAmount, 2).' on "'.$listing?->title.'".',
-                $this->conversationActionUrl($convId, $listingId, $senderName),
+                $this->conversationActionUrl($convId, $listingId, $senderName, $senderRole),
                 [
                     'kind'            => 'message',
                     'actor_name'      => $senderName,
                     'conversation_id' => (int) $convId,
+                    'sender_role'     => $senderRole,
                 ],
             );
         } elseif ($message !== '') {
             $createdMessage = $this->insertMessage($convId, $user->id, $message, 'text');
 
             $senderName = $this->senderDisplayName($user);
+            $senderRole = $this->resolveUserPeerRole($user, $communityId);
             NotificationService::send(
                 $recipientId,
                 'info',
                 'New message from '.$senderName,
                 $this->messagePreview($message),
-                $this->conversationActionUrl($convId, $listingId, $senderName),
+                $this->conversationActionUrl($convId, $listingId, $senderName, $senderRole),
                 [
                     'kind'            => 'message',
                     'actor_name'      => $senderName,
                     'conversation_id' => (int) $convId,
+                    'sender_role'     => $senderRole,
                 ],
             );
         }
@@ -664,8 +672,12 @@ class MessageController extends Controller
             ->update(['read_at' => now(), 'updated_at' => now()]);
     }
 
-    private function conversationActionUrl(int $conversationId, ?int $listingId = null, ?string $peerName = null): string
-    {
+    private function conversationActionUrl(
+        int $conversationId,
+        ?int $listingId = null,
+        ?string $peerName = null,
+        ?string $peerRole = null,
+    ): string {
         $url = '/screens/messages/chat?conversationId='.$conversationId;
         if ($listingId) {
             $url .= '&listingId='.$listingId;
@@ -673,8 +685,29 @@ class MessageController extends Controller
         if ($peerName) {
             $url .= '&recipientName='.rawurlencode($peerName);
         }
+        if ($peerRole) {
+            $url .= '&recipientRole='.rawurlencode($peerRole);
+        }
 
         return $url;
+    }
+
+    /** Role the recipient should see for the sender in chat (admin | resident). */
+    private function resolveUserPeerRole(User $user, ?int $communityId): string
+    {
+        $membershipRole = null;
+        if ($communityId) {
+            $membershipRole = DB::table('community_memberships')
+                ->where('user_id', $user->id)
+                ->where('community_id', $communityId)
+                ->where('status', 'approved')
+                ->value('role');
+        }
+
+        return $this->resolvePeerRole(
+            is_string($membershipRole) ? $membershipRole : null,
+            is_string($user->role ?? null) ? $user->role : null,
+        );
     }
 
     private function messagePreview(string $body): string

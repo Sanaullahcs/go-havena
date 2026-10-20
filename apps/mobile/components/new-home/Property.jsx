@@ -22,6 +22,7 @@ import { useSessionUser } from "../../hooks/use-session-user";
 import { isHomeSectionEnabled } from "../../constants/resident-features";
 import { chevronForward } from "../../utils/rtl";
 import { localizedField } from "../../i18n";
+import { homeSectionEmptyHintKey } from "../../utils/home-section-empty-copy";
 
 const CARD_GAP = sw(10);
 const PEEK = sw(24);
@@ -125,11 +126,12 @@ export default function PropertyNew({ items = [] }) {
       />
       {cards.length === 0 ? (
         <HomeSectionEmpty
+          icon="home"
           message={t("home.noAmenities")}
-          hint={t("home.noAmenitiesHint")}
+          hint={t(homeSectionEmptyHintKey(sessionUser, "noAmenitiesHint"))}
         />
       ) : (
-        <FlatList
+      <FlatList
           data={cards}
           horizontal
           style={[styles.carousel, { width: frame.contentWidth }]}

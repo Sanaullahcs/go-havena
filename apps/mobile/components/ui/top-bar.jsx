@@ -109,7 +109,7 @@ export default function TopBar({ onMenuPress }) {
               <View style={styles.pinWrap}>
                 <Feather name="map-pin" size={sf(12)} color={T.white} />
               </View>
-              <Text style={styles.locationText}>
+              <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">
                 {title}
               </Text>
               {guestUser ? (
@@ -118,12 +118,10 @@ export default function TopBar({ onMenuPress }) {
                 </View>
               ) : showNearby ? (
                 <View style={styles.rangeChip}>
-                  <Text style={styles.rangeChipText}>
-                    {rangeLabel}
-                  </Text>
+                  <Text style={styles.rangeChipText}>{rangeLabel}</Text>
                 </View>
               ) : null}
-              {showNearby ? <Feather name="chevron-down" size={sf(15)} color={T.navy} /> : null}
+              {showNearby ? <Feather name="chevron-down" size={sf(14)} color={T.navy} /> : null}
             </Pressable>
           </View>
 
@@ -206,24 +204,24 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    lineHeight: sf(20),
+    lineHeight: sf(18),
     color: T.navy,
     fontWeight: "700",
-    includeFontPadding: true,
+    includeFontPadding: false,
   },
   rangeChip: {
-    flexShrink: 1,
-    paddingHorizontal: sw(8),
-    paddingVertical: sw(3),
+    flexShrink: 0,
+    paddingHorizontal: sw(7),
+    paddingVertical: sw(2),
     borderRadius: 999,
     backgroundColor: T.mint,
   },
   rangeChipText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(11),
-    lineHeight: sf(16),
+    lineHeight: sf(14),
     color: T.deepTeal,
-    includeFontPadding: true,
+    includeFontPadding: false,
   },
   rolePill: {
     flexShrink: 0,

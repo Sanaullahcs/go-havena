@@ -58,7 +58,7 @@ export function DashboardPanel({
         {action}
       </div>
       <div
-        className={`flex min-h-0 flex-col overflow-hidden ${fit ? "" : "flex-1"} ${compact ? "p-3" : "p-5"} ${tall ? "min-h-[300px]" : ""}`}
+        className={`flex min-h-0 flex-col overflow-hidden ${fit ? "" : "flex-1"} ${compact ? "p-3" : "p-5"} ${tall ? "min-h-[200px]" : ""}`}
       >
         {scrollBody ? (
           <div className="nl-dashboard-panel-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1">{children}</div>

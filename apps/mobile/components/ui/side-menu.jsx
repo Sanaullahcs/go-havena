@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -252,8 +252,6 @@ function SideMenuPanel({ visible, onClose }) {
   const [wellnessHubLoading, setWellnessHubLoading] = useState(initialWellnessCategories.length === 0);
   const wellnessHubRef = useRef(initialWellnessCategories);
   const [familyPendingCount, setFamilyPendingCount] = useState(0);
-  const wellnessEnabled = isResidentFeatureEnabled(user, "wellness");
-  const familyEnabled = Boolean(user && !isGuestUser(user) && isResidentFeatureEnabled(user, "family"));
 
   const applyWellnessCategories = useCallback((categories) => {
     const next = categories ?? [];
@@ -263,6 +261,22 @@ function SideMenuPanel({ visible, onClose }) {
     wellnessHubRef.current = next;
     setWellnessHub(next);
   }, []);
+
+  const residentFeaturesSig = user?.resident_features?.features
+    ? JSON.stringify(user.resident_features.features)
+    : "";
+
+  const wellnessMenuScope = useMemo(() => {
+    if (!user) return "pending";
+    if (!isResidentFeatureEnabled(user, "wellness")) return "off";
+    return `on:${currentCommunityId(user) ?? "none"}:${residentFeaturesSig}`;
+  }, [user, residentFeaturesSig]);
+
+  const familyMenuScope = useMemo(() => {
+    if (!user || isGuestUser(user)) return "off";
+    if (!isResidentFeatureEnabled(user, "family")) return "off";
+    return `on:${currentCommunityId(user) ?? "none"}`;
+  }, [user]);
 
   const menuItems = [
     isResidentFeatureEnabled(user, "feed")
@@ -369,7 +383,10 @@ function SideMenuPanel({ visible, onClose }) {
   }), [applyWellnessCategories]);
 
   useEffect(() => {
-    if (!wellnessEnabled) {
+    if (!visible) return undefined;
+    if (wellnessMenuScope === "pending") return undefined;
+
+    if (wellnessMenuScope === "off") {
       applyWellnessCategories([]);
       setWellnessHubLoading(false);
       return undefined;
@@ -400,10 +417,12 @@ function SideMenuPanel({ visible, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, [applyWellnessCategories, wellnessEnabled]);
+  }, [visible, wellnessMenuScope, applyWellnessCategories]);
 
   useEffect(() => {
-    if (!familyEnabled) {
+    if (!visible) return undefined;
+
+    if (familyMenuScope === "off") {
       setFamilyPendingCount(0);
       return undefined;
     }
@@ -420,7 +439,7 @@ function SideMenuPanel({ visible, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, [familyEnabled]);
+  }, [visible, familyMenuScope]);
 
   const openWellness = () => {
     navigateAndClose("/(tabs)/wellness");

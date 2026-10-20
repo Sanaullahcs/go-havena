@@ -20,11 +20,13 @@ import { fetchBusiness } from "../../../services/businesses-api";
 import { fetchBusinessDeals } from "../../../services/deals-api";
 import { ionChevronForward } from "../../../utils/rtl";
 import { rnShadow } from "../../../utils/shadow";
+import { callPlace, telUrl } from "../../../utils/open-place-actions";
+import { useAppDialog } from "../../../providers/app-dialog-provider";
 
 
 const BIZ_PLACEHOLDER = require("../../../assets/images/ok-resturant.png");
 
-function InfoTile({ icon, label, value, isLast = false }) {
+function InfoTile({ icon, label, value, isLast = false, onValuePress }) {
   if (!value) return null;
   return (
     <View style={[styles.infoTile, isLast && styles.infoTileLast]}>
@@ -33,7 +35,18 @@ function InfoTile({ icon, label, value, isLast = false }) {
       </View>
       <View style={styles.infoCopy}>
         <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{value}</Text>
+        {onValuePress ? (
+          <TouchableOpacity
+            onPress={onValuePress}
+            activeOpacity={0.7}
+            accessibilityRole="link"
+            hitSlop={{ top: 4, bottom: 4, left: 0, right: 8 }}
+          >
+            <Text style={[styles.infoValue, styles.infoValueLink]}>{value}</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.infoValue}>{value}</Text>
+        )}
       </View>
     </View>
   );
@@ -49,6 +62,7 @@ function statusStyles(status) {
 export default function ProviderProfileScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const { showError } = useAppDialog();
   const {
     id,
     vendor: vendorParam = "",
@@ -117,6 +131,17 @@ export default function ProviderProfileScreen() {
         businessName: name,
       }),
     });
+  };
+
+  const canDialPhone = Boolean(telUrl(phone));
+
+  const handleCall = async () => {
+    if (!canDialPhone) return;
+    try {
+      await callPlace(phone);
+    } catch {
+      await showError(t("deals.unableToCall"), t("deals.callingNotSupported"));
+    }
   };
 
   return (
@@ -194,7 +219,12 @@ export default function ProviderProfileScreen() {
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>{t("marketplace.contactAndHours")}</Text>
             <InfoTile icon="location-outline" label={t("marketplace.address")} value={address} />
-            <InfoTile icon="call-outline" label={t("marketplace.phone")} value={phone} />
+            <InfoTile
+              icon="call-outline"
+              label={t("marketplace.phone")}
+              value={phone}
+              onValuePress={canDialPhone ? () => void handleCall() : undefined}
+            />
             <InfoTile icon="time-outline" label={t("marketplace.hours")} value={hours} isLast />
           </View>
 
@@ -437,6 +467,11 @@ const styles = StyleSheet.create({
     fontSize: MarketplaceType.bodyMd,
     color: "#111827",
     lineHeight: MarketplaceType.bodyMdLine,
+  },
+  infoValueLink: {
+    fontFamily: Fonts.semiBold,
+    color: "#0D9488",
+    textDecorationLine: "underline",
   },
   chipRow: {
     flexDirection: "row",

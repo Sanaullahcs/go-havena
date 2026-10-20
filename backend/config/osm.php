@@ -7,7 +7,7 @@ return [
     'nominatim_reverse_url' => env('OSM_NOMINATIM_REVERSE_URL', 'https://nominatim.openstreetmap.org/reverse'),
     'overpass_urls' => [
         env('OSM_OVERPASS_URL', 'https://overpass-api.de/api/interpreter'),
-        'https://overpass.osm.ch/api/interpreter',
+        'https://overpass.openstreetmap.fr/api/interpreter',
         'https://overpass.kumi.systems/api/interpreter',
     ],
     'overpass_timeout' => (int) env('OSM_OVERPASS_TIMEOUT', 25),
