@@ -13,6 +13,8 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import SearchInput from "../../components/ui/search-input";
+import NoticeSortMenu from "../../components/notices/sort-menu";
+import NoticeBoardEmpty from "../../components/notices/board-empty";
 import BackButton from "../../components/ui/back-button";
 import { Fonts } from "../../constants/font";
 import {
@@ -110,6 +112,8 @@ export default function Notifications() {
   const [error, setError] = useState(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [sort, setSort] = useState("relevant");
+  const [resultCount, setResultCount] = useState(null);
   const [showYoursTab, setShowYoursTab] = useState(false);
   const { unread: unreadNotifications } = useNotificationUnread();
   const hasLoadedRef = useRef(false);
@@ -157,13 +161,20 @@ export default function Notifications() {
 
   const load = useCallback(
     async (silent = false) => {
-      if (!silent) setLoading(true);
-      setError(null);
+      if (!silent) {
+        setLoading(true);
+        setNotices([]);
+        setResultCount(null);
+        setError(null);
+      } else {
+        setError(null);
+      }
       try {
         const feature = noticePermissionFeature(currentTab);
         const blocked = await resolveLoadRestriction(feature);
         if (blocked) {
           setNotices([]);
+          setResultCount(0);
           setError(blocked);
           return;
         }
@@ -180,13 +191,14 @@ export default function Notifications() {
         const ids = await getSavedNoticeIds();
         setSavedIds(ids);
 
-        const { notices: data } = await fetchNotices({
+        const { notices: data, meta } = await fetchNotices({
           categoryGroup: apiCategoryGroup,
           category: apiCategory,
           search: debouncedQuery || undefined,
           perPage: isSavedTab ? 100 : 50,
           includeExpired: true,
           mine: isMineTab,
+          sort,
         });
 
         let items = data;
@@ -200,23 +212,36 @@ export default function Notifications() {
           isResidentFeatureEnabled(sessionUser, contentFeatureKey(notice)),
         );
 
+        const serverTotal = Number(meta?.total);
+        const hiddenByFeature = Math.max(0, data.length - items.length);
         setNotices(items);
+        setResultCount(
+          isSavedTab
+            ? items.length
+            : Number.isFinite(serverTotal)
+              ? Math.max(0, serverTotal - hiddenByFeature)
+              : items.length,
+        );
       } catch (err) {
         const feature = noticePermissionFeature(currentTab);
         const restricted = await resolveLoadRestriction(feature, err);
         if (restricted) {
           setNotices([]);
+          setResultCount(0);
           setError(restricted);
           return;
         }
         setError(err);
-        if (!silent) setNotices([]);
+        if (!silent) {
+          setNotices([]);
+          setResultCount(0);
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [currentTab, debouncedQuery, sessionUser],
+    [currentTab, debouncedQuery, sessionUser, sort],
   );
 
   useFocusEffect(
@@ -226,12 +251,17 @@ export default function Notifications() {
     }, [load]),
   );
 
+  const filtersReady = useRef(false);
   useEffect(() => {
-    if (hasLoadedRef.current) {
-      load(true);
-      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    if (!filtersReady.current) {
+      filtersReady.current = true;
+      return;
     }
-  }, [selectedTab, debouncedQuery, load]);
+    setNotices([]);
+    setLoading(true);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    load(false);
+  }, [selectedTab, debouncedQuery, sort, load]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -357,7 +387,7 @@ export default function Notifications() {
   const listEmpty = useMemo(() => {
     if (loading) {
       return (
-          <View style={styles.loadingWrap}>
+        <View style={styles.loadingWrap}>
           <ActivityIndicator size="small" color="#1B4F8A" />
         </View>
       );
@@ -382,73 +412,86 @@ export default function Notifications() {
         t("notices.couldNotLoad"),
       );
       return (
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyTitle}>{errorState.title}</Text>
-          <Text style={styles.emptyHint}>{errorState.message}</Text>
-        </View>
+        <NoticeBoardEmpty
+          variant="error"
+          title={errorState.title}
+          hint={errorState.message}
+          onRetry={onRefresh}
+        />
+      );
+    }
+
+    if (query.trim()) {
+      return (
+        <NoticeBoardEmpty
+          variant="search"
+          title={t("notices.emptyTitleSearch", { defaultValue: "No matches found" })}
+          hint={t("notices.emptyHintSearch", { defaultValue: "Try a different search term." })}
+        />
       );
     }
 
     const emptyCopy = (() => {
-      if (query.trim()) {
-        return {
-          title: t("notices.emptyTitleSearch", { defaultValue: "No matches found" }),
-          hint: t("notices.emptyHintSearch", { defaultValue: "Try a different search term" }),
-        };
-      }
       switch (selectedTab) {
         case "events":
           return {
+            variant: "events",
             title: t("notices.emptyTitleEvents", { defaultValue: "No events yet" }),
             hint: t("notices.emptyHintEvents", {
-              defaultValue: "Upcoming community events will appear here.",
+              defaultValue: "Upcoming events from your community will show up here.",
             }),
           };
         case "alerts":
           return {
+            variant: "alerts",
             title: t("notices.emptyTitleAlerts", { defaultValue: "No alerts right now" }),
             hint: t("notices.emptyHintAlerts", {
-              defaultValue: "Urgent community alerts will appear here.",
+              defaultValue: "Urgent alerts from your community will show up here.",
             }),
           };
         case "notices":
           return {
+            variant: "notices",
             title: t("notices.emptyTitleNotices", { defaultValue: "No notices yet" }),
             hint: t("notices.emptyHintNotices", {
-              defaultValue: "Community notices will appear here.",
+              defaultValue: "Community notices will show up here.",
             }),
           };
         case "saved":
           return {
+            variant: "saved",
             title: t("notices.emptyTitleSaved", { defaultValue: "Nothing saved yet" }),
             hint: t("notices.emptyHintSaved", {
-              defaultValue: "Notices you save will appear here.",
+              defaultValue: "Updates you save will show up here.",
             }),
           };
         case "yours":
           return {
+            variant: "yours",
             title: t("notices.emptyTitleYours", { defaultValue: "No events submitted yet" }),
             hint: t("notices.emptyHintYours", {
-              defaultValue: "Events you create will appear here with Pending, Approved, or Rejected status.",
+              defaultValue: "Events you submit will show up here with their review status.",
             }),
           };
         default:
           return {
+            variant: "all",
             title: t("notices.emptyTitleAll", { defaultValue: "No updates yet" }),
             hint: t("notices.emptyHintDefault", {
-              defaultValue: "New notices, events, and alerts from your community will appear here.",
+              defaultValue: "Notices, events, and alerts from your community will show up here.",
             }),
           };
       }
     })();
 
     return (
-      <View style={styles.emptyWrap}>
-        <Text style={styles.emptyTitle}>{emptyCopy.title}</Text>
-        <Text style={styles.emptyHint}>{emptyCopy.hint}</Text>
-      </View>
+      <NoticeBoardEmpty
+        variant={emptyCopy.variant}
+        title={emptyCopy.title}
+        hint={emptyCopy.hint}
+      />
     );
-  }, [loading, query, selectedTab, error, currentTab, t]);
+  }, [loading, query, selectedTab, error, currentTab, onRefresh, t]);
 
   const accessBlocked = Boolean(error && isFeatureAccessBlockedError(error));
 
@@ -515,6 +558,7 @@ export default function Notifications() {
         </SafeTop>
 
         {!accessBlocked ? (
+        <>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -526,7 +570,11 @@ export default function Notifications() {
             <TouchableOpacity
               key={tab.id}
               style={[styles.tab, selectedTab === tab.id && styles.activeTab]}
-              onPress={() => setSelectedTab(tab.id)}
+              onPress={() => {
+                if (tab.id === selectedTab) return;
+                setSort("relevant");
+                setSelectedTab(tab.id);
+              }}
             >
               <Text
                 style={[
@@ -538,12 +586,24 @@ export default function Notifications() {
                         : "rgba(54, 65, 83, 1)",
                   },
                 ]}
+                numberOfLines={1}
               >
                 {t(tab.labelKey)}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
+        <View style={styles.sortRow}>
+          <Text style={styles.resultCount} numberOfLines={1}>
+            {resultCount == null
+              ? ""
+              : t(resultCount === 1 ? "notices.resultCountOne" : "notices.resultCount", {
+                  count: resultCount,
+                })}
+          </Text>
+          <NoticeSortMenu value={sort} onChange={setSort} />
+        </View>
+        </>
         ) : null}
       </View>
 
@@ -562,7 +622,10 @@ export default function Notifications() {
         keyExtractor={(item) => String(item.id)}
         renderItem={renderNoticeCard}
         ListEmptyComponent={listEmpty}
-        contentContainerStyle={styles.cardContainer}
+        contentContainerStyle={[
+          styles.cardContainer,
+          notices.length === 0 && styles.cardContainerEmpty,
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -589,9 +652,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: sw(20),
     paddingTop: sw(16),
-    paddingBottom: sw(12),
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(243, 244, 246, 1)",
+    paddingBottom: sw(4),
     flexDirection: "column",
     gap: 2,
   },
@@ -641,17 +702,33 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   tabsContainer: {
-    paddingVertical: 12,
+    paddingTop: sw(10),
+    paddingBottom: sw(6),
     paddingHorizontal: sw(20),
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(243, 244, 246, 1)",
-    gap: 8,
+    gap: sw(8),
     alignItems: "center",
+  },
+  sortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: sw(12),
+    paddingHorizontal: sw(20),
+    paddingTop: sw(2),
+    paddingBottom: sw(8),
+  },
+  resultCount: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    color: "#6A7282",
   },
   tab: {
     paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    borderRadius: 999,
     backgroundColor: "rgba(249, 250, 251, 1)",
   },
   activeTab: {
@@ -663,8 +740,12 @@ const styles = StyleSheet.create({
   },
   cardContainer: {
     paddingHorizontal: sw(20),
-    paddingTop: sw(14),
+    paddingTop: sw(4),
     paddingBottom: sw(20),
+  },
+  cardContainerEmpty: {
+    flexGrow: 1,
+    justifyContent: "center",
   },
   card: {
     borderWidth: 1,
@@ -791,24 +872,8 @@ const styles = StyleSheet.create({
     color: "#059669",
   },
   loadingWrap: {
-    paddingVertical: 40,
     alignItems: "center",
-  },
-  emptyWrap: {
-    paddingVertical: 48,
-    alignItems: "center",
-    gap: 6,
-  },
-  emptyTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(14),
-    color: "#334155",
-    fontWeight: "700",
-  },
-  emptyHint: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(11),
-    color: "#94A3B8",
-    textAlign: "center",
+    justifyContent: "center",
+    paddingVertical: sw(48),
   },
 });

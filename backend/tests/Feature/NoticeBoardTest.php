@@ -1691,4 +1691,151 @@ class NoticeBoardTest extends TestCase
         $this->assertContains('Water shutoff', $titles);
         $this->assertNotContains('Lobby hours', $titles);
     }
+
+    public function test_community_admin_can_update_a_draft_notice_and_other_users_cannot(): void
+    {
+        ['admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+        $start = now()->addDays(3)->toDateString();
+        $end = now()->addDays(4)->toDateString();
+
+        Sanctum::actingAs($admin);
+
+        $noticeId = $this->postJson('/api/v1/admin/notices', array_merge([
+            'title' => 'Pool hours',
+            'body' => 'The pool is open all afternoon.',
+            'category' => 'general',
+            'location' => 'Pool deck',
+            'status' => 'draft',
+            'is_pinned' => false,
+            'audience_type' => 'all',
+        ], $this->scheduleFields($start)))->assertCreated()->json('data.id');
+
+        $updated = $this->patchJson("/api/v1/admin/notices/{$noticeId}", [
+            'title' => 'Updated pool hours',
+            'body' => 'The pool closes earlier this week.',
+            'category' => 'maintenance',
+            'location' => 'Clubhouse',
+            'event_date' => $start,
+            'event_end_date' => $end,
+            'event_time' => '10:00',
+            'event_time_end' => '18:00',
+            'is_pinned' => true,
+            'status' => 'draft',
+            'audience_type' => 'selected',
+            'recipient_user_ids' => [$resident->id],
+        ])->assertOk()
+            ->assertJsonPath('message', 'Notice updated')
+            ->assertJsonPath('data.title', 'Updated pool hours')
+            ->assertJsonPath('data.body', 'The pool closes earlier this week.')
+            ->assertJsonPath('data.category', 'maintenance')
+            ->assertJsonPath('data.location', 'Clubhouse')
+            ->assertJsonPath('data.audience_type', 'selected')
+            ->assertJsonPath('data.is_pinned', true)
+            ->assertJsonPath('data.status', 'draft');
+
+        $this->assertStringStartsWith('10:00', (string) $updated->json('data.event_time'));
+        $this->assertStringStartsWith('18:00', (string) $updated->json('data.event_time_end'));
+        $this->assertStringStartsWith($end, (string) $updated->json('data.event_end_date'));
+        $this->assertContains($resident->id, $updated->json('data.recipient_user_ids'));
+
+        $this->getJson("/api/v1/notices/{$noticeId}")
+            ->assertOk()
+            ->assertJsonPath('data.title', 'Updated pool hours')
+            ->assertJsonPath('data.location', 'Clubhouse');
+
+        $this->assertDatabaseMissing('app_notifications', [
+            'action_url' => "/notices/{$noticeId}",
+        ]);
+
+        Sanctum::actingAs($resident);
+        $this->patchJson("/api/v1/admin/notices/{$noticeId}", [
+            'title' => 'Hijacked',
+        ])->assertForbidden();
+
+        $outsider = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status' => 'active',
+            'phone' => '+201700000099',
+        ]);
+        Sanctum::actingAs($outsider);
+        $this->patchJson("/api/v1/admin/notices/{$noticeId}", [
+            'title' => 'Outside edit',
+        ])->assertForbidden();
+
+        $this->assertDatabaseHas('notices', [
+            'id' => $noticeId,
+            'title' => 'Updated pool hours',
+            'status' => 'draft',
+        ]);
+    }
+
+    public function test_events_sort_by_schedule_and_notices_by_latest_update(): void
+    {
+        ['admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($admin);
+
+        $later = $this->postJson('/api/v1/admin/events', array_merge([
+            'title'         => 'Later event',
+            'body'          => 'Happens after the sooner one.',
+            'location'      => 'Hall',
+            'requires_rsvp' => false,
+        ], $this->scheduleFields(now()->addDays(8)->toDateString())))->assertCreated();
+
+        $sooner = $this->postJson('/api/v1/admin/events', array_merge([
+            'title'         => 'Sooner event',
+            'body'          => 'Should lead the event list.',
+            'location'      => 'Lobby',
+            'requires_rsvp' => false,
+        ], $this->scheduleFields(now()->addDays(2)->toDateString())))->assertCreated();
+
+        Sanctum::actingAs($resident);
+
+        $this->getJson('/api/v1/notices?category=event')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $sooner->json('data.id'))
+            ->assertJsonPath('data.1.id', $later->json('data.id'));
+
+        $from = now()->addDays(5)->toDateString();
+        $this->getJson('/api/v1/notices?category=event&date_from='.$from)
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $later->json('data.id'))
+            ->assertJsonMissing(['id' => $sooner->json('data.id')]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/v1/admin/notices?category_group=events')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $sooner->json('data.id'))
+            ->assertJsonPath('data.1.id', $later->json('data.id'));
+
+        $older = $this->postJson('/api/v1/admin/notices', array_merge([
+            'title'    => 'Older notice',
+            'body'     => 'Created first.',
+            'category' => 'general',
+        ], $this->scheduleFields()))->assertCreated();
+
+        $newer = $this->postJson('/api/v1/admin/notices', array_merge([
+            'title'    => 'Newer notice',
+            'body'     => 'Created second.',
+            'category' => 'general',
+        ], $this->scheduleFields()))->assertCreated();
+
+        DB::table('notices')->where('id', $older->json('data.id'))->update([
+            'updated_at' => now()->addHour(),
+        ]);
+
+        Sanctum::actingAs($resident);
+
+        $this->getJson('/api/v1/notices?category_group=notices')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $older->json('data.id'))
+            ->assertJsonPath('data.1.id', $newer->json('data.id'));
+
+        $this->getJson('/api/v1/notices?category_group=notices&sort=oldest')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $newer->json('data.id'))
+            ->assertJsonPath('data.1.id', $older->json('data.id'));
+    }
 }

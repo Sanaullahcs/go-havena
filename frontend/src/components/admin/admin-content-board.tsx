@@ -208,6 +208,9 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
       ? initialFilter
       : "all",
   );
+  const [sort, setSort] = useState<"relevant" | "newest" | "oldest" | "schedule">("relevant");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 450);
   const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
@@ -251,6 +254,9 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
         params.status = boardFilter;
       }
       if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+      params.sort = sort;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
       const res = await fetchAdminNotices(params);
       setNotices(res.data);
       setTotal(res.meta.total);
@@ -263,13 +269,27 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
       setInitialLoading(false);
       setRefreshing(false);
     }
-  }, [config.categoryGroup, boardFilter, debouncedSearch, page]);
+  }, [config.categoryGroup, boardFilter, debouncedSearch, page, sort, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     setPage(1);
-  }, [boardFilter, debouncedSearch]);
+  }, [boardFilter, debouncedSearch, sort, dateFrom, dateTo]);
+
+  const kindRef = useRef(kind);
+  useEffect(() => {
+    if (kindRef.current === kind) return;
+    kindRef.current = kind;
+    setNotices([]);
+    setSort("relevant");
+    setDateFrom("");
+    setDateTo("");
+    setBoardFilter("all");
+    setPage(1);
+    hasLoadedOnce.current = false;
+    setInitialLoading(true);
+  }, [kind]);
 
   useEffect(() => {
     const id = highlightNoticeId?.trim();
@@ -484,6 +504,55 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
         filters={boardFilters}
         activeFilter={boardFilter}
         onFilter={(key) => setBoardFilter(key as BoardFilter)}
+        toolbar={
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <label className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-500">
+              Sort
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value as "relevant" | "newest" | "oldest" | "schedule")}
+                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[12.5px] font-semibold text-[#1B4F8A] outline-none focus:border-[#1B4F8A]"
+              >
+                <option value="relevant">Suggested</option>
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="schedule">By date</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-500">
+              From
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(event) => setDateFrom(event.target.value)}
+                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[12.5px] text-slate-700 outline-none focus:border-[#1B4F8A]"
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-500">
+              To
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(event) => setDateTo(event.target.value)}
+                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[12.5px] text-slate-700 outline-none focus:border-[#1B4F8A]"
+              />
+            </label>
+            {dateFrom || dateTo ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="text-[12px] font-semibold text-[#1B4F8A]"
+              >
+                Clear dates
+              </button>
+            ) : null}
+          </div>
+        }
         isEmpty={notices.length === 0}
         empty={boardFilter === "upcoming" ? "No upcoming events." : "No items match your filters."}
       >

@@ -247,6 +247,12 @@ export function normalizeNotice(raw) {
     categoryLabel: i18n.t(`categories.${raw.category ?? "general"}`, { defaultValue: theme.label }),
     location: raw.location ?? null,
     imageUrl: resolveMediaUrl(resolveNoticeImageUrl(raw.image_url)),
+    communityId: raw.community_id ?? raw.communityId ?? null,
+    audienceType: raw.audience_type ?? raw.audienceType ?? "all",
+    recipientUserIds: Array.isArray(raw.recipient_user_ids)
+      ? raw.recipient_user_ids.map((recipientId) => Number(recipientId)).filter((recipientId) => recipientId > 0)
+      : [],
+    isPinnedSetting: Boolean(raw.is_pinned),
     eventDate: raw.event_date ?? null,
     eventEndDate: raw.event_end_date ?? null,
     eventTime: raw.event_time ?? null,
@@ -257,6 +263,7 @@ export function normalizeNotice(raw) {
     rejectionReason: raw.rejection_reason ?? null,
     publishedAt: noticePublishedInstant(raw),
     createdAt: raw.created_at ?? null,
+    updatedAt: raw.updated_at ?? raw.updatedAt ?? null,
     authorName: raw.author_name ?? i18n.t("auth.communityAdmin"),
     authorAvatar: resolveMediaUrl(raw.author_avatar) ?? null,
     authorId: raw.author_id ?? null,
@@ -318,22 +325,46 @@ export function normalizeNotice(raw) {
   };
 }
 
-export function sortNotices(notices) {
+function activityTime(notice) {
+  return parseApiDate(notice?.updatedAt ?? notice?.publishedAt ?? notice?.createdAt)?.getTime() ?? 0;
+}
+
+function eventStartMs(notice) {
+  const day = String(notice?.eventDate ?? "").slice(0, 10);
+  if (!day) return Number.POSITIVE_INFINITY;
+  const time = String(notice?.eventTime ?? "00:00").slice(0, 5);
+  const ms = new Date(`${day}T${time}:00`).getTime();
+  return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
+}
+
+function compareEvents(a, b) {
+  const aEnded = isNoticeExpiredForHome(a) ? 1 : 0;
+  const bEnded = isNoticeExpiredForHome(b) ? 1 : 0;
+  if (aEnded !== bEnded) return aEnded - bEnded;
+  const aStart = eventStartMs(a);
+  const bStart = eventStartMs(b);
+  if (aEnded && bEnded && aStart !== bStart) return bStart - aStart;
+  if (!aEnded && !bEnded && aStart !== bStart) return aStart - bStart;
+  return activityTime(b) - activityTime(a) || (Number(b.id) - Number(a.id));
+}
+
+/** Pins first, then the module's own date. Newest edits rise for notices and alerts. */
+export function sortNotices(notices, { group = "mixed", sort = "relevant" } = {}) {
+  const mode = ["relevant", "newest", "oldest", "schedule"].includes(sort) ? sort : "relevant";
   return [...notices].sort((a, b) => {
-    const aPin = a.isPinned ? 1 : 0;
-    const bPin = b.isPinned ? 1 : 0;
-    if (aPin !== bPin) return bPin - aPin;
-
-    const aEvent = a.isEvent && a.eventDate ? new Date(a.eventDate).getTime() : null;
-    const bEvent = b.isEvent && b.eventDate ? new Date(b.eventDate).getTime() : null;
-
-    if (aEvent && bEvent && aEvent !== bEvent) return aEvent - bEvent;
-    if (aEvent && !bEvent) return -1;
-    if (!aEvent && bEvent) return 1;
-
-    const aTime = parseApiDate(a.publishedAt ?? a.createdAt)?.getTime() ?? 0;
-    const bTime = parseApiDate(b.publishedAt ?? b.createdAt)?.getTime() ?? 0;
-    return bTime - aTime;
+    const pin = (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0);
+    if (pin !== 0) return pin;
+    if (mode === "newest") return activityTime(b) - activityTime(a) || (Number(b.id) - Number(a.id));
+    if (mode === "oldest") return activityTime(a) - activityTime(b) || (Number(a.id) - Number(b.id));
+    if (mode === "schedule" || (mode === "relevant" && group === "events")) return compareEvents(a, b);
+    if (mode === "relevant" && (group === "notices" || group === "alerts")) {
+      return activityTime(b) - activityTime(a) || (Number(b.id) - Number(a.id));
+    }
+    const band = (notice) => (notice.isAlert ? 0 : notice.isEvent ? 1 : 2);
+    const bandDiff = band(a) - band(b);
+    if (bandDiff !== 0) return bandDiff;
+    if (a.isEvent && b.isEvent) return compareEvents(a, b);
+    return activityTime(b) - activityTime(a) || (Number(b.id) - Number(a.id));
   });
 }
 
@@ -440,6 +471,7 @@ export async function fetchNotices({
   perPage = 50,
   includeExpired = false,
   mine = false,
+  sort = "relevant",
 } = {}) {
   const params = new URLSearchParams();
   if (mine) params.set("mine", "1");
@@ -447,8 +479,16 @@ export async function fetchNotices({
   if (category) params.set("category", category);
   if (search?.trim()) params.set("search", search.trim());
   if (includeExpired) params.set("include_expired", "1");
+  if (sort && sort !== "relevant") params.set("sort", sort);
   params.set("per_page", String(perPage));
   const qs = params.toString() ? `?${params}` : "";
+  const sortGroup = mine || categoryGroup === "events" || category === "event"
+    ? "events"
+    : categoryGroup === "alerts" || category === "emergency"
+      ? "alerts"
+      : categoryGroup === "notices" || (category && category !== "all")
+        ? "notices"
+        : "mixed";
 
   try {
     const res = await apiRequest(`/notices${qs}`);
@@ -459,7 +499,7 @@ export async function fetchNotices({
       // Community Updates passes includeExpired true to keep the full history.
       .filter((n) => mine || includeExpired || !isNoticeExpiredForHome(n));
     return {
-      notices: sortNotices(items),
+      notices: sortNotices(items, { group: sortGroup, sort }),
       meta: res.meta ?? {},
     };
   } catch (err) {
@@ -739,6 +779,7 @@ export async function fetchAdminNotices({
   category_group,
   page = 1,
   per_page = 50,
+  sort = "relevant",
 } = {}) {
   const params = new URLSearchParams({
     page: String(page),
@@ -746,6 +787,7 @@ export async function fetchAdminNotices({
   });
   if (review_status && review_status !== "all") params.set("review_status", review_status);
   if (category_group) params.set("category_group", category_group);
+  if (sort && sort !== "relevant") params.set("sort", sort);
   const res = await apiRequest(`/admin/notices?${params}`);
   return {
     data: (res.data ?? []).map(normalizeNotice),

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   Pressable,
   Linking,
 } from "react-native";
-import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import BackButton from "../../../components/ui/back-button";
@@ -17,7 +17,10 @@ import CrispImage from "../../../components/ui/crisp-image";
 import { NoticeCoverMedia } from "../../../components/notices/notice-cover-thumbnail";
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout, Shadows } from "../../../constants/tokens";
-import { fetchNotice, getCategoryTheme, formatDisplayTime12h, formatShortDate } from "../../../services/notices-api";
+import { fetchNotice, getCategoryTheme, formatDisplayTime12h, formatShortDate, resolveNoticeId } from "../../../services/notices-api";
+import { canEditCommunityNotice } from "../../../services/community-access";
+import { fetchMe } from "../../../services/profile-api";
+import { getUser } from "../../../services/auth-session";
 import { parseApiDate } from "../../../services/feed-api";
 import { billingFrequencyLabel } from "../../../services/property-services-api";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
@@ -28,6 +31,7 @@ import { useTranslation } from 'react-i18next';
 import i18n, { localizedField } from "../../../i18n";
 import { getLocaleForLang } from "../../../hooks/use-app-locale";
 import { chevronBack } from "../../../utils/rtl";
+import { resolveEffectiveEndDate } from "../../../utils/notice-schedule-window";
 
 const HERO_HEIGHT = hp(28);
 
@@ -51,19 +55,22 @@ function formatPublishedLabel(notice) {
 
 function formatNoticeDateLabel(dateStr) {
   if (!dateStr) return "";
+  const day = String(dateStr).slice(0, 10);
   try {
-    return new Date(`${String(dateStr).slice(0, 10)}T12:00:00`).toLocaleDateString(getLocaleForLang(i18n.language), {
+    const date = new Date(`${day}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return day;
+    return date.toLocaleDateString(getLocaleForLang(i18n.language), {
       weekday: "long",
       month: "long",
       day: "numeric",
       year: "numeric",
     });
   } catch {
-    return dateStr;
+    return day;
   }
 }
 
-function InfoTile({ icon, label, value, accent, bg, onPress }) {
+function InfoTile({ icon, label, value, accent, bg, onPress, fullWidth = false }) {
   if (!value) return null;
   const content = (
     <>
@@ -76,11 +83,12 @@ function InfoTile({ icon, label, value, accent, bg, onPress }) {
       </Text>
     </>
   );
+  const tileStyle = [styles.infoTile, fullWidth && styles.infoTileFull, { backgroundColor: bg }];
   if (onPress) {
     return (
       <Pressable
         onPress={onPress}
-        style={[styles.infoTile, { backgroundColor: bg }]}
+        style={tileStyle}
         accessibilityRole="link"
       >
         {content}
@@ -88,7 +96,7 @@ function InfoTile({ icon, label, value, accent, bg, onPress }) {
     );
   }
   return (
-    <View style={[styles.infoTile, { backgroundColor: bg }]}>
+    <View style={tileStyle}>
       {content}
     </View>
   );
@@ -142,31 +150,61 @@ export default function NoticeDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   const [notice, setNotice] = useState(null);
+  const [viewer, setViewer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [heroImageFailed, setHeroImageFailed] = useState(false);
+  const loadedIdRef = useRef(null);
 
-  const load = useCallback(async () => {
-    if (!id) {
+  const load = useCallback(async ({ silent = false } = {}) => {
+    const noticeId = resolveNoticeId(id);
+    if (!noticeId) {
       setError(t('notices.noticeNotFound'));
       setLoading(false);
       return;
     }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchNotice(id);
-      setNotice(data);
-    } catch {
-      setError(t('notices.unableToLoadNotice'));
-    } finally {
-      setLoading(false);
+    if (!silent) {
+      setLoading(true);
+      setError(null);
     }
-  }, [id]);
+    try {
+      const data = await fetchNotice(noticeId);
+      setNotice(data);
+      setError(null);
+      loadedIdRef.current = noticeId;
+    } catch {
+      if (!silent) {
+        setNotice(null);
+        setError(t('notices.unableToLoadNotice'));
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [id, t]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const noticeId = resolveNoticeId(id);
+      const silent = loadedIdRef.current != null && loadedIdRef.current === noticeId;
+      load({ silent });
+    }, [id, load]),
+  );
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = await fetchMe();
+        if (!cancelled) setViewer(user);
+      } catch {
+        const user = await getUser();
+        if (!cancelled) setViewer(user);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setHeroImageFailed(false);
@@ -182,16 +220,15 @@ export default function NoticeDetailScreen() {
     [notice],
   );
 
-  const noticeDateLabel = useMemo(
+  const startDateLabel = useMemo(
     () => (notice?.eventDate ? formatNoticeDateLabel(notice.eventDate) : ""),
     [notice],
   );
 
-  const scheduleDateLabel = useMemo(() => {
-    if (notice?.isAlert) return t('notices.alertDate');
-    if (notice?.isEvent) return t('notices.eventDate');
-    return t('notices.noticeDate');
-  }, [notice, t]);
+  const endDateLabel = useMemo(() => {
+    const endDate = resolveEffectiveEndDate(notice?.eventDate, notice?.eventEndDate);
+    return endDate ? formatNoticeDateLabel(endDate) : "";
+  }, [notice]);
 
   const startTimeLabel = useMemo(
     () => (notice?.eventTime ? formatDisplayTime12h(notice.eventTime) : ""),
@@ -203,10 +240,19 @@ export default function NoticeDetailScreen() {
     [notice],
   );
 
-  const showScheduleDate = Boolean(
-    noticeDateLabel &&
-      (notice?.isEvent || notice?.isAlert || startTimeLabel || endTimeLabel),
+  const showSchedule = Boolean(startDateLabel || endDateLabel || startTimeLabel || endTimeLabel);
+  const canEditNotice = useMemo(
+    () => canEditCommunityNotice(viewer, notice),
+    [viewer, notice],
   );
+
+  const openEditNotice = useCallback(() => {
+    if (!notice?.id) return;
+    router.push({
+      pathname: "/screens/create-notice",
+      params: { noticeId: String(notice.id) },
+    });
+  }, [notice?.id, router]);
 
   const bodyParagraphs = useMemo(() => {
     const raw = localizedField(notice, "body") || notice?.body || "";
@@ -307,8 +353,23 @@ export default function NoticeDetailScreen() {
             </View>
           ) : notice ? (
             <>
-              <Text style={styles.title}>{localizedField(notice, "title") || notice.title}</Text>
-<View style={styles.metaRow}>
+              <View style={styles.titleRow}>
+                <Text style={styles.title}>{localizedField(notice, "title") || notice.title}</Text>
+                {canEditNotice ? (
+                  <Pressable
+                    onPress={openEditNotice}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("notices.editNotice")}
+                    style={styles.editNoticeBtn}
+                  >
+                    <Feather name="edit-2" size={sf(14)} color="#FFFFFF" />
+                    <Text style={styles.editNoticeBtnText} numberOfLines={1}>
+                      {t("notices.editNotice")}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              <View style={styles.metaRow}>
                 <View style={styles.metaChip}>
                   <Feather name="clock" size={sf(12)} color={Colors.brandPrimaryDeep} />
                   <Text style={styles.metaChipText}>{notice.timeLabel}</Text>
@@ -426,13 +487,22 @@ export default function NoticeDetailScreen() {
                 </View>
               ) : null}
 
-              {(showScheduleDate || startTimeLabel || endTimeLabel || notice.location) && (
+              {(showSchedule || notice.location) && (
                 <View style={styles.infoGrid}>
-                  {showScheduleDate ? (
+                  {startDateLabel ? (
                     <InfoTile
                       icon="calendar"
-                      label={scheduleDateLabel}
-                      value={noticeDateLabel}
+                      label={t("notices.startDate")}
+                      value={startDateLabel}
+                      accent={theme.accent}
+                      bg={theme.bg}
+                    />
+                  ) : null}
+                  {endDateLabel ? (
+                    <InfoTile
+                      icon="calendar"
+                      label={t("notices.endDate")}
+                      value={endDateLabel}
                       accent={theme.accent}
                       bg={theme.bg}
                     />
@@ -440,7 +510,7 @@ export default function NoticeDetailScreen() {
                   {startTimeLabel ? (
                     <InfoTile
                       icon="clock"
-                      label={t('notices.startTime')}
+                      label={t("notices.startTime")}
                       value={startTimeLabel}
                       accent={theme.accent}
                       bg={theme.bg}
@@ -449,7 +519,7 @@ export default function NoticeDetailScreen() {
                   {endTimeLabel ? (
                     <InfoTile
                       icon="clock"
-                      label={t('notices.endTime')}
+                      label={t("notices.endTime")}
                       value={endTimeLabel}
                       accent={theme.accent}
                       bg={theme.bg}
@@ -457,10 +527,11 @@ export default function NoticeDetailScreen() {
                   ) : null}
                   <InfoTile
                     icon="map-pin"
-                    label={t('notices.location')}
+                    label={t("notices.location")}
                     value={notice.location}
                     accent={theme.accent}
                     bg={theme.bg}
+                    fullWidth
                     onPress={notice.location ? openLocation : undefined}
                   />
                 </View>
@@ -583,6 +654,30 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     paddingTop: hp(0.4),
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(10),
+  },
+  editNoticeBtn: {
+    flexShrink: 0,
+    flexGrow: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: sw(132),
+    paddingHorizontal: sw(12),
+    height: sw(36),
+    borderRadius: sw(10),
+    backgroundColor: "#1B4F8A",
+  },
+  editNoticeBtnText: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(13),
+    lineHeight: sf(16),
+    color: "#FFFFFF",
+    marginStart: sw(6),
+  },
   iconBtn: {
     width: sw(40),
     height: sw(40),
@@ -701,6 +796,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   title: {
+    flex: 1,
+    flexShrink: 1,
     fontFamily: Fonts.bold,
     fontSize: sf(22),
     lineHeight: sf(28),
@@ -713,7 +810,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     alignItems: "center",
     gap: sw(8),
-    marginTop: sw(12),
+    marginTop: sw(8),
   },
   metaChip: {
     flexDirection: "row",
@@ -847,11 +944,16 @@ const styles = StyleSheet.create({
     marginTop: sw(16),
   },
   infoTile: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: "47%",
     minWidth: "46%",
     borderRadius: sw(14),
     padding: sw(14),
     gap: sw(6),
+  },
+  infoTileFull: {
+    flexBasis: "100%",
+    minWidth: "100%",
   },
   infoTileIcon: {
     width: sw(34),

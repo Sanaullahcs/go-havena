@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import ScreenHeader from "../../../components/layout/screen-header";
+import NoticeSortChips from "../../../components/notices/sort-chips";
 import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
 import { Fonts } from "../../../constants/font";
 import { sf, sw } from "../../../utils/responsive";
@@ -66,11 +67,20 @@ export default function AdminCommunityEventsScreen() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [sort, setSort] = useState("relevant");
 
   const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent) {
+      setLoading(true);
+      setItems([]);
+    }
     try {
-      const res = await fetchNotices({ perPage: 50, includeExpired: false });
+      const res = await fetchNotices({
+        categoryGroup: "events",
+        perPage: 50,
+        includeExpired: false,
+        sort,
+      });
       const events = (res.notices ?? []).filter(isEventNotice);
       setItems(events);
     } catch {
@@ -79,12 +89,15 @@ export default function AdminCommunityEventsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [sort]);
 
+  const sortRef = useRef(sort);
   useFocusEffect(
     useCallback(() => {
-      load(true);
-    }, [load]),
+      const sortChanged = sortRef.current !== sort;
+      sortRef.current = sort;
+      load(!sortChanged);
+    }, [load, sort]),
   );
 
   const openEvent = (notice) => {
@@ -111,6 +124,9 @@ export default function AdminCommunityEventsScreen() {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} />
           }
+          ListHeaderComponent={
+            <NoticeSortChips value={sort} onChange={setSort} contentStyle={styles.sortChips} />
+          }
           ListEmptyComponent={
             <Text style={styles.empty}>{t("admin.noPublishedEvents")}</Text>
           }
@@ -126,6 +142,7 @@ export default function AdminCommunityEventsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#FFFFFF" },
   list: { padding: sw(16), paddingBottom: sw(32), flexGrow: 1 },
+  sortChips: { paddingBottom: sw(12) },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   empty: {
     textAlign: "center",

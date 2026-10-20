@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -43,7 +43,7 @@ import HavenaWordmark from "./havena-wordmark";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { wellnessDetailRouteParams } from "../../constants/wellness-categories";
 import { getWellnessCategoryMeta } from "../../constants/wellness-theme";
-import { fetchWellnessHub } from "../../services/wellness-api";
+import { fetchWellnessHub, getCachedWellnessHub, subscribeWellnessHub } from "../../services/wellness-api";
 import { fetchMyFamily } from "../../services/family-api";
 import { SidebarWellnessHubSkeleton } from "./skeleton-loader";
 import { dismissImageSourcePicker } from "../../providers/image-source-picker-provider";
@@ -52,6 +52,12 @@ import { rnShadow } from "../../utils/shadow";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MENU_WIDTH = Math.min(SCREEN_WIDTH * 0.86, 340);
+
+function wellnessCategorySignature(categories) {
+  return (categories ?? [])
+    .map((item) => [item?.key, item?.title, item?.subtitle, item?.iconKey].join("\u0001"))
+    .join("\u0002");
+}
 
 const MenuItem = ({
   iconName,
@@ -241,9 +247,22 @@ function SideMenuPanel({ visible, onClose }) {
     navigateAndClose("/(tabs)/profile");
   };
 
-  const [wellnessHub, setWellnessHub] = useState([]);
-  const [wellnessHubLoading, setWellnessHubLoading] = useState(false);
+  const initialWellnessCategories = getCachedWellnessHub()?.categories ?? [];
+  const [wellnessHub, setWellnessHub] = useState(initialWellnessCategories);
+  const [wellnessHubLoading, setWellnessHubLoading] = useState(initialWellnessCategories.length === 0);
+  const wellnessHubRef = useRef(initialWellnessCategories);
   const [familyPendingCount, setFamilyPendingCount] = useState(0);
+  const wellnessEnabled = isResidentFeatureEnabled(user, "wellness");
+  const familyEnabled = Boolean(user && !isGuestUser(user) && isResidentFeatureEnabled(user, "family"));
+
+  const applyWellnessCategories = useCallback((categories) => {
+    const next = categories ?? [];
+    if (wellnessCategorySignature(wellnessHubRef.current) === wellnessCategorySignature(next)) {
+      return;
+    }
+    wellnessHubRef.current = next;
+    setWellnessHub(next);
+  }, []);
 
   const menuItems = [
     isResidentFeatureEnabled(user, "feed")
@@ -344,35 +363,64 @@ function SideMenuPanel({ visible, onClose }) {
     return undefined;
   }, [visible, slideAnim]);
 
+  useEffect(() => subscribeWellnessHub((hub) => {
+    applyWellnessCategories(hub?.categories ?? []);
+    setWellnessHubLoading(false);
+  }), [applyWellnessCategories]);
+
   useEffect(() => {
-    if (!visible) {
+    if (!wellnessEnabled) {
+      applyWellnessCategories([]);
       setWellnessHubLoading(false);
       return undefined;
     }
 
-    if (isResidentFeatureEnabled(user, "wellness")) {
-      setWellnessHubLoading(true);
-      fetchWellnessHub()
-        .then((hub) => setWellnessHub(hub.categories ?? []))
-        .catch(() => setWellnessHub([]))
-        .finally(() => setWellnessHubLoading(false));
-    } else {
-      setWellnessHub([]);
+    const cached = getCachedWellnessHub()?.categories ?? [];
+    if (cached.length > 0) {
+      applyWellnessCategories(cached);
       setWellnessHubLoading(false);
+    } else if (wellnessHubRef.current.length === 0) {
+      setWellnessHubLoading(true);
     }
 
-    if (user && !isGuestUser(user) && isResidentFeatureEnabled(user, "family")) {
-      fetchMyFamily()
-        .then((payload) => {
-          setFamilyPendingCount(payload?.family?.pending_requests_count ?? 0);
-        })
-        .catch(() => setFamilyPendingCount(0));
-    } else {
+    let cancelled = false;
+    fetchWellnessHub()
+      .then((hub) => {
+        if (!cancelled) applyWellnessCategories(hub?.categories ?? []);
+      })
+      .catch(() => {
+        if (!cancelled && wellnessHubRef.current.length === 0) {
+          applyWellnessCategories([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setWellnessHubLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyWellnessCategories, wellnessEnabled]);
+
+  useEffect(() => {
+    if (!familyEnabled) {
       setFamilyPendingCount(0);
+      return undefined;
     }
 
-    return undefined;
-  }, [visible, user]);
+    let cancelled = false;
+    fetchMyFamily()
+      .then((payload) => {
+        if (!cancelled) setFamilyPendingCount(payload?.family?.pending_requests_count ?? 0);
+      })
+      .catch(() => {
+        if (!cancelled) setFamilyPendingCount(0);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [familyEnabled]);
 
   const openWellness = () => {
     navigateAndClose("/(tabs)/wellness");
@@ -480,11 +528,7 @@ function SideMenuPanel({ visible, onClose }) {
 
             {isResidentFeatureEnabled(user, "wellness") ? <Text style={styles.sectionTitle}>{t("nav.wellnessPrograms")}</Text> : null}
             {isResidentFeatureEnabled(user, "wellness") ? <View style={styles.wellnessGroup}>
-              {wellnessHubLoading ? (
-                <SidebarWellnessHubSkeleton count={5} />
-              ) : wellnessHub.length === 0 ? (
-                <WellnessEmpty onExplore={openWellness} />
-              ) : (
+              {wellnessHub.length > 0 ? (
                 wellnessHub.map((item, index) => {
                   const meta = getWellnessCategoryMeta(item.key);
                   return (
@@ -505,6 +549,10 @@ function SideMenuPanel({ visible, onClose }) {
                     />
                   );
                 })
+              ) : wellnessHubLoading ? (
+                <SidebarWellnessHubSkeleton count={5} />
+              ) : (
+                <WellnessEmpty onExplore={openWellness} />
               )}
             </View> : null}
 
@@ -542,9 +590,11 @@ function SideMenuPanel({ visible, onClose }) {
                         color={Colors.textPrimary}
                       />
                     </View>
-                    <Text style={[styles.actionText, styles.actionTextMode]}>
-                      {canSwitchToAdminMode(user) ? "Return to Admin" : "Switch to Resident Mode"}
-                    </Text>
+                    <View style={styles.actionLabel}>
+                      <Text style={[styles.actionText, styles.actionTextMode]}>
+                        {canSwitchToAdminMode(user) ? "Return to Admin" : "Switch to Resident Mode"}
+                      </Text>
+                    </View>
                   </View>
                 </TouchableOpacity>
               ) : null}
@@ -560,7 +610,9 @@ function SideMenuPanel({ visible, onClose }) {
                   <View style={styles.actionIcon}>
                     <Feather name="settings" size={16} color="#475569" />
                   </View>
-                  <Text style={styles.actionText}>{t("settings.title")}</Text>
+                  <View style={styles.actionLabel}>
+                    <Text style={styles.actionText}>{t("settings.title")}</Text>
+                  </View>
                 </View>
               </TouchableOpacity>
 
@@ -581,9 +633,11 @@ function SideMenuPanel({ visible, onClose }) {
                   <View style={[styles.actionIcon, styles.actionIconDanger]}>
                     <Feather name="log-out" size={16} color="#DC2626" />
                   </View>
-                  <Text style={[styles.actionText, styles.actionTextDanger]}>
-                    {t("settings.logOut")}
-                  </Text>
+                  <View style={styles.actionLabel}>
+                    <Text style={[styles.actionText, styles.actionTextDanger]}>
+                      {t("settings.logOut")}
+                    </Text>
+                  </View>
                 </View>
               </TouchableOpacity>
             </View>
@@ -920,9 +974,16 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderInput,
   },
   actionLeft: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+  },
+  actionLabel: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
   },
   actionIcon: {
     width: 32,
@@ -943,7 +1004,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#334155",
-    lineHeight: 18,
+    lineHeight: 20,
   },
   actionTextMode: {
     color: Colors.textPrimary,

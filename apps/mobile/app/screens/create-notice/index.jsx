@@ -1,13 +1,23 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from "react-native";
 import { KeyboardScroll } from "../../../components/ui/keyboard-form";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Fonts } from "../../../constants/font";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import ScreenHeader from "../../../components/layout/screen-header";
-import { createNotice, publishNoticeWithImage, NOTICE_FORM_CATEGORIES } from "../../../services/notices-api";
+import {
+  createNotice,
+  fetchNotice,
+  publishNoticeWithImage,
+  resolveNoticeId,
+  updateNotice,
+  uploadNoticeImage,
+  NOTICE_FORM_CATEGORIES,
+} from "../../../services/notices-api";
+import { extractStoragePath } from "../../../utils/profile-display";
+import { noticeEditFormState } from "../../../utils/notice-edit-draft";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
@@ -22,15 +32,39 @@ import SchedulePickerField from "../../../components/forms/schedule-picker-field
 import NoticeCoverImageField from "../../../components/forms/notice-cover-image-field";
 import { fetchMe } from "../../../services/profile-api";
 import { getUser } from "../../../services/auth-session";
-import { isCommunityAdmin } from "../../../services/community-access";
+import { canEditCommunityNotice, isCommunityAdmin } from "../../../services/community-access";
 import { fetchAdminMembers } from "../../../services/admin-api";
 import { useTranslation } from 'react-i18next';
 import { selectionChipStyles as chipTheme } from "../../../constants/selection-chip-styles";
 import { buildQuickDate, buildQuickStartInHours } from "../../../utils/schedule-shortcut-helpers";
 import { isScheduleEndBeforeStart } from "../../../utils/notice-schedule-window";
 
+/**
+ * Plain object — not StyleSheet. The text-metrics patch adds lineHeight inside
+ * StyleSheet.create, and iOS then draws single-line Title/Location text high
+ * in the field. A fixed 22px line is centered by the shell; the 3px iOS inset
+ * offsets Poppins so the glyphs and the placeholder share the same center.
+ * Android keeps styles.input unchanged.
+ */
+const noticeSingleLineText = {
+  fontFamily: Fonts.regular,
+  fontSize: 13,
+  color: "rgba(10, 10, 10, 1)",
+  height: 22,
+  margin: 0,
+  paddingTop: 3,
+  paddingBottom: 0,
+  paddingHorizontal: 0,
+  paddingVertical: 0,
+  includeFontPadding: false,
+  textAlignVertical: "center",
+};
+
 export default function CreateNoticeScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const noticeId = resolveNoticeId(params.noticeId);
+  const isEditing = Boolean(noticeId);
   const { t } = useTranslation();
   const { submitting, run } = useSubmitLock();
   const { runAction } = useApiAction();
@@ -56,6 +90,11 @@ export default function CreateNoticeScreen() {
   const [residentsLoading, setResidentsLoading] = useState(false);
   const [dateShortcut, setDateShortcut] = useState(null);
   const [timeShortcut, setTimeShortcut] = useState(null);
+  const [loadingNotice, setLoadingNotice] = useState(isEditing);
+  const [editBlocked, setEditBlocked] = useState(false);
+  const [editLoadError, setEditLoadError] = useState(null);
+  const [keptImageUrl, setKeptImageUrl] = useState(null);
+  const [originalStatus, setOriginalStatus] = useState("published");
   const { errors, setErrors, touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
 
   const syncEndNoticeDate = (startDate, currentEnd) => {
@@ -127,6 +166,58 @@ export default function CreateNoticeScreen() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!noticeId) return undefined;
+    let cancelled = false;
+
+    (async () => {
+      setLoadingNotice(true);
+      setEditBlocked(false);
+      setEditLoadError(null);
+      try {
+        const user = await fetchMe().catch(() => getUser());
+        if (cancelled) return;
+        if (!isCommunityAdmin(user)) {
+          setEditBlocked(true);
+          return;
+        }
+        const notice = await fetchNotice(noticeId);
+        if (cancelled) return;
+        if (!canEditCommunityNotice(user, notice)) {
+          setEditBlocked(true);
+          return;
+        }
+        const draft = noticeEditFormState(notice);
+        setTitle(draft.title);
+        setDescription(draft.description);
+        setCategory(draft.category);
+        setLocation(draft.location);
+        setNoticeDate(draft.noticeDate);
+        setEndNoticeDate(draft.endNoticeDate);
+        setStartTime(draft.startTime);
+        setEndTime(draft.endTime);
+        setPinToTop(draft.pinToTop);
+        setScheduleLater(draft.scheduleLater);
+        setSchedulePublishDate(draft.schedulePublishDate);
+        setSchedulePublishTime(draft.schedulePublishTime);
+        setAudienceType(draft.audienceType);
+        setSelectedResidentIds(draft.selectedResidentIds);
+        setCoverImage(draft.coverImage);
+        setKeptImageUrl(draft.keptImageUrl);
+        setOriginalStatus(draft.originalStatus);
+        setIsAdmin(true);
+      } catch {
+        if (!cancelled) setEditLoadError(t("notices.unableToLoadNotice"));
+      } finally {
+        if (!cancelled) setLoadingNotice(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [noticeId, t]);
 
   useEffect(() => {
     if (!isAdmin || audienceType !== "selected") {
@@ -213,43 +304,73 @@ export default function CreateNoticeScreen() {
 
   const handlePublish = () => {
     if (submitting) return;
+    if (isEditing && (loadingNotice || editBlocked || editLoadError)) return;
 
     const fieldErrors = validateNoticeForm(formValues, validationOpts);
     if (!validateOnSubmit(fieldErrors)) return;
 
+    const savedStatus = ["draft", "published", "archived"].includes(originalStatus)
+      ? originalStatus
+      : "published";
+
     run(async () => {
-      setUploadingImage(Boolean(coverImage?.uri));
+      const replacingImage = Boolean(coverImage?.uri && !coverImage.remote);
+      setUploadingImage(isEditing ? replacingImage : Boolean(coverImage?.uri));
       try {
+        const payload = {
+          title: title.trim(),
+          body: description.trim(),
+          category,
+          location: location.trim() || undefined,
+          event_date: toApiDate(noticeDate),
+          event_end_date: toApiDate(endNoticeDate) ?? toApiDate(noticeDate),
+          event_time: toApiTime(startTime),
+          event_time_end: toApiTime(endTime),
+          ...(isAdmin
+            ? {
+                is_pinned: pinToTop,
+                status: scheduleLater ? "draft" : isEditing ? savedStatus : "published",
+                scheduled_at: scheduleLater
+                  ? toApiScheduleDateTime(schedulePublishDate, schedulePublishTime)
+                  : isEditing
+                    ? null
+                    : undefined,
+                audience_type: audienceType,
+                recipient_user_ids:
+                  audienceType === "selected" ? selectedResidentIds : undefined,
+              }
+            : {}),
+        };
+
         await runAction({
-          action: async () =>
-            publishNoticeWithImage(coverImage, createNotice, {
-              title: title.trim(),
-              body: description.trim(),
-              category,
-              location: location.trim() || undefined,
-              event_date: toApiDate(noticeDate),
-              event_end_date: toApiDate(endNoticeDate) ?? toApiDate(noticeDate),
-              event_time: toApiTime(startTime),
-              event_time_end: toApiTime(endTime),
-              ...(isAdmin
-                ? {
-                    is_pinned: pinToTop,
-                    status: scheduleLater ? "draft" : "published",
-                    scheduled_at: scheduleLater
-                      ? toApiScheduleDateTime(schedulePublishDate, schedulePublishTime)
-                      : undefined,
-                    audience_type: audienceType,
-                    recipient_user_ids:
-                      audienceType === "selected" ? selectedResidentIds : undefined,
-                  }
-                : {}),
-            }),
-          successTitle: scheduleLater && isAdmin ? t('notices.scheduled') : t('notices.published'),
-          successMessage:
-            scheduleLater && isAdmin
-              ? t('notices.noticeScheduledMessage')
-              : t('notices.noticePublishedMessage'),
-          errorTitle: t('notices.couldNotPublish'),
+          action: async () => {
+            if (!isEditing) {
+              return publishNoticeWithImage(coverImage, createNotice, payload);
+            }
+            let image_url = keptImageUrl;
+            if (replacingImage) {
+              const uploaded = await uploadNoticeImage(coverImage.uri, coverImage);
+              image_url = extractStoragePath(uploaded.image_url) ?? uploaded.image_url;
+            } else if (!coverImage?.uri) {
+              image_url = null;
+            }
+            return updateNotice(noticeId, { ...payload, image_url });
+          },
+          successTitle: isEditing
+            ? scheduleLater
+              ? t("notices.scheduled")
+              : t("notices.noticeUpdated")
+            : scheduleLater && isAdmin
+              ? t("notices.scheduled")
+              : t("notices.published"),
+          successMessage: isEditing
+            ? scheduleLater
+              ? t("notices.noticeScheduledMessage")
+              : t("notices.noticeUpdatedMessage")
+            : scheduleLater && isAdmin
+              ? t("notices.noticeScheduledMessage")
+              : t("notices.noticePublishedMessage"),
+          errorTitle: isEditing ? t("notices.couldNotUpdate") : t("notices.couldNotPublish"),
           onSuccess: () => router.back(),
         });
       } finally {
@@ -285,27 +406,63 @@ export default function CreateNoticeScreen() {
     );
   };
 
+  const renderSingleLineInput = (inputProps, hasError) => {
+    if (Platform.OS !== "ios") {
+      return (
+        <LocaleTextInput
+          {...inputProps}
+          style={[styles.input, hasError && styles.inputError]}
+        />
+      );
+    }
+    return (
+      <View style={[styles.inputShell, hasError && styles.inputError]}>
+        <LocaleTextInput {...inputProps} style={noticeSingleLineText} />
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenHeader layout="inline" title={t('notices.createNotice')} iconOnly />
+      <ScreenHeader
+        layout="inline"
+        title={isEditing ? t("notices.editNotice") : t("notices.createNotice")}
+        iconOnly
+      />
 
+      {isEditing && (loadingNotice || editBlocked || editLoadError) ? (
+        <View style={styles.editState}>
+          {loadingNotice ? (
+            <>
+              <ActivityIndicator color="#1B4F8A" size="large" />
+              <Text style={styles.editStateText}>{t("notices.loadingNotice")}</Text>
+            </>
+          ) : (
+            <Text style={styles.editStateText}>
+              {editBlocked ? t("notices.editNoticeDenied") : editLoadError}
+            </Text>
+          )}
+        </View>
+      ) : (
       <KeyboardScroll showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.formWrap}>
           <Text style={styles.label}>
             {t('notices.title')} <Text style={styles.required}>*</Text>
           </Text>
-          <LocaleTextInput
-            value={title}
-            onChangeText={(t) => {
-              setTitle(t);
-              touch("title");
-              clearError("title");
-            }}
-            placeholder={t('notices.enterTitle')}
-            placeholderTextColor="rgba(10, 10, 10, 0.5)"
-            style={[styles.input, showError("title", fieldErrorsLive) && styles.inputError]}
-            maxLength={LIMITS.noticeTitle}
-          />
+          {renderSingleLineInput(
+            {
+              value: title,
+              onChangeText: (value) => {
+                setTitle(value);
+                touch("title");
+                clearError("title");
+              },
+              placeholder: t("notices.enterTitle"),
+              placeholderTextColor: "rgba(10, 10, 10, 0.5)",
+              maxLength: LIMITS.noticeTitle,
+            },
+            Boolean(showError("title", fieldErrorsLive)),
+          )}
           {showError("title", fieldErrorsLive) ? (
             <Text style={styles.errorText}>{showError("title", fieldErrorsLive)}</Text>
           ) : null}
@@ -372,18 +529,20 @@ export default function CreateNoticeScreen() {
           ) : null}
 
           <View style={styles.sectionGap}>{renderFieldLabel("location-outline", t('notices.location'), false)}</View>
-          <LocaleTextInput
-            value={location}
-            onChangeText={(t) => {
-              setLocation(t);
-              touch("location");
-              clearError("location");
-            }}
-            placeholder={t('notices.locationPlaceholder')}
-            placeholderTextColor="rgba(10, 10, 10, 0.5)"
-            style={[styles.input, showError("location", fieldErrorsLive) && styles.inputError]}
-            maxLength={LIMITS.location}
-          />
+          {renderSingleLineInput(
+            {
+              value: location,
+              onChangeText: (value) => {
+                setLocation(value);
+                touch("location");
+                clearError("location");
+              },
+              placeholder: t("notices.locationPlaceholder"),
+              placeholderTextColor: "rgba(10, 10, 10, 0.5)",
+              maxLength: LIMITS.location,
+            },
+            Boolean(showError("location", fieldErrorsLive)),
+          )}
           {showError("location", fieldErrorsLive) ? (
             <Text style={styles.errorText}>{showError("location", fieldErrorsLive)}</Text>
           ) : null}
@@ -575,7 +734,8 @@ export default function CreateNoticeScreen() {
                       <View style={styles.residentList}>
                         {residents.map((member) => {
                           const name = member.display_name || member.name || t('notices.resident');
-                          const selected = selectedResidentIds.includes(member.id);
+                          const memberId = Number(member.id);
+                          const selected = selectedResidentIds.includes(memberId);
 
                           return (
                             <TouchableOpacity
@@ -585,7 +745,7 @@ export default function CreateNoticeScreen() {
                                 touch("recipient_user_ids");
                                 clearError("recipient_user_ids");
                                 setSelectedResidentIds((prev) =>
-                                  selected ? prev.filter((id) => id !== member.id) : [...prev, member.id],
+                                  selected ? prev.filter((id) => id !== memberId) : [...prev, memberId],
                                 );
                               }}
                             >
@@ -699,18 +859,37 @@ export default function CreateNoticeScreen() {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.publishButtonText}>
-                {isAdmin && scheduleLater ? t('notices.schedule') : t('notices.publish')}
+                {isAdmin && scheduleLater
+                  ? t("notices.schedule")
+                  : isEditing
+                    ? t("notices.saveChanges")
+                    : t("notices.publish")}
               </Text>
             )}
           </TouchableOpacity>
         </View>
       </KeyboardScroll>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
+  editState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  editStateText: {
+    fontFamily: Fonts.medium,
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#0A2A43",
+    textAlign: "center",
+  },
   scrollContent: { paddingBottom: 24 },
   formWrap: { padding: 24 },
   label: {
@@ -753,6 +932,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "rgba(10, 10, 10, 1)",
     backgroundColor: "rgba(249, 250, 251, 1)",
+  },
+  inputShell: {
+    marginTop: 8,
+    height: 56,
+    borderWidth: 2,
+    borderColor: "rgba(243, 244, 246, 1)",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(249, 250, 251, 1)",
+    justifyContent: "center",
   },
   textArea: {
     marginTop: 8,

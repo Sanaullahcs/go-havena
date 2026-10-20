@@ -59,6 +59,12 @@ function lanApiFromHost(host) {
   return `http://${host}:${DEFAULT_LAN_PORT}/api/v1`;
 }
 
+/** Phone reached Metro through a public tunnel, so the API must use that same host. */
+function tunnelApiFromPackager(host) {
+  if (!isPublicTunnelHost(host)) return null;
+  return `http://${host}/api/v1`;
+}
+
 /** Temporary public tunnels — avoid when phone can hit LAN API on same Wi-Fi. */
 function isDevTunnelApiUrl(url) {
   if (!url) return false;
@@ -106,6 +112,13 @@ function resolveApiBaseUrl() {
   // Android emulator cannot reach the PC LAN IP — bridge via 10.0.2.2 (must beat .env LAN URL).
   if (isAndroidEmulator()) {
     return DEV_ANDROID_EMULATOR;
+  }
+
+  // The phone loaded this bundle over the public Metro tunnel. A private LAN
+  // API address is not reachable from that phone, so reuse the tunnel host.
+  if (onPhysicalDevice && isTunnelHost) {
+    const tunnelApi = tunnelApiFromPackager(packagerHost);
+    if (tunnelApi) return tunnelApi;
   }
 
   // Physical phone + stale Metro host (localhost) → trust .env LAN URL from start:lan.

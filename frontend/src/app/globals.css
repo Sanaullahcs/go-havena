@@ -807,8 +807,27 @@ html.nl-scroll-locked .overflow-y-scroll {
   font-weight: 600;
   color: #dc2626;
 }
-.nl-notice-textarea {
-  min-height: 4.75rem;
+.nl-notice-field-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.nl-notice-field-meta .nl-notice-field-error {
+  margin: 0;
+}
+.nl-notice-char-count {
+  margin: 0;
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  color: #64748b;
+}
+.nl-notice-char-count--limit {
+  color: #1b4f8a;
 }
 .nl-notice-schedule {
   border-radius: 0.875rem;
@@ -1373,6 +1392,21 @@ html.nl-scroll-locked .overflow-y-scroll {
   font-size: 0.8125rem;
   border-radius: 0.625rem;
   min-height: 2.375rem;
+}
+.nl-notice-modal .nl-notice-textarea {
+  min-height: 6rem;
+  max-height: min(12rem, 32vh);
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #0a2a43;
+}
+@media (min-width: 640px) {
+  .nl-notice-modal .nl-notice-textarea {
+    max-height: min(16rem, 40vh);
+    padding: 0.8125rem 1rem;
+  }
 }
 .nl-notice-schedule .nl-picker-trigger {
   min-height: 2.25rem;

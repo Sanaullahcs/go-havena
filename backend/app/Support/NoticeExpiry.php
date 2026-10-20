@@ -203,4 +203,128 @@ SQL;
 
         return [$hour, $minute];
     }
+
+    /**
+     * Pins stay first. Then each module uses its own date:
+     * events by schedule (upcoming soonest, then recent past),
+     * notices and alerts by latest update, and a mixed feed by
+     * alerts, then events, then notices.
+     *
+     * @param  \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder  $query
+     */
+    public static function applyListOrdering($query, string $table, ?int $communityId, string $group, string $sort): void
+    {
+        $now = self::nowInTimezone($communityId);
+        $today = $now->toDateString();
+        $time = $now->format('H:i');
+        $sort = in_array($sort, ['relevant', 'newest', 'oldest', 'schedule'], true) ? $sort : 'relevant';
+        $group = in_array($group, ['events', 'alerts', 'notices', 'mixed'], true) ? $group : 'mixed';
+
+        $query->orderByRaw(self::activePinOrderSql($table, $today, $time));
+
+        if ($sort === 'newest') {
+            $query->orderByDesc("{$table}.updated_at")->orderByDesc("{$table}.id");
+
+            return;
+        }
+
+        if ($sort === 'oldest') {
+            $query->orderBy("{$table}.updated_at")->orderBy("{$table}.id");
+
+            return;
+        }
+
+        if ($sort === 'schedule' || ($sort === 'relevant' && $group === 'events')) {
+            self::orderByEventSchedule($query, $table, $today, $time);
+
+            return;
+        }
+
+        if ($sort === 'relevant' && ($group === 'alerts' || $group === 'notices')) {
+            $query->orderByDesc("{$table}.updated_at")->orderByDesc("{$table}.id");
+
+            return;
+        }
+
+        $query->orderByRaw("CASE {$table}.category WHEN 'emergency' THEN 0 WHEN 'event' THEN 1 ELSE 2 END");
+        $ended = self::endedScheduleCase($table, $today, $time);
+        $query->orderByRaw("CASE WHEN {$table}.category = 'event' THEN {$ended} ELSE 0 END");
+        $query->orderByRaw("CASE WHEN {$table}.category = 'event' AND ({$ended}) = 0 THEN {$table}.event_date END ASC");
+        $query->orderByRaw("CASE WHEN {$table}.category = 'event' AND ({$ended}) = 1 THEN {$table}.event_date END DESC");
+        $query->orderByRaw("CASE WHEN {$table}.category = 'event' THEN COALESCE({$table}.event_time, '00:00:00') END ASC");
+        $query->orderByDesc("{$table}.updated_at")->orderByDesc("{$table}.id");
+    }
+
+    /**
+     * @param  \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder  $query
+     */
+    public static function applyRelevantDateFilter($query, string $table, ?string $from, ?string $to): void
+    {
+        $from = self::validDay($from);
+        $to = self::validDay($to);
+        if ($from === null && $to === null) {
+            return;
+        }
+
+        $expr = "COALESCE({$table}.event_date, DATE({$table}.published_at), DATE({$table}.created_at))";
+        if ($from !== null) {
+            $query->whereRaw("{$expr} >= ?", [$from]);
+        }
+        if ($to !== null) {
+            $query->whereRaw("{$expr} <= ?", [$to]);
+        }
+    }
+
+    /**
+     * @param  \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder  $query
+     */
+    private static function orderByEventSchedule($query, string $table, string $today, string $time): void
+    {
+        $ended = self::endedScheduleCase($table, $today, $time);
+        $query->orderByRaw("{$ended} ASC");
+        $query->orderByRaw("CASE WHEN ({$ended}) = 0 THEN {$table}.event_date END ASC");
+        $query->orderByRaw("CASE WHEN ({$ended}) = 1 THEN {$table}.event_date END DESC");
+        $query->orderByRaw("COALESCE({$table}.event_time, '00:00:00') ASC");
+        $query->orderByDesc("{$table}.updated_at")->orderByDesc("{$table}.id");
+    }
+
+    private static function endedScheduleCase(string $table, string $today, string $time): string
+    {
+        $todayQ = addslashes($today);
+        $timeQ = addslashes($time);
+        $endDateSql = "COALESCE({$table}.event_end_date, {$table}.event_date)";
+
+        return <<<SQL
+CASE WHEN {$table}.event_date IS NOT NULL AND (
+    {$endDateSql} < '{$todayQ}'
+    OR (
+        DATE({$endDateSql}) = '{$todayQ}'
+        AND {$table}.event_time_end IS NOT NULL
+        AND {$table}.event_time_end <> ''
+        AND (
+            (
+                STR_TO_DATE({$table}.event_time_end, '%H:%i:%s') IS NOT NULL
+                AND TIME(STR_TO_DATE({$table}.event_time_end, '%H:%i:%s')) < '{$timeQ}'
+            )
+            OR (
+                STR_TO_DATE({$table}.event_time_end, '%H:%i') IS NOT NULL
+                AND TIME(STR_TO_DATE({$table}.event_time_end, '%H:%i')) < '{$timeQ}'
+            )
+        )
+    )
+) THEN 1 ELSE 0 END
+SQL;
+    }
+
+    private static function validDay(?string $value): ?string
+    {
+        $value = trim((string) $value);
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return null;
+        }
+
+        $parsed = \DateTimeImmutable::createFromFormat('Y-m-d', $value);
+
+        return $parsed && $parsed->format('Y-m-d') === $value ? $value : null;
+    }
 }

@@ -148,7 +148,9 @@ class NoticeController extends Controller
             NoticeExpiry::applyVisibleScheduleFilter($query, 'notices', $communityId);
         }
 
-        $notices = $this->applyNoticeOrdering($query, $communityId)
+        NoticeExpiry::applyRelevantDateFilter($query, 'notices', $request->input('date_from'), $request->input('date_to'));
+
+        $notices = $this->applyNoticeOrdering($query, $communityId, $request)
                          ->paginate($request->per_page ?? 15);
 
         $items     = $notices->items();
@@ -210,7 +212,9 @@ class NoticeController extends Controller
             });
         }
 
-        $notices = $this->applyNoticeOrdering($query)
+        NoticeExpiry::applyRelevantDateFilter($query, 'notices', $request->input('date_from'), $request->input('date_to'));
+
+        $notices = $this->applyNoticeOrdering($query, $scopeId, $request)
             ->paginate(min((int) ($request->per_page ?? 15), 100));
 
         $statsQuery = DB::table('notices')->whereNull('deleted_at');
@@ -1538,15 +1542,42 @@ class NoticeController extends Controller
         return max(1, (int) $notice->event_capacity);
     }
 
-    private function applyNoticeOrdering($query, ?int $communityId = null)
+    private function applyNoticeOrdering($query, ?int $communityId, Request $request)
     {
-        $now = NoticeExpiry::nowInTimezone($communityId);
-        $today = $now->toDateString();
-        $time = $now->format('H:i');
+        NoticeExpiry::applyListOrdering(
+            $query,
+            'notices',
+            $communityId,
+            $this->resolveNoticeSortGroup($request),
+            (string) $request->input('sort', 'relevant'),
+        );
 
-        return $query
-            ->orderByRaw(NoticeExpiry::activePinOrderSql('notices', $today, $time))
-            ->orderByDesc('notices.created_at');
+        return $query;
+    }
+
+    private function resolveNoticeSortGroup(Request $request): string
+    {
+        if ($request->boolean('mine')) {
+            return 'events';
+        }
+
+        $group = (string) $request->input('category_group', '');
+        if (in_array($group, ['events', 'alerts', 'notices'], true)) {
+            return $group;
+        }
+
+        $category = $this->normalizeCategory((string) $request->input('category', ''));
+        if ($category === 'event') {
+            return 'events';
+        }
+        if ($category === 'emergency') {
+            return 'alerts';
+        }
+        if ($category !== '' && $category !== 'all') {
+            return 'notices';
+        }
+
+        return 'mixed';
     }
 
     private function isPinActive(object $notice): bool

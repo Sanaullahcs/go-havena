@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
+import NoticeSortChips from "../../../components/notices/sort-chips";
 import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -109,18 +110,23 @@ export default function AdminContentReviewScreen() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [sort, setSort] = useState("relevant");
   const [busyId, setBusyId] = useState(null);
   const { runAction, showFailure } = useApiAction();
   const { showConfirm } = useAppDialog();
 
   const load = useCallback(
     async (silent = false) => {
-      if (!silent) setLoading(true);
+      if (!silent) {
+        setLoading(true);
+        setItems([]);
+      }
       try {
         const res = await fetchAdminNotices({
           review_status: "pending",
           category_group: config.category_group,
           per_page: 50,
+          sort,
         });
         setItems(res.data);
       } catch (err) {
@@ -130,13 +136,25 @@ export default function AdminContentReviewScreen() {
         setRefreshing(false);
       }
     },
-    [config.category_group, config.titleKey, showFailure, t],
+    [config.category_group, config.titleKey, showFailure, sort, t],
   );
 
+  const requestKey = `${config.category_group}:${sort}`;
+  const seenKey = useRef(null);
+  const groupRef = useRef(config.category_group);
+  useEffect(() => {
+    if (groupRef.current === config.category_group) return;
+    groupRef.current = config.category_group;
+    setSort("relevant");
+  }, [config.category_group]);
   useFocusEffect(
     useCallback(() => {
-      load(true);
-    }, [load]),
+      const changed = seenKey.current !== null && seenKey.current !== requestKey;
+      const first = seenKey.current === null;
+      seenKey.current = requestKey;
+      if (changed) setItems([]);
+      load(changed || first ? false : true);
+    }, [load, requestKey]),
   );
 
   const onRefresh = () => {
@@ -198,6 +216,7 @@ export default function AdminContentReviewScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenHeader layout="inline" title={t(config.titleKey)} iconOnly />
+      <NoticeSortChips value={sort} onChange={setSort} contentStyle={styles.sortChips} />
 
       {loading && items.length === 0 ? (
         <View style={styles.centered}>
@@ -230,6 +249,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   listContent: { padding: 24, paddingBottom: 32 },
+  sortChips: { paddingHorizontal: 24, paddingTop: 12 },
   hint: {
     marginBottom: 16,
     fontFamily: Fonts.regular,

@@ -2,7 +2,7 @@
 
 import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   type Notice,
   type NoticeFormData,
@@ -57,6 +57,9 @@ const NOTICE_STATUS_META: Record<
   published: { tone: "green", label: "Published" },
   archived: { tone: "slate", label: "Archived" },
 };
+
+const NOTICE_BODY_MAX = 5000;
+const NOTICE_BODY_MIN_HEIGHT = 96;
 
 const EMPTY_FORM: NoticeFormValues = {
   title: "",
@@ -162,6 +165,9 @@ export default function NoticeFormModal({
   lockedCategory,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const [bodyHeight, setBodyHeight] = useState(NOTICE_BODY_MIN_HEIGHT);
+  const [bodyOverflow, setBodyOverflow] = useState(false);
   const cameraFileRef = useRef<HTMLInputElement>(null);
   const [imageSourceOpen, setImageSourceOpen] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
@@ -281,6 +287,26 @@ export default function NoticeFormModal({
     if (!firstKey || !formRef.current) return;
     formRef.current.querySelector<HTMLElement>(`[data-field="${firstKey}"]`)?.focus();
   };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const field = bodyRef.current;
+    if (!field) return;
+    const maxHeight = Number.parseFloat(getComputedStyle(field).maxHeight);
+    field.style.maxHeight = "none";
+    field.style.minHeight = "0px";
+    field.style.height = "0px";
+    const contentHeight = field.scrollHeight;
+    field.style.maxHeight = "";
+    const cap = Number.isFinite(maxHeight) ? maxHeight : contentHeight;
+    const next = Math.min(cap, Math.max(NOTICE_BODY_MIN_HEIGHT, contentHeight));
+    const overflows = contentHeight > cap + 1;
+    field.style.minHeight = "";
+    field.style.height = `${next}px`;
+    field.style.overflowY = overflows ? "auto" : "hidden";
+    setBodyHeight((current) => (current === next ? current : next));
+    setBodyOverflow((current) => (current === overflows ? current : overflows));
+  }, [open, form.body]);
 
   if (!open) return null;
 
@@ -473,9 +499,10 @@ export default function NoticeFormModal({
             <div className="nl-notice-field">
               <FieldLabel required>Description</FieldLabel>
               <ClearableTextarea
+                ref={bodyRef}
                 data-field="body"
                 value={form.body}
-                maxLength={5000}
+                maxLength={NOTICE_BODY_MAX}
                 onBlur={() => {
                   touch("body");
                   const next = runValidation(false);
@@ -485,9 +512,32 @@ export default function NoticeFormModal({
                 rows={3}
                 className={inputClass(showError("body") ? errors.body : undefined, "nl-input nl-notice-textarea w-full resize-none")}
                 placeholder="Write the full notice details for residents…"
+                aria-describedby={form.body.length > 0 ? "notice-body-count" : undefined}
+                style={{
+                  height: bodyHeight,
+                  overflowY: bodyOverflow ? "auto" : "hidden",
+                }}
               />
-              {showError("body") && errors.body ? (
-                <FieldError>{errors.body}</FieldError>
+              {form.body.length > 0 || (showError("body") && errors.body) ? (
+                <div className="nl-notice-field-meta">
+                  {showError("body") && errors.body ? (
+                    <FieldError>{errors.body}</FieldError>
+                  ) : (
+                    <span />
+                  )}
+                  {form.body.length > 0 ? (
+                    <p
+                      id="notice-body-count"
+                      className={[
+                        "nl-notice-char-count",
+                        form.body.length >= NOTICE_BODY_MAX ? "nl-notice-char-count--limit" : "",
+                      ].join(" ")}
+                      aria-live="polite"
+                    >
+                      {form.body.length}/{NOTICE_BODY_MAX}
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
             </div>
 

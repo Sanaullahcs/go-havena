@@ -409,6 +409,20 @@ export function isCommunityAdminRejected(user) {
 
 /** Active Community Admin UI — false in Resident Mode even if the account can switch back. */
 export const isCommunityAdmin = actingContext.isCommunityAdmin;
+
+const EDITABLE_NOTICE_CATEGORIES = new Set(["general", "maintenance", "security", "finance"]);
+
+/** Community Admin notice-detail edit. Residents, other communities, events, alerts, and bills stay read-only. */
+export function canEditCommunityNotice(user, notice) {
+  if (!user || !notice || !isCommunityAdmin(user)) return false;
+  const managedId = currentCommunityId(user);
+  const noticeCommunityId = notice.communityId ?? notice.community_id;
+  if (!managedId || noticeCommunityId == null || String(managedId) !== String(noticeCommunityId)) {
+    return false;
+  }
+  if (notice.isEvent || notice.isAlert || notice.serviceBill || notice.amenityBill) return false;
+  return EDITABLE_NOTICE_CATEGORIES.has(String(notice.category ?? ""));
+}
 export const homePathForUser = actingContext.homePathForUser;
 
 /** Primary approved admin community membership */
