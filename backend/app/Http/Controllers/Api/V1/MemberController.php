@@ -98,12 +98,14 @@ class MemberController extends Controller
                 'cm.id as membership_id',
                 'cm.role',
                 'cm.status',
+                'cm.invite_code_used',
                 'cm.rejection_reason',
                 'cm.rejected_by',
                 DB::raw("COALESCE(cm.community_id, {$communityId}) as community_id"),
                 'profiles.unit_number',
                 'profiles.avatar_url',
                 'profiles.display_name',
+                'profiles.residence_type',
                 'profiles.utility_bill_url',
                 MemberLifecycleStatus::pendingInviteCountSelect(),
                 MemberLifecycleStatus::authTokenCountSelect(),
@@ -135,10 +137,19 @@ class MemberController extends Controller
                 $query->whereNull('cm.id');
                 MemberLifecycleStatus::applyNotStartedSignup($query);
             } elseif ($request->status === MemberLifecycleStatus::ONBOARDING) {
-                $query->whereNull('cm.id');
-                MemberLifecycleStatus::applyStartedSignup($query);
+                $query->where(function ($q) {
+                    $q->where(function ($pre) {
+                        $pre->whereNull('cm.id');
+                        MemberLifecycleStatus::applyStartedSignup($pre);
+                    })->orWhere(function ($post) {
+                        $post->where('cm.status', 'pending')
+                            ->whereNotNull('cm.invite_code_used');
+                        MemberLifecycleStatus::applyOnboardingPendingMembershipScope($post);
+                    });
+                });
             } elseif ($request->status === 'pending') {
-                $query->where('cm.status', 'pending');
+                $query->where('cm.status', 'pending')
+                    ->whereNull('cm.invite_code_used');
             } else {
                 $query->where('cm.status', $request->status);
             }
@@ -179,7 +190,9 @@ class MemberController extends Controller
         $perPage = min((int) ($request->per_page ?? 15), 100);
         $page = max(1, (int) ($request->page ?? 1));
 
-        if (in_array($status, [MemberLifecycleStatus::ONBOARDING, MemberLifecycleStatus::INVITATION_SENT], true)) {
+        if ($status === MemberLifecycleStatus::ONBOARDING) {
+            $members = $this->paginateAllCommunitiesOnboarding($request, $residentsOnly, $perPage, $page);
+        } elseif ($status === MemberLifecycleStatus::INVITATION_SENT) {
             $members = $this->onboardingUsersQuery($request, $residentsOnly, $status)
                 ->orderByDesc('users.created_at')
                 ->paginate($perPage, ['*'], 'page', $page);
@@ -187,7 +200,12 @@ class MemberController extends Controller
             $members = $this->paginateAllCommunitiesCombined($request, $residentsOnly, $perPage, $page);
         } else {
             $query = $this->membershipRowsQuery($request, $residentsOnly);
-            $query->where('cm.status', $status);
+            if ($status === 'pending') {
+                $query->where('cm.status', 'pending')
+                    ->whereNull('cm.invite_code_used');
+            } else {
+                $query->where('cm.status', $status);
+            }
             $members = $query->orderByDesc('cm.created_at')
                 ->paginate($perPage, ['*'], 'page', $page);
         }
@@ -224,6 +242,7 @@ class MemberController extends Controller
                 'cm.id as membership_id',
                 'cm.role',
                 'cm.status',
+                'cm.invite_code_used',
                 'cm.rejection_reason',
                 'cm.rejected_by',
                 'cm.community_id',
@@ -231,6 +250,7 @@ class MemberController extends Controller
                 'profiles.unit_number',
                 'profiles.avatar_url',
                 'profiles.display_name',
+                'profiles.residence_type',
                 'profiles.utility_bill_url',
                 MemberLifecycleStatus::pendingInviteCountSelect(),
                 MemberLifecycleStatus::authTokenCountSelect(),
@@ -262,6 +282,7 @@ class MemberController extends Controller
                 DB::raw('NULL as membership_id'),
                 DB::raw("'member' as role"),
                 DB::raw('NULL as status'),
+                DB::raw('NULL as invite_code_used'),
                 DB::raw('NULL as rejection_reason'),
                 DB::raw('NULL as rejected_by'),
                 DB::raw('(SELECT ic.community_id FROM invite_codes ic WHERE ic.invited_user_id = users.id AND ic.deleted_at IS NULL ORDER BY ic.id DESC LIMIT 1) as community_id'),
@@ -269,6 +290,7 @@ class MemberController extends Controller
                 'profiles.unit_number',
                 'profiles.avatar_url',
                 'profiles.display_name',
+                'profiles.residence_type',
                 'profiles.utility_bill_url',
                 MemberLifecycleStatus::pendingInviteCountSelect(),
                 MemberLifecycleStatus::authTokenCountSelect(),
@@ -310,6 +332,35 @@ class MemberController extends Controller
         $this->applyMemberSearch($query, $request, includeCommunityName: false);
 
         return $query;
+    }
+
+    private function paginateAllCommunitiesOnboarding(
+        Request $request,
+        bool $residentsOnly,
+        int $perPage,
+        int $page,
+    ): LengthAwarePaginator {
+        $preMembership = $this->onboardingUsersQuery($request, $residentsOnly, MemberLifecycleStatus::ONBOARDING);
+        $membershipOnboarding = $this->membershipRowsQuery($request, $residentsOnly);
+        $membershipOnboarding->where('cm.status', 'pending')
+            ->whereNotNull('cm.invite_code_used');
+        MemberLifecycleStatus::applyOnboardingPendingMembershipScope($membershipOnboarding);
+
+        $union = $preMembership->unionAll($membershipOnboarding);
+
+        $total = (int) DB::query()->fromSub($union, 'combined')->count();
+
+        $items = DB::query()
+            ->fromSub($union, 'combined')
+            ->orderByDesc('sort_created_at')
+            ->offset(($page - 1) * $perPage)
+            ->limit($perPage)
+            ->get();
+
+        return new LengthAwarePaginator($items, $total, $perPage, $page, [
+            'path' => $request->url(),
+            'query' => $request->query(),
+        ]);
     }
 
     private function paginateAllCommunitiesCombined(
@@ -537,7 +588,6 @@ class MemberController extends Controller
             }
 
             ContactIdentityService::assertAvailableForRegistration($request->email, $phone);
-            return $this->provisionResidentForSystemAdmin($request, $phone, $communityId);
         }
 
         $sent = app(ResidentInviteService::class)->send(
@@ -1394,6 +1444,12 @@ class MemberController extends Controller
                 ? (int) $member->pending_invite_count > 0
                 : InviteCode::query()->pendingForUser((int) $member->id)->exists();
             $membershipStatus = MemberLifecycleStatus::statusWithoutMembership($startedSignup, $hasPendingInvite);
+        } elseif (
+            $membershipStatus === 'pending'
+            && filled($member->invite_code_used ?? null)
+            && ! MemberLifecycleStatus::residentProfileCompleteFromRow($member)
+        ) {
+            $membershipStatus = MemberLifecycleStatus::ONBOARDING;
         }
 
         $payload = [
@@ -1462,11 +1518,13 @@ class MemberController extends Controller
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
         $search = $request ? $this->memberSearchTerm($request) : null;
+        $onboardingPendingMemberships = MemberLifecycleStatus::countOnboardingPendingMemberships(null, $search);
 
         return $this->composeMemberStats(
             $rows,
             MemberLifecycleStatus::countOnboarding(null, $search),
             MemberLifecycleStatus::countInvitationSent(null, $search),
+            $onboardingPendingMemberships,
         );
     }
 
@@ -1488,11 +1546,13 @@ class MemberController extends Controller
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
         $search = $request ? $this->memberSearchTerm($request) : null;
+        $onboardingPendingMemberships = MemberLifecycleStatus::countOnboardingPendingMemberships($communityId, $search);
 
         return $this->composeMemberStats(
             $rows,
             MemberLifecycleStatus::countOnboarding($communityId, $search),
             MemberLifecycleStatus::countInvitationSent($communityId, $search),
+            $onboardingPendingMemberships,
         );
     }
 
@@ -1500,10 +1560,14 @@ class MemberController extends Controller
      * Same status buckets as formatMember(): membership status, plus
      * invitation_sent / onboarding for residents who have not joined yet.
      */
-    private function composeMemberStats($rows, int $onboarding, int $invitationSent): array
-    {
+    private function composeMemberStats(
+        $rows,
+        int $onboarding,
+        int $invitationSent,
+        int $onboardingPendingMemberships = 0,
+    ): array {
         $approved = (int) ($rows['approved'] ?? 0);
-        $pending  = (int) ($rows['pending'] ?? 0);
+        $pending  = max(0, (int) ($rows['pending'] ?? 0) - $onboardingPendingMemberships);
         $banned   = (int) ($rows['banned'] ?? 0);
         $rejected = (int) ($rows['rejected'] ?? 0);
         $inactive = (int) ($rows['inactive'] ?? 0);

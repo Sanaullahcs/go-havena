@@ -291,12 +291,16 @@ class ProfileController extends Controller
 
             $user->load('profile.region');
             MembershipService::approvePendingForActiveCommunities($user);
+            $user->unsetRelation('memberships');
+            $user->load('memberships');
             if (! $isCommunityAdmin) {
                 $this->syncUnitAssignments($user);
             }
             $this->maybeAwardProfileCompleted($user);
             // Unit sync rewrites updated_at, which would hide a same-second profile submit.
             $this->markInviteProfileSubmitted($user);
+            $user->unsetRelation('profile');
+            $user->load('profile');
             MemberWelcomeNotification::sendForApprovedMemberships($user);
         }
 

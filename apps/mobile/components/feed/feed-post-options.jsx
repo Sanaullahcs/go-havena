@@ -45,16 +45,17 @@ export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlo
 
   const hasImage = Boolean(post?.image_url);
   const isMine = postIsOwnedByCurrentUser(post, currentUser);
-  const canBlock = canShowBlockUser(
-    {
-      user_id: post?.user_id,
-      author_id: post?.author_id,
-      user: post?.user,
-      can_block: post?.can_block,
-      author_role: post?.author_role,
-    },
-    currentUser?.id,
-  );
+  const blockTarget = {
+    user_id: post?.user_id,
+    author_id: post?.author_id,
+    user: post?.user,
+    can_block: post?.can_block,
+    author_role: post?.author_role,
+  };
+  const canBlock = canShowBlockUser(blockTarget, currentUser?.id);
+  const canReport =
+    !isMine
+    && (post?.can_report === true || (post?.can_report == null && canShowBlockUser(blockTarget, currentUser?.id)));
 
   const handleDownload = useCallback(async () => {
     if (!hasImage) return;
@@ -167,27 +168,27 @@ export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlo
         },
       );
     } else {
-      list.push(
-        {
+      if (canReport) {
+        list.push({
           id: "report",
           label: t("feed.options.reportPost"),
           icon: "flag-outline",
           tone: "danger",
           onPress: () => setReportOpen(true),
-        },
-        {
-          id: "block",
-          label: t("blocks.blockUser"),
-          icon: "ban-outline",
-          tone: "danger",
-          hidden: !canBlock,
-          onPress: handleBlock,
-        },
-      );
+        });
+      }
+      list.push({
+        id: "block",
+        label: t("blocks.blockUser"),
+        icon: "ban-outline",
+        tone: "danger",
+        hidden: !canBlock,
+        onPress: handleBlock,
+      });
     }
 
     return list;
-  }, [hasImage, isMine, canBlock, handleDownload, handleEdit, handleDelete, handleBlock, t]);
+  }, [canReport, hasImage, isMine, canBlock, handleDownload, handleEdit, handleDelete, handleBlock, t]);
 
   return (
     <>
@@ -203,7 +204,7 @@ export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlo
         }
         headerIcon={hasImage ? "image-outline" : "document-text-outline"}
       />
-      {isMine ? null : (
+      {!isMine && canReport ? (
         <FeedPostReportSheet
           visible={reportOpen}
           post={post}
@@ -212,7 +213,7 @@ export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlo
           onClose={() => setReportOpen(false)}
           onSubmit={handleReportSubmit}
         />
-      )}
+      ) : null}
     </>
   );
 }

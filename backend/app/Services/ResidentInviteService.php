@@ -105,6 +105,82 @@ class ResidentInviteService
         }
         DB::table('profiles')->insert($profile);
 
+        return $this->finalizeInvitation(
+            $actor,
+            $userId,
+            $communityId,
+            $name,
+            $email,
+            $role,
+            $password,
+        );
+    }
+
+    /**
+     * Issue a fresh invite for an existing resident account (e.g. restored after soft delete).
+     * Caller must ensure contact identity is available and stale memberships are cleared.
+     *
+     * @return array<string, mixed>
+     */
+    public function inviteExisting(
+        User $actor,
+        User $invitee,
+        int $communityId,
+        string $name,
+        string $unitNumber,
+        ?string $residenceType = null,
+        string $role = 'member',
+    ): array {
+        $billing = app(CommunityBillingService::class);
+        if ($role !== 'admin') {
+            $billing->releaseExpiredReservations($communityId);
+            $billing->assertCanAllocateSeat($communityId);
+        }
+
+        $profileUpdate = [
+            'display_name' => $name,
+            'unit_number' => $unitNumber,
+            'updated_at' => now(),
+        ];
+        if ($residenceType !== null && $residenceType !== '') {
+            $profileUpdate['residence_type'] = $residenceType;
+        }
+
+        $hasProfile = DB::table('profiles')->where('user_id', $invitee->id)->exists();
+        if ($hasProfile) {
+            DB::table('profiles')->where('user_id', $invitee->id)->update($profileUpdate);
+        } else {
+            DB::table('profiles')->insert(array_merge($profileUpdate, [
+                'user_id' => $invitee->id,
+                'created_at' => now(),
+            ]));
+        }
+
+        return $this->finalizeInvitation(
+            $actor,
+            (int) $invitee->id,
+            $communityId,
+            $name,
+            (string) $invitee->email,
+            $role,
+            null,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function finalizeInvitation(
+        User $actor,
+        int $userId,
+        int $communityId,
+        string $name,
+        string $email,
+        string $role,
+        ?string $tempPassword,
+    ): array {
+        $billing = app(CommunityBillingService::class);
+
         $invite = InviteCodeService::createForCommunity(
             communityId: $communityId,
             createdBy: $actor->id,
@@ -141,7 +217,7 @@ class ResidentInviteService
 
         return [
             'id' => $userId,
-            'temp_password' => $password,
+            'temp_password' => $tempPassword,
             'invite_code' => $invite->code,
             'invite_qr_value' => InviteCodeService::qrPayload($invite->code),
             'community_name' => $communityName,

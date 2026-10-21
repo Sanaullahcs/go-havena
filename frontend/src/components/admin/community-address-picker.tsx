@@ -4,7 +4,9 @@ import { ClearableInput } from "@/components/admin/clearable-field";
 
 import dynamic from "next/dynamic";
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { reverseAddress, suggestAddress, type AddressSuggestion } from "@/lib/api/geo";
+import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
 
 const MAP_HEIGHT = 300;
 
@@ -56,6 +58,9 @@ export function CommunityAddressPicker({
 }: Props) {
   const listId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const popoverRef = useRef<HTMLUListElement | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState(value.address);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -69,6 +74,17 @@ export function CommunityAddressPicker({
   const queryRef = useRef(query);
   valueRef.current = value;
   queryRef.current = query;
+
+  const { style: popoverStyle, ready: popoverReady } = useAnchoredPopover(open, inputRef, {
+    popoverRef,
+    align: "left",
+    constrainToViewport: true,
+    maxHeight: 224,
+  });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (value.address === queryRef.current) return;
@@ -110,14 +126,19 @@ export function CommunityAddressPicker({
   }, [query]);
 
   useEffect(() => {
-    const onDocClick = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
+    if (!open) return;
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
     };
-    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [open]);
+
+  useEffect(() => {
     return () => {
-      document.removeEventListener("mousedown", onDocClick);
       if (reverseTimer.current != null) window.clearTimeout(reverseTimer.current);
     };
   }, []);
@@ -182,6 +203,7 @@ export function CommunityAddressPicker({
   return (
     <div ref={rootRef} className="relative space-y-2.5">
       <ClearableInput
+        ref={inputRef}
         id={id}
         value={query}
         autoComplete="off"
@@ -208,27 +230,35 @@ export function CommunityAddressPicker({
         onBlur={onBlur}
       />
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
-      {open ? (
-        <ul
-          id={listId}
-          role="listbox"
-          className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
-        >
-          {suggestions.map((row) => (
-            <li key={`${row.latitude}-${row.longitude}-${row.label}`}>
-              <button
-                type="button"
-                role="option"
-                className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => pick(row)}
-              >
-                {row.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {open && mounted && suggestions.length > 0
+        ? createPortal(
+            <ul
+              ref={popoverRef}
+              id={listId}
+              role="listbox"
+              style={popoverStyle}
+              className={[
+                "nl-themed-popover overflow-y-auto overscroll-contain py-1 [scrollbar-width:thin]",
+                popoverReady ? "opacity-100" : "opacity-0",
+              ].join(" ")}
+            >
+              {suggestions.map((row) => (
+                <li key={`${row.latitude}-${row.longitude}-${row.label}`}>
+                  <button
+                    type="button"
+                    role="option"
+                    className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => pick(row)}
+                  >
+                    {row.label}
+                  </button>
+                </li>
+              ))}
+            </ul>,
+            document.body,
+          )
+        : null}
       {loading ? <p className="text-[13px] leading-5 text-slate-400">Searching addresses…</p> : null}
       {hasPin ? (
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_12px_32px_rgba(11,31,58,0.08)] ring-1 ring-slate-900/5">

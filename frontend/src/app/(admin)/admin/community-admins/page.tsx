@@ -34,13 +34,12 @@ import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { UtilityBillPreview } from "@/components/admin/utility-bill-preview";
 import { formatAccountContact, formatAccountDisplayName, formatDisplayEmail } from "@/lib/user/email-display";
 
-type StatusTab = "pending" | "approved" | "suspended" | "reassign" | "rejected";
+type StatusTab = "pending" | "approved" | "suspended" | "rejected";
 
 const STATUS_FILTERS: { key: StatusTab; label: string; description: string }[] = [
   { key: "pending", label: "Pending", description: "Applications awaiting review" },
   { key: "approved", label: "Active", description: "Approved admins currently assigned to a community" },
   { key: "suspended", label: "Suspended", description: "Suspended administrators — access is restricted until they are reactivated" },
-  { key: "reassign", label: "Reassign", description: "Approved admins waiting to be assigned to a community" },
   { key: "rejected", label: "Rejected", description: "Declined applications" },
 ];
 
@@ -141,9 +140,7 @@ export default function CommunityAdminsPage() {
             ? stats.active ?? stats.approved
             : f.key === "suspended"
               ? stats.suspended ?? 0
-              : f.key === "reassign"
-                ? stats.needs_reassign ?? 0
-                : stats[f.key as keyof CommunityAdminStats] ?? 0,
+              : stats[f.key as keyof CommunityAdminStats] ?? 0,
       })),
     [stats],
   );
@@ -269,8 +266,8 @@ export default function CommunityAdminsPage() {
     const ok = await confirmAction({
       title: `Release ${item.name}?`,
       text: community
-        ? `${item.name} will be removed from ${community.name} only. The admin account stays available on the Reassign tab, and the community is not deleted.`
-        : "This removes only the community assignment. The admin account stays available on the Reassign tab.",
+        ? `${item.name} will be removed from ${community.name} only. The admin account stays active and can be assigned another community. The community is not deleted.`
+        : "This removes only the community assignment. The admin account stays active and can be assigned another community.",
       confirmText: "Release from community",
       color: "amber",
     });
@@ -279,8 +276,8 @@ export default function CommunityAdminsPage() {
     setBusyId(item.id);
     try {
       await releaseCommunityAdminAccount(item.id);
-      toastSuccess("Community admin released. Assign a new community from the Reassign tab.");
-      setStatus("reassign");
+      toastSuccess("Community admin released. Assign a new community from the Active list when ready.");
+      setStatus("approved");
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -308,7 +305,7 @@ export default function CommunityAdminsPage() {
           ? "Community admin reactivated. The current community assignment was left unchanged."
           : "Community admin reactivated.",
       );
-      const nextTab: StatusTab = next === "reassign" ? "reassign" : next === "suspended" ? "suspended" : "approved";
+      const nextTab: StatusTab = next === "suspended" ? "suspended" : "approved";
       if (nextTab !== status) setStatus(nextTab);
       else await load(true);
     } catch (err) {
@@ -364,9 +361,6 @@ export default function CommunityAdminsPage() {
     const label = activeTab?.label.toLowerCase() ?? status;
     if (debouncedSearch.trim()) {
       return `No ${label} community admins match "${debouncedSearch.trim()}".`;
-    }
-    if (status === "reassign") {
-      return "No community admins are waiting to be assigned a community.";
     }
     return `No ${label} community admins yet.`;
   }, [activeTab, status, debouncedSearch]);

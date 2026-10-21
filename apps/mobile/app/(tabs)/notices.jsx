@@ -50,9 +50,10 @@ import {
   isResidentFeatureEnabled,
   serverFeatureFlags,
 } from "../../constants/resident-features";
+import { communityUpdatesSubtitle } from "../../utils/community-updates-subtitle";
+
 
 const UPDATES_FEATURE_KEYS = ["notices", "events", "alerts"];
-
 
 const BASE_TABS = [
   { id: "all", labelKey: "notices.tabAll" },
@@ -111,7 +112,7 @@ function formatCardDate(notice) {
 }
 
 export default function Notifications() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const sessionUser = useSessionUser();
   const permissionsReady = serverFeatureFlags(sessionUser) != null;
@@ -146,12 +147,20 @@ export default function Notifications() {
     [showYoursTab, featureSig],
   );
 
+  const pageSubtitle = useMemo(
+    () => communityUpdatesSubtitle(sessionUser, t, i18n.language),
+    [sessionUser, t, i18n.language],
+  );
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), 350);
     return () => clearTimeout(timer);
   }, [query]);
 
-  const currentTab = tabs.find((tab) => tab.id === selectedTab) ?? tabs[0];
+  const currentTab = useMemo(
+    () => tabs.find((tab) => tab.id === selectedTab) ?? tabs[0],
+    [tabs, selectedTab],
+  );
 
   useEffect(() => {
     getUser()
@@ -188,9 +197,11 @@ export default function Notifications() {
   const cacheRef = useRef(new Map());
   const loadRef = useRef(async () => {});
   const prevQueryKey = useRef(null);
+  const loadSeqRef = useRef(0);
 
   const load = useCallback(
     async (reason = "query", tabChanged = false) => {
+      const seq = ++loadSeqRef.current;
       const user = sessionUserRef.current;
       const activeTab = tabRef.current;
       if (featureSig.includes("p")) return;
@@ -235,6 +246,7 @@ export default function Notifications() {
         const feature = noticePermissionFeature(activeTab);
         const blocked = await resolveLoadRestriction(feature);
         if (blocked) {
+          if (seq !== loadSeqRef.current) return;
           setNotices([]);
           setResultCount(0);
           setError(blocked);
@@ -274,6 +286,7 @@ export default function Notifications() {
           isResidentFeatureEnabled(user, contentFeatureKey(notice)),
         );
 
+        if (seq !== loadSeqRef.current) return;
         const serverTotal = Number(meta?.total);
         const hiddenByFeature = Math.max(0, data.length - items.length);
         const count = isSavedTab
@@ -293,6 +306,7 @@ export default function Notifications() {
         }
         const feature = noticePermissionFeature(activeTab);
         const restricted = await resolveLoadRestriction(feature, err);
+        if (seq !== loadSeqRef.current) return;
         if (restricted) {
           setNotices([]);
           setResultCount(0);
@@ -305,8 +319,10 @@ export default function Notifications() {
           setResultCount(0);
         }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (seq === loadSeqRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [debouncedQuery, featureSig, queryKey, sort],
@@ -624,7 +640,7 @@ export default function Notifications() {
             {!accountRestricted ? (
             <>
             <View>
-              <Text style={styles.subtitle}>{t("notices.subtitle")}</Text>
+              <Text style={styles.subtitle}>{pageSubtitle}</Text>
             </View>
 
             <View style={{ marginTop: 12 }}>
@@ -700,7 +716,7 @@ export default function Notifications() {
       <FlatList
         ref={listRef}
         style={styles.cardList}
-        data={notices}
+        data={loading ? [] : notices}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderNoticeCard}
         ListEmptyComponent={listEmpty}

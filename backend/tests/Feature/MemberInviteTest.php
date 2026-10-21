@@ -143,7 +143,7 @@ class MemberInviteTest extends TestCase
         $this->assertDatabaseHas('community_memberships', [
             'user_id'          => $claimantId,
             'community_id'     => $community->id,
-            'status'           => 'approved',
+            'status'           => 'pending',
             'invite_code_used' => $inviteCode,
         ]);
 
@@ -189,6 +189,11 @@ class MemberInviteTest extends TestCase
         $this->assertDatabaseHas('profiles', [
             'user_id'     => $claimantId,
             'unit_number' => 'Unit 12B',
+        ]);
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id'      => $claimantId,
+            'community_id' => $community->id,
+            'status'       => 'approved',
         ]);
     }
 
@@ -358,15 +363,33 @@ class MemberInviteTest extends TestCase
         Sanctum::actingAs(User::query()->findOrFail($invitedUserId));
         $this->postJson('/api/v1/communities/join-by-invite', ['invite_code' => $inviteCode])
             ->assertCreated()
-            ->assertJsonPath('data.membership.status', 'approved');
+            ->assertJsonPath('data.membership.status', 'pending');
 
         Sanctum::actingAs($admin);
         $afterJoin = $this->getJson('/api/v1/admin/members?role=member')->assertOk();
-        $activeRow = collect($afterJoin->json('data'))->first(fn ($row) => (int) $row['id'] === $invitedUserId);
-        $this->assertSame('approved', $activeRow['status']);
+        $onboardingAfterJoin = collect($afterJoin->json('data'))->first(fn ($row) => (int) $row['id'] === $invitedUserId);
+        $this->assertSame('onboarding', $onboardingAfterJoin['status']);
         $this->assertSame(0, $afterJoin->json('meta.stats.invitation_sent'));
-        $this->assertSame(0, $afterJoin->json('meta.stats.onboarding'));
-        $this->assertSame(1, $afterJoin->json('meta.stats.approved'));
+        $this->assertSame(1, $afterJoin->json('meta.stats.onboarding'));
+        $this->assertSame(0, $afterJoin->json('meta.stats.approved'));
+
+        Sanctum::actingAs(User::query()->findOrFail($invitedUserId));
+        DB::table('profiles')->where('user_id', $invitedUserId)->update([
+            'utility_bill_url' => '/storage/utility-bills/status.jpg',
+        ]);
+        $this->putJson('/api/v1/me', [
+            'display_name'   => 'Status Resident',
+            'unit_number'    => 'Unit 3',
+            'residence_type' => 'tenant',
+        ])->assertOk();
+
+        Sanctum::actingAs($admin);
+        $afterProfile = $this->getJson('/api/v1/admin/members?role=member')->assertOk();
+        $activeRow = collect($afterProfile->json('data'))->first(fn ($row) => (int) $row['id'] === $invitedUserId);
+        $this->assertSame('approved', $activeRow['status']);
+        $this->assertSame(0, $afterProfile->json('meta.stats.invitation_sent'));
+        $this->assertSame(0, $afterProfile->json('meta.stats.onboarding'));
+        $this->assertSame(1, $afterProfile->json('meta.stats.approved'));
     }
 
     public function test_member_invite_rejects_duplicate_phone_instead_of_server_error(): void
@@ -435,7 +458,7 @@ class MemberInviteTest extends TestCase
         ])
             ->assertCreated()
             ->assertJsonPath('data.membership.invite_code_used', $inviteCode)
-            ->assertJsonPath('data.membership.status', 'approved');
+            ->assertJsonPath('data.membership.status', 'pending');
     }
 
     public function test_join_by_invite_accepts_unicode_dashes_from_email_copy(): void
@@ -509,12 +532,13 @@ class MemberInviteTest extends TestCase
             ->assertJsonValidationErrors(['name', 'unit_number']);
     }
 
-    public function test_system_admin_invite_provisions_resident_without_invite_code(): void
+    public function test_system_admin_invite_creates_invitation_sent_resident(): void
     {
         Mail::fake();
         config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
 
         $community = $this->seedCommunity();
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
         $this->seed(SystemAdminSeeder::class);
         $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
         Sanctum::actingAs($systemAdmin);
@@ -527,16 +551,14 @@ class MemberInviteTest extends TestCase
             'community_id' => $community->id,
         ])->assertCreated();
 
-        $response->assertJsonMissingPath('data.invite_code');
-        $response->assertJsonPath('message', 'Resident created successfully. A welcome email was sent.');
+        $response->assertJsonPath('data.invite_code', fn ($code) => filled($code));
 
         $userId = (int) $response->json('data.id');
-        $this->assertDatabaseHas('community_memberships', [
+        $this->assertDatabaseMissing('community_memberships', [
             'user_id' => $userId,
             'community_id' => $community->id,
-            'status' => 'approved',
         ]);
-        $this->assertDatabaseMissing('invite_codes', [
+        $this->assertDatabaseHas('invite_codes', [
             'invited_user_id' => $userId,
             'community_id' => $community->id,
         ]);
@@ -818,7 +840,7 @@ class MemberInviteTest extends TestCase
 
         $this->postJson('/api/v1/communities/join-by-invite', ['invite_code' => $inviteCode])
             ->assertCreated()
-            ->assertJsonPath('data.membership.status', 'approved');
+            ->assertJsonPath('data.membership.status', 'pending');
 
         $this->assertSame(0, $this->welcomeCount($invitedUserId));
         $this->assertDatabaseHas('app_notifications', [
@@ -841,9 +863,10 @@ class MemberInviteTest extends TestCase
         $beforeUnread = $this->getJson('/api/v1/notifications')->json('unread');
 
         $this->putJson('/api/v1/me', [
-            'display_name' => 'Welcome Resident',
-            'bio'          => 'Happy to be here',
-            'unit_number'  => 'Unit 8',
+            'display_name'   => 'Welcome Resident',
+            'bio'            => 'Happy to be here',
+            'unit_number'    => 'Unit 8',
+            'residence_type' => 'tenant',
         ])->assertOk();
 
         $this->assertSame(1, $this->welcomeCount($invitedUserId));

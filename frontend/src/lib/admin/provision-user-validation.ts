@@ -11,7 +11,6 @@ import {
   fieldInputClass,
   hasFieldErrors,
   validateEmailField,
-  validateOptionalName,
   validateRequiredName,
 } from "@/lib/admin/form-validation-utils";
 
@@ -60,7 +59,7 @@ export function validateCommunityAdminForm(
 ): ProvisionFieldErrors {
   const errors: ProvisionFieldErrors = {};
 
-  const nameError = validateOptionalName(form.name);
+  const nameError = validateRequiredName(form.name, "Full name");
   if (nameError) errors.name = nameError;
 
   const emailError = validateEmailField(form.email);
@@ -112,7 +111,7 @@ export function validateResidentForm(
 ): ProvisionFieldErrors {
   const errors: ProvisionFieldErrors = {};
 
-  const nameError = validateOptionalName(form.name);
+  const nameError = validateRequiredName(form.name, "Full name");
   if (nameError) errors.name = nameError;
 
   const emailError = validateEmailField(form.email);

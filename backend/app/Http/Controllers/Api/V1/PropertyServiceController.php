@@ -7,6 +7,7 @@ use App\Services\AdminRoleService;
 use App\Services\PropertyServiceCatalogService;
 use App\Services\UnitAssignmentService;
 use App\Services\UnitServiceBillService;
+use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -190,7 +191,22 @@ class PropertyServiceController extends Controller
         $required = $creating ? 'required' : 'sometimes';
 
         $rules = [
-            'name' => "$required|string|max:120",
+            'name' => [
+                $required,
+                'string',
+                'max:120',
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    unset($attribute);
+                    $trimmed = trim((string) $value);
+                    if ($trimmed === '') {
+                        return;
+                    }
+                    preg_match_all('/\p{L}/u', $trimmed, $matches);
+                    if (count($matches[0] ?? []) < 3) {
+                        $fail('Service name must include at least 3 letters. Numbers and symbols alone are not allowed.');
+                    }
+                },
+            ],
             'category' => [$required, Rule::in(PropertyServiceCatalogService::allowedCategories())],
             'custom_category' => 'nullable|string|max:80',
             'description' => 'nullable|string|max:500',

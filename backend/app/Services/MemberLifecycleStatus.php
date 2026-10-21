@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\DB;
  * Pre-membership resident stages for Community Admin → Members.
  *
  * Invitation Sent: admin invited the resident; they have not signed up yet.
- * Onboarding: resident started signup / accepted the invite, but has no membership yet.
- * Active: membership status `approved` (handled by community_memberships).
+ * Onboarding (Onboarding - Pending): resident signed in and/or redeemed an invite but has not finished profile setup.
+ * Active: membership status `approved` after profile is complete.
  */
 class MemberLifecycleStatus
 {
@@ -146,7 +146,50 @@ class MemberLifecycleStatus
         });
         self::applySearch($query, $search);
 
+        return (int) $query->count() + self::countOnboardingPendingMemberships($communityId, $search);
+    }
+
+    public static function residentProfileCompleteFromRow(object $member): bool
+    {
+        return MembershipService::residentProfileFieldsComplete(
+            $member->display_name ?? null,
+            $member->unit_number ?? null,
+            $member->residence_type ?? null,
+        );
+    }
+
+    public static function countOnboardingPendingMemberships(?int $communityId, ?string $search = null): int
+    {
+        $query = DB::table('community_memberships as cm')
+            ->join('users', 'users.id', '=', 'cm.user_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->leftJoin('communities', 'communities.id', '=', 'cm.community_id')
+            ->where('users.role', 'resident')
+            ->where('users.status', '!=', 'deleted')
+            ->where('cm.status', 'pending')
+            ->whereNotNull('cm.invite_code_used')
+            ->where(function ($q) {
+                $q->whereNull('profiles.display_name')
+                    ->orWhereNull('profiles.unit_number')
+                    ->orWhereNull('profiles.residence_type');
+            });
+
+        if ($communityId) {
+            $query->where('cm.community_id', $communityId);
+        }
+
+        self::applySearch($query, $search, 'users', $communityId === null);
+
         return (int) $query->count();
+    }
+
+    public static function applyOnboardingPendingMembershipScope($query, string $profilesAlias = 'profiles'): void
+    {
+        $query->where(function ($incomplete) use ($profilesAlias) {
+            $incomplete->whereNull("{$profilesAlias}.display_name")
+                ->orWhereNull("{$profilesAlias}.unit_number")
+                ->orWhereNull("{$profilesAlias}.residence_type");
+        });
     }
 
     public static function pendingInviteCountSelect(string $usersAlias = 'users'): \Illuminate\Contracts\Database\Query\Expression

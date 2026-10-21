@@ -249,9 +249,24 @@ export function ProvisionUserModal({
       return next;
     }
 
-    return type === "community_admin"
-      ? validateCommunityAdminForm(adminForm, adminPhone)
-      : validateResidentForm(residentForm, residentPhone);
+    const base =
+      type === "community_admin"
+        ? validateCommunityAdminForm(adminForm, adminPhone)
+        : validateResidentForm(residentForm, residentPhone);
+
+    if (
+      type === "resident" &&
+      residentForm.region_id &&
+      !loadingCommunities &&
+      communities.length === 0
+    ) {
+      return {
+        ...base,
+        community_id: "No communities in this region. Choose another region or add a community first.",
+      };
+    }
+
+    return base;
   }, [
     isPresetAssign,
     assignmentSource,
@@ -262,6 +277,8 @@ export function ProvisionUserModal({
     type,
     residentForm,
     residentPhone,
+    loadingCommunities,
+    communities.length,
   ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -380,7 +397,7 @@ export function ProvisionUserModal({
       } else {
         const res = await provisionAdminUser({
           type: "resident",
-          name: residentForm.name.trim() || undefined,
+          name: residentForm.name.trim(),
           email: residentForm.email.trim(),
           phone: residentPhone.e164,
           region_id: Number(residentForm.region_id),
@@ -536,10 +553,10 @@ export function ProvisionUserModal({
           ) : (
           <>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Full name (optional)" error={showError("name") ? errors.name : undefined}>
+            <Field label="Full name" required error={liveErrors.name}>
               <ClearableInput
                 data-field="name"
-                className={provisionInputClass(showError("name") ? errors.name : undefined)}
+                className={provisionInputClass(liveErrors.name)}
                 value={nameValue}
                 maxLength={100}
                 onBlur={() => {
@@ -551,7 +568,6 @@ export function ProvisionUserModal({
                   setErrors((prev) => ({ ...prev, name: next.name }));
                 }}
                 onChange={(e) => {
-                  clearFieldError("name");
                   if (type === "community_admin") {
                     setAdminForm((f) => ({ ...f, name: e.target.value }));
                   } else {
@@ -812,7 +828,12 @@ export function ProvisionUserModal({
                           ? "Select community"
                           : "No communities in this region"
                   }
-                  error={showError("community_id") ? errors.community_id : undefined}
+                  emptyMessage="No communities in this region. Choose another region or add a community first."
+                  disabled={!residentForm.region_id || loadingCommunities}
+                  error={
+                    liveErrors.community_id ||
+                    (showError("community_id") ? errors.community_id : undefined)
+                  }
                   options={communityOptions}
                   onChange={(value) => {
                     clearFieldError("community_id");

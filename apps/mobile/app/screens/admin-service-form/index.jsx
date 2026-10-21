@@ -115,7 +115,7 @@ function noticeFieldsForSave(form) {
 
 const EMPTY_FORM = {
   name: "",
-  category: "water",
+  category: "",
   custom_category: "",
   description: "",
   status: "active",
@@ -185,6 +185,13 @@ const singleLineInputStyle = {
   textAlignVertical: "center",
   includeFontPadding: false,
 };
+
+const SERVICE_NAME_LETTER_MIN = 3;
+
+function serviceNameLetterCount(name) {
+  const matches = String(name ?? "").match(/\p{L}/gu);
+  return matches?.length ?? 0;
+}
 
 const SERVICE_AMOUNT_MAX = 999999.99;
 const SERVICE_SUBSCRIBER_MIN = 1;
@@ -259,7 +266,9 @@ function validateServiceForm(form, step, t) {
     const name = String(form.name ?? "").trim();
     if (!errors.name) {
       if (!name) errors.name = t("services.createServiceNameRequired");
-      else if (name.length < 2) errors.name = t("services.createServiceNameShort");
+      else if (serviceNameLetterCount(name) < SERVICE_NAME_LETTER_MIN) {
+        errors.name = t("services.createServiceNameInvalid");
+      }
     }
     if (!form.category) errors.category = t("services.createServiceCategoryRequired");
     else if (!errors.custom_category && form.category === "other" && String(form.custom_category ?? "").trim().length < 2) {
