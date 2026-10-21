@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import SearchInput from "../../components/ui/search-input";
@@ -32,7 +32,12 @@ import NotificationCountBadge from "../../components/ui/notification-count-badge
 import SafeTop from "../../components/layout/safe-top";
 import { sf, sw } from "../../utils/responsive";
 import NoticeCoverThumbnail from "../../components/notices/notice-cover-thumbnail";
-import { resolveGuestFeatureError, isFeatureAccessBlockedError } from "../../utils/guest-permission-errors";
+import {
+  resolveGuestFeatureError,
+  isCommunityFeatureDisabledError,
+  isFeatureAccessBlockedError,
+  isGuestPermissionDeniedError,
+} from "../../utils/guest-permission-errors";
 import GuestFeatureErrorState from "../../components/guest/guest-permission-denied-state";
 import { resolveLoadRestriction } from "../../utils/account-access-sync";
 import { useTranslation } from "react-i18next";
@@ -41,13 +46,18 @@ import { rnShadow } from "../../utils/shadow";
 import { getUser } from "../../services/auth-session";
 import { isCommunityAdminRole, isGuestUser, isResidentMode } from "../../services/community-access";
 import { useSessionUser } from "../../hooks/use-session-user";
-import { isResidentFeatureEnabled } from "../../constants/resident-features";
+import {
+  isResidentFeatureEnabled,
+  serverFeatureFlags,
+} from "../../constants/resident-features";
+
+const UPDATES_FEATURE_KEYS = ["notices", "events", "alerts"];
 
 
 const BASE_TABS = [
   { id: "all", labelKey: "notices.tabAll" },
   { id: "events", labelKey: "notices.tabEvents", categoryGroup: "events" },
-  { id: "yours", labelKey: "notices.tabYours", mineOnly: true, residentOnly: true },
+  { id: "yours", labelKey: "notices.tabYours", mineOnly: true, residentOnly: true, categoryGroup: "events" },
   { id: "alerts", labelKey: "notices.tabAlerts", categoryGroup: "alerts" },
   { id: "notices", labelKey: "notices.tabNotice", categoryGroup: "notices" },
   { id: "saved", labelKey: "notices.tabSaved", savedOnly: true },
@@ -104,6 +114,11 @@ export default function Notifications() {
   const { t } = useTranslation();
   const router = useRouter();
   const sessionUser = useSessionUser();
+  const permissionsReady = serverFeatureFlags(sessionUser) != null;
+  const featureSig = UPDATES_FEATURE_KEYS.map((key) => {
+    if (!permissionsReady) return "p";
+    return isResidentFeatureEnabled(sessionUser, key) ? "1" : "0";
+  }).join("");
   const [selectedTab, setSelectedTab] = useState("all");
   const [savedIds, setSavedIds] = useState([]);
   const [notices, setNotices] = useState([]);
@@ -116,7 +131,6 @@ export default function Notifications() {
   const [resultCount, setResultCount] = useState(null);
   const [showYoursTab, setShowYoursTab] = useState(false);
   const { unread: unreadNotifications } = useNotificationUnread();
-  const hasLoadedRef = useRef(false);
   const listRef = useRef(null);
 
   const tabs = useMemo(
@@ -129,7 +143,7 @@ export default function Notifications() {
           isResidentFeatureEnabled(sessionUser, "alerts")
         );
       }),
-    [showYoursTab, sessionUser],
+    [showYoursTab, featureSig],
   );
 
   useEffect(() => {
@@ -154,23 +168,71 @@ export default function Notifications() {
   }, []);
 
   useEffect(() => {
+    if (!permissionsReady) return;
     if (!tabs.some((tab) => tab.id === selectedTab)) {
-      setSelectedTab(tabs[0]?.id ?? "all");
+      const nextTab = tabs[0]?.id;
+      if (nextTab && nextTab !== selectedTab) setSelectedTab(nextTab);
     }
-  }, [tabs, selectedTab]);
+  }, [permissionsReady, tabs, selectedTab]);
+
+  const tabKey = currentTab
+    ? `${currentTab.id}:${currentTab.categoryGroup || ""}:${currentTab.mineOnly ? 1 : 0}:${currentTab.savedOnly ? 1 : 0}`
+    : "none";
+  const queryKey = JSON.stringify([tabKey, debouncedQuery, sort, featureSig]);
+  const sessionUserRef = useRef(sessionUser);
+  sessionUserRef.current = sessionUser;
+  const tabRef = useRef(currentTab);
+  tabRef.current = currentTab;
+  const noticesRef = useRef(notices);
+  noticesRef.current = notices;
+  const cacheRef = useRef(new Map());
+  const loadRef = useRef(async () => {});
+  const prevQueryKey = useRef(null);
 
   const load = useCallback(
-    async (silent = false) => {
-      if (!silent) {
-        setLoading(true);
+    async (reason = "query", tabChanged = false) => {
+      const user = sessionUserRef.current;
+      const activeTab = tabRef.current;
+      if (featureSig.includes("p")) return;
+
+      if (!featureSig.includes("1")) {
         setNotices([]);
-        setResultCount(null);
+        setResultCount(0);
+        setError(null);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      if (reason !== "refresh" && reason !== "permissions") {
+        const cached = cacheRef.current.get(queryKey);
+        if (cached) {
+          setNotices(cached.notices);
+          setResultCount(cached.resultCount);
+          setSavedIds(cached.savedIds);
+          setError(null);
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        }
+      }
+
+      const showSpinner = reason === "initial" || (reason === "query" && tabChanged) || noticesRef.current.length === 0;
+      if (reason === "refresh") {
+        setRefreshing(true);
+      } else if (showSpinner && reason !== "permissions") {
+        if (tabChanged) {
+          setNotices([]);
+          setResultCount(null);
+        }
+        setLoading(true);
         setError(null);
       } else {
         setError(null);
       }
+
       try {
-        const feature = noticePermissionFeature(currentTab);
+        const feature = noticePermissionFeature(activeTab);
         const blocked = await resolveLoadRestriction(feature);
         if (blocked) {
           setNotices([]);
@@ -179,13 +241,13 @@ export default function Notifications() {
           return;
         }
 
-        const isSavedTab = currentTab?.savedOnly;
-        const isMineTab = currentTab?.mineOnly;
+        const isSavedTab = activeTab?.savedOnly;
+        const isMineTab = activeTab?.mineOnly;
         const apiCategoryGroup =
-          currentTab?.categoryGroup && !isSavedTab && !isMineTab ? currentTab.categoryGroup : undefined;
+          activeTab?.categoryGroup && !isSavedTab && !isMineTab ? activeTab.categoryGroup : undefined;
         const apiCategory =
-          currentTab?.category && !isSavedTab && !apiCategoryGroup && !isMineTab
-            ? currentTab.category
+          activeTab?.category && !isSavedTab && !apiCategoryGroup && !isMineTab
+            ? activeTab.category
             : undefined;
 
         const ids = await getSavedNoticeIds();
@@ -209,21 +271,27 @@ export default function Notifications() {
         }
 
         items = items.filter((notice) =>
-          isResidentFeatureEnabled(sessionUser, contentFeatureKey(notice)),
+          isResidentFeatureEnabled(user, contentFeatureKey(notice)),
         );
 
         const serverTotal = Number(meta?.total);
         const hiddenByFeature = Math.max(0, data.length - items.length);
+        const count = isSavedTab
+          ? items.length
+          : Number.isFinite(serverTotal)
+            ? Math.max(0, serverTotal - hiddenByFeature)
+            : items.length;
+        cacheRef.current.set(queryKey, { notices: items, resultCount: count, savedIds: ids });
         setNotices(items);
-        setResultCount(
-          isSavedTab
-            ? items.length
-            : Number.isFinite(serverTotal)
-              ? Math.max(0, serverTotal - hiddenByFeature)
-              : items.length,
-        );
+        setResultCount(count);
       } catch (err) {
-        const feature = noticePermissionFeature(currentTab);
+        if (isCommunityFeatureDisabledError(err) || isGuestPermissionDeniedError(err)) {
+          setNotices([]);
+          setResultCount(0);
+          setError(null);
+          return;
+        }
+        const feature = noticePermissionFeature(activeTab);
         const restricted = await resolveLoadRestriction(feature, err);
         if (restricted) {
           setNotices([]);
@@ -232,7 +300,7 @@ export default function Notifications() {
           return;
         }
         setError(err);
-        if (!silent) {
+        if (showSpinner) {
           setNotices([]);
           setResultCount(0);
         }
@@ -241,32 +309,41 @@ export default function Notifications() {
         setRefreshing(false);
       }
     },
-    [currentTab, debouncedQuery, sessionUser, sort],
+    [debouncedQuery, featureSig, queryKey, sort],
   );
+  loadRef.current = load;
 
-  useFocusEffect(
-    useCallback(() => {
-      load(hasLoadedRef.current);
-      hasLoadedRef.current = true;
-    }, [load]),
-  );
-
-  const filtersReady = useRef(false);
   useEffect(() => {
-    if (!filtersReady.current) {
-      filtersReady.current = true;
-      return;
+    if (featureSig.includes("p")) return;
+    if (prevQueryKey.current === queryKey) return;
+    const previous = prevQueryKey.current;
+    prevQueryKey.current = queryKey;
+
+    let reason = "query";
+    let tabChanged = false;
+    if (!previous) {
+      reason = "initial";
+    } else {
+      const prev = JSON.parse(previous);
+      const next = JSON.parse(queryKey);
+      tabChanged = prev[0] !== next[0];
+      if (!tabChanged && prev[1] === next[1] && prev[2] === next[2] && prev[3] !== next[3]) {
+        reason = "permissions";
+        cacheRef.current.clear();
+      }
     }
-    setNotices([]);
-    setLoading(true);
-    listRef.current?.scrollToOffset({ offset: 0, animated: false });
-    load(false);
-  }, [selectedTab, debouncedQuery, sort, load]);
+
+    if (tabChanged) {
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    }
+    loadRef.current(reason, tabChanged);
+  }, [featureSig, queryKey]);
 
   const onRefresh = useCallback(() => {
+    cacheRef.current.delete(queryKey);
     setRefreshing(true);
-    load(true);
-  }, [load]);
+    loadRef.current("refresh", false);
+  }, [queryKey]);
 
   const toggleSaved = useCallback(async (id) => {
     try {
@@ -393,7 +470,7 @@ export default function Notifications() {
       );
     }
 
-    if (error) {
+    if (error && !isCommunityFeatureDisabledError(error) && !isGuestPermissionDeniedError(error)) {
       const permissionFeature = noticePermissionFeature(currentTab);
       if (isFeatureAccessBlockedError(error)) {
         return (
@@ -493,7 +570,12 @@ export default function Notifications() {
     );
   }, [loading, query, selectedTab, error, currentTab, onRefresh, t]);
 
-  const accessBlocked = Boolean(error && isFeatureAccessBlockedError(error));
+  const accountRestricted = Boolean(
+    error &&
+    isFeatureAccessBlockedError(error) &&
+    !isCommunityFeatureDisabledError(error) &&
+    !isGuestPermissionDeniedError(error),
+  );
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
@@ -517,7 +599,7 @@ export default function Notifications() {
                   </Text>
                 </View>
               </View>
-              {!accessBlocked ? (
+              {!accountRestricted ? (
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={() => router.push("/screens/notification")}
@@ -539,7 +621,7 @@ export default function Notifications() {
               ) : null}
             </View>
 
-            {!accessBlocked ? (
+            {!accountRestricted ? (
             <>
             <View>
               <Text style={styles.subtitle}>{t("notices.subtitle")}</Text>
@@ -557,7 +639,7 @@ export default function Notifications() {
           </View>
         </SafeTop>
 
-        {!accessBlocked ? (
+        {!accountRestricted ? (
         <>
         <ScrollView
           horizontal
@@ -607,7 +689,7 @@ export default function Notifications() {
         ) : null}
       </View>
 
-      {accessBlocked ? (
+      {accountRestricted ? (
         <GuestFeatureErrorState
           error={error}
           fallbackFeature={noticePermissionFeature(currentTab)}

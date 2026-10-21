@@ -89,15 +89,23 @@ export function FeatureBlockedHero({
 }
 
 /** Empty state when a guest lacks permission for a feature. */
-export function GuestPermissionDeniedState({ feature, message, compact = false }) {
+export function GuestPermissionDeniedState({
+  feature,
+  message,
+  compact = false,
+  featureLabel,
+  featureDescription,
+}) {
   const { t } = useTranslation();
   const meta = featureMeta(feature);
+  const label = featureLabel || meta.label;
+  const description = featureDescription || meta.description;
 
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
       <FeatureBlockedHero
         icon={meta.icon}
-        title={meta.label}
+        title={label}
         subtitle={t('guests.notSharedWithGuest')}
         badgeLabel={t('guests.restricted')}
         compact={compact}
@@ -112,14 +120,14 @@ export function GuestPermissionDeniedState({ feature, message, compact = false }
             <Text style={styles.lockTitle}>{t('guests.accessNotGranted')}</Text>
             <Text style={styles.lockMessage}>
               {message ||
-                t('guests.accessNotGrantedMessage', { feature: meta.label.toLowerCase() })}
+                t('guests.accessNotGrantedMessage', { feature: label.toLowerCase() })}
             </Text>
           </View>
         </View>
 
         <View style={styles.infoCard}>
           <Text style={styles.infoLabel}>{t('guests.whatThisIncludes')}</Text>
-          <Text style={styles.infoText}>{meta.description}</Text>
+          <Text style={styles.infoText}>{description}</Text>
         </View>
 
         <View style={styles.stepsCard}>

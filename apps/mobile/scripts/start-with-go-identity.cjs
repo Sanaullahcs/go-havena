@@ -25,6 +25,7 @@ const child = spawn("./node_modules/.bin/expo", args, {
     ...process.env,
     HAVENA_GO_SESSION: session,
     HAVENA_GO_SLUG: slug,
+    HAVENA_LOCAL_EXPO: "1",
     EXPO_NO_UPDATES: process.env.EXPO_NO_UPDATES || "1",
   },
 });

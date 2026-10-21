@@ -9,7 +9,8 @@
 // removing it from .easignore.
 module.exports = ({ config }) => {
   const script = `${process.env.npm_lifecycle_event || ""} ${process.env.npm_lifecycle_script || ""}`;
-  const localStart = /\bstart\b|expo start/.test(script);
+  const localStart =
+    process.env.HAVENA_LOCAL_EXPO === "1" || /\bstart\b|expo start/.test(script);
 
   const googleServicesFile =
     process.env.GOOGLE_SERVICES_JSON ||
@@ -38,5 +39,11 @@ module.exports = ({ config }) => {
     }
   }
 
-  return { ...next, extra };
+  // A local manifest must not point Expo Go at the published EAS update.
+  // google-services.json is inlined into that manifest and is not needed in Expo Go.
+  const withoutUpdates = { ...next };
+  delete withoutUpdates.updates;
+  const android = { ...(withoutUpdates.android || {}) };
+  delete android.googleServicesFile;
+  return { ...withoutUpdates, android, extra };
 };

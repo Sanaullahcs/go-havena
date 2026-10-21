@@ -40,7 +40,7 @@ import { navigateAppRoute } from "../../utils/app-navigation";
 import { arrowForward } from "../../utils/rtl";
 import { localizedField } from "../../i18n";
 import { useSessionUser } from "../../hooks/use-session-user";
-import { isHomeSectionEnabled, isResidentFeatureEnabled } from "../../constants/resident-features";
+import { isHomeSectionEnabled, isResidentFeatureEnabled, serverFeatureFlags } from "../../constants/resident-features";
 import { homeSectionEmptyHintKey } from "../../utils/home-section-empty-copy";
 
 const QUICK_ACTIONS = [
@@ -198,6 +198,7 @@ function QuickActionsRow() {
   const billsDue = bills?.dueCount ?? 0;
   const billsOverdue = (bills?.overdueCount ?? 0) > 0;
   const actions = QUICK_ACTIONS.filter((item) => {
+    if (!serverFeatureFlags(sessionUser)) return false;
     if (item.id === "bills") return !guest;
     if (item.id === "notices") {
       return (
