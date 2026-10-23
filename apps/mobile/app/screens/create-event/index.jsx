@@ -59,11 +59,18 @@ export default function CreateEventScreen() {
   const [timeShortcut, setTimeShortcut] = useState(null);
   const { errors, setErrors, touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
 
+  const touchPublishScheduleFields = () => {
+    if (!scheduleLater) return;
+    touch("scheduled_date");
+    touch("scheduled_time");
+  };
+
   const applyStartTime = (start, shortcut = null) => {
     if (shortcut !== null) setTimeShortcut(shortcut);
     setTime(start);
     touch("event_time");
     clearError("event_time");
+    touchPublishScheduleFields();
     if (!timeEnd || timeEnd.getTime() <= start.getTime()) {
       const nextEnd = defaultEndTimeFromStart(start);
       if (nextEnd) {
@@ -93,6 +100,7 @@ export default function CreateEventScreen() {
     touch("event_end_date");
     clearError("event_date");
     clearError("event_end_date");
+    touchPublishScheduleFields();
     // Same-day quick pick should land on a still-upcoming window.
     if (daysFromToday === 0 && !time) {
       const start = new Date();
@@ -172,6 +180,19 @@ export default function CreateEventScreen() {
   );
 
   const canPublish = useMemo(() => !hasFieldErrors(fieldErrorsLive), [fieldErrorsLive]);
+
+  useEffect(() => {
+    if (!scheduleLater) return;
+    if (fieldErrorsLive.scheduled_date || fieldErrorsLive.scheduled_time) {
+      touch("scheduled_date");
+      touch("scheduled_time");
+    }
+  }, [
+    scheduleLater,
+    fieldErrorsLive.scheduled_date,
+    fieldErrorsLive.scheduled_time,
+    touch,
+  ]);
 
   useEffect(() => {
     if (!time || !timeEnd) return;
@@ -405,6 +426,7 @@ export default function CreateEventScreen() {
               syncEndDate(v, endDate);
               touch("event_date");
               clearError("event_date");
+              touchPublishScheduleFields();
             }}
             placeholder="mm/dd/yyyy"
             inputStyle={[styles.input, showError("event_date", fieldErrorsLive) && styles.inputError]}

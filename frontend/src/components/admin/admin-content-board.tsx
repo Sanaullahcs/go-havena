@@ -2,8 +2,13 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { ListFilter } from "lucide-react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { AdminBadge, StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
+import {
+  ContentBoardFilterDialog,
+  type ContentBoardSort,
+} from "@/components/admin/content-board-filter-dialog";
 import NoticeFormModal from "@/components/admin/notice-form-modal";
 import NoticeViewModal from "@/components/admin/notice-view-modal";
 import { confirmAction, confirmDelete, confirmRejectWithReason, toastSuccess, toastError } from "@/lib/alert";
@@ -208,9 +213,10 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
       ? initialFilter
       : "all",
   );
-  const [sort, setSort] = useState<"relevant" | "newest" | "oldest" | "schedule">("relevant");
+  const [sort, setSort] = useState<ContentBoardSort>("relevant");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 450);
   const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
@@ -503,53 +509,24 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
         activeFilter={boardFilter}
         onFilter={(key) => setBoardFilter(key as BoardFilter)}
         toolbar={
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-            <label className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-500">
-              Sort
-              <select
-                value={sort}
-                onChange={(event) => setSort(event.target.value as "relevant" | "newest" | "oldest" | "schedule")}
-                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[12.5px] font-semibold text-[#1B4F8A] outline-none focus:border-[#1B4F8A]"
-              >
-                <option value="relevant">Suggested</option>
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="schedule">By date</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-500">
-              From
-              <input
-                type="date"
-                value={dateFrom}
-                max={dateTo || undefined}
-                onChange={(event) => setDateFrom(event.target.value)}
-                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[12.5px] text-slate-700 outline-none focus:border-[#1B4F8A]"
-              />
-            </label>
-            <label className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-500">
-              To
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom || undefined}
-                onChange={(event) => setDateTo(event.target.value)}
-                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[12.5px] text-slate-700 outline-none focus:border-[#1B4F8A]"
-              />
-            </label>
-            {dateFrom || dateTo ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setDateFrom("");
-                  setDateTo("");
-                }}
-                className="text-[12px] font-semibold text-[#1B4F8A]"
-              >
-                Clear dates
-              </button>
+          <button
+            type="button"
+            onClick={() => setFilterOpen(true)}
+            className={[
+              "inline-flex h-8 items-center gap-1.5 rounded-lg border bg-white px-3 text-[12.5px] font-semibold transition",
+              sort !== "relevant" || dateFrom || dateTo
+                ? "border-[#1B4F8A]/30 text-[#1B4F8A] shadow-sm"
+                : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+            ].join(" ")}
+          >
+            <ListFilter className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden />
+            Filter
+            {sort !== "relevant" || dateFrom || dateTo ? (
+              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1B4F8A] px-1 text-[10px] font-bold leading-none text-white">
+                {[sort !== "relevant", Boolean(dateFrom), Boolean(dateTo)].filter(Boolean).length}
+              </span>
             ) : null}
-          </div>
+          </button>
         }
         isEmpty={notices.length === 0}
         empty={boardFilter === "upcoming" ? "No upcoming events." : "No items match your filters."}
@@ -733,6 +710,19 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
         onSubmit={handleSubmit}
         defaultCategory={config.defaultCategory}
         lockedCategory={config.lockedCategory}
+      />
+
+      <ContentBoardFilterDialog
+        open={filterOpen}
+        sort={sort}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onClose={() => setFilterOpen(false)}
+        onApply={({ sort: nextSort, dateFrom: nextFrom, dateTo: nextTo }) => {
+          setSort(nextSort);
+          setDateFrom(nextFrom);
+          setDateTo(nextTo);
+        }}
       />
     </div>
   );

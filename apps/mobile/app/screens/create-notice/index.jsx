@@ -100,23 +100,29 @@ export default function CreateNoticeScreen() {
   const syncEndNoticeDate = (startDate, currentEnd) => {
     const startKey = toApiDate(startDate);
     const endKey = toApiDate(currentEnd);
-    if (!startKey) return;
-    if (!endKey || endKey < startKey) {
+    // End date is optional — only bump an existing end date forward.
+    if (!startKey || !endKey) return;
+    if (endKey < startKey) {
       setEndNoticeDate(startDate);
       touch("event_end_date");
       clearError("event_end_date");
     }
   };
 
+  const touchPublishScheduleFields = () => {
+    if (!scheduleLater) return;
+    touch("scheduled_date");
+    touch("scheduled_time");
+  };
+
   const applyQuickDate = (daysFromToday, shortcut) => {
     setDateShortcut(shortcut);
     const next = buildQuickDate(daysFromToday);
     setNoticeDate(next);
-    setEndNoticeDate(next);
+    syncEndNoticeDate(next, endNoticeDate);
     touch("event_date");
-    touch("event_end_date");
     clearError("event_date");
-    clearError("event_end_date");
+    touchPublishScheduleFields();
   };
 
   const applyQuickStartInHours = (hoursFromNow, shortcut) => {
@@ -125,7 +131,8 @@ export default function CreateNoticeScreen() {
     setStartTime(start);
     touch("event_time");
     clearError("event_time");
-    if (!endTime || endTime.getTime() <= start.getTime()) {
+    touchPublishScheduleFields();
+    if (endTime && endTime.getTime() <= start.getTime()) {
       const nextEnd = defaultEndTimeFromStart(start);
       if (nextEnd) {
         setEndTime(nextEnd);
@@ -255,7 +262,7 @@ export default function CreateNoticeScreen() {
       category,
       location,
       event_date: toApiDate(noticeDate) ?? "",
-      event_end_date: toApiDate(endNoticeDate) ?? toApiDate(noticeDate) ?? "",
+      event_end_date: toApiDate(endNoticeDate) ?? "",
       event_time: toApiTime(startTime) ?? "",
       event_time_end: toApiTime(endTime) ?? "",
       scheduled_date: scheduleLater ? toApiDate(schedulePublishDate) ?? "" : "",
@@ -281,6 +288,20 @@ export default function CreateNoticeScreen() {
   );
 
   const canPublish = useMemo(() => !hasFieldErrors(fieldErrorsLive), [fieldErrorsLive]);
+
+  // Show publish schedule inline errors as soon as values conflict with start.
+  useEffect(() => {
+    if (!scheduleLater) return;
+    if (fieldErrorsLive.scheduled_date || fieldErrorsLive.scheduled_time) {
+      touch("scheduled_date");
+      touch("scheduled_time");
+    }
+  }, [
+    scheduleLater,
+    fieldErrorsLive.scheduled_date,
+    fieldErrorsLive.scheduled_time,
+    touch,
+  ]);
 
   // Surface end-before-start once both times are chosen and the end field was touched.
   useEffect(() => {
@@ -323,9 +344,9 @@ export default function CreateNoticeScreen() {
           category,
           location: location.trim() || undefined,
           event_date: toApiDate(noticeDate),
-          event_end_date: toApiDate(endNoticeDate) ?? toApiDate(noticeDate),
+          event_end_date: toApiDate(endNoticeDate) || undefined,
           event_time: toApiTime(startTime),
-          event_time_end: toApiTime(endTime),
+          event_time_end: toApiTime(endTime) || undefined,
           ...(isAdmin
             ? {
                 is_pinned: pinToTop,
@@ -595,6 +616,7 @@ export default function CreateNoticeScreen() {
               syncEndNoticeDate(v, endNoticeDate);
               touch("event_date");
               clearError("event_date");
+              touchPublishScheduleFields();
             }}
             placeholder={t('notices.selectDate')}
             inputStyle={[styles.input, showError("event_date", fieldErrorsLive) && styles.inputError]}
@@ -632,8 +654,9 @@ export default function CreateNoticeScreen() {
               setStartTime(v);
               touch("event_time");
               clearError("event_time");
-              // If end is empty or not after start, default to +1 hour so Publish can enable.
-              if (!endTime || (v && endTime && endTime.getTime() <= v.getTime())) {
+              touchPublishScheduleFields();
+              // End time is optional — only bump an existing end time forward.
+              if (v && endTime && endTime.getTime() <= v.getTime()) {
                 const nextEnd = defaultEndTimeFromStart(v);
                 if (nextEnd) {
                   setEndTime(nextEnd);
@@ -648,7 +671,7 @@ export default function CreateNoticeScreen() {
             <Text style={styles.errorText}>{showError("event_time", fieldErrorsLive)}</Text>
           ) : null}
 
-          <View style={styles.sectionGap}>{renderFieldLabel("calendar-outline", t("notices.endDate"), true)}</View>
+          <View style={styles.sectionGap}>{renderFieldLabel("calendar-outline", t("notices.endDate"), false)}</View>
           <SchedulePickerField
             mode="date"
             value={endNoticeDate}
@@ -664,7 +687,7 @@ export default function CreateNoticeScreen() {
             <Text style={styles.errorText}>{showError("event_end_date", fieldErrorsLive)}</Text>
           ) : null}
 
-          <View style={styles.sectionGap}>{renderFieldLabel("time-outline", t('notices.endTime'), true)}</View>
+          <View style={styles.sectionGap}>{renderFieldLabel("time-outline", t("notices.endTime"), false)}</View>
           <SchedulePickerField
             mode="time"
             value={endTime}
@@ -673,7 +696,7 @@ export default function CreateNoticeScreen() {
               touch("event_time_end");
               clearError("event_time_end");
             }}
-            placeholder={t('notices.endTimePlaceholder')}
+            placeholder={t("notices.endTimePlaceholder")}
             inputStyle={[styles.input, showError("event_time_end", fieldErrorsLive) && styles.inputError]}
           />
           {showError("event_time_end", fieldErrorsLive) ? (

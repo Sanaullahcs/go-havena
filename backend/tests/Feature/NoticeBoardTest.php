@@ -1119,6 +1119,36 @@ class NoticeBoardTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_admin_cannot_schedule_notice_after_start_datetime(): void
+    {
+        ['admin' => $admin] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($admin);
+
+        $startDate = now()->addDays(2)->toDateString();
+
+        $this->postJson('/api/v1/admin/notices', [
+            'title'          => 'Bad schedule notice',
+            'body'           => 'Scheduled publish is after the notice start.',
+            'category'       => 'general',
+            'event_date'     => $startDate,
+            'event_end_date' => $startDate,
+            'event_time'     => '09:00',
+            'event_time_end' => '17:00',
+            'scheduled_at'   => $startDate.' 10:00:00',
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['scheduled_at']);
+
+        $this->postJson('/api/v1/admin/alerts', array_merge([
+            'title'        => 'Bad schedule alert',
+            'body'         => 'Scheduled publish is after the alert start.',
+            'scheduled_at' => $startDate.' 10:00:00',
+        ], $this->scheduleFields($startDate)))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['scheduled_at']);
+    }
+
     public function test_admin_can_schedule_notice_for_later_publish(): void
     {
         ['admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
@@ -1236,7 +1266,7 @@ class NoticeBoardTest extends TestCase
             'body'     => 'Missing date and times.',
             'category' => 'general',
         ])->assertStatus(422)
-            ->assertJsonPath('errors.event_date.0', 'Date is required.');
+            ->assertJsonPath('errors.event_date.0', 'Start date is required.');
 
         $this->postJson('/api/v1/admin/events', [
             'title'    => 'No schedule event',
@@ -1249,16 +1279,36 @@ class NoticeBoardTest extends TestCase
             'title' => 'No schedule alert',
             'body'  => 'Missing date and times.',
         ])->assertStatus(422)
-            ->assertJsonPath('errors.event_date.0', 'Date is required.');
+            ->assertJsonPath('errors.event_date.0', 'Alert date is required.');
 
         $this->postJson('/api/v1/admin/alerts', [
             'title'      => 'Date only alert',
-            'body'       => 'Alert without start or end time.',
+            'body'       => 'Alert without start time.',
             'event_date' => now()->addDay()->toDateString(),
+        ])->assertStatus(422)
+            ->assertJsonPath('errors.event_time.0', 'Start time is required.');
+
+        $alertDay = now()->addDay()->toDateString();
+        $this->postJson('/api/v1/admin/alerts', [
+            'title'      => 'Alert without end',
+            'body'       => 'Alert with start date and time only.',
+            'event_date' => $alertDay,
+            'event_time' => '09:00',
         ])->assertCreated()
             ->assertJsonPath('data.category', 'emergency')
-            ->assertJsonPath('data.event_time', null)
+            ->assertJsonPath('data.event_time', '09:00')
             ->assertJsonPath('data.event_time_end', null);
+
+        $noticeDay = now()->addDays(2)->toDateString();
+        $this->postJson('/api/v1/admin/notices', [
+            'title'      => 'Notice without end',
+            'body'       => 'Start date and time only are enough for notices.',
+            'category'   => 'general',
+            'event_date' => $noticeDay,
+            'event_time' => '09:00',
+        ])->assertCreated()
+            ->assertJsonPath('data.event_date', $noticeDay)
+            ->assertJsonPath('data.event_time', '09:00');
     }
 
     public function test_pinned_alerts_sort_first_in_resident_list(): void

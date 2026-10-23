@@ -19,6 +19,7 @@ use App\Support\MediaUrl;
 use App\Support\NoticeExpiry;
 use App\Support\NoticePlainText;
 use App\Support\NoticeSchedule;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Http\UploadedFile;
@@ -751,6 +752,17 @@ class NoticeController extends Controller
                     $validated['scheduled_at'],
                     (int) $notice->community_id,
                 );
+                $scheduleFields = [
+                    'event_date' => $data['event_date'] ?? $notice->event_date,
+                    'event_time' => $data['event_time'] ?? $notice->event_time,
+                ];
+                if ($response = $this->assertScheduledAtNotAfterStart(
+                    $scheduledAt,
+                    $scheduleFields,
+                    (int) $notice->community_id,
+                )) {
+                    return $response;
+                }
                 $data['scheduled_at'] = $scheduledAt;
 
                 if ($scheduledAt !== null && NoticeSchedule::isFuture($scheduledAt, (int) $notice->community_id)) {
@@ -768,6 +780,17 @@ class NoticeController extends Controller
                     $validated['scheduled_at'],
                     (int) $notice->community_id,
                 );
+                $scheduleFields = [
+                    'event_date' => $data['event_date'] ?? $notice->event_date,
+                    'event_time' => $data['event_time'] ?? $notice->event_time,
+                ];
+                if ($response = $this->assertScheduledAtNotAfterStart(
+                    $scheduledAt,
+                    $scheduleFields,
+                    (int) $notice->community_id,
+                )) {
+                    return $response;
+                }
                 $data['scheduled_at'] = $scheduledAt;
 
                 if ($scheduledAt !== null && NoticeSchedule::isFuture($scheduledAt, (int) $notice->community_id)) {
@@ -1101,6 +1124,9 @@ class NoticeController extends Controller
                     $communityId,
                 );
                 if ($response = $this->assertScheduledAtInFuture($scheduledAt)) {
+                    return $response;
+                }
+                if ($response = $this->assertScheduledAtNotAfterStart($scheduledAt, $validated, $communityId)) {
                     return $response;
                 }
                 $status = 'draft';
@@ -1682,6 +1708,63 @@ class NoticeController extends Controller
         return null;
     }
 
+    /**
+     * Scheduled publish must not be after the notice/alert start date/time.
+     * When start time is omitted, only calendar dates are compared.
+     */
+    private function assertScheduledAtNotAfterStart(
+        ?string $scheduledAtUtc,
+        array $validated,
+        int $communityId,
+    ): ?\Illuminate\Http\JsonResponse {
+        if ($scheduledAtUtc === null) {
+            return null;
+        }
+
+        $startDate = isset($validated['event_date']) ? trim((string) $validated['event_date']) : '';
+        if ($startDate === '') {
+            return null;
+        }
+
+        $startDate = substr($startDate, 0, 10);
+        $startTime = isset($validated['event_time']) ? trim((string) $validated['event_time']) : '';
+        $tz = NoticeSchedule::resolveInputTimezone($communityId);
+        $scheduledLocal = Carbon::parse($scheduledAtUtc, 'UTC')->setTimezone($tz);
+
+        $message = 'Publish date and time must be on or before the start date and time.';
+
+        if ($startTime === '') {
+            if ($scheduledLocal->toDateString() > $startDate) {
+                return response()->json([
+                    'message' => $message,
+                    'errors'  => ['scheduled_at' => [$message]],
+                ], 422);
+            }
+
+            return null;
+        }
+
+        $minutes = $this->parseScheduleTimeToMinutes($startTime);
+        if ($minutes === null) {
+            return null;
+        }
+
+        $startLocal = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            sprintf('%s %02d:%02d:00', $startDate, intdiv($minutes, 60), $minutes % 60),
+            $tz,
+        );
+
+        if ($scheduledLocal->gt($startLocal)) {
+            return response()->json([
+                'message' => $message,
+                'errors'  => ['scheduled_at' => [$message]],
+            ], 422);
+        }
+
+        return null;
+    }
+
     /** Categories that require relevance date + start/end times on create. */
     private function categoryRequiresContentSchedule(string $category): bool
     {
@@ -1697,10 +1780,12 @@ class NoticeController extends Controller
         }
 
         $missing = [];
+        $normalized = $this->normalizeCategory($category);
         if (empty($validated['event_date'])) {
-            $missing['event_date'] = ['Start date is required.'];
+            $missing['event_date'] = [$normalized === 'emergency' ? 'Alert date is required.' : 'Start date is required.'];
         }
-        if ($this->normalizeCategory($category) !== 'emergency') {
+
+        if ($normalized === 'event') {
             if (empty($validated['event_end_date'])) {
                 $missing['event_end_date'] = ['End date is required.'];
             }
@@ -1710,12 +1795,21 @@ class NoticeController extends Controller
             if (empty($validated['event_time_end'])) {
                 $missing['event_time_end'] = ['End time is required.'];
             }
+        } else {
+            // Notices and alerts: start time required; end date/time optional.
+            if (empty($validated['event_time'])) {
+                $missing['event_time'] = ['Start time is required.'];
+            }
         }
 
         if ($missing !== []) {
             $message = array_key_exists('event_time', $missing) || array_key_exists('event_time_end', $missing)
-                ? 'Start/end date and start/end time are required.'
-                : 'Start date is required.';
+                ? ($normalized === 'event'
+                    ? 'Start/end date and start/end time are required.'
+                    : ($normalized === 'emergency'
+                        ? 'Alert date and start time are required.'
+                        : 'Start date and start time are required.'))
+                : ($normalized === 'emergency' ? 'Alert date is required.' : 'Start date is required.');
 
             return response()->json([
                 'message' => $message,

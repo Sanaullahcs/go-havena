@@ -231,6 +231,39 @@ export function toScheduleApiDateTime(date: string, time: string): string | unde
 
 export const NOTICE_FUTURE_TIME_MESSAGE = "Please select a future date and time.";
 
+export const NOTICE_SCHEDULE_AFTER_START_MESSAGE =
+  "Publish date and time must be on or before the start date and time.";
+
+/**
+ * True when scheduled publish is strictly after the notice/alert start.
+ * Missing start time compares calendar dates only (schedule date must not be after start date).
+ */
+export function isSchedulePublishAfterStart(
+  scheduledDate: string,
+  scheduledTime: string,
+  startDate: string,
+  startTime: string,
+): boolean {
+  const schedDay = scheduledDate.trim().slice(0, 10);
+  const startDay = startDate.trim().slice(0, 10);
+  if (!schedDay || !startDay) return false;
+
+  const schedTime = parseFlexibleTime(scheduledTime.trim()) ?? scheduledTime.trim().slice(0, 5);
+  if (!schedTime || parseTimeMinutes(schedTime) == null) return false;
+
+  const startTimeRaw = startTime.trim();
+  if (!startTimeRaw) {
+    return schedDay > startDay;
+  }
+
+  const startNorm = parseFlexibleTime(startTimeRaw) ?? startTimeRaw.slice(0, 5);
+  if (parseTimeMinutes(startNorm) == null) return false;
+
+  const schedStamp = `${schedDay}T${schedTime}`;
+  const startStamp = `${startDay}T${startNorm}`;
+  return schedStamp > startStamp;
+}
+
 /** Calendar date + minute-of-day in a timezone (defaults to the browser local zone). */
 export function zonedNowParts(now: Date = new Date(), timeZone?: string): { date: string; minutes: number } {
   if (!timeZone) {

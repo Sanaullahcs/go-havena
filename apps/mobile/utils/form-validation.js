@@ -143,6 +143,29 @@ export function compareTimes(timeStart, timeEnd) {
 }
 
 /**
+ * True when scheduled publish is strictly after the notice/alert start.
+ * Missing start time compares calendar dates only.
+ */
+export function isSchedulePublishAfterStart(scheduledDate, scheduledTime, startDate, startTime) {
+  const schedDay = String(scheduledDate ?? "").trim().slice(0, 10);
+  const startDay = String(startDate ?? "").trim().slice(0, 10);
+  if (!schedDay || !startDay) return false;
+
+  const schedTime = String(scheduledTime ?? "").trim().slice(0, 5);
+  if (!schedTime || parseTimeMinutes(schedTime) == null) return false;
+
+  const startTimeRaw = String(startTime ?? "").trim();
+  if (!startTimeRaw) {
+    return schedDay > startDay;
+  }
+
+  const startNorm = startTimeRaw.slice(0, 5);
+  if (parseTimeMinutes(startNorm) == null) return false;
+
+  return `${schedDay}T${schedTime}` > `${startDay}T${startNorm}`;
+}
+
+/**
  * @param {{ title: string, body: string, location?: string, event_date?: string, event_time?: string, event_time_end?: string }} form
  * @param {{ kind?: 'notice'|'event'|'alert', publishNow?: boolean, requireSchedule?: boolean, requireLocation?: boolean }} opts
  */
@@ -194,7 +217,7 @@ export function validateNoticeForm(form, opts = {}) {
     if (!String(form.event_date ?? "").trim()) {
       errors.event_date = i18n.t("validation.dateRequiredSchedule");
     }
-    if (kind !== "alert") {
+    if (kind === "event") {
       if (!resolveEffectiveEndDate(form.event_date, form.event_end_date).trim()) {
         errors.event_end_date = i18n.t("validation.endDateRequired");
       }
@@ -204,15 +227,45 @@ export function validateNoticeForm(form, opts = {}) {
       if (!String(form.event_time_end ?? "").trim()) {
         errors.event_time_end = i18n.t("validation.endTimeRequiredSchedule");
       }
+    } else if (kind === "notice" || kind === "alert") {
+      if (!String(form.event_time ?? "").trim()) {
+        errors.event_time = i18n.t("validation.startTimeRequiredSchedule");
+      }
     }
   }
 
+  const scheduledDate = String(form.scheduled_date ?? "").trim();
+  const scheduledTime = String(form.scheduled_time ?? "").trim();
+
   if (opts.requirePublishSchedule) {
-    if (!String(form.scheduled_date ?? "").trim()) {
+    if (!scheduledDate) {
       errors.scheduled_date = i18n.t("validation.publishDateRequired");
     }
-    if (!String(form.scheduled_time ?? "").trim()) {
+    if (!scheduledTime) {
       errors.scheduled_time = i18n.t("validation.publishTimeRequired");
+    }
+  }
+
+  if (scheduledDate && scheduledTime && !errors.scheduled_date && !errors.scheduled_time) {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    if (scheduledDate < today) {
+      errors.scheduled_date = i18n.t("validation.publishMustBeFuture");
+    } else if (scheduledDate === today) {
+      const schedMin = parseTimeMinutes(scheduledTime);
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      if (schedMin != null && schedMin < nowMin) {
+        errors.scheduled_time = i18n.t("validation.publishMustBeFuture");
+      }
+    }
+
+    if (
+      !errors.scheduled_date &&
+      !errors.scheduled_time &&
+      String(form.event_date ?? "").trim() &&
+      isSchedulePublishAfterStart(scheduledDate, scheduledTime, form.event_date, form.event_time)
+    ) {
+      errors.scheduled_time = i18n.t("validation.publishScheduleAfterStart");
     }
   }
 
@@ -227,7 +280,7 @@ export function validateNoticeForm(form, opts = {}) {
     if (!String(form.event_date ?? "").trim()) {
       errors.event_date = i18n.t("validation.required", { field: i18n.t(dateLabelKey) });
     }
-    if (kind !== "alert") {
+    if (kind === "event") {
       if (!resolveEffectiveEndDate(form.event_date, form.event_end_date).trim()) {
         errors.event_end_date = i18n.t("validation.endDateRequired");
       }
@@ -236,6 +289,10 @@ export function validateNoticeForm(form, opts = {}) {
       }
       if (!String(form.event_time_end ?? "").trim()) {
         errors.event_time_end = i18n.t("validation.endTimeRequired");
+      }
+    } else if (kind === "notice" || kind === "alert") {
+      if (!String(form.event_time ?? "").trim()) {
+        errors.event_time = i18n.t("validation.startTimeRequired");
       }
     }
   }
@@ -257,7 +314,11 @@ export function validateNoticeForm(form, opts = {}) {
     errors.event_time_end = i18n.t("validation.endAfterStart");
   }
 
-  if ((kind === "event" || kind === "notice") && effectiveEndDate && String(form.event_time_end ?? "").trim()) {
+  if (
+    (kind === "event" || kind === "notice" || kind === "alert") &&
+    effectiveEndDate &&
+    String(form.event_time_end ?? "").trim()
+  ) {
     const endMin = parseTimeMinutes(form.event_time_end);
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;

@@ -566,7 +566,23 @@ console.log("\nNotice form validation");
   );
   assertHasError(noticePublish, "event_date", "notice publish requires date");
   assertHasError(noticePublish, "event_time", "notice publish requires start");
-  assertHasError(noticePublish, "event_time_end", "notice publish requires end");
+  assert(!noticePublish.event_time_end, "notice publish does not require end time");
+
+  const noticeReadyWithoutEnd = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: "2026-07-20",
+      event_end_date: "",
+      event_time: "09:00",
+      event_time_end: "",
+      event_capacity: "",
+    },
+    { kind: "notice", publishNow: true, now: new Date("2026-07-19T08:00:00") },
+  );
+  assertNoErrors(noticeReadyWithoutEnd, "notice publish without end date/time");
 
   const alertPublish = validateNoticeForm(
     {
@@ -582,7 +598,7 @@ console.log("\nNotice form validation");
   );
   assertHasError(alertPublish, "event_date", "alert publish requires date");
 
-  const alertReadyWithoutTimes = validateNoticeForm(
+  const alertMissingStartTime = validateNoticeForm(
     {
       title: "Power outage",
       body: "Scheduled maintenance tonight in block A.",
@@ -593,9 +609,25 @@ console.log("\nNotice form validation");
       event_time_end: "",
       event_capacity: "",
     },
-    { kind: "alert", publishNow: true },
+    { kind: "alert", publishNow: true, now: new Date("2026-07-19T08:00:00") },
   );
-  assertNoErrors(alertReadyWithoutTimes, "alert publish without times");
+  assertHasError(alertMissingStartTime, "event_time", "alert publish requires start time");
+
+  const alertReadyWithoutEnd = validateNoticeForm(
+    {
+      title: "Power outage",
+      body: "Scheduled maintenance tonight in block A.",
+      category: "emergency",
+      location: "",
+      event_date: "2026-07-20",
+      event_end_date: "",
+      event_time: "22:00",
+      event_time_end: "",
+      event_capacity: "",
+    },
+    { kind: "alert", publishNow: true, now: new Date("2026-07-19T08:00:00") },
+  );
+  assertNoErrors(alertReadyWithoutEnd, "alert publish without end date/time");
 
   const alertBadTimes = validateNoticeForm(
     {
@@ -720,6 +752,8 @@ console.log("\nNotice form validation");
   );
   assertNoErrors(alertReady, "alert publish ready");
 
+  const scheduleNow = new Date("2026-07-19T08:00:00");
+
   const scheduleMissing = validateNoticeForm(
     {
       title: "Future notice",
@@ -734,7 +768,7 @@ console.log("\nNotice form validation");
       scheduled_at_date: "",
       scheduled_at_time: "",
     },
-    { kind: "notice", publishNow: true },
+    { kind: "notice", publishNow: true, now: scheduleNow },
   );
   assertHasError(scheduleMissing, "scheduled_at_date", "schedule later requires publish date");
   assertHasError(scheduleMissing, "scheduled_at_time", "schedule later requires publish time");
@@ -753,9 +787,86 @@ console.log("\nNotice form validation");
       scheduled_at_date: "2026-07-20",
       scheduled_at_time: "08:00",
     },
-    { kind: "notice", publishNow: true },
+    { kind: "notice", publishNow: true, now: scheduleNow },
   );
   assertNoErrors(scheduleReady, "schedule later ready");
+
+  const scheduleAfterStart = validateNoticeForm(
+    {
+      title: "Future notice",
+      body: "This notice will publish after its start window.",
+      category: "general",
+      location: "",
+      event_date: "2026-07-21",
+      event_time: "09:00",
+      event_time_end: "10:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "2026-07-21",
+      scheduled_at_time: "10:00",
+    },
+    { kind: "notice", publishNow: true, now: scheduleNow },
+  );
+  assertHasError(scheduleAfterStart, "scheduled_at_time", "schedule later cannot be after start");
+  assert(
+    scheduleAfterStart.scheduled_at_time ===
+      "Publish date and time must be on or before the start date and time.",
+    "schedule after start message",
+  );
+
+  const scheduleEqualStart = validateNoticeForm(
+    {
+      title: "Future notice",
+      body: "This notice publishes at the same instant it starts.",
+      category: "general",
+      location: "",
+      event_date: "2026-07-21",
+      event_time: "09:00",
+      event_time_end: "10:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "2026-07-21",
+      scheduled_at_time: "09:00",
+    },
+    { kind: "notice", publishNow: true, now: scheduleNow },
+  );
+  assertNoErrors(scheduleEqualStart, "schedule later equal to start is allowed");
+
+  const schedulePastPublish = validateNoticeForm(
+    {
+      title: "Future notice",
+      body: "This notice publish time is already past.",
+      category: "general",
+      location: "",
+      event_date: "2026-07-21",
+      event_time: "09:00",
+      event_time_end: "10:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "2026-07-19",
+      scheduled_at_time: "07:00",
+    },
+    { kind: "notice", publishNow: true, now: scheduleNow },
+  );
+  assertHasError(schedulePastPublish, "scheduled_at_time", "schedule later must be in the future");
+
+  const alertScheduleAfterStart = validateNoticeForm(
+    {
+      title: "Future alert",
+      body: "Water shutoff will be announced after the alert date.",
+      category: "emergency",
+      location: "",
+      event_date: "2026-07-22",
+      event_time: "08:00",
+      event_time_end: "12:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "2026-07-22",
+      scheduled_at_time: "09:00",
+    },
+    { kind: "alert", publishNow: true, now: scheduleNow },
+  );
+  assertHasError(alertScheduleAfterStart, "scheduled_at_time", "alert schedule cannot be after start");
 
   const today = new Date();
   const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -908,7 +1019,7 @@ console.log("\nNotice form validation");
       scheduled_at_date: "2026-07-20",
       scheduled_at_time: "09:00",
     },
-    { kind: "event", publishNow: true },
+    { kind: "event", publishNow: true, now: scheduleNow },
   );
   assertNoErrors(eventScheduleReady, "event schedule later ready");
 
@@ -926,7 +1037,7 @@ console.log("\nNotice form validation");
       scheduled_at_date: "2026-07-21",
       scheduled_at_time: "07:00",
     },
-    { kind: "alert", publishNow: true },
+    { kind: "alert", publishNow: true, now: scheduleNow },
   );
   assertNoErrors(alertScheduleReady, "alert schedule later ready");
 }

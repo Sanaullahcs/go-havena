@@ -4,7 +4,9 @@ import {
   isNoticeDateInPast,
   isNoticeTimeInPast,
   isScheduleEndBeforeStart,
+  isSchedulePublishAfterStart,
   NOTICE_FUTURE_TIME_MESSAGE,
+  NOTICE_SCHEDULE_AFTER_START_MESSAGE,
   resolveEffectiveEndDate,
 } from "@/lib/admin/notice-schedule-utils";
 
@@ -86,7 +88,7 @@ export function validateNoticeForm(
     if (!form.event_date.trim()) {
       errors.event_date = `${dateLabel} is required.`;
     }
-    if (kind !== "alert") {
+    if (kind === "event") {
       if (!resolveEffectiveEndDate(form.event_date, form.event_end_date).trim()) {
         errors.event_end_date = "End date is required.";
       }
@@ -95,6 +97,10 @@ export function validateNoticeForm(
       }
       if (!form.event_time_end.trim()) {
         errors.event_time_end = "End time is required.";
+      }
+    } else if (kind === "notice" || kind === "alert") {
+      if (!form.event_time.trim()) {
+        errors.event_time = "Start time is required.";
       }
     }
   }
@@ -106,7 +112,7 @@ export function validateNoticeForm(
     if (form.event_date.trim() && isNoticeDateInPast(form.event_date, now, opts.timeZone)) {
       errors.event_date = pastMessage;
     }
-    if (kind !== "alert" && form.event_end_date.trim() && isNoticeDateInPast(form.event_end_date, now, opts.timeZone)) {
+    if (form.event_end_date.trim() && isNoticeDateInPast(form.event_end_date, now, opts.timeZone)) {
       errors.event_end_date = pastMessage;
     }
     if (form.event_date.trim() && form.event_time.trim() && isNoticeTimeInPast(form.event_date, form.event_time, now, opts.timeZone)) {
@@ -147,12 +153,36 @@ export function validateNoticeForm(
     }
   }
 
-  if (SCHEDULE_KINDS.includes(kind) && opts.publishNow && form.schedule_later) {
-    if (!String(form.scheduled_at_date ?? "").trim()) {
-      errors.scheduled_at_date = "Publish date is required when scheduling.";
+  if (SCHEDULE_KINDS.includes(kind) && form.schedule_later) {
+    const scheduledDate = String(form.scheduled_at_date ?? "").trim();
+    const scheduledTime = String(form.scheduled_at_time ?? "").trim();
+
+    if (opts.publishNow) {
+      if (!scheduledDate) {
+        errors.scheduled_at_date = "Publish date is required when scheduling.";
+      }
+      if (!scheduledTime) {
+        errors.scheduled_at_time = "Publish time is required when scheduling.";
+      }
     }
-    if (!String(form.scheduled_at_time ?? "").trim()) {
-      errors.scheduled_at_time = "Publish time is required when scheduling.";
+
+    if (scheduledDate && scheduledTime && !errors.scheduled_at_date && !errors.scheduled_at_time) {
+      if (enforceFutureTimes) {
+        if (isNoticeDateInPast(scheduledDate, now, opts.timeZone)) {
+          errors.scheduled_at_date = pastMessage;
+        } else if (isNoticeTimeInPast(scheduledDate, scheduledTime, now, opts.timeZone)) {
+          errors.scheduled_at_time = pastMessage;
+        }
+      }
+
+      if (
+        !errors.scheduled_at_date &&
+        !errors.scheduled_at_time &&
+        form.event_date.trim() &&
+        isSchedulePublishAfterStart(scheduledDate, scheduledTime, form.event_date, form.event_time)
+      ) {
+        errors.scheduled_at_time = NOTICE_SCHEDULE_AFTER_START_MESSAGE;
+      }
     }
   }
 
