@@ -25,6 +25,7 @@ export default function EventRsvpPanel({ notice, onUpdated }: Props) {
   const isFull = Boolean(notice.is_full);
   const hasCapacity =
     notice.event_capacity != null && notice.event_capacity > 0;
+  const registrationOpen = notice.is_registration_open !== false;
 
   const canShow =
     notice.category === "event" && requiresRsvp && isPublished && !ended;
@@ -66,6 +67,10 @@ export default function EventRsvpPanel({ notice, onUpdated }: Props) {
     );
   }
 
+  const canJoin = registrationOpen && !isJoined && !isWaitlisted;
+  const canLeave = isJoined || isWaitlisted;
+  const showActionButton = canJoin || canLeave;
+
   const joinLabel = isWaitlisted
     ? "Leave waitlist"
     : isJoined
@@ -83,6 +88,7 @@ export default function EventRsvpPanel({ notice, onUpdated }: Props) {
       void runRsvp("not_going");
       return;
     }
+    if (!registrationOpen) return;
     void runRsvp("going");
   };
 
@@ -105,7 +111,13 @@ export default function EventRsvpPanel({ notice, onUpdated }: Props) {
         </p>
       ) : null}
 
-      {!isJoined && !isWaitlisted && isFull && hasCapacity ? (
+      {!isJoined && !isWaitlisted && !registrationOpen ? (
+        <p className="mt-2 text-[12px] text-slate-600">
+          Registration for this event has closed. You can still view the event until it ends.
+        </p>
+      ) : null}
+
+      {canJoin && isFull && hasCapacity ? (
         <p className="mt-2 text-[12px] text-slate-600">
           This event is full. You can join the waiting list if a spot opens.
         </p>
@@ -140,7 +152,7 @@ export default function EventRsvpPanel({ notice, onUpdated }: Props) {
             </button>
           </div>
         </div>
-      ) : (
+      ) : showActionButton ? (
         <button
           type="button"
           disabled={busy}
@@ -152,7 +164,7 @@ export default function EventRsvpPanel({ notice, onUpdated }: Props) {
         >
           {busy ? "Please wait…" : joinLabel}
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

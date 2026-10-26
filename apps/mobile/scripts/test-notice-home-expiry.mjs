@@ -10,19 +10,40 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const {
   isNoticeExpiredForHome,
   isCarouselNotice,
+  isEventStartPassed,
 } = await import(pathToFileURL(join(root, "utils/notice-home-expiry.js")).href);
 
+/** Mirrors notices-api pickNeighborhoodCarousel (notices/alerts only + pin). */
 function pickNeighborhoodCarousel(notices, limit = HOME_SECTION_CARD_LIMIT) {
   return [...notices]
     .filter(isCarouselNotice)
     .filter((n) => !isNoticeExpiredForHome(n))
+    .sort((a, b) => {
+      const aAlert = a.isAlert || a.category === "emergency" ? 1 : 0;
+      const bAlert = b.isAlert || b.category === "emergency" ? 1 : 0;
+      if (aAlert !== bAlert) return bAlert - aAlert;
+      const aPin = a.isPinned ? 1 : 0;
+      const bPin = b.isPinned ? 1 : 0;
+      if (aPin !== bPin) return bPin - aPin;
+      return 0;
+    })
     .slice(0, limit);
 }
 
+/** Mirrors notices-api pickUpcomingEvents (events only + event pin). */
 function pickUpcomingEvents(notices, limit = HOME_SECTION_CARD_LIMIT) {
   return notices
     .filter((n) => n.category === "event" || n.isEvent)
     .filter((n) => !isNoticeExpiredForHome(n))
+    .filter((n) => !isEventStartPassed(n))
+    .sort((a, b) => {
+      const aPin = a.isPinned ? 1 : 0;
+      const bPin = b.isPinned ? 1 : 0;
+      if (aPin !== bPin) return bPin - aPin;
+      const aT = a.eventDate || a.event_date ? new Date(a.eventDate || a.event_date).getTime() : Infinity;
+      const bT = b.eventDate || b.event_date ? new Date(b.eventDate || b.event_date).getTime() : Infinity;
+      return aT - bT;
+    })
     .slice(0, limit);
 }
 
@@ -177,15 +198,34 @@ const carousel = pickNeighborhoodCarousel([
   {
     id: 3,
     category: "event",
-    title: "Should not be in carousel",
+    title: "Pinned event must not be in hero",
     event_date: tomorrowKey(),
     isEvent: true,
+    isPinned: true,
+  },
+  {
+    id: 4,
+    category: "emergency",
+    title: "Pinned alert",
+    isAlert: true,
+    isPinned: true,
+  },
+  {
+    id: 5,
+    category: "general",
+    title: "Unpinned notice",
+    isPinned: false,
   },
 ]);
 
 assert("carousel excludes expired scheduled notice", carousel.every((n) => n.id !== 2));
-assert("carousel excludes events", carousel.every((n) => isCarouselNotice(n)));
+assert("carousel excludes events", carousel.every((n) => n.id !== 3));
 assert("carousel keeps unscheduled notice", carousel.some((n) => n.id === 1));
+assert("isCarouselNotice rejects events", !isCarouselNotice({ category: "event", isEvent: true }));
+assert(
+  "notice/alert pin sorts ahead of unpinned notice in hero",
+  carousel[0]?.id === 4 && carousel.some((n) => n.id === 5),
+);
 
 console.log("\n=== pickUpcomingEvents filters expired ===");
 const events = pickUpcomingEvents([
@@ -202,6 +242,7 @@ const events = pickUpcomingEvents([
     isEvent: true,
     event_date: tomorrowKey(),
     event_time_end: "20:00",
+    isPinned: false,
   },
   {
     id: 12,
@@ -210,12 +251,29 @@ const events = pickUpcomingEvents([
     event_date: yesterdayKey(),
     event_time_end: "20:00",
   },
+  {
+    id: 13,
+    category: "event",
+    isEvent: true,
+    event_date: tomorrowKey(),
+    event_time: "18:00",
+    event_time_end: "20:00",
+    isPinned: true,
+  },
+  {
+    id: 14,
+    category: "general",
+    title: "Pinned notice must not be in Happening Soon",
+    isPinned: true,
+  },
 ]);
 
 assert(
   "happening soon keeps tomorrow only, hides yesterday and ended today",
-  events.length === 1 && events.some((e) => e.id === 11),
+  events.every((e) => e.id === 11 || e.id === 13) && events.length === 2,
 );
+assert("happening soon excludes notices", events.every((e) => e.isEvent || e.category === "event"));
+assert("event pin sorts first in Happening Soon", events[0]?.id === 13);
 
 console.log("");
 if (failed > 0) {

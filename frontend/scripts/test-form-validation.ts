@@ -729,13 +729,50 @@ console.log("\nNotice form validation");
       category: "event",
       location: "Courtyard",
       event_date: "2026-07-20",
+      event_end_date: "2026-07-20",
       event_time: "17:00",
       event_time_end: "20:00",
       event_capacity: "50",
+      requires_rsvp: false,
     },
-    { kind: "event", publishNow: true },
+    { kind: "event", publishNow: true, enforceFutureTimes: false },
   );
-  assertNoErrors(eventReady, "event publish ready");
+  assertNoErrors(eventReady, "event publish ready without RSVP");
+
+  const eventRsvpMissingDeadline = validateNoticeForm(
+    {
+      title: "Community BBQ",
+      body: "Join us in the courtyard for food and fun.",
+      category: "event",
+      location: "Courtyard",
+      event_date: "2026-07-20",
+      event_end_date: "2026-07-20",
+      event_time: "17:00",
+      event_time_end: "20:00",
+      requires_rsvp: true,
+    },
+    { kind: "event", publishNow: true, now: new Date("2026-07-19T08:00:00"), enforceFutureTimes: false },
+  );
+  assertHasError(eventRsvpMissingDeadline, "registration_deadline_date", "RSVP requires registration date");
+  assertHasError(eventRsvpMissingDeadline, "registration_deadline_time", "RSVP requires registration time");
+
+  const eventRsvpReady = validateNoticeForm(
+    {
+      title: "Community BBQ",
+      body: "Join us in the courtyard for food and fun.",
+      category: "event",
+      location: "Courtyard",
+      event_date: "2026-07-20",
+      event_end_date: "2026-07-20",
+      event_time: "17:00",
+      event_time_end: "20:00",
+      requires_rsvp: true,
+      registration_deadline_date: "2026-07-19",
+      registration_deadline_time: "12:00",
+    },
+    { kind: "event", publishNow: true, now: new Date("2026-07-19T08:00:00"), enforceFutureTimes: false },
+  );
+  assertNoErrors(eventRsvpReady, "event publish ready with RSVP + deadline");
 
   const alertReady = validateNoticeForm(
     {

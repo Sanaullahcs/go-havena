@@ -20,6 +20,9 @@ export interface Notice {
   event_end_date?: string | null;
   event_time: string | null;
   event_time_end: string | null;
+  registration_deadline_date?: string | null;
+  registration_deadline_time?: string | null;
+  is_registration_open?: boolean | null;
   schedule_timezone?: string | null;
   status: string;
   review_status: string;
@@ -80,6 +83,8 @@ export interface NoticeFormData {
   event_end_date?: string;
   event_time?: string;
   event_time_end?: string;
+  registration_deadline_date?: string;
+  registration_deadline_time?: string;
   event_capacity?: number | null;
   is_pinned?: boolean;
   scheduled_at?: string | null;

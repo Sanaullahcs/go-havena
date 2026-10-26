@@ -46,6 +46,8 @@ export default function CreateEventScreen() {
   const [endDate, setEndDate] = useState(null);
   const [time, setTime] = useState(null);
   const [timeEnd, setTimeEnd] = useState(null);
+  const [registrationDeadlineDate, setRegistrationDeadlineDate] = useState(null);
+  const [registrationDeadlineTime, setRegistrationDeadlineTime] = useState(null);
   const [location, setLocation] = useState("");
   const [capacity, setCapacity] = useState("");
   const [requireRsvp, setRequireRsvp] = useState(false);
@@ -158,10 +160,31 @@ export default function CreateEventScreen() {
       event_end_date: toApiDate(endDate) ?? toApiDate(date) ?? "",
       event_time: toApiTime(time) ?? "",
       event_time_end: toApiTime(timeEnd) ?? "",
+      requires_rsvp: requireRsvp,
+      registration_deadline_date: requireRsvp
+        ? toApiDate(registrationDeadlineDate) ?? ""
+        : "",
+      registration_deadline_time: requireRsvp
+        ? toApiTime(registrationDeadlineTime) ?? ""
+        : "",
       scheduled_date: scheduleLater ? toApiDate(schedulePublishDate) ?? "" : "",
       scheduled_time: scheduleLater ? toApiTime(schedulePublishTime) ?? "" : "",
     }),
-    [title, description, location, date, endDate, time, timeEnd, scheduleLater, schedulePublishDate, schedulePublishTime],
+    [
+      title,
+      description,
+      location,
+      date,
+      endDate,
+      time,
+      timeEnd,
+      requireRsvp,
+      registrationDeadlineDate,
+      registrationDeadlineTime,
+      scheduleLater,
+      schedulePublishDate,
+      schedulePublishTime,
+    ],
   );
 
   const validationOpts = useMemo(
@@ -237,6 +260,12 @@ export default function CreateEventScreen() {
                 event_end_date: toApiDate(endDate) ?? toApiDate(date),
                 event_time: toApiTime(time),
                 event_time_end: toApiTime(timeEnd),
+                registration_deadline_date: requireRsvp
+                  ? toApiDate(registrationDeadlineDate)
+                  : null,
+                registration_deadline_time: requireRsvp
+                  ? toApiTime(registrationDeadlineTime)
+                  : null,
                 event_capacity: capacity.trim() ? Number(capacity.trim()) : undefined,
                 requires_rsvp: requireRsvp,
                 ...(isAdmin
@@ -378,12 +407,41 @@ export default function CreateEventScreen() {
           ) : null}
           {showError("body", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("body", fieldErrorsLive)}</Text> : null}
 
+          <View style={styles.sectionGap}>
+            {renderFieldLabel("location-outline", t("events.location"), true)}
+          </View>
+          <LocaleTextInput
+            value={location}
+            onChangeText={(value) => {
+              setLocation(value);
+              touch("location");
+              clearError("location");
+            }}
+            placeholder={t("events.locationPlaceholder")}
+            placeholderTextColor="rgba(10, 10, 10, 0.5)"
+            style={[styles.input, showError("location", fieldErrorsLive) && styles.inputError]}
+            maxLength={LIMITS.location}
+          />
+          {showError("location", fieldErrorsLive) ? (
+            <Text style={styles.errorText}>{showError("location", fieldErrorsLive)}</Text>
+          ) : null}
+
           <NoticeCoverImageField
             value={coverImage}
             onChange={setCoverImage}
             uploading={uploadingImage}
             chooseSource
           />
+
+          <Text style={[styles.sectionTitle, styles.sectionGap]}>
+            {t("events.eventSchedule", { defaultValue: "Event schedule" })}
+          </Text>
+          <Text style={styles.optionSubtitle}>
+            {t("events.eventScheduleHint", {
+              defaultValue:
+                "When the event itself starts and ends—not when it appears in the app. It stays visible until the end date and time pass.",
+            })}
+          </Text>
 
           <View style={styles.sectionGap}>
             {renderFieldLabel("calendar-outline", t("events.startDate"), true)}
@@ -505,23 +563,6 @@ export default function CreateEventScreen() {
           ) : null}
 
           <View style={styles.sectionGap}>
-            {renderFieldLabel("location-outline", t('events.location'), true)}
-          </View>
-          <LocaleTextInput
-            value={location}
-            onChangeText={(t) => {
-              setLocation(t);
-              touch("location");
-              clearError("location");
-            }}
-            placeholder={t('events.locationPlaceholder')}
-            placeholderTextColor="rgba(10, 10, 10, 0.5)"
-            style={[styles.input, showError("location", fieldErrorsLive) && styles.inputError]}
-            maxLength={LIMITS.location}
-          />
-          {showError("location", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("location", fieldErrorsLive)}</Text> : null}
-
-          <View style={styles.sectionGap}>
             {renderFieldLabel("people-outline", t('events.capacity'), false)}
           </View>
           <LocaleTextInput
@@ -548,8 +589,89 @@ export default function CreateEventScreen() {
                 </View>
               </View>
             </View>
-            <CustomToggle value={requireRsvp} onValueChange={setRequireRsvp} />
+            <CustomToggle
+              value={requireRsvp}
+              onValueChange={(v) => {
+                setRequireRsvp(v);
+                if (!v) {
+                  setRegistrationDeadlineDate(null);
+                  setRegistrationDeadlineTime(null);
+                  clearError("registration_deadline_date");
+                  clearError("registration_deadline_time");
+                }
+              }}
+            />
           </View>
+
+          {requireRsvp ? (
+            <>
+              <Text style={[styles.sectionTitle, styles.sectionGap]}>
+                {t("events.registrationDeadline", { defaultValue: "Registration deadline" })}
+              </Text>
+              <Text style={styles.optionSubtitle}>
+                {t("events.registrationDeadlineHint", {
+                  defaultValue:
+                    "Residents can join only before this date and time. The event stays visible until it ends.",
+                })}
+              </Text>
+
+              <View style={styles.sectionGap}>
+                {renderFieldLabel(
+                  "calendar-outline",
+                  t("events.registrationLastDate", { defaultValue: "Registration last date" }),
+                  true,
+                )}
+              </View>
+              <SchedulePickerField
+                mode="date"
+                value={registrationDeadlineDate}
+                onChange={(v) => {
+                  setRegistrationDeadlineDate(v);
+                  touch("registration_deadline_date");
+                  clearError("registration_deadline_date");
+                  touchPublishScheduleFields();
+                }}
+                placeholder={t("events.selectDate", { defaultValue: "Select date" })}
+                inputStyle={[
+                  styles.input,
+                  showError("registration_deadline_date", fieldErrorsLive) && styles.inputError,
+                ]}
+              />
+              {showError("registration_deadline_date", fieldErrorsLive) ? (
+                <Text style={styles.errorText}>
+                  {showError("registration_deadline_date", fieldErrorsLive)}
+                </Text>
+              ) : null}
+
+              <View style={styles.sectionGap}>
+                {renderFieldLabel(
+                  "time-outline",
+                  t("events.registrationLastTime", { defaultValue: "Registration last time" }),
+                  true,
+                )}
+              </View>
+              <SchedulePickerField
+                mode="time"
+                value={registrationDeadlineTime}
+                onChange={(v) => {
+                  setRegistrationDeadlineTime(v);
+                  touch("registration_deadline_time");
+                  clearError("registration_deadline_time");
+                  touchPublishScheduleFields();
+                }}
+                placeholder={t("events.selectTime", { defaultValue: "Select time" })}
+                inputStyle={[
+                  styles.input,
+                  showError("registration_deadline_time", fieldErrorsLive) && styles.inputError,
+                ]}
+              />
+              {showError("registration_deadline_time", fieldErrorsLive) ? (
+                <Text style={styles.errorText}>
+                  {showError("registration_deadline_time", fieldErrorsLive)}
+                </Text>
+              ) : null}
+            </>
+          ) : null}
 
           {isAdmin ? (
             <>
@@ -677,6 +799,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: "rgba(0, 0, 0, 1)",
+    fontWeight: "700",
+  },
+  sectionTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: "#111827",
     fontWeight: "700",
   },
   required: {

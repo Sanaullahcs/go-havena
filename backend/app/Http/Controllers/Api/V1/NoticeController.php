@@ -360,6 +360,15 @@ class NoticeController extends Controller
             return response()->json(['message' => 'Approved community membership required'], 403);
         }
 
+        // After the registration deadline, residents can leave but cannot newly join/waitlist.
+        if ($validated['status'] !== 'not_going'
+            && $this->isEventRegistrationClosed($notice, (int) $notice->community_id)) {
+            return response()->json([
+                'message' => 'Registration for this event has closed.',
+                'errors'  => ['status' => ['Registration for this event has closed.']],
+            ], 422);
+        }
+
         $rsvpChange = null;
         $promotedUserIds = [];
 
@@ -532,6 +541,8 @@ class NoticeController extends Controller
             'event_end_date'  => 'nullable|date',
             'event_time'      => 'required|string|max:20',
             'event_time_end'  => 'required|string|max:20',
+            'registration_deadline_date' => 'nullable|date',
+            'registration_deadline_time' => 'nullable|string|max:20',
             'event_capacity' => 'nullable|integer|min:1|max:100000',
             'requires_rsvp'  => 'nullable|boolean',
         ], [
@@ -564,6 +575,18 @@ class NoticeController extends Controller
         if ($response = $this->assertContentScheduleWindow($validated)) {
             return $response;
         }
+        if ($response = $this->assertContentScheduleNotInPast($validated, $communityId)) {
+            return $response;
+        }
+        $requiresRsvp = $request->boolean('requires_rsvp');
+        if ($response = $this->assertRegistrationDeadlinePresent($validated, 'published', false, $requiresRsvp)) {
+            return $response;
+        }
+        if ($requiresRsvp) {
+            if ($response = $this->assertRegistrationDeadlineRules($validated, $communityId)) {
+                return $response;
+            }
+        }
 
         $id = DB::table('notices')->insertGetId([
             'community_id'   => $communityId,
@@ -577,8 +600,14 @@ class NoticeController extends Controller
             'event_end_date' => $validated['event_end_date'] ?? null,
             'event_time'     => $validated['event_time'],
             'event_time_end' => $validated['event_time_end'] ?? null,
+            'registration_deadline_date' => $requiresRsvp
+                ? ($validated['registration_deadline_date'] ?? null)
+                : null,
+            'registration_deadline_time' => $requiresRsvp
+                ? ($validated['registration_deadline_time'] ?? null)
+                : null,
             'event_capacity' => $this->parseEventCapacity($validated['event_capacity'] ?? null),
-            'requires_rsvp'  => $request->boolean('requires_rsvp'),
+            'requires_rsvp'  => $requiresRsvp,
             'status'         => 'draft',
             'review_status'  => 'pending',
             'is_global'      => false,
@@ -674,6 +703,8 @@ class NoticeController extends Controller
             'event_end_date'  => 'nullable|date',
             'event_time'      => 'nullable|string|max:20',
             'event_time_end'  => 'nullable|string|max:20',
+            'registration_deadline_date' => 'nullable|date',
+            'registration_deadline_time' => 'nullable|string|max:20',
             'event_capacity'  => 'nullable|integer|min:1|max:100000',
             'status'          => 'sometimes|in:draft,published,archived',
             'is_global'      => 'sometimes|boolean',
@@ -687,7 +718,10 @@ class NoticeController extends Controller
 
         $data = [];
 
-        foreach (['title', 'body', 'location', 'event_date', 'event_end_date', 'event_time', 'event_time_end', 'status'] as $field) {
+        foreach ([
+            'title', 'body', 'location', 'event_date', 'event_end_date', 'event_time', 'event_time_end',
+            'registration_deadline_date', 'registration_deadline_time', 'status',
+        ] as $field) {
             if (array_key_exists($field, $validated)) {
                 $data[$field] = $validated[$field];
             }
@@ -698,18 +732,52 @@ class NoticeController extends Controller
             || array_key_exists('event_end_date', $validated)
             || array_key_exists('event_time', $validated)
             || array_key_exists('event_time_end', $validated)
+            || array_key_exists('registration_deadline_date', $validated)
+            || array_key_exists('registration_deadline_time', $validated)
         ) {
             $scheduleCheck = [
                 'event_date'     => $data['event_date'] ?? $notice->event_date,
                 'event_end_date' => $data['event_end_date'] ?? $notice->event_end_date ?? null,
                 'event_time'     => $data['event_time'] ?? $notice->event_time,
                 'event_time_end' => $data['event_time_end'] ?? $notice->event_time_end,
+                'registration_deadline_date' => $data['registration_deadline_date']
+                    ?? $notice->registration_deadline_date
+                    ?? null,
+                'registration_deadline_time' => $data['registration_deadline_time']
+                    ?? $notice->registration_deadline_time
+                    ?? null,
             ];
             $this->normalizeEventEndDate($scheduleCheck);
             if ($response = $this->assertContentScheduleWindow($scheduleCheck)) {
                 return $response;
             }
             $data['event_end_date'] = $scheduleCheck['event_end_date'] ?? null;
+
+            if ($notice->category === 'event') {
+                $nextStatus = $data['status'] ?? $notice->status;
+                $hasScheduled = array_key_exists('scheduled_at', $validated)
+                    ? $validated['scheduled_at'] !== null
+                    : ! empty($notice->scheduled_at);
+                $nextRequiresRsvp = array_key_exists('requires_rsvp', $validated)
+                    ? (bool) $validated['requires_rsvp']
+                    : (bool) ($notice->requires_rsvp ?? false);
+                if ($response = $this->assertRegistrationDeadlinePresent(
+                    $scheduleCheck,
+                    $nextStatus,
+                    $hasScheduled,
+                    $nextRequiresRsvp,
+                )) {
+                    return $response;
+                }
+                if ($nextRequiresRsvp) {
+                    if ($response = $this->assertRegistrationDeadlineRules(
+                        $scheduleCheck,
+                        (int) $notice->community_id,
+                    )) {
+                        return $response;
+                    }
+                }
+            }
         }
 
         if (array_key_exists('image_url', $validated)) {
@@ -747,6 +815,51 @@ class NoticeController extends Controller
                 $data['requires_rsvp'] = (bool) $validated['requires_rsvp'];
             }
 
+            $nextRequiresRsvp = array_key_exists('requires_rsvp', $data)
+                ? (bool) $data['requires_rsvp']
+                : (bool) ($notice->requires_rsvp ?? false);
+
+            if (! $nextRequiresRsvp) {
+                // RSVP off → registration deadline does not apply.
+                if (
+                    array_key_exists('requires_rsvp', $validated)
+                    || array_key_exists('registration_deadline_date', $validated)
+                    || array_key_exists('registration_deadline_time', $validated)
+                ) {
+                    $data['registration_deadline_date'] = null;
+                    $data['registration_deadline_time'] = null;
+                }
+            } else {
+                $deadlineCheck = [
+                    'event_date' => $data['event_date'] ?? $notice->event_date,
+                    'event_time' => $data['event_time'] ?? $notice->event_time,
+                    'registration_deadline_date' => $data['registration_deadline_date']
+                        ?? $notice->registration_deadline_date
+                        ?? null,
+                    'registration_deadline_time' => $data['registration_deadline_time']
+                        ?? $notice->registration_deadline_time
+                        ?? null,
+                ];
+                $nextStatus = $data['status'] ?? $notice->status;
+                $hasScheduled = array_key_exists('scheduled_at', $validated)
+                    ? $validated['scheduled_at'] !== null
+                    : ! empty($notice->scheduled_at);
+                if ($response = $this->assertRegistrationDeadlinePresent(
+                    $deadlineCheck,
+                    $nextStatus,
+                    $hasScheduled,
+                    true,
+                )) {
+                    return $response;
+                }
+                if ($response = $this->assertRegistrationDeadlineRules(
+                    $deadlineCheck,
+                    (int) $notice->community_id,
+                )) {
+                    return $response;
+                }
+            }
+
             if (array_key_exists('scheduled_at', $validated)) {
                 $scheduledAt = NoticeSchedule::normalizeForStorage(
                     $validated['scheduled_at'],
@@ -755,6 +868,12 @@ class NoticeController extends Controller
                 $scheduleFields = [
                     'event_date' => $data['event_date'] ?? $notice->event_date,
                     'event_time' => $data['event_time'] ?? $notice->event_time,
+                    'registration_deadline_date' => $data['registration_deadline_date']
+                        ?? $notice->registration_deadline_date
+                        ?? null,
+                    'registration_deadline_time' => $data['registration_deadline_time']
+                        ?? $notice->registration_deadline_time
+                        ?? null,
                 ];
                 if ($response = $this->assertScheduledAtNotAfterStart(
                     $scheduledAt,
@@ -762,6 +881,15 @@ class NoticeController extends Controller
                     (int) $notice->community_id,
                 )) {
                     return $response;
+                }
+                if ($nextRequiresRsvp) {
+                    if ($response = $this->assertScheduledAtBeforeRegistrationDeadline(
+                        $scheduledAt,
+                        $scheduleFields,
+                        (int) $notice->community_id,
+                    )) {
+                        return $response;
+                    }
                 }
                 $data['scheduled_at'] = $scheduledAt;
 
@@ -867,7 +995,7 @@ class NoticeController extends Controller
         }
 
         $fresh = $this->baseQuery()->where('notices.id', $id)->first();
-        $noticeFields = ['title', 'body', 'category', 'location', 'image_url', 'event_date', 'event_end_date', 'event_time', 'event_time_end', 'event_capacity', 'status', 'is_global', 'is_pinned', 'scheduled_at', 'requires_rsvp', 'audience_type'];
+        $noticeFields = ['title', 'body', 'category', 'location', 'image_url', 'event_date', 'event_end_date', 'event_time', 'event_time_end', 'registration_deadline_date', 'registration_deadline_time', 'event_capacity', 'status', 'is_global', 'is_pinned', 'scheduled_at', 'requires_rsvp', 'audience_type'];
         ActivityLogService::recordUpdate(
             'notice_updated',
             'Notice',
@@ -1035,6 +1163,8 @@ class NoticeController extends Controller
             'event_end_date'     => 'nullable|date',
             'event_time'         => 'nullable|string|max:20',
             'event_time_end'     => 'nullable|string|max:20',
+            'registration_deadline_date' => 'nullable|date',
+            'registration_deadline_time' => 'nullable|string|max:20',
             'event_capacity'     => 'nullable|integer|min:1|max:100000',
             'status'             => 'nullable|in:draft,published,archived',
             'community_id'       => 'nullable|integer',
@@ -1068,6 +1198,18 @@ class NoticeController extends Controller
             return $response;
         }
 
+        if ($category === 'event') {
+            $requiresRsvp = $request->boolean('requires_rsvp');
+            if ($response = $this->assertRegistrationDeadlinePresent(
+                $validated,
+                $validated['status'] ?? 'published',
+                $request->filled('scheduled_at'),
+                $requiresRsvp,
+            )) {
+                return $response;
+            }
+        }
+
         if (array_key_exists('event_capacity', $validated) && $category !== 'event') {
             return response()->json(['message' => 'Capacity applies to events only'], 422);
         }
@@ -1095,6 +1237,15 @@ class NoticeController extends Controller
 
         if ($response = $this->assertContentScheduleNotInPast($validated, $communityId)) {
             return $response;
+        }
+
+        if ($category === 'event') {
+            $requiresRsvp = $request->boolean('requires_rsvp');
+            if ($requiresRsvp) {
+                if ($response = $this->assertRegistrationDeadlineRules($validated, $communityId)) {
+                    return $response;
+                }
+            }
         }
 
         if ($platformCreate) {
@@ -1128,6 +1279,11 @@ class NoticeController extends Controller
                 }
                 if ($response = $this->assertScheduledAtNotAfterStart($scheduledAt, $validated, $communityId)) {
                     return $response;
+                }
+                if ($category === 'event') {
+                    if ($response = $this->assertScheduledAtBeforeRegistrationDeadline($scheduledAt, $validated, $communityId)) {
+                        return $response;
+                    }
                 }
                 $status = 'draft';
             }
@@ -1167,6 +1323,12 @@ class NoticeController extends Controller
             'event_end_date'   => $validated['event_end_date'] ?? null,
             'event_time'       => $validated['event_time'] ?? null,
             'event_time_end'   => $validated['event_time_end'] ?? null,
+            'registration_deadline_date' => $category === 'event' && $requiresRsvp
+                ? ($validated['registration_deadline_date'] ?? null)
+                : null,
+            'registration_deadline_time' => $category === 'event' && $requiresRsvp
+                ? ($validated['registration_deadline_time'] ?? null)
+                : null,
             'event_capacity'   => $category === 'event'
                 ? $this->parseEventCapacity($validated['event_capacity'] ?? null)
                 : null,
@@ -1252,6 +1414,11 @@ class NoticeController extends Controller
             'event_end_date'   => $notice->event_end_date ?? null,
             'event_time'       => $notice->event_time,
             'event_time_end'   => $notice->event_time_end ?? null,
+            'registration_deadline_date' => $notice->registration_deadline_date ?? null,
+            'registration_deadline_time' => $notice->registration_deadline_time ?? null,
+            'is_registration_open' => $notice->category === 'event'
+                ? ! $this->isEventRegistrationClosed($notice, (int) $notice->community_id)
+                : null,
             'schedule_timezone' => $notice->category === 'event'
                 ? NoticeExpiry::resolveTimezone((int) $notice->community_id)
                 : null,
@@ -1709,7 +1876,7 @@ class NoticeController extends Controller
     }
 
     /**
-     * Scheduled publish must not be after the notice/alert start date/time.
+     * Scheduled publish must be strictly before the notice/alert/event start date/time.
      * When start time is omitted, only calendar dates are compared.
      */
     private function assertScheduledAtNotAfterStart(
@@ -1731,10 +1898,10 @@ class NoticeController extends Controller
         $tz = NoticeSchedule::resolveInputTimezone($communityId);
         $scheduledLocal = Carbon::parse($scheduledAtUtc, 'UTC')->setTimezone($tz);
 
-        $message = 'Publish date and time must be on or before the start date and time.';
+        $message = 'Publish date and time must be before the event start date and time.';
 
         if ($startTime === '') {
-            if ($scheduledLocal->toDateString() > $startDate) {
+            if ($scheduledLocal->toDateString() >= $startDate) {
                 return response()->json([
                     'message' => $message,
                     'errors'  => ['scheduled_at' => [$message]],
@@ -1755,7 +1922,7 @@ class NoticeController extends Controller
             $tz,
         );
 
-        if ($scheduledLocal->gt($startLocal)) {
+        if ($scheduledLocal->gte($startLocal)) {
             return response()->json([
                 'message' => $message,
                 'errors'  => ['scheduled_at' => [$message]],
@@ -1763,6 +1930,189 @@ class NoticeController extends Controller
         }
 
         return null;
+    }
+
+    private function assertScheduledAtBeforeRegistrationDeadline(
+        ?string $scheduledAtUtc,
+        array $validated,
+        int $communityId,
+    ): ?\Illuminate\Http\JsonResponse {
+        if ($scheduledAtUtc === null) {
+            return null;
+        }
+
+        $deadlineDate = isset($validated['registration_deadline_date'])
+            ? trim((string) $validated['registration_deadline_date'])
+            : '';
+        if ($deadlineDate === '') {
+            return null;
+        }
+
+        $deadlineDate = substr($deadlineDate, 0, 10);
+        $deadlineTime = isset($validated['registration_deadline_time'])
+            ? trim((string) $validated['registration_deadline_time'])
+            : '';
+        $tz = NoticeSchedule::resolveInputTimezone($communityId);
+        $scheduledLocal = Carbon::parse($scheduledAtUtc, 'UTC')->setTimezone($tz);
+        $message = 'Publish date and time must be before the registration deadline.';
+
+        if ($deadlineTime === '') {
+            if ($scheduledLocal->toDateString() >= $deadlineDate) {
+                return response()->json([
+                    'message' => $message,
+                    'errors'  => ['scheduled_at' => [$message]],
+                ], 422);
+            }
+
+            return null;
+        }
+
+        $minutes = $this->parseScheduleTimeToMinutes($deadlineTime);
+        if ($minutes === null) {
+            return null;
+        }
+
+        $deadlineLocal = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            sprintf('%s %02d:%02d:00', $deadlineDate, intdiv($minutes, 60), $minutes % 60),
+            $tz,
+        );
+
+        if ($scheduledLocal->gte($deadlineLocal)) {
+            return response()->json([
+                'message' => $message,
+                'errors'  => ['scheduled_at' => [$message]],
+            ], 422);
+        }
+
+        return null;
+    }
+
+    private function assertRegistrationDeadlinePresent(
+        array $validated,
+        string $status = 'published',
+        bool $hasScheduledPublish = false,
+        bool $requiresRsvp = false,
+    ): ?\Illuminate\Http\JsonResponse {
+        // Registration deadline applies only when RSVP / join is enabled.
+        if (! $requiresRsvp) {
+            return null;
+        }
+
+        if ($status === 'draft' && ! $hasScheduledPublish) {
+            return null;
+        }
+
+        $missing = [];
+        if (empty($validated['registration_deadline_date'])) {
+            $missing['registration_deadline_date'] = ['Registration last date is required.'];
+        }
+        if (empty($validated['registration_deadline_time'])) {
+            $missing['registration_deadline_time'] = ['Registration last time is required.'];
+        }
+
+        if ($missing === []) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => 'Registration last date and time are required when RSVP is enabled.',
+            'errors'  => $missing,
+        ], 422);
+    }
+
+    private function assertRegistrationDeadlineRules(array $validated, int $communityId): ?\Illuminate\Http\JsonResponse
+    {
+        $deadlineDate = isset($validated['registration_deadline_date'])
+            ? trim((string) $validated['registration_deadline_date'])
+            : '';
+        if ($deadlineDate === '') {
+            return null;
+        }
+
+        $deadlineDate = substr($deadlineDate, 0, 10);
+        $deadlineTime = isset($validated['registration_deadline_time'])
+            ? trim((string) $validated['registration_deadline_time'])
+            : '';
+        $now = NoticeExpiry::nowInTimezone($communityId);
+        $today = $now->toDateString();
+        $pastMessage = 'Please select a future date and time.';
+        $errors = [];
+
+        if ($deadlineDate < $today) {
+            $errors['registration_deadline_date'] = [$pastMessage];
+        } elseif ($deadlineDate === $today && $deadlineTime !== '') {
+            $minutes = $this->parseScheduleTimeToMinutes($deadlineTime);
+            $nowMinutes = ((int) $now->format('H')) * 60 + (int) $now->format('i');
+            if ($minutes !== null && $minutes <= $nowMinutes) {
+                $errors['registration_deadline_time'] = [$pastMessage];
+            }
+        }
+
+        $startDate = isset($validated['event_date']) ? substr(trim((string) $validated['event_date']), 0, 10) : '';
+        $startTime = isset($validated['event_time']) ? trim((string) $validated['event_time']) : '';
+        if ($startDate !== '' && $deadlineDate !== '' && empty($errors)) {
+            $beforeStartMessage = 'Registration deadline must be before the event start date and time.';
+            if ($deadlineTime === '' || $startTime === '') {
+                if ($deadlineDate > $startDate) {
+                    $errors['registration_deadline_date'] = [$beforeStartMessage];
+                }
+            } else {
+                $deadlineMinutes = $this->parseScheduleTimeToMinutes($deadlineTime);
+                $startMinutes = $this->parseScheduleTimeToMinutes($startTime);
+                if ($deadlineMinutes !== null && $startMinutes !== null) {
+                    $deadlineStamp = sprintf('%s %04d', $deadlineDate, $deadlineMinutes);
+                    $startStamp = sprintf('%s %04d', $startDate, $startMinutes);
+                    if ($deadlineStamp >= $startStamp) {
+                        $errors['registration_deadline_time'] = [$beforeStartMessage];
+                    }
+                }
+            }
+        }
+
+        if ($errors === []) {
+            return null;
+        }
+
+        $message = reset($errors)[0] ?? $pastMessage;
+
+        return response()->json([
+            'message' => $message,
+            'errors'  => $errors,
+        ], 422);
+    }
+
+    private function isEventRegistrationClosed(object $notice, int $communityId): bool
+    {
+        $deadlineDate = isset($notice->registration_deadline_date)
+            ? substr(trim((string) $notice->registration_deadline_date), 0, 10)
+            : '';
+        if ($deadlineDate === '') {
+            return false;
+        }
+
+        $deadlineTime = isset($notice->registration_deadline_time)
+            ? trim((string) $notice->registration_deadline_time)
+            : '';
+        $now = NoticeExpiry::nowInTimezone($communityId);
+
+        if ($deadlineTime === '') {
+            return $now->toDateString() > $deadlineDate;
+        }
+
+        $minutes = $this->parseScheduleTimeToMinutes($deadlineTime);
+        if ($minutes === null) {
+            return $now->toDateString() > $deadlineDate;
+        }
+
+        $tz = NoticeSchedule::resolveInputTimezone($communityId);
+        $deadlineLocal = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            sprintf('%s %02d:%02d:00', $deadlineDate, intdiv($minutes, 60), $minutes % 60),
+            $tz,
+        );
+
+        return $now->gte($deadlineLocal);
     }
 
     /** Categories that require relevance date + start/end times on create. */

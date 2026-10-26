@@ -50,6 +50,28 @@ export function isNoticeExpiredForHome(notice, now = new Date()) {
   return false;
 }
 
+/**
+ * True when the event start date/time has passed.
+ * Used to drop events from the home Happening Soon carousel while lists
+ * can still show them until the full schedule window ends.
+ */
+export function isEventStartPassed(notice, now = new Date()) {
+  const dayKey = noticeDayKey(notice?.eventDate ?? notice?.event_date);
+  if (!dayKey) return false;
+
+  const todayKey = todayDayKey(now);
+  if (dayKey < todayKey) return true;
+  if (dayKey > todayKey) return false;
+
+  const startTime = notice.eventTime ?? notice.event_time;
+  const clock = parseClockTime(startTime);
+  if (!clock) return false;
+
+  const start = new Date(now);
+  start.setHours(clock.hour, clock.minute, 0, 0);
+  return now >= start;
+}
+
 export function isEventNotice(notice) {
   const category = String(notice?.category ?? "").trim().toLowerCase();
   return category === "event" || notice?.isEvent === true;
@@ -66,6 +88,7 @@ export function isFinanceNotice(notice) {
 }
 
 export function isCarouselNotice(notice) {
-  // Home hero shows announcements + alerts; events go to Happening Soon.
+  // Home hero: notices + alerts only. Events belong in Happening Soon.
+  // Pin-to-top for notices/alerts is applied in pickNeighborhoodCarousel.
   return Boolean(notice) && !isEventNotice(notice);
 }

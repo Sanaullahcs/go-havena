@@ -143,26 +143,33 @@ export function compareTimes(timeStart, timeEnd) {
 }
 
 /**
- * True when scheduled publish is strictly after the notice/alert start.
- * Missing start time compares calendar dates only.
+ * True when datetime A is on or after datetime B (A must be strictly before B).
  */
-export function isSchedulePublishAfterStart(scheduledDate, scheduledTime, startDate, startTime) {
-  const schedDay = String(scheduledDate ?? "").trim().slice(0, 10);
-  const startDay = String(startDate ?? "").trim().slice(0, 10);
-  if (!schedDay || !startDay) return false;
+export function isDateTimeOnOrAfter(aDate, aTime, bDate, bTime) {
+  const dayA = String(aDate ?? "").trim().slice(0, 10);
+  const dayB = String(bDate ?? "").trim().slice(0, 10);
+  if (!dayA || !dayB) return false;
 
-  const schedTime = String(scheduledTime ?? "").trim().slice(0, 5);
-  if (!schedTime || parseTimeMinutes(schedTime) == null) return false;
+  const timeA = String(aTime ?? "").trim().slice(0, 5);
+  if (!timeA || parseTimeMinutes(timeA) == null) return false;
 
-  const startTimeRaw = String(startTime ?? "").trim();
-  if (!startTimeRaw) {
-    return schedDay > startDay;
+  const timeBRaw = String(bTime ?? "").trim();
+  if (!timeBRaw) {
+    return dayA >= dayB;
   }
 
-  const startNorm = startTimeRaw.slice(0, 5);
-  if (parseTimeMinutes(startNorm) == null) return false;
+  const timeB = timeBRaw.slice(0, 5);
+  if (parseTimeMinutes(timeB) == null) return false;
 
-  return `${schedDay}T${schedTime}` > `${startDay}T${startNorm}`;
+  return `${dayA}T${timeA}` >= `${dayB}T${timeB}`;
+}
+
+/**
+ * True when scheduled publish is on or after the notice/alert/event start
+ * (publish must be strictly before start).
+ */
+export function isSchedulePublishAfterStart(scheduledDate, scheduledTime, startDate, startTime) {
+  return isDateTimeOnOrAfter(scheduledDate, scheduledTime, startDate, startTime);
 }
 
 /**
@@ -267,6 +274,21 @@ export function validateNoticeForm(form, opts = {}) {
     ) {
       errors.scheduled_time = i18n.t("validation.publishScheduleAfterStart");
     }
+
+    const regDate = String(form.registration_deadline_date ?? "").trim();
+    const regTime = String(form.registration_deadline_time ?? "").trim();
+    const rsvpOn = Boolean(form.requires_rsvp ?? form.requireRsvp);
+    if (
+      kind === "event" &&
+      rsvpOn &&
+      !errors.scheduled_date &&
+      !errors.scheduled_time &&
+      regDate &&
+      regTime &&
+      isDateTimeOnOrAfter(scheduledDate, scheduledTime, regDate, regTime)
+    ) {
+      errors.scheduled_time = i18n.t("validation.publishScheduleAfterRegistration");
+    }
   }
 
   const scheduleKinds = ["notice", "event", "alert"];
@@ -327,6 +349,45 @@ export function validateNoticeForm(form, opts = {}) {
       if (endMin <= nowMin) {
         errors.event_time_end = i18n.t("validation.endAfterNow");
       }
+    }
+  }
+
+  const registrationDate = String(form.registration_deadline_date ?? "").trim();
+  const registrationTime = String(form.registration_deadline_time ?? "").trim();
+  const requiresRsvp = Boolean(form.requires_rsvp ?? form.requireRsvp);
+
+  // Registration deadline is required only when RSVP / join is enabled.
+  if (kind === "event" && opts.publishNow && requiresRsvp) {
+    if (!registrationDate) {
+      errors.registration_deadline_date = i18n.t("validation.registrationDateRequired");
+    }
+    if (!registrationTime) {
+      errors.registration_deadline_time = i18n.t("validation.registrationTimeRequired");
+    }
+  }
+
+  if (kind === "event" && requiresRsvp && registrationDate) {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    if (registrationDate < today) {
+      errors.registration_deadline_date = i18n.t("validation.publishMustBeFuture");
+    } else if (registrationDate === today && registrationTime) {
+      const regMin = parseTimeMinutes(registrationTime);
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      if (regMin != null && regMin <= nowMin) {
+        errors.registration_deadline_time = i18n.t("validation.publishMustBeFuture");
+      }
+    }
+
+    if (
+      !errors.registration_deadline_date &&
+      !errors.registration_deadline_time &&
+      registrationTime &&
+      String(form.event_date ?? "").trim() &&
+      String(form.event_time ?? "").trim() &&
+      isDateTimeOnOrAfter(registrationDate, registrationTime, form.event_date, form.event_time)
+    ) {
+      errors.registration_deadline_time = i18n.t("validation.registrationBeforeStart");
     }
   }
 

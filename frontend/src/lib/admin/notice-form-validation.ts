@@ -1,11 +1,14 @@
 import { type FieldErrors } from "@/lib/admin/form-validation-utils";
 import { noticePlainTextError } from "@/lib/admin/notice-text-validation";
 import {
+  isDateTimeOnOrAfter,
   isNoticeDateInPast,
   isNoticeTimeInPast,
   isScheduleEndBeforeStart,
   isSchedulePublishAfterStart,
   NOTICE_FUTURE_TIME_MESSAGE,
+  NOTICE_REGISTRATION_AFTER_START_MESSAGE,
+  NOTICE_SCHEDULE_AFTER_REGISTRATION_MESSAGE,
   NOTICE_SCHEDULE_AFTER_START_MESSAGE,
   resolveEffectiveEndDate,
 } from "@/lib/admin/notice-schedule-utils";
@@ -19,6 +22,8 @@ export type NoticeFormLike = {
   event_end_date: string;
   event_time: string;
   event_time_end: string;
+  registration_deadline_date?: string;
+  registration_deadline_time?: string;
   event_capacity?: string;
   requires_rsvp?: boolean;
   is_pinned?: boolean;
@@ -153,6 +158,43 @@ export function validateNoticeForm(
     }
   }
 
+  const registrationDate = String(form.registration_deadline_date ?? "").trim();
+  const registrationTime = String(form.registration_deadline_time ?? "").trim();
+  const requiresRsvp = Boolean(form.requires_rsvp);
+
+  // Registration deadline is required only when RSVP / join is enabled.
+  if (kind === "event" && opts.publishNow && requiresRsvp) {
+    if (!registrationDate) {
+      errors.registration_deadline_date = "Registration last date is required.";
+    }
+    if (!registrationTime) {
+      errors.registration_deadline_time = "Registration last time is required.";
+    }
+  }
+
+  if (kind === "event" && requiresRsvp && registrationDate) {
+    if (enforceFutureTimes && isNoticeDateInPast(registrationDate, now, opts.timeZone)) {
+      errors.registration_deadline_date = pastMessage;
+    } else if (
+      enforceFutureTimes &&
+      registrationTime &&
+      isNoticeTimeInPast(registrationDate, registrationTime, now, opts.timeZone)
+    ) {
+      errors.registration_deadline_time = pastMessage;
+    }
+
+    if (
+      !errors.registration_deadline_date &&
+      !errors.registration_deadline_time &&
+      registrationTime &&
+      form.event_date.trim() &&
+      form.event_time.trim() &&
+      isDateTimeOnOrAfter(registrationDate, registrationTime, form.event_date, form.event_time)
+    ) {
+      errors.registration_deadline_time = NOTICE_REGISTRATION_AFTER_START_MESSAGE;
+    }
+  }
+
   if (SCHEDULE_KINDS.includes(kind) && form.schedule_later) {
     const scheduledDate = String(form.scheduled_at_date ?? "").trim();
     const scheduledTime = String(form.scheduled_at_time ?? "").trim();
@@ -182,6 +224,18 @@ export function validateNoticeForm(
         isSchedulePublishAfterStart(scheduledDate, scheduledTime, form.event_date, form.event_time)
       ) {
         errors.scheduled_at_time = NOTICE_SCHEDULE_AFTER_START_MESSAGE;
+      }
+
+      if (
+        kind === "event" &&
+        requiresRsvp &&
+        !errors.scheduled_at_date &&
+        !errors.scheduled_at_time &&
+        registrationDate &&
+        registrationTime &&
+        isDateTimeOnOrAfter(scheduledDate, scheduledTime, registrationDate, registrationTime)
+      ) {
+        errors.scheduled_at_time = NOTICE_SCHEDULE_AFTER_REGISTRATION_MESSAGE;
       }
     }
   }

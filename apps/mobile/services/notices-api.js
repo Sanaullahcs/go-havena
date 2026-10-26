@@ -7,12 +7,13 @@ import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
 import {
   isNoticeExpiredForHome,
   isCarouselNotice,
+  isEventStartPassed,
 } from "../utils/notice-home-expiry";
 import i18n, { localizedField } from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
 import { parseApiDate } from "../utils/parse-api-date";
 
-export { isNoticeExpiredForHome, isCarouselNotice };
+export { isNoticeExpiredForHome, isCarouselNotice, isEventStartPassed };
 
 /** Published/created instant only — never scheduled_at or event schedule fields. */
 function noticePublishedInstant(raw) {
@@ -257,6 +258,9 @@ export function normalizeNotice(raw) {
     eventEndDate: raw.event_end_date ?? null,
     eventTime: raw.event_time ?? null,
     eventTimeEnd: raw.event_time_end ?? null,
+    registrationDeadlineDate: raw.registration_deadline_date ?? null,
+    registrationDeadlineTime: raw.registration_deadline_time ?? null,
+    isRegistrationOpen: raw.is_registration_open !== false,
     eventSchedule: formatEventSchedule(raw),
     status: raw.status ?? "published",
     reviewStatus: raw.review_status ?? "approved",
@@ -422,14 +426,18 @@ export function formatDisplayTime12h(timeStr) {
   return `${hour}:${minute} ${suffix}`;
 }
 
-/** Latest published notices for the home hero carousel (excludes events and past schedules). */
+/**
+ * Home hero carousel: notices + alerts only (never events).
+ * Pin-to-top applies only among notices/alerts here — event pins are ignored
+ * because events are filtered out before sort.
+ */
 export function pickNeighborhoodCarousel(notices, limit = HOME_SECTION_CARD_LIMIT) {
   return [...notices]
     .filter(isCarouselNotice)
     .filter((n) => !isNoticeExpiredForHome(n))
     .sort((a, b) => {
-      const aAlert = a.isAlert ? 1 : 0;
-      const bAlert = b.isAlert ? 1 : 0;
+      const aAlert = a.isAlert || isAlertNotice(a) ? 1 : 0;
+      const bAlert = b.isAlert || isAlertNotice(b) ? 1 : 0;
       if (aAlert !== bAlert) return bAlert - aAlert;
 
       const aPin = a.isPinned ? 1 : 0;
@@ -443,12 +451,18 @@ export function pickNeighborhoodCarousel(notices, limit = HOME_SECTION_CARD_LIMI
     .slice(0, limit);
 }
 
-/** Home "Happening Soon" — upcoming events sorted by date (past dates hidden). */
+/** Home "Happening Soon" — events only; hide once the event start time has passed. */
 export function isUpcomingEventForHome(notice) {
   if (!notice?.isEvent && !isEventNotice(notice)) return false;
-  return !isNoticeExpiredForHome(notice);
+  if (isNoticeExpiredForHome(notice)) return false;
+  if (isEventStartPassed(notice)) return false;
+  return true;
 }
 
+/**
+ * Happening Soon: events only. Pin-to-top applies only among events here —
+ * notice/alert pins do not affect this list.
+ */
 export function pickUpcomingEvents(notices, limit = HOME_SECTION_CARD_LIMIT) {
   return notices
     .filter(isUpcomingEventForHome)
@@ -459,7 +473,8 @@ export function pickUpcomingEvents(notices, limit = HOME_SECTION_CARD_LIMIT) {
 
       const aT = a.eventDate ? new Date(a.eventDate).getTime() : Infinity;
       const bT = b.eventDate ? new Date(b.eventDate).getTime() : Infinity;
-      return aT - bT;
+      if (aT !== bT) return aT - bT;
+      return (Number(b.id) || 0) - (Number(a.id) || 0);
     })
     .slice(0, limit);
 }
@@ -678,6 +693,8 @@ export async function createEvent({
   event_end_date,
   event_time,
   event_time_end,
+  registration_deadline_date,
+  registration_deadline_time,
   event_capacity,
   requires_rsvp,
   is_pinned,
@@ -694,6 +711,8 @@ export async function createEvent({
       event_end_date,
       event_time,
       event_time_end,
+      registration_deadline_date,
+      registration_deadline_time,
       event_capacity,
       requires_rsvp,
       is_pinned,
@@ -713,6 +732,8 @@ export async function submitResidentEvent({
   event_end_date,
   event_time,
   event_time_end,
+  registration_deadline_date,
+  registration_deadline_time,
   event_capacity,
   requires_rsvp,
 }) {
@@ -727,6 +748,8 @@ export async function submitResidentEvent({
       event_end_date,
       event_time,
       event_time_end,
+      registration_deadline_date,
+      registration_deadline_time,
       event_capacity,
       requires_rsvp,
     },

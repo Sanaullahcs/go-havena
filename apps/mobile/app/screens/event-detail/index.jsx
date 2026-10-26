@@ -24,6 +24,7 @@ import { Fonts } from "../../../constants/font";
 import { sf, sw } from "../../../utils/responsive";
 import {
   fetchNotice,
+  formatDisplayTime12h,
   formatEventTimeRange,
   formatLongDate,
   isEventNotice,
@@ -132,6 +133,7 @@ const HERO_HEIGHT = SCREEN_WIDTH / HERO_ASPECT;
 const SCHEDULE_META = {
   date: { icon: "calendar", color: "#1B4F8A", bg: "#D1FAF5" },
   time: { icon: "clock", color: "#7C3AED", bg: "#F5F3FF" },
+  registration: { icon: "user-check", color: "#B45309", bg: "#FFFBEB" },
   location: { icon: "map-pin", color: "#059669", bg: "#ECFDF5" },
 };
 
@@ -254,30 +256,42 @@ export default function EventDetailScreen() {
     const dateLabel = event.eventDate ? formatEventDateLabel(event.eventDate, t) : null;
     const timeRange = formatEventTimeRange(event);
     const location = event.location?.trim();
+    const registrationDateLabel = event.registrationDeadlineDate
+      ? formatEventDateLabel(event.registrationDeadlineDate, t)
+      : null;
+    const registrationTimeLabel = formatDisplayTime12h(event.registrationDeadlineTime);
+    const registrationDetail = [registrationDateLabel, registrationTimeLabel].filter(Boolean).join(" · ");
 
     if (dateLabel) {
       items.push({
         id: "date",
-        title: t('events.date'),
+        title: t("events.date"),
         detail: dateLabel,
       });
     }
     if (timeRange) {
       items.push({
         id: "time",
-        title: t('events.time'),
+        title: t("events.time"),
         detail: timeRange,
+      });
+    }
+    if (registrationDetail) {
+      items.push({
+        id: "registration",
+        title: t("events.registrationDeadline", { defaultValue: "Registration deadline" }),
+        detail: registrationDetail,
       });
     }
     if (location) {
       items.push({
         id: "location",
-        title: t('events.location'),
+        title: t("events.location"),
         detail: location,
       });
     }
     return items;
-  }, [event]);
+  }, [event, t]);
 
   const hasHeroImage = Boolean(event?.imageUrl);
   const attendees = event?.attendees ?? [];
@@ -312,6 +326,14 @@ export default function EventDetailScreen() {
 
   const performJoin = async () => {
     if (!event?.id || joining || isOrganizer || hasEventEnded) return;
+    if (event?.isRegistrationOpen === false) {
+      setJoinError(
+        t("events.registrationClosedHint", {
+          defaultValue: "Registration for this event has closed.",
+        }),
+      );
+      return;
+    }
 
     const token = await getToken();
     if (!token) {
@@ -458,6 +480,12 @@ export default function EventDetailScreen() {
 
   const footerHint = useMemo(() => {
     if (hasEventEnded || isOrganizer || isJoined || leavePending) return null;
+    if (event?.isRegistrationOpen === false && !isWaitlisted) {
+      return t('events.registrationClosedHint', {
+        defaultValue:
+          'Registration for this event has closed. You can still view it until it ends.',
+      });
+    }
     if (isWaitlisted) {
       return event?.waitlistPosition
         ? t('events.waitlistPositionLabel', { position: event.waitlistPosition })
@@ -475,11 +503,15 @@ export default function EventDetailScreen() {
     return null;
   }, [event, hasCapacityLimit, hasEventEnded, isAtCapacity, isJoined, isOrganizer, isWaitlisted, leavePending, t]);
 
-  const canChangeRsvp = !hasEventEnded && isLiveEvent;
+  const registrationOpen = event?.isRegistrationOpen !== false;
+  // Join only before registration deadline; leave remains available after.
+  const canJoinRsvp = !hasEventEnded && isLiveEvent && registrationOpen && !isJoined && !isWaitlisted;
+  const canLeaveRsvp = !hasEventEnded && isLiveEvent && (isJoined || isWaitlisted);
+  const canChangeRsvp = canJoinRsvp || canLeaveRsvp;
   const showRsvpFooter =
     isLiveEvent &&
     requiresRsvp &&
-    (canChangeRsvp || isJoined || isWaitlisted || leavePending);
+    (canChangeRsvp || leavePending || (!registrationOpen && !isJoined && !isWaitlisted));
 
   if (loading) {
     return (

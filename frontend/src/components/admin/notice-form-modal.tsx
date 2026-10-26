@@ -37,6 +37,8 @@ export type NoticeFormValues = {
   event_end_date: string;
   event_time: string;
   event_time_end: string;
+  registration_deadline_date: string;
+  registration_deadline_time: string;
   event_capacity: string;
   image_url: string;
   status: "draft" | "published" | "archived";
@@ -70,6 +72,8 @@ const EMPTY_FORM: NoticeFormValues = {
   event_end_date: "",
   event_time: "",
   event_time_end: "",
+  registration_deadline_date: "",
+  registration_deadline_time: "",
   event_capacity: "",
   image_url: "",
   status: "draft",
@@ -107,6 +111,12 @@ function noticeToForm(notice: Notice): NoticeFormValues {
         : "",
     event_time: notice.event_time ? normalizeTimeValue(notice.event_time) : "",
     event_time_end: notice.event_time_end ? normalizeTimeValue(notice.event_time_end) : "",
+    registration_deadline_date: notice.registration_deadline_date
+      ? notice.registration_deadline_date.slice(0, 10)
+      : "",
+    registration_deadline_time: notice.registration_deadline_time
+      ? normalizeTimeValue(notice.registration_deadline_time)
+      : "",
     event_capacity: notice.event_capacity != null ? String(notice.event_capacity) : "",
     image_url: notice.image_url ?? "",
     status: (notice.status as NoticeFormValues["status"]) ?? "draft",
@@ -218,13 +228,13 @@ export default function NoticeFormModal({
   const scheduleHint = isAlertForm
     ? "When is this alert active for residents?"
     : isEventForm
-      ? "When should residents show up?"
+      ? "When the event itself starts and ends—not when it appears in the app. It stays visible until the end date and time pass."
       : "When is this notice relevant for residents?";
   const scheduleOptionalNote = isAlertForm
     ? "Alert date and start time are required. End date and end time are optional."
     : isNoticeForm
       ? "Start date and start time are required. End date and end time are optional."
-      : "Start/end date and start/end time are required.";
+      : "Enter the event’s real start and end date and time.";
 
   const formKind: NoticeFormKind = isEventForm ? "event" : isAlertForm ? "alert" : "notice";
   const enforceFutureTimes = mode === "create";
@@ -241,6 +251,8 @@ export default function NoticeFormModal({
       "event_end_date",
       "event_time",
       "event_time_end",
+      "registration_deadline_date",
+      "registration_deadline_time",
       "scheduled_at_date",
       "scheduled_at_time",
     ] as const;
@@ -411,6 +423,16 @@ export default function NoticeFormModal({
             form.event_end_date.trim() || (isEventForm ? form.event_date || undefined : undefined),
           event_time: form.event_time.trim() || undefined,
           event_time_end: form.event_time_end.trim() || undefined,
+          registration_deadline_date: isEventCategory
+            ? form.requires_rsvp && form.registration_deadline_date.trim()
+              ? form.registration_deadline_date.trim()
+              : null
+            : undefined,
+          registration_deadline_time: isEventCategory
+            ? form.requires_rsvp && form.registration_deadline_time.trim()
+              ? form.registration_deadline_time.trim()
+              : null
+            : undefined,
           event_capacity:
             isEventCategory && form.event_capacity.trim()
               ? Number(form.event_capacity.trim())
@@ -431,12 +453,40 @@ export default function NoticeFormModal({
         });
       } catch (err) {
         const fieldErrs = apiFieldErrors(err);
+        const mapped: FieldErrors = {};
         if (fieldErrs.scheduled_at) {
-          setErrors((prev) => ({ ...prev, scheduled_at_time: fieldErrs.scheduled_at }));
-          setTouched((prev) => ({ ...prev, scheduled_at_date: true, scheduled_at_time: true }));
-          setSubmitAttempted(true);
+          mapped.scheduled_at_time = fieldErrs.scheduled_at;
         }
-        const message = fieldErrs.scheduled_at || apiError(err);
+        if (fieldErrs.scheduled_at_date) mapped.scheduled_at_date = fieldErrs.scheduled_at_date;
+        if (fieldErrs.scheduled_at_time) mapped.scheduled_at_time = fieldErrs.scheduled_at_time;
+        if (fieldErrs.registration_deadline_date) {
+          mapped.registration_deadline_date = fieldErrs.registration_deadline_date;
+        }
+        if (fieldErrs.registration_deadline_time) {
+          mapped.registration_deadline_time = fieldErrs.registration_deadline_time;
+        }
+        if (fieldErrs.event_date) mapped.event_date = fieldErrs.event_date;
+        if (fieldErrs.event_time) mapped.event_time = fieldErrs.event_time;
+        if (fieldErrs.event_end_date) mapped.event_end_date = fieldErrs.event_end_date;
+        if (fieldErrs.event_time_end) mapped.event_time_end = fieldErrs.event_time_end;
+
+        if (Object.keys(mapped).length > 0) {
+          setErrors((prev) => ({ ...prev, ...mapped }));
+          setTouched((prev) => {
+            const next = { ...prev };
+            for (const key of Object.keys(mapped)) next[key] = true;
+            return next;
+          });
+          setSubmitAttempted(true);
+          focusFirstError(mapped);
+        }
+
+        const message =
+          mapped.scheduled_at_time ||
+          mapped.registration_deadline_time ||
+          mapped.registration_deadline_date ||
+          Object.values(mapped)[0] ||
+          apiError(err);
         setLocalError(message);
         toastError(message);
         throw err;
@@ -489,8 +539,17 @@ export default function NoticeFormModal({
 
         <div ref={formRef} className="nl-notice-modal-body">
           <div className="nl-notice-form">
+            {isEventForm ? (
+              <div className="nl-notice-schedule-head" style={{ marginBottom: "0.75rem" }}>
+                <div>
+                  <p className="nl-notice-schedule-title">Event details</p>
+                  <p className="nl-notice-schedule-hint">Name, description, and venue for this event.</p>
+                </div>
+              </div>
+            ) : null}
+
             <div className="nl-notice-field">
-              <FieldLabel required>Title</FieldLabel>
+              <FieldLabel required>{isEventForm ? "Event name" : "Title"}</FieldLabel>
               <ClearableInput
                 data-field="title"
                 value={form.title}
@@ -505,7 +564,7 @@ export default function NoticeFormModal({
                   set("title", e.target.value);
                 }}
                 className={inputClass(showError("title"), "nl-input w-full")}
-                placeholder="Community BBQ this Saturday"
+                placeholder={isEventForm ? "Community BBQ this Saturday" : "Community BBQ this Saturday"}
               />
               {showError("title") ? (
                 <FieldError>{showError("title")}</FieldError>
@@ -607,7 +666,7 @@ export default function NoticeFormModal({
 
             {!isAlertForm ? (
             <div className="nl-notice-field">
-              <FieldLabel required={isEventForm}>Location</FieldLabel>
+              <FieldLabel required={isEventForm}>{isEventForm ? "Location / Venue" : "Location"}</FieldLabel>
               <ClearableInput
                 data-field="location"
                 value={form.location}
@@ -699,8 +758,14 @@ export default function NoticeFormModal({
               <div className="nl-notice-schedule-grid">
                 <div>
                   <ThemedDatePicker
-                    label={isAlertForm ? "Alert date *" : "Start date *"}
-                    placeholder="Select date"
+                    label={
+                      isAlertForm
+                        ? "Alert date *"
+                        : isEventForm
+                          ? "Starts on *"
+                          : "Start date *"
+                    }
+                    placeholder={isEventForm ? "Select start date" : "Select date"}
                     icon={<IcoCalendarSmall />}
                     value={form.event_date}
                     fieldKey="event_date"
@@ -725,7 +790,7 @@ export default function NoticeFormModal({
                 </div>
                 <div>
                   <ThemedTimePicker
-                    label="Start time *"
+                    label={isEventForm ? "Starts at *" : "Start time *"}
                     placeholder="Select start time"
                     icon={<IcoClock />}
                     value={form.event_time}
@@ -746,7 +811,7 @@ export default function NoticeFormModal({
                 </div>
                 <div>
                   <ThemedDatePicker
-                    label={isEventForm ? "End date *" : "End date"}
+                    label={isEventForm ? "Ends on *" : "End date"}
                     placeholder="Select end date"
                     icon={<IcoCalendarSmall />}
                     value={form.event_end_date}
@@ -762,7 +827,7 @@ export default function NoticeFormModal({
                 </div>
                 <div>
                   <ThemedTimePicker
-                    label={isEventForm ? "End time *" : "End time"}
+                    label={isEventForm ? "Ends at *" : "End time"}
                     placeholder="Select end time"
                     icon={<IcoClock />}
                     value={form.event_time_end}
@@ -855,7 +920,18 @@ export default function NoticeFormModal({
                         <p className="nl-notice-option-title">Require RSVP</p>
                         <p className="nl-notice-schedule-note">Track attendance for this event</p>
                       </div>
-                      <FormToggle value={form.requires_rsvp} onChange={(v) => set("requires_rsvp", v)} />
+                      <FormToggle
+                        value={form.requires_rsvp}
+                        onChange={(v) => {
+                          set("requires_rsvp", v);
+                          if (!v) {
+                            set("registration_deadline_date", "");
+                            set("registration_deadline_time", "");
+                            clearFieldError("registration_deadline_date");
+                            clearFieldError("registration_deadline_time");
+                          }
+                        }}
+                      />
                     </div>
                   ) : null}
                   {!isAlertForm ? (
@@ -927,6 +1003,57 @@ export default function NoticeFormModal({
                       </div>
                     </div>
                   ) : null}
+                </div>
+              </section>
+            ) : null}
+
+            {isEventForm && form.requires_rsvp ? (
+              <section className="nl-notice-schedule">
+                <div className="nl-notice-schedule-head">
+                  <div>
+                    <p className="nl-notice-schedule-title">Registration deadline</p>
+                    <p className="nl-notice-schedule-hint">
+                      Residents can join only before this date and time. The event stays visible until it ends.
+                    </p>
+                  </div>
+                </div>
+                <div className="nl-notice-schedule-grid">
+                  <div>
+                    <ThemedDatePicker
+                      label="Registration last date *"
+                      placeholder="Select date"
+                      icon={<IcoCalendarSmall />}
+                      value={form.registration_deadline_date}
+                      fieldKey="registration_deadline_date"
+                      error={showError("registration_deadline_date")}
+                      onBlur={() => touch("registration_deadline_date")}
+                      onChange={(v) => {
+                        set("registration_deadline_date", v);
+                        noteScheduleIssues({ registration_deadline_date: v });
+                      }}
+                    />
+                    {showError("registration_deadline_date") ? (
+                      <FieldError>{showError("registration_deadline_date")}</FieldError>
+                    ) : null}
+                  </div>
+                  <div>
+                    <ThemedTimePicker
+                      label="Registration last time *"
+                      placeholder="Select time"
+                      icon={<IcoClock />}
+                      value={form.registration_deadline_time}
+                      fieldKey="registration_deadline_time"
+                      error={showError("registration_deadline_time")}
+                      onBlur={() => touch("registration_deadline_time")}
+                      onChange={(v) => {
+                        set("registration_deadline_time", v);
+                        noteScheduleIssues({ registration_deadline_time: v });
+                      }}
+                    />
+                    {showError("registration_deadline_time") ? (
+                      <FieldError>{showError("registration_deadline_time")}</FieldError>
+                    ) : null}
+                  </div>
                 </div>
               </section>
             ) : null}

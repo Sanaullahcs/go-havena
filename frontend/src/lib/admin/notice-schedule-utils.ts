@@ -232,11 +232,45 @@ export function toScheduleApiDateTime(date: string, time: string): string | unde
 export const NOTICE_FUTURE_TIME_MESSAGE = "Please select a future date and time.";
 
 export const NOTICE_SCHEDULE_AFTER_START_MESSAGE =
-  "Publish date and time must be on or before the start date and time.";
+  "Publish date and time must be before the event start date and time.";
+
+export const NOTICE_SCHEDULE_AFTER_REGISTRATION_MESSAGE =
+  "Publish date and time must be before the registration deadline.";
+
+export const NOTICE_REGISTRATION_AFTER_START_MESSAGE =
+  "Registration deadline must be before the event start date and time.";
 
 /**
- * True when scheduled publish is strictly after the notice/alert start.
- * Missing start time compares calendar dates only (schedule date must not be after start date).
+ * True when datetime A is on or after datetime B (invalid when A must be strictly before B).
+ * Missing B time compares calendar dates only.
+ */
+export function isDateTimeOnOrAfter(
+  aDate: string,
+  aTime: string,
+  bDate: string,
+  bTime: string,
+): boolean {
+  const dayA = aDate.trim().slice(0, 10);
+  const dayB = bDate.trim().slice(0, 10);
+  if (!dayA || !dayB) return false;
+
+  const timeA = parseFlexibleTime(aTime.trim()) ?? aTime.trim().slice(0, 5);
+  if (!timeA || parseTimeMinutes(timeA) == null) return false;
+
+  const timeBRaw = bTime.trim();
+  if (!timeBRaw) {
+    return dayA >= dayB;
+  }
+
+  const timeB = parseFlexibleTime(timeBRaw) ?? timeBRaw.slice(0, 5);
+  if (parseTimeMinutes(timeB) == null) return false;
+
+  return `${dayA}T${timeA}` >= `${dayB}T${timeB}`;
+}
+
+/**
+ * True when scheduled publish is on or after the notice/alert/event start
+ * (publish must be strictly before start).
  */
 export function isSchedulePublishAfterStart(
   scheduledDate: string,
@@ -244,24 +278,7 @@ export function isSchedulePublishAfterStart(
   startDate: string,
   startTime: string,
 ): boolean {
-  const schedDay = scheduledDate.trim().slice(0, 10);
-  const startDay = startDate.trim().slice(0, 10);
-  if (!schedDay || !startDay) return false;
-
-  const schedTime = parseFlexibleTime(scheduledTime.trim()) ?? scheduledTime.trim().slice(0, 5);
-  if (!schedTime || parseTimeMinutes(schedTime) == null) return false;
-
-  const startTimeRaw = startTime.trim();
-  if (!startTimeRaw) {
-    return schedDay > startDay;
-  }
-
-  const startNorm = parseFlexibleTime(startTimeRaw) ?? startTimeRaw.slice(0, 5);
-  if (parseTimeMinutes(startNorm) == null) return false;
-
-  const schedStamp = `${schedDay}T${schedTime}`;
-  const startStamp = `${startDay}T${startNorm}`;
-  return schedStamp > startStamp;
+  return isDateTimeOnOrAfter(scheduledDate, scheduledTime, startDate, startTime);
 }
 
 /** Calendar date + minute-of-day in a timezone (defaults to the browser local zone). */

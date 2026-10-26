@@ -319,7 +319,8 @@ export default function CommunityAdminDashboard() {
       setCreateKind(null);
       await load(true);
     } catch (err) {
-      toastError(apiError(err));
+      // Re-throw so NoticeFormModal can map field errors onto the form.
+      throw err;
     } finally {
       setCreating(false);
     }

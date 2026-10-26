@@ -430,7 +430,8 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
       setEditing(null);
       await load(true);
     } catch (err) {
-      toastError(apiError(err));
+      // Re-throw so NoticeFormModal can map field errors (e.g. registration deadline).
+      throw err;
     } finally {
       setSubmitting(false);
     }

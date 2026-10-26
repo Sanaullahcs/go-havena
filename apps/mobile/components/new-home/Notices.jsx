@@ -24,6 +24,7 @@ import {
   formatDisplayTime12h,
   formatShortDate,
   getCategoryTheme,
+  getNoticeDetailRoute,
 } from "../../services/notices-api";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
@@ -319,7 +320,9 @@ export default function Notices({ items = [], noticesLoaded = false }) {
   const carouselItems = useMemo(
     () =>
       items
-        .filter((n) => n && n.id && isHomeSectionEnabled(sessionUser, noticeFeatureKey(n)))
+        // Hero is notices + alerts only; events belong in Happening Soon.
+        .filter((n) => n && n.id && String(n.category ?? "").toLowerCase() !== "event" && !n.isEvent)
+        .filter((n) => isHomeSectionEnabled(sessionUser, noticeFeatureKey(n)))
         .slice(0, 7)
         .map((n) => mapNoticeToHero(n, t)),
     [items, sessionUser, t, i18n.language],
@@ -386,10 +389,7 @@ export default function Notices({ items = [], noticesLoaded = false }) {
   const openNotice = useCallback(
     (item) => {
       if (item.notice) {
-        router.push({
-          pathname: "/screens/notice-detail",
-          params: { id: String(item.notice.id) },
-        });
+        router.push(getNoticeDetailRoute(item.notice));
       } else {
         navigateAppRoute(router, PropertyManagementRoutes.NOTICES);
       }

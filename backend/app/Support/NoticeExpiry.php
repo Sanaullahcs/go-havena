@@ -157,15 +157,70 @@ SQL;
      * stored) is behind community-local now. Start time alone must not hide Edit
      * for same-day upcoming or ongoing events.
      */
+    public static function isEventSchedulePast(object $notice, ?int $communityId = null): bool
+    {
+        if (strtolower((string) ($notice->category ?? '')) !== 'event') {
+            return false;
+        }
+
+        return self::isExpired($notice, null, $communityId);
+    }
+
     /**
-     * Published, approved events whose schedule has not ended.
-     * Dated events with no end time stay active through the end date.
+     * True when the event start date/time has been reached (community-local).
+     * No start time on the start day means the event has not "started" yet for
+     * Upcoming / Happening Soon filters (it drops only after the end window).
+     */
+    public static function isEventStartPassed(object $notice, ?DateTimeInterface $now = null, ?int $communityId = null): bool
+    {
+        $communityId ??= isset($notice->community_id) ? (int) $notice->community_id : null;
+        $eventDate = isset($notice->event_date) ? trim((string) $notice->event_date) : '';
+        if ($eventDate === '') {
+            return false;
+        }
+
+        $dayKey = substr($eventDate, 0, 10);
+        $moment = $now instanceof Carbon
+            ? $now->copy()->setTimezone(self::resolveTimezone($communityId))
+            : ($now !== null
+                ? Carbon::instance($now)->setTimezone(self::resolveTimezone($communityId))
+                : self::nowInTimezone($communityId));
+
+        $today = $moment->toDateString();
+        if ($dayKey < $today) {
+            return true;
+        }
+        if ($dayKey > $today) {
+            return false;
+        }
+
+        $startTime = trim((string) ($notice->event_time ?? ''));
+        if ($startTime === '') {
+            return false;
+        }
+
+        [$hour, $minute] = self::parseClockTime($startTime);
+        if ($hour === null) {
+            return false;
+        }
+
+        $nowHour = (int) $moment->format('H');
+        $nowMinute = (int) $moment->format('i');
+
+        return $nowHour > $hour || ($nowHour === $hour && $nowMinute >= $minute);
+    }
+
+    /**
+     * Published, approved events whose start has not been reached yet.
+     * Used by admin Upcoming + dashboard upcoming_events (not the end window).
      *
      * @param  \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder  $query
      */
     public static function applyUpcomingEventConstraints($query, string $table = 'notices', ?int $communityId = null): void
     {
         $now = self::nowInTimezone($communityId);
+        $today = $now->toDateString();
+        $time = $now->format('H:i');
 
         $query->where("{$table}.category", 'event')
             ->where("{$table}.status", 'published')
@@ -174,16 +229,30 @@ SQL;
                     ->orWhere("{$table}.review_status", 'approved');
             });
 
-        self::applyActiveScheduleConstraints($query, $table, $now->toDateString(), $now->format('H:i'));
+        self::applyUpcomingStartConstraints($query, $table, $today, $time);
     }
 
-    public static function isEventSchedulePast(object $notice, ?int $communityId = null): bool
+    /**
+     * Keep rows whose event start is still in the future (community-local).
+     *
+     * @param  \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder  $query
+     */
+    public static function applyUpcomingStartConstraints($query, string $table, string $today, string $time): void
     {
-        if (strtolower((string) ($notice->category ?? '')) !== 'event') {
-            return false;
-        }
-
-        return self::isExpired($notice, null, $communityId);
+        $query->whereNotNull("{$table}.event_date")
+            ->where(function ($q) use ($table, $today, $time) {
+                $q->whereRaw("DATE({$table}.event_date) > ?", [$today])
+                    ->orWhere(function ($q2) use ($table, $today, $time) {
+                        $q2->whereRaw("DATE({$table}.event_date) = ?", [$today])
+                            ->where(function ($q3) use ($table, $time) {
+                                // No start clock → still "upcoming" for the day.
+                                $q3->whereNull("{$table}.event_time")
+                                    ->orWhere("{$table}.event_time", '')
+                                    ->orWhereRaw("TIME(STR_TO_DATE({$table}.event_time, '%H:%i')) > ?", [$time])
+                                    ->orWhereRaw("TIME(STR_TO_DATE({$table}.event_time, '%H:%i:%s')) > ?", [$time]);
+                            });
+                    });
+            });
     }
 
     /** @return array{0: ?int, 1: ?int} hour and minute, or nulls when invalid */

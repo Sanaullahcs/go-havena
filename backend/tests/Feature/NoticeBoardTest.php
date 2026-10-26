@@ -81,6 +81,9 @@ class NoticeBoardTest extends TestCase
             'event_end_date'  => $day,
             'event_time'      => '09:00',
             'event_time_end'  => '17:00',
+            // Included for event creates; ignored for notice/alert categories.
+            'registration_deadline_date' => $day,
+            'registration_deadline_time' => '08:00',
         ];
     }
 
@@ -291,13 +294,16 @@ class NoticeBoardTest extends TestCase
 
         Sanctum::actingAs($resident);
 
+        $day = now()->addDays(5)->toDateString();
         $create = $this->postJson('/api/v1/events', [
             'title'      => 'Block Party',
             'body'       => 'Bring a dish to share.',
             'location'   => 'Courtyard',
-            'event_date' => now()->addDays(5)->toDateString(),
+            'event_date' => $day,
             'event_time' => '17:00',
             'event_time_end' => '20:00',
+            'registration_deadline_date' => $day,
+            'registration_deadline_time' => '12:00',
         ])->assertCreated();
 
         $eventId = $create->json('data.id');
@@ -348,13 +354,16 @@ class NoticeBoardTest extends TestCase
 
         Sanctum::actingAs($resident);
 
+        $day = now()->addDays(4)->toDateString();
         $create = $this->postJson('/api/v1/events', [
             'title'          => 'My Courtyard Party',
             'body'           => 'Potluck.',
             'location'       => 'Courtyard',
-            'event_date'     => now()->addDays(4)->toDateString(),
+            'event_date'     => $day,
             'event_time'     => '18:00',
             'event_time_end' => '21:00',
+            'registration_deadline_date' => $day,
+            'registration_deadline_time' => '12:00',
         ])->assertCreated();
 
         $eventId = $create->json('data.id');
@@ -405,13 +414,16 @@ class NoticeBoardTest extends TestCase
 
         Sanctum::actingAs($resident);
 
+        $day = now()->addDays(2)->toDateString();
         $eventId = $this->postJson('/api/v1/events', [
             'title'          => 'Private Until Approved',
             'body'           => 'Details',
             'location'       => 'Clubhouse',
-            'event_date'     => now()->addDays(2)->toDateString(),
+            'event_date'     => $day,
             'event_time'     => '10:00',
             'event_time_end' => '12:00',
+            'registration_deadline_date' => $day,
+            'registration_deadline_time' => '08:00',
         ])->assertCreated()
             ->json('data.id');
 
@@ -426,13 +438,16 @@ class NoticeBoardTest extends TestCase
 
         Sanctum::actingAs($resident);
 
+        $day = now()->addDays(3)->toDateString();
         $create = $this->postJson('/api/v1/events', [
             'title'          => 'Resident Block Party',
             'body'           => 'Potluck in the courtyard.',
             'location'       => 'Courtyard',
-            'event_date'     => now()->addDays(3)->toDateString(),
+            'event_date'     => $day,
             'event_time'     => '18:00',
             'event_time_end' => '21:00',
+            'registration_deadline_date' => $day,
+            'registration_deadline_time' => '12:00',
             'requires_rsvp'  => true,
         ])->assertCreated();
 
@@ -457,13 +472,16 @@ class NoticeBoardTest extends TestCase
 
         Sanctum::actingAs($resident);
 
+        $day = now()->addDays(4)->toDateString();
         $create = $this->postJson('/api/v1/events', [
             'title'          => 'Garden Meetup',
             'body'           => 'Bring your plants.',
             'location'       => 'Community garden',
-            'event_date'     => now()->addDays(4)->toDateString(),
+            'event_date'     => $day,
             'event_time'     => '16:00',
             'event_time_end' => '18:00',
+            'registration_deadline_date' => $day,
+            'registration_deadline_time' => '12:00',
         ])->assertCreated();
 
         $eventId = $create->json('data.id');
@@ -518,13 +536,16 @@ class NoticeBoardTest extends TestCase
 
         Sanctum::actingAs($admin);
 
+        $day = now()->addDays(2)->toDateString();
         $create = $this->postJson('/api/v1/admin/events', [
             'title'          => 'Community BBQ',
             'body'           => 'Bring a side dish.',
             'location'       => 'Courtyard',
-            'event_date'     => now()->addDays(2)->toDateString(),
+            'event_date'     => $day,
             'event_time'     => '17:00',
             'event_time_end' => '20:00',
+            'registration_deadline_date' => $day,
+            'registration_deadline_time' => '12:00',
             'requires_rsvp'  => true,
         ])->assertCreated();
 
@@ -606,13 +627,16 @@ class NoticeBoardTest extends TestCase
 
         Sanctum::actingAs($admin);
 
+        $day = now()->addDays(2)->toDateString();
         $create = $this->postJson('/api/v1/admin/events', [
             'title'          => 'Small meetup',
             'body'           => 'Limited seats.',
             'location'       => 'Clubhouse',
-            'event_date'     => now()->addDays(2)->toDateString(),
+            'event_date'     => $day,
             'event_time'     => '17:00',
             'event_time_end' => '19:00',
+            'registration_deadline_date' => $day,
+            'registration_deadline_time' => '12:00',
             'event_capacity' => 1,
             'requires_rsvp'  => true,
         ])->assertCreated();
@@ -661,13 +685,16 @@ class NoticeBoardTest extends TestCase
 
         Sanctum::actingAs($admin);
 
+        $day = now()->addDays(3)->toDateString();
         $eventId = $this->postJson('/api/v1/admin/events', [
             'title'          => 'Waitlist promotion test',
             'body'           => 'One seat.',
             'location'       => 'Hall',
-            'event_date'     => now()->addDays(3)->toDateString(),
+            'event_date'     => $day,
             'event_time'     => '18:00',
             'event_time_end' => '20:00',
+            'registration_deadline_date' => $day,
+            'registration_deadline_time' => '12:00',
             'event_capacity' => 1,
             'requires_rsvp'  => true,
         ])->assertCreated()
@@ -717,13 +744,16 @@ class NoticeBoardTest extends TestCase
 
         Sanctum::actingAs($admin);
 
+        $day = now()->addDays(4)->toDateString();
         $eventId = $this->postJson('/api/v1/admin/events', [
             'title'          => 'Organizer waitlist view',
             'body'           => 'Queue test',
             'location'       => 'Park',
-            'event_date'     => now()->addDays(4)->toDateString(),
+            'event_date'     => $day,
             'event_time'     => '10:00',
             'event_time_end' => '12:00',
+            'registration_deadline_date' => $day,
+            'registration_deadline_time' => '08:00',
             'event_capacity' => 1,
             'requires_rsvp'  => true,
         ])->assertCreated()
@@ -779,13 +809,16 @@ class NoticeBoardTest extends TestCase
 
         Sanctum::actingAs($admin);
 
+        $day = now()->addDays(2)->toDateString();
         $create = $this->postJson('/api/v1/admin/events', [
             'title'          => 'Workshop',
             'body'           => 'Hands-on session.',
             'location'       => 'Room A',
-            'event_date'     => now()->addDays(2)->toDateString(),
+            'event_date'     => $day,
             'event_time'     => '14:00',
             'event_time_end' => '16:00',
+            'registration_deadline_date' => $day,
+            'registration_deadline_time' => '10:00',
             'event_capacity' => 5,
             'requires_rsvp'  => true,
         ])->assertCreated();
@@ -1274,6 +1307,35 @@ class NoticeBoardTest extends TestCase
             'location' => 'Park',
         ])->assertStatus(422)
             ->assertJsonPath('errors.event_time_end.0', 'End time is required.');
+
+        $day = now()->addDays(2)->toDateString();
+        // Without RSVP, registration deadline is not required.
+        $this->postJson('/api/v1/admin/events', [
+            'title'          => 'No RSVP event',
+            'body'           => 'Event schedule without registration deadline.',
+            'location'       => 'Park',
+            'event_date'     => $day,
+            'event_end_date' => $day,
+            'event_time'     => '17:00',
+            'event_time_end' => '20:00',
+            'requires_rsvp'  => false,
+        ])->assertCreated()
+            ->assertJsonPath('data.requires_rsvp', false)
+            ->assertJsonPath('data.registration_deadline_date', null)
+            ->assertJsonPath('data.registration_deadline_time', null);
+
+        // With RSVP enabled, registration deadline is required.
+        $this->postJson('/api/v1/admin/events', [
+            'title'          => 'Missing registration deadline',
+            'body'           => 'RSVP event without registration deadline.',
+            'location'       => 'Park',
+            'event_date'     => $day,
+            'event_end_date' => $day,
+            'event_time'     => '17:00',
+            'event_time_end' => '20:00',
+            'requires_rsvp'  => true,
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['registration_deadline_date', 'registration_deadline_time']);
 
         $this->postJson('/api/v1/admin/alerts', [
             'title' => 'No schedule alert',
