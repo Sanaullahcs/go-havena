@@ -3016,6 +3016,7 @@
     "unitPlaceholder": "e.g. 12B",
     "newUnit": "New unit",
     "existingUnit": "Existing unit",
+    "noOtherUnits": "You are already enrolled in every existing unit.",
     "homeowner": "Homeowner",
     "tenant": "Tenant",
     "attachUtility": "Attach utility bill",

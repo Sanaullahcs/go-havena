@@ -56,6 +56,26 @@ export default function MyUnitsScreen() {
     [units],
   );
 
+  const enrolledUnitNumbers = useMemo(() => {
+    const enrolled = new Set();
+    for (const unit of units) {
+      const status = String(unit.association_status || "active").toLowerCase();
+      if (status !== "active" && status !== "pending" && status !== "invite") continue;
+      const number = String(unit.unit_number ?? "").trim().toLowerCase();
+      if (number) enrolled.add(number);
+    }
+    return enrolled;
+  }, [units]);
+
+  const selectableCatalog = useMemo(
+    () =>
+      catalog.filter((row) => {
+        const number = String(row.unit_number ?? "").trim().toLowerCase();
+        return number && !enrolledUnitNumbers.has(number);
+      }),
+    [catalog, enrolledUnitNumbers],
+  );
+
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
@@ -300,21 +320,29 @@ export default function MyUnitsScreen() {
               />
             ) : (
               <ScrollView style={{ maxHeight: sw(140) }} nestedScrollEnabled>
-                {catalog.map((row) => {
-                  const selected = unitNumber === row.unit_number;
-                  return (
-                    <Pressable
-                      key={row.id}
-                      style={[styles.catalogRow, selected && styles.catalogRowOn]}
-                      onPress={() => setUnitNumber(row.unit_number)}
-                    >
-                      <Text style={[styles.catalogText, selected && styles.catalogTextOn]}>
-                        {row.unit_number}
-                      </Text>
-                      {selected ? <Feather name="check" size={16} color="#0F766E" /> : null}
-                    </Pressable>
-                  );
-                })}
+                {selectableCatalog.length === 0 ? (
+                  <Text style={styles.catalogEmpty}>
+                    {t("myUnits.noOtherUnits", {
+                      defaultValue: "You are already enrolled in every existing unit.",
+                    })}
+                  </Text>
+                ) : (
+                  selectableCatalog.map((row) => {
+                    const selected = unitNumber === row.unit_number;
+                    return (
+                      <Pressable
+                        key={row.id}
+                        style={[styles.catalogRow, selected && styles.catalogRowOn]}
+                        onPress={() => setUnitNumber(row.unit_number)}
+                      >
+                        <Text style={[styles.catalogText, selected && styles.catalogTextOn]}>
+                          {row.unit_number}
+                        </Text>
+                        {selected ? <Feather name="check" size={16} color="#0F766E" /> : null}
+                      </Pressable>
+                    );
+                  })
+                )}
               </ScrollView>
             )}
 
@@ -566,6 +594,13 @@ const styles = {
     fontSize: sf(14),
     color: "#0F172A",
     marginBottom: sw(8),
+  },
+  catalogEmpty: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    color: "#64748B",
+    paddingVertical: sw(12),
+    paddingHorizontal: sw(4),
   },
   catalogRow: {
     flexDirection: "row",

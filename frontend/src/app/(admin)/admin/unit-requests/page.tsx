@@ -53,7 +53,7 @@ export default function UnitRequestsPage() {
         kind: kind === "all" ? undefined : kind,
       });
       setRows(data);
-      setViewing((current) => (current ? data.find((row) => row.id === current.id) ?? current : null));
+      setViewing((current) => (current ? data.find((row) => row.id === current.id) ?? null : null));
     } catch (err) {
       setError(apiError(err));
     } finally {
@@ -77,7 +77,7 @@ export default function UnitRequestsPage() {
     const confirmed = await confirmAction({
       title: `Approve ${kindLabel(row.kind).toLowerCase()} request?`,
       text: `${row.resident_name || "Resident"} — ${row.unit_count} unit${row.unit_count === 1 ? "" : "s"}. All units in this package will be activated.`,
-      confirmText: "Approve all",
+      confirmText: "Approve",
       color: "blue",
     });
     if (!confirmed.isConfirmed) return;
@@ -86,6 +86,7 @@ export default function UnitRequestsPage() {
     try {
       await approveUnitRegistrationPackage(row.id);
       toastSuccess("Unit registration approved.");
+      setViewing(null);
       await load();
     } catch (err) {
       toastError(apiError(err));
@@ -108,6 +109,7 @@ export default function UnitRequestsPage() {
     try {
       await rejectUnitRegistrationPackage(row.id, String(result.value));
       toastSuccess("Unit registration rejected.");
+      setViewing(null);
       await load();
     } catch (err) {
       toastError(apiError(err));
@@ -212,7 +214,7 @@ export default function UnitRequestsPage() {
                     <AdminActionsMenu
                       actions={[
                         {
-                          label: busyId === row.id ? "Working…" : "Approve all",
+                          label: busyId === row.id ? "Working…" : "Approve",
                           icon: "approve",
                           tone: "primary",
                           onClick: () => void approve(row),
@@ -284,7 +286,7 @@ export default function UnitRequestsPage() {
                   Reject
                 </button>
                 <button type="button" className="nl-btn-primary" onClick={() => void approve(viewing)} disabled={busyId === viewing.id}>
-                  Approve all
+                  {busyId === viewing.id ? "Working…" : "Approve"}
                 </button>
               </div>
             ) : null}

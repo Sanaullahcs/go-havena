@@ -2991,6 +2991,7 @@
     "unitPlaceholder": "مثال: 12B",
     "newUnit": "وحدة جديدة",
     "existingUnit": "وحدة موجودة",
+    "noOtherUnits": "أنت مسجّل بالفعل في كل الوحدات الموجودة.",
     "homeowner": "مالك",
     "tenant": "مستأجر",
     "attachUtility": "إرفاق فاتورة مرافق",

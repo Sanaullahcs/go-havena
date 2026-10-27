@@ -2991,6 +2991,7 @@
     "unitPlaceholder": "p. ej. 12B",
     "newUnit": "Unidad nueva",
     "existingUnit": "Unidad existente",
+    "noOtherUnits": "Ya estás inscrito en todas las unidades existentes.",
     "homeowner": "Propietario",
     "tenant": "Inquilino",
     "attachUtility": "Adjuntar factura de servicios",
