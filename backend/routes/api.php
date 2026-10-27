@@ -156,6 +156,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/communities/{id}/units',      [UnitController::class, 'communityIndex'])->whereNumber('id');
         Route::post('/communities/{id}/units',     [UnitController::class, 'communityStore'])->whereNumber('id');
         Route::get('/units/mine',                  [UnitController::class, 'mine']);
+        Route::post('/units/mine/registration-packages', [UnitController::class, 'submitRegistrationPackage']);
+        Route::post('/units/mine/onboarding-units', [UnitController::class, 'completeOnboardingUnits']);
         Route::post('/units/mine/billing-contact-transfers', [UnitController::class, 'requestTransfer']);
         Route::patch('/billing-contact-transfers/{id}/accept', [UnitController::class, 'acceptTransfer'])->whereNumber('id');
         Route::patch('/billing-contact-transfers/{id}/reject', [UnitController::class, 'rejectTransfer'])->whereNumber('id');
@@ -541,6 +543,9 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/units/{id}',                   [UnitController::class, 'adminUpdate'])->whereNumber('id');
                 Route::delete('/units/{id}',                  [UnitController::class, 'adminDestroy'])->whereNumber('id');
                 Route::patch('/units/{id}/billing-contact',   [UnitController::class, 'adminTransfer'])->whereNumber('id');
+                Route::get('/unit-registration-packages',     [UnitController::class, 'adminPackagesIndex']);
+                Route::post('/unit-registration-packages/{id}/approve', [UnitController::class, 'adminApprovePackage'])->whereNumber('id');
+                Route::post('/unit-registration-packages/{id}/reject',  [UnitController::class, 'adminRejectPackage'])->whereNumber('id');
                 Route::get('/property-services',              [PropertyServiceController::class, 'adminIndex']);
                 Route::post('/property-services',             [PropertyServiceController::class, 'store']);
                 Route::patch('/property-services/{id}',       [PropertyServiceController::class, 'update'])->whereNumber('id');

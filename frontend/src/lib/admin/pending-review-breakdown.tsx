@@ -18,10 +18,12 @@ export function communityPendingReviewCategories(
     | "pending_amenity_reviews"
     | "pending_amenity_payments"
     | "pending_service_payments"
+    | "pending_unit_requests"
   >,
 ): PendingReviewCategory[] {
   return [
     { key: "members", label: "Members", count: stats.pending_members },
+    { key: "unit_requests", label: "Unit requests", count: stats.pending_unit_requests ?? 0 },
     { key: "listings", label: "Listings", count: stats.pending_listings ?? 0 },
     { key: "posts", label: "Posts", count: stats.pending_posts },
     { key: "bookings", label: "Bookings", count: stats.pending_bookings ?? 0 },
@@ -45,6 +47,7 @@ export function pendingReviewCategoriesForDisplay(
     | "pending_amenity_reviews"
     | "pending_amenity_payments"
     | "pending_service_payments"
+    | "pending_unit_requests"
   >,
 ): PendingReviewCategory[] {
   const all = communityPendingReviewCategories(stats);
@@ -67,6 +70,7 @@ export function PendingReviewBreakdown({
     | "pending_amenity_reviews"
     | "pending_amenity_payments"
     | "pending_service_payments"
+    | "pending_unit_requests"
   >;
 }) {
   if (stats.pending_approval_total <= 0) {

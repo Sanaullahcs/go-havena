@@ -19,7 +19,7 @@ import { fetchAchievements } from "../../../services/achievements-api";
 import { isCommunityAdmin } from "../../../services/community-access";
 import { useSessionUser } from "../../../hooks/use-session-user";
 import { isResidentFeatureEnabled } from "../../../constants/resident-features";
-import { getProfileFields } from "../../../utils/profile-display";
+import { formatResidentUnitLabel, getProfileFields } from "../../../utils/profile-display";
 import { useProfilePhoto } from "../../../hooks/use-profile-photo";
 import { sw, sf, hp } from "../../../utils/responsive";
 import { rnShadow } from "../../../utils/shadow";
@@ -72,7 +72,7 @@ export default function Profile() {
     onUpdated: (data) => setProfile(data),
     avatarUrl: fields.avatarUrl,
   });
-  const unitLine = fields.unitNumber ? t("profile.unit", { number: fields.unitNumber }) : null;
+  const unitLine = formatResidentUnitLabel(profile, t, "profile");
   const regionLine = fields.regionTitle || null;
   const roleKey = fields.role === "guest" ? "guest" : fields.role === "community_admin" || fields.role === "admin" ? "admin" : "resident";
   const roleLabel = t(`profile.roles.${roleKey}`);

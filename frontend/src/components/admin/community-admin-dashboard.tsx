@@ -57,6 +57,10 @@ import {
   createNotice,
   type NoticeFormData,
 } from "@/lib/api/notices";
+import {
+  approveUnitRegistrationPackage,
+  rejectUnitRegistrationPackage,
+} from "@/lib/api/property-services";
 import { apiError } from "@/lib/api/client";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { toastError, toastSuccess } from "@/lib/alert";
@@ -278,6 +282,14 @@ export default function CommunityAdminDashboard() {
             await rejectNotice(action.id);
             toastSuccess(`${action.type === "event" ? "Event" : action.type === "alert" ? "Alert" : "Notice"} rejected`);
           }
+        } else if (action.type === "unit_registration") {
+          if (verb === "approve") {
+            await approveUnitRegistrationPackage(action.id);
+            toastSuccess("Unit request approved");
+          } else {
+            await rejectUnitRegistrationPackage(action.id, String(result.value ?? "").trim());
+            toastSuccess("Unit request rejected");
+          }
         }
         await load(true);
       } catch (err) {
@@ -297,6 +309,7 @@ export default function CommunityAdminDashboard() {
     "notice",
     "event",
     "alert",
+    "unit_registration",
   ]);
 
   const handleCreate = async (payload: NoticeFormData) => {
@@ -508,6 +521,14 @@ export default function CommunityAdminDashboard() {
       desc: "Manage unit billing contacts",
       tone: "slate",
       icon: dashIcon(Users),
+    },
+    {
+      label: "Unit Requests",
+      href: "/admin/unit-requests",
+      desc: "Approve additional unit and signup packages",
+      badge: stats.pending_unit_requests ? `${stats.pending_unit_requests} pending` : undefined,
+      tone: "cyan",
+      icon: dashIcon(ClipboardList),
     },
     {
       label: "Services",

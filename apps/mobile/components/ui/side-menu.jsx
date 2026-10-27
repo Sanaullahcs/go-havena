@@ -32,11 +32,11 @@ import { confirmSignOut } from "../../services/sign-out";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 import { getUser, getCachedUser, subscribeSessionUser } from "../../services/auth-session";
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
-import { canSwitchModes, canSwitchToAdminMode, currentCommunityId, isGuestUser, isResidentMode } from "../../services/community-access";
+import { canSwitchModes, canSwitchToAdminMode, currentCommunityId, isCommunityAdmin, isGuestUser, isResidentMode } from "../../services/community-access";
 import { fetchMe, switchActiveContext } from "../../services/profile-api";
 import { syncRoleFromUser } from "../../constants/role-session";
 import { navigateAfterAuth } from "../../constants/onboarding-routes";
-import { getProfileFields } from "../../utils/profile-display";
+import { formatResidentUnitLabel, getProfileFields } from "../../utils/profile-display";
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import HavenaLogo from "./havena-logo";
 import HavenaWordmark from "./havena-wordmark";
@@ -210,6 +210,7 @@ function SideMenuPanel({ visible, onClose }) {
   }, [visible]);
 
   const profile = getProfileFields(user);
+  const unitLabel = formatResidentUnitLabel(user, t);
   const roleLabelKey = getRoleLabelKey(user);
   const isNewProfile =
     !profile.avatarUrl ||
@@ -304,6 +305,13 @@ function SideMenuPanel({ visible, onClose }) {
       : null,
     ...(user && !isGuestUser(user)
       ? [
+          !isCommunityAdmin(user)
+            ? {
+                iconName: "layers",
+                titleKey: "nav.myUnits",
+                route: "/screens/my-units",
+              }
+            : null,
           isResidentFeatureEnabled(user, "family")
             ? {
                 iconName: "users",
@@ -511,8 +519,8 @@ function SideMenuPanel({ visible, onClose }) {
                     {profile.displayName || profile.displayPhone || t("nav.welcome")}
                   </Text>
                   <Text style={styles.profileAddress} numberOfLines={2}>
-                    {profile.unitNumber
-                      ? `${profile.communityName} · ${t("nav.unit", { number: profile.unitNumber })}`
+                    {unitLabel
+                      ? `${profile.communityName} · ${unitLabel}`
                       : profile.communityName}
                   </Text>
                   {!isNewProfile ? (

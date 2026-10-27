@@ -63,6 +63,9 @@ export async function initI18n() {
   cachedLanguage = lng;
 
   if (i18n.isInitialized) {
+    i18n.addResourceBundle("en", "translation", en, true, true);
+    i18n.addResourceBundle("es", "translation", es, true, true);
+    i18n.addResourceBundle("ar", "translation", ar, true, true);
     if (i18n.language !== lng) {
       await i18n.changeLanguage(lng);
     }

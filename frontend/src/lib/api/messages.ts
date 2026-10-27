@@ -39,6 +39,7 @@ export type CommunityMember = {
   name: string;
   avatar_url?: string | null;
   unit?: string | null;
+  units?: string[];
   role?: string;
 };
 

@@ -701,7 +701,12 @@ export function ProvisionUserModal({
                 </Field>
               </div>
             ) : type === "resident" ? (
-              <Field label="Region" required error={showError("region_id") ? errors.region_id : undefined}>
+              <Field
+                label="Region"
+                required
+                className="sm:col-span-2"
+                error={showError("region_id") ? errors.region_id : undefined}
+              >
                 <ThemedSelect
                   fieldKey="region_id"
                   value={regionValue ? String(regionValue) : ""}

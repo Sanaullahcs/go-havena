@@ -116,6 +116,7 @@ class DashboardController extends Controller
         $pendingAmenityReviews = 0;
         $pendingAmenityPayments = 0;
         $pendingServicePayments = 0;
+        $pendingUnitRequests = 0;
         if ($communityId) {
             $pendingAmenityReviews = (int) DB::table('amenities')
                 ->where('community_id', $communityId)
@@ -124,6 +125,7 @@ class DashboardController extends Controller
             $viewerId = (int) ($request->user()?->id ?? 0);
             $pendingAmenityPayments = $amenityBills->countCommunityAdminReviewablePendingPayments($communityId, $viewerId);
             $pendingServicePayments = $serviceBills->countAdminPendingVerification($communityId);
+            $pendingUnitRequests = $this->countPendingUnitRegistrationPackages($communityId);
         }
 
         $communitiesQuery = Community::query();
@@ -342,6 +344,7 @@ class DashboardController extends Controller
                     'pending_approval_total'     => $communityId
                         ? $pendingMembers + $pendingListings + $pendingPosts + $pendingBookings + $pendingBusinesses
                             + $pendingAmenityReviews + $pendingAmenityPayments + $pendingServicePayments
+                            + $pendingUnitRequests
                         : $pendingMembers + $pendingCommunityRequests + $pendingListings + $pendingCommunityAdmins,
                     'banned_members'             => $bannedMembers,
                     'open_reports'               => $openReports,
@@ -358,6 +361,7 @@ class DashboardController extends Controller
                     'pending_amenity_reviews'    => $pendingAmenityReviews,
                     'pending_amenity_payments'   => $pendingAmenityPayments,
                     'pending_service_payments'   => $pendingServicePayments,
+                    'pending_unit_requests'      => $pendingUnitRequests,
                     'total_communities'          => $totalCommunities,
                     'active_regions'             => $activeRegions,
                     'pending_community_requests' => $pendingCommunityRequests,
@@ -427,6 +431,7 @@ class DashboardController extends Controller
         $pendingAmenityReviews = 0;
         $pendingAmenityPayments = 0;
         $pendingServicePayments = 0;
+        $pendingUnitRequests = 0;
         if ($communityId) {
             $pendingAmenityReviews = (int) DB::table('amenities')
                 ->where('community_id', $communityId)
@@ -435,6 +440,7 @@ class DashboardController extends Controller
             $viewerId = (int) ($request->user()?->id ?? 0);
             $pendingAmenityPayments = $amenityBills->countCommunityAdminReviewablePendingPayments($communityId, $viewerId);
             $pendingServicePayments = $serviceBills->countAdminPendingVerification($communityId);
+            $pendingUnitRequests = $this->countPendingUnitRegistrationPackages($communityId);
         }
 
         $businessesQuery = DB::table('businesses')->whereNull('deleted_at');
@@ -474,10 +480,12 @@ class DashboardController extends Controller
                 'pending_businesses'     => $pendingBusinesses,
                 'pending_posts'          => $pendingPosts,
                 'pending_approval_total' => $pendingMembers + $pendingCommunityRequests + $pendingPosts + $pendingListings + $pendingBookings + $pendingBusinesses
-                    + $pendingAmenityReviews + $pendingAmenityPayments + $pendingServicePayments,
+                    + $pendingAmenityReviews + $pendingAmenityPayments + $pendingServicePayments
+                    + $pendingUnitRequests,
                 'pending_amenity_reviews' => $pendingAmenityReviews,
                 'pending_amenity_payments' => $pendingAmenityPayments,
                 'pending_service_payments' => $pendingServicePayments,
+                'pending_unit_requests' => $pendingUnitRequests,
             ],
             'pending_actions' => $pendingActions,
             'generated_at'    => now()->toIso8601String(),
@@ -1021,6 +1029,8 @@ class DashboardController extends Controller
                 ->all();
         }
 
+        $unitRequests = $this->buildPendingUnitRegistrationActions($communityId);
+
         return collect([
             ...$memberships,
             ...$familyAddRequests,
@@ -1034,6 +1044,7 @@ class DashboardController extends Controller
             ...$amenityReviews,
             ...$amenityPayments,
             ...$servicePayments,
+            ...$unitRequests,
         ])
             ->unique(fn (array $item) => ($item['type'] ?? '').':'.($item['id'] ?? ''))
             ->sortByDesc('created_at')
@@ -1080,5 +1091,84 @@ class DashboardController extends Controller
         }
 
         return url($url);
+    }
+
+    private function countPendingUnitRegistrationPackages(?int $communityId): int
+    {
+        if (! $communityId || ! Schema::hasTable('unit_registration_packages')) {
+            return 0;
+        }
+
+        return (int) DB::table('unit_registration_packages')
+            ->where('community_id', $communityId)
+            ->where('status', 'pending')
+            ->count();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function buildPendingUnitRegistrationActions(?int $communityId): array
+    {
+        if (! $communityId || ! Schema::hasTable('unit_registration_packages')) {
+            return [];
+        }
+
+        $packages = DB::table('unit_registration_packages as p')
+            ->join('users', 'users.id', '=', 'p.user_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->leftJoin('communities', 'communities.id', '=', 'p.community_id')
+            ->where('p.community_id', $communityId)
+            ->where('p.status', 'pending')
+            ->select([
+                'p.id',
+                'p.community_id',
+                'p.user_id',
+                'p.kind',
+                'p.created_at',
+                DB::raw('COALESCE(profiles.display_name, users.name) as resident_name'),
+                'users.email',
+                'users.phone',
+                'communities.name as community_name',
+            ])
+            ->orderByDesc('p.created_at')
+            ->limit(15)
+            ->get();
+
+        if ($packages->isEmpty()) {
+            return [];
+        }
+
+        $packageIds = $packages->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $itemsByPackage = DB::table('unit_registration_package_items')
+            ->whereIn('package_id', $packageIds)
+            ->orderBy('id')
+            ->get(['package_id', 'unit_number'])
+            ->groupBy('package_id');
+
+        return $packages->map(function ($row) use ($itemsByPackage) {
+            $unitNumbers = collect($itemsByPackage->get((int) $row->id, collect()))
+                ->map(fn ($item) => trim((string) $item->unit_number))
+                ->filter()
+                ->values()
+                ->all();
+            $unitLabel = $unitNumbers === []
+                ? 'unit request'
+                : (count($unitNumbers) === 1
+                    ? 'Unit '.$unitNumbers[0]
+                    : 'Units '.implode(', ', $unitNumbers));
+            $isAddon = ($row->kind ?? '') === 'addon';
+
+            return [
+                'type'         => 'unit_registration',
+                'id'           => (int) $row->id,
+                'user_id'      => (int) $row->user_id,
+                'community_id' => (int) $row->community_id,
+                'title'        => PhoneNormalizer::displayName($row->resident_name, $row->phone, $row->email),
+                'subtitle'     => $row->community_name ?? 'Community',
+                'detail'       => ($isAddon ? 'Additional unit · ' : 'Unit registration · ').$unitLabel,
+                'created_at'   => $row->created_at,
+                'action_label' => 'Review unit request',
+                'action_href'  => '/admin/unit-requests',
+            ];
+        })->all();
     }
 }

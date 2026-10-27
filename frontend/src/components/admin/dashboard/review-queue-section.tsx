@@ -12,6 +12,7 @@ import {
   Calendar,
   AlertTriangle,
   Building2,
+  Home,
   X,
 } from "lucide-react";
 import type { AdminDashboardPendingAction } from "@/lib/api/dashboard";
@@ -37,6 +38,7 @@ const TYPE_META: Record<
   amenity_review: { tone: "cyan", icon: Building2, accent: "#0891B2", soft: "#ECFEFF" },
   amenity_payment: { tone: "amber", icon: FileText, accent: "#D97706", soft: "#FFFBEB" },
   service_payment: { tone: "amber", icon: FileText, accent: "#F59E0B", soft: "#FFFBEB" },
+  unit_registration: { tone: "cyan", icon: Home, accent: "#0D9488", soft: "#F0FDFA" },
 };
 
 function ReviewQueueRow({

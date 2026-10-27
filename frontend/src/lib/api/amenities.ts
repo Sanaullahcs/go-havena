@@ -81,6 +81,7 @@ export interface Booking {
   booking_bill?: AmenityMonthlyBill | null;
   user_name?: string;
   user_unit?: string | null;
+  user_units?: string[];
   created_at?: string | null;
   requested_at?: string | null;
 }

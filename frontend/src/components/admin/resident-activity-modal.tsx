@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { UserAvatar } from "@/components/admin/user-avatar";
+import { MemberUnitsLabel } from "@/components/admin/member-units-label";
 import { ThemedDatePicker } from "@/components/ui/themed-date-picker";
 import {
   fetchMemberActivityLogs,
@@ -502,7 +503,12 @@ export function ResidentActivityModal({ member, communityId, onClose }: Props) {
                 {member.name}
               </h3>
               <p className="nl-resident-activity-sub">
-                {member.unit_number ? `Unit ${member.unit_number}` : "Community member"}
+                <MemberUnitsLabel
+                  units={member.units}
+                  unitNumber={member.unit_number}
+                  variant="inline"
+                  empty="Community member"
+                />
                 {member.community_name ? ` · ${member.community_name}` : ""}
               </p>
               {meta && meta.total > 0 ? (

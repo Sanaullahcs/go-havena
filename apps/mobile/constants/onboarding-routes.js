@@ -100,6 +100,13 @@ export function getColdStartRoute(user) {
     };
   }
 
+  if (user?.pending_unit_package) {
+    return {
+      pathname: Routes.PENDING_COMMUNITY,
+      params: { role: activeRole, unitPackage: "1" },
+    };
+  }
+
   if (canAccessDashboard(user) && isProfileComplete(user)) {
     return { pathname: Routes.TABS_HOME, params: { role: activeRole } };
   }
@@ -154,6 +161,13 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
     return {
       pathname: Routes.COMPLETE_PROFILE,
       params: getCompleteProfileParams(user, onboardingRole),
+    };
+  }
+
+  if (user?.pending_unit_package) {
+    return {
+      pathname: Routes.PENDING_COMMUNITY,
+      params: { role: onboardingRole, unitPackage: "1" },
     };
   }
 

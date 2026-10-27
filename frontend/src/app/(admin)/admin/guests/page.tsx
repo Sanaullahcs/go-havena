@@ -2,11 +2,12 @@
 
 import { ClearableInput } from "@/components/admin/clearable-field";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Activity, Calendar, Check, ChevronLeft, ChevronRight, Clock, Eye, Info, LogIn, Mail, Phone, Plus, RefreshCw, Shield, UserPlus, X } from "lucide-react";
 import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { UserAvatar } from "@/components/admin/user-avatar";
+import { MemberUnitsLabel } from "@/components/admin/member-units-label";
 import { confirmAction, confirmDelete, confirmRejectWithReason, alertError, toastError, toastSuccess } from "@/lib/alert";
 import { apiError, apiFieldErrors } from "@/lib/api/client";
 import { PageLoader, PageError } from "@/components/shared/page-states";
@@ -187,10 +188,21 @@ function inviteTypeLabel(type: GuestInvitation["invitation_type"]) {
   return type === "admin" ? "Admin invite" : "Resident invite";
 }
 
-function invitedByLabel(guest: GuestInvitation) {
+function invitedByLabel(guest: GuestInvitation): ReactNode {
   if (guest.resident) {
     const name = guest.resident.display_name || guest.resident.name;
-    return guest.resident.unit_number ? `Invited by ${name} · Unit ${guest.resident.unit_number}` : `Invited by ${name}`;
+    const units = guest.resident.units?.length
+      ? guest.resident.units
+      : guest.resident.unit_number
+        ? [guest.resident.unit_number]
+        : [];
+    if (units.length === 0) return `Invited by ${name}`;
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1">
+        <span>Invited by {name} ·</span>
+        <MemberUnitsLabel units={units} variant="inline" empty={null} />
+      </span>
+    );
   }
   if (guest.invited_by) {
     return `Invited by ${guest.invited_by.display_name || guest.invited_by.name}`;

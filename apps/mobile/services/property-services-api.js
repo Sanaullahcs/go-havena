@@ -67,6 +67,37 @@ export async function fetchMyUnit() {
   return res.data ?? null;
 }
 
+/** Full multi-unit payload from GET /units/mine. */
+export async function fetchMyUnits() {
+  const res = await apiRequest("/units/mine");
+  const units = Array.isArray(res.units) ? res.units : res.data ? [res.data] : [];
+  return {
+    unit: res.data ?? units[0] ?? null,
+    units,
+    meta: res.meta ?? {},
+  };
+}
+
+export async function submitUnitRegistrationPackage({ kind, units }) {
+  const res = await apiRequest("/units/mine/registration-packages", {
+    method: "POST",
+    body: { kind, units },
+  });
+  return { data: res.data, message: res.message };
+}
+
+/** Complete-profile multi-unit + per-unit proofs (invite assign or initial package). */
+export async function completeOnboardingUnits({ units, communityId }) {
+  const res = await apiRequest("/units/mine/onboarding-units", {
+    method: "POST",
+    body: {
+      units,
+      ...(communityId ? { community_id: Number(communityId) } : {}),
+    },
+  });
+  return { data: res.data, message: res.message };
+}
+
 /** True when the signed-in resident is the unit's billing contact. */
 export function viewerIsBillingContact(unit, userId) {
   if (!unit) return false;
@@ -83,23 +114,33 @@ export function viewerIsBillingContact(unit, userId) {
 }
 
 export async function resolveViewerBillingAccess() {
-  const [unit, user] = await Promise.all([
-    fetchMyUnit().catch(() => null),
+  const [payload, user] = await Promise.all([
+    fetchMyUnits().catch(() => ({ unit: null, units: [], meta: {} })),
     getUser(),
   ]);
 
+  const active = (payload.units || []).filter(
+    (row) => (row.association_status || "active") === "active",
+  );
+  const billingUnits = active.filter((row) => viewerIsBillingContact(row, user?.id));
+  const unit = billingUnits[0] || payload.unit || active[0] || null;
+
   return {
     unit,
-    isBillingContact: viewerIsBillingContact(unit, user?.id),
+    units: active,
+    billingUnits,
+    isBillingContact: billingUnits.length > 0,
     contactName: unit?.billing_contact?.name || "",
+    meta: payload.meta || {},
   };
 }
 
-export async function requestBillingContactTransfer(nomineeUserId, message) {
+export async function requestBillingContactTransfer(nomineeUserId, message, unitId) {
   const res = await apiRequest("/units/mine/billing-contact-transfers", {
     method: "POST",
     body: {
       nominee_user_id: nomineeUserId,
+      ...(unitId ? { unit_id: unitId } : {}),
       ...(message ? { message } : {}),
     },
   });
@@ -126,19 +167,29 @@ export async function cancelBillingContactTransfer(id) {
 
 export async function fetchPropertyServices() {
   const res = await apiRequest("/property-services");
-  return { services: res.data ?? [], unit: res.unit ?? null };
+  return {
+    services: res.data ?? [],
+    unit: res.unit ?? null,
+    units: Array.isArray(res.units) ? res.units : res.unit ? [res.unit] : [],
+  };
 }
 
-export async function subscribeToPropertyService(id, note) {
+export async function subscribeToPropertyService(id, note, unitId) {
   const res = await apiRequest(`/property-services/${id}/subscribe`, {
     method: "POST",
-    body: note ? { note } : {},
+    body: {
+      ...(note ? { note } : {}),
+      ...(unitId ? { unit_id: unitId } : {}),
+    },
   });
   return { data: res.data, message: res.message };
 }
 
-export async function unsubscribeFromPropertyService(id) {
-  const res = await apiRequest(`/property-services/${id}/unsubscribe`, { method: "POST" });
+export async function unsubscribeFromPropertyService(id, unitId) {
+  const res = await apiRequest(`/property-services/${id}/unsubscribe`, {
+    method: "POST",
+    body: unitId ? { unit_id: unitId } : {},
+  });
   return res.data;
 }
 

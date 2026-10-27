@@ -1,0 +1,311 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Community;
+use App\Models\Region;
+use App\Models\User;
+use App\Services\CommunityBillingService;
+use App\Services\UnitAssignmentService;
+use App\Services\UnitRegistrationPackageService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+class MultiUnitResidentTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function seedCommunityWithAdmin(): array
+    {
+        $region = Region::query()->create([
+            'title' => 'Test Region',
+            'area' => 'Area',
+            'state' => 'ST',
+            'users_label' => '0',
+            'sort_order' => 1,
+            'status' => 'active',
+        ]);
+
+        $community = Community::query()->create([
+            'name' => 'Multi Unit Tower',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $admin = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status' => 'active',
+            'password' => Hash::make('password'),
+        ]);
+
+        DB::table('community_memberships')->insert([
+            'user_id' => $admin->id,
+            'community_id' => $community->id,
+            'role' => 'admin',
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        app(UnitAssignmentService::class)->assignUserToUnitNumber(
+            $community->id,
+            $admin->id,
+            'Office',
+            true,
+        );
+
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
+        return compact('community', 'admin');
+    }
+
+    public function test_resident_can_hold_multiple_active_units_in_one_community(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin();
+
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        DB::table('profiles')->insert([
+            'user_id' => $resident->id,
+            'display_name' => 'Multi Resident',
+            'unit_number' => '101',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('community_memberships')->insert([
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $units = app(UnitAssignmentService::class);
+        $units->assignUserToUnitNumber($community->id, $resident->id, '101', false, true, 'active', 'invite');
+        $units->assignUserToUnitNumber($community->id, $resident->id, '202', false, false, 'active', 'invite');
+
+        $this->assertSame(2, $units->activeUnitCountForUser($resident->id, $community->id));
+
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/units/mine')
+            ->assertOk()
+            ->assertJsonPath('meta.unit_count', 2)
+            ->assertJsonCount(2, 'units');
+    }
+
+    public function test_addon_package_approve_activates_unit_without_dropping_existing(): void
+    {
+        ['community' => $community] = $this->seedCommunityWithAdmin();
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        DB::table('profiles')->insert([
+            'user_id' => $resident->id,
+            'display_name' => 'Addon Resident',
+            'unit_number' => '10',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('community_memberships')->insert([
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $units = app(UnitAssignmentService::class);
+        $units->assignUserToUnitNumber($community->id, $resident->id, '10', false, true, 'active', 'invite');
+
+        $packages = app(UnitRegistrationPackageService::class);
+        $package = $packages->submitPackage($resident->id, $community->id, 'addon', [
+            [
+                'unit_number' => '11',
+                'is_new_unit' => true,
+                'residence_type' => 'homeowner',
+                'utility_bill_url' => '/storage/proofs/utility-11.jpg',
+                'ownership_proof_url' => '/storage/proofs/own-11.jpg',
+            ],
+        ]);
+
+        $this->assertSame(1, $units->activeUnitCountForUser($resident->id, $community->id));
+        $this->assertDatabaseHas('unit_registration_packages', [
+            'id' => $package->id,
+            'kind' => 'addon',
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseHas('unit_residents', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => UnitAssignmentService::RESIDENT_PENDING,
+            'source' => 'addon',
+        ]);
+
+        // Mine must keep association_status=pending (not collapse to unit.status=active).
+        Sanctum::actingAs($resident);
+        $mine = $this->getJson('/api/v1/units/mine')->assertOk();
+        $mine->assertJsonPath('meta.unit_count', 1);
+        $addonRow = collect($mine->json('units'))->firstWhere('unit_number', '11');
+        $this->assertNotNull($addonRow);
+        $this->assertSame('pending', $addonRow['association_status'] ?? null);
+
+        $admin = User::query()->where('role', 'community_admin')->firstOrFail();
+        $packages->approvePackage((int) $package->id, (int) $admin->id);
+
+        $this->assertSame(2, $units->activeUnitCountForUser($resident->id, $community->id));
+        $this->assertDatabaseHas('unit_residents', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => UnitAssignmentService::RESIDENT_ACTIVE,
+            'source' => 'addon',
+        ]);
+    }
+
+    public function test_addon_package_reject_only_marks_requested_unit_rejected(): void
+    {
+        ['community' => $community] = $this->seedCommunityWithAdmin();
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        DB::table('profiles')->insert([
+            'user_id' => $resident->id,
+            'display_name' => 'Addon Reject Resident',
+            'unit_number' => '20',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('community_memberships')->insert([
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $units = app(UnitAssignmentService::class);
+        $units->assignUserToUnitNumber($community->id, $resident->id, '20', false, true, 'active', 'invite');
+        $units->assignUserToUnitNumber($community->id, $resident->id, '21', false, false, 'active', 'invite');
+
+        $packages = app(UnitRegistrationPackageService::class);
+        $package = $packages->submitPackage($resident->id, $community->id, 'addon', [
+            [
+                'unit_number' => '22',
+                'is_new_unit' => true,
+                'residence_type' => 'tenant',
+                'utility_bill_url' => '/storage/proofs/utility-22.jpg',
+            ],
+        ]);
+
+        $admin = User::query()->where('role', 'community_admin')->firstOrFail();
+        $packages->rejectPackage((int) $package->id, (int) $admin->id, 'Unit proof unclear');
+
+        $this->assertSame(2, $units->activeUnitCountForUser($resident->id, $community->id));
+        $this->assertDatabaseHas('unit_residents', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => UnitAssignmentService::RESIDENT_REJECTED,
+            'source' => 'addon',
+        ]);
+        $this->assertDatabaseHas('unit_residents', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => UnitAssignmentService::RESIDENT_ACTIVE,
+        ]);
+
+        Sanctum::actingAs($resident);
+        $mine = $this->getJson('/api/v1/units/mine')->assertOk();
+        $mine->assertJsonPath('meta.unit_count', 2);
+        $rejected = collect($mine->json('units'))->firstWhere('unit_number', '22');
+        $this->assertSame('rejected', $rejected['association_status'] ?? null);
+        $this->assertSame('Unit proof unclear', $rejected['association_rejection_reason'] ?? null);
+    }
+
+    public function test_member_approve_clears_pending_initial_unit_package(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin();
+
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        DB::table('profiles')->insert([
+            'user_id' => $resident->id,
+            'display_name' => 'Pending Package Resident',
+            'unit_number' => '401',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('community_memberships')->insert([
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $packages = app(UnitRegistrationPackageService::class);
+        $package = $packages->submitPackage($resident->id, $community->id, 'initial', [
+            [
+                'unit_number' => '401',
+                'is_new_unit' => true,
+                'residence_type' => 'tenant',
+                'utility_bill_url' => '/storage/proofs/utility-401.jpg',
+            ],
+            [
+                'unit_number' => '402',
+                'is_new_unit' => true,
+                'residence_type' => 'tenant',
+                'utility_bill_url' => '/storage/proofs/utility-402.jpg',
+            ],
+        ]);
+
+        $this->assertTrue($packages->hasPendingInitialPackage($resident->id, $community->id));
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/v1/admin/members/{$resident->id}/approve", [
+            'community_id' => $community->id,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => 'approved',
+        ]);
+        $this->assertDatabaseHas('unit_registration_packages', [
+            'id' => $package->id,
+            'status' => 'approved',
+        ]);
+        $this->assertFalse($packages->hasPendingInitialPackage($resident->id, $community->id));
+        $this->assertTrue($packages->residentHasFullUnitAccess($resident->id, $community->id));
+    }
+
+    public function test_admin_invite_stores_multiple_invite_units(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin();
+        Sanctum::actingAs($admin);
+
+        $res = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Sara Khan',
+            'email' => 'sara.multi@havena.test',
+            'phone' => '+12025550199',
+            'role' => 'member',
+            'units' => ['301', '302'],
+            'community_id' => $community->id,
+        ]);
+
+        $res->assertCreated();
+        $userId = (int) $res->json('data.id');
+        $this->assertDatabaseHas('invite_unit_assignments', [
+            'user_id' => $userId,
+            'community_id' => $community->id,
+            'unit_number_normalized' => '301',
+        ]);
+        $this->assertDatabaseHas('invite_unit_assignments', [
+            'user_id' => $userId,
+            'community_id' => $community->id,
+            'unit_number_normalized' => '302',
+        ]);
+    }
+}

@@ -18,6 +18,7 @@ use App\Services\InviteCodeService;
 use App\Services\LifecycleMailService;
 use App\Services\MemberBatchInviteService;
 use App\Services\ResidentInviteService;
+use App\Services\UnitAssignmentService;
 use App\Models\CommunityMembership;
 use App\Services\MemberLifecycleStatus;
 use App\Services\MemberWelcomeNotification;
@@ -528,11 +529,16 @@ class MemberController extends Controller
             'email'        => 'required|email',
             'phone'        => 'required|string|max:30',
             'role'         => 'in:member,moderator,admin',
+            // Legacy single unit — still accepted. Prefer `units` for multi-unit invites.
             'unit_number'  => [
-                'required',
+                'required_without:units',
+                'nullable',
                 'string',
                 'max:20',
                 static function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
                     if (! is_string($value)) {
                         $fail('Please enter a valid Unit / Apartment number.');
                         return;
@@ -542,13 +548,43 @@ class MemberController extends Controller
                     }
                 },
             ],
+            'units' => 'required_without:unit_number|nullable|array|min:1|max:20',
+            'units.*' => [
+                'string',
+                'max:20',
+                static function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! is_string($value) || ! preg_match('/^[A-Za-z0-9 \/\\-]{1,20}$/', $value)) {
+                        $fail('Please enter a valid Unit / Apartment number.');
+                    }
+                },
+            ],
             'community_id' => 'integer',
         ], [
             'name.max' => 'Full Name can only contain letters, spaces, and full stops, with a maximum of 25 characters.',
             'name.regex' => 'Full Name can only contain letters, spaces, and full stops, with a maximum of 25 characters.',
-            'unit_number.required' => 'Unit / Apartment is required.',
+            'unit_number.required_without' => 'Unit / Apartment is required.',
             'unit_number.max' => 'Please enter a valid Unit / Apartment number.',
+            'units.required_without' => 'At least one unit is required.',
         ]);
+
+        $unitNumbers = [];
+        if ($request->filled('units') && is_array($request->input('units'))) {
+            foreach ($request->input('units') as $u) {
+                $trimmed = trim((string) $u);
+                if ($trimmed !== '') {
+                    $unitNumbers[] = $trimmed;
+                }
+            }
+        }
+        if ($unitNumbers === [] && $request->filled('unit_number')) {
+            $unitNumbers[] = trim((string) $request->unit_number);
+        }
+        if ($unitNumbers === []) {
+            throw ValidationException::withMessages([
+                'units' => ['At least one unit is required.'],
+            ]);
+        }
+        $primaryUnitNumber = $unitNumbers[0];
 
         $phone = PhoneNormalizer::accept($request->phone);
         if (! $phone) {
@@ -575,10 +611,11 @@ class MemberController extends Controller
                         (string) $request->name,
                         (string) $request->email,
                         $phone,
-                        (string) $request->unit_number,
+                        $primaryUnitNumber,
                         null,
                         (string) ($request->role ?? 'member'),
                     );
+                    $this->assignInviteUnits((int) ($sent['id'] ?? 0), $communityId, $unitNumbers);
 
                     return response()->json([
                         'data' => $sent,
@@ -596,10 +633,11 @@ class MemberController extends Controller
             (string) $request->name,
             (string) $request->email,
             $phone,
-            (string) $request->unit_number,
+            $primaryUnitNumber,
             null,
             (string) ($request->role ?? 'member'),
         );
+        $this->assignInviteUnits((int) ($sent['id'] ?? 0), $communityId, $unitNumbers);
 
         return response()->json([
             'data' => $sent,
@@ -1123,6 +1161,17 @@ class MemberController extends Controller
                 app(\App\Services\UnitAssignmentService::class)->syncUserToCommunity($userModel, (int) $communityId);
             } catch (\Throwable) {
             }
+            // Self-signup unit packages must clear with membership approval, otherwise
+            // /me keeps pending_unit_package=true and mobile stays on the wait screen.
+            try {
+                app(\App\Services\UnitRegistrationPackageService::class)
+                    ->approvePendingInitialPackagesForUser(
+                        (int) $id,
+                        (int) $communityId,
+                        (int) $request->user()->id,
+                    );
+            } catch (\Throwable) {
+            }
             FamilyService::promoteAddMemberAfterCommunityApproval(
                 $userModel,
                 (int) $communityId,
@@ -1466,6 +1515,7 @@ class MemberController extends Controller
             'rejection_reason' => $member->rejection_reason ?? null,
             'rejected_by'      => $member->rejected_by ?? null,
             'unit_number'    => $member->unit_number,
+            'units'          => $this->memberUnitsBrief($member, detailed: false),
             'avatar_url'     => $this->resolveMediaUrl($member->avatar_url ?? null),
             'display_name'   => $member->display_name,
             'utility_bill_url' => $this->resolveMediaUrl($member->utility_bill_url ?? null),
@@ -1473,6 +1523,7 @@ class MemberController extends Controller
         ];
 
         if ($detailed) {
+            $payload['units'] = $this->memberUnitsBrief($member, detailed: true);
             $payload['phone'] = $member->phone ?? null;
             $payload['bio'] = $member->bio ?? null;
             $payload['residence_type'] = $member->residence_type ?? null;
@@ -1756,5 +1807,199 @@ class MemberController extends Controller
         }
 
         return url($url);
+    }
+
+    /** @param  list<string>  $unitNumbers */
+    private function assignInviteUnits(int $userId, int $communityId, array $unitNumbers): void
+    {
+        if ($userId < 1 || $unitNumbers === []) {
+            return;
+        }
+
+        app(UnitAssignmentService::class)->storeInviteUnitAssignments($communityId, $userId, $unitNumbers);
+    }
+
+    /**
+     * @return list<array{
+     *   id: int|null,
+     *   unit_number: string,
+     *   association_status: string,
+     *   is_billing_contact: bool,
+     *   residence_type?: string|null,
+     *   utility_bill_url?: string|null
+     * }>
+     */
+    private function memberUnitsBrief(object $member, bool $detailed = false): array
+    {
+        $userId = (int) ($member->id ?? 0);
+        $communityId = isset($member->community_id) ? (int) $member->community_id : 0;
+        if ($userId < 1 || $communityId < 1) {
+            $fallback = trim((string) ($member->unit_number ?? ''));
+
+            return $fallback !== ''
+                ? [$this->formatMemberUnitRow(null, $fallback, 'active', false, $member, $detailed)]
+                : [];
+        }
+
+        $user = User::query()->find($userId);
+        if (! $user) {
+            $fallback = trim((string) ($member->unit_number ?? ''));
+
+            return $fallback !== ''
+                ? [$this->formatMemberUnitRow(null, $fallback, 'active', false, $member, $detailed)]
+                : [];
+        }
+
+        $units = app(UnitAssignmentService::class)->userUnitsBrief($user, $communityId);
+
+        // Table / hover labels: active units only. Profile detail keeps pending + rejected.
+        if (! $detailed) {
+            $units = array_values(array_filter(
+                $units,
+                fn (array $row) => ($row['association_status'] ?? 'active') === UnitAssignmentService::RESIDENT_ACTIVE,
+            ));
+        }
+
+        if ($units !== []) {
+            return array_map(
+                fn (array $row) => $this->formatMemberUnitRow(
+                    isset($row['id']) ? (int) $row['id'] : null,
+                    (string) ($row['unit_number'] ?? ''),
+                    (string) ($row['association_status'] ?? 'active'),
+                    (bool) ($row['is_billing_contact'] ?? false),
+                    $member,
+                    $detailed,
+                ),
+                $units,
+            );
+        }
+
+        // Invited but not yet synced — show pending invite unit rows.
+        if (\Illuminate\Support\Facades\Schema::hasTable('invite_unit_assignments')) {
+            $inviteUnits = DB::table('invite_unit_assignments')
+                ->where('community_id', $communityId)
+                ->where('user_id', $userId)
+                ->orderBy('sort_order')
+                ->pluck('unit_number')
+                ->map(fn ($n) => trim((string) $n))
+                ->filter()
+                ->values()
+                ->all();
+
+            if ($inviteUnits !== []) {
+                return array_map(
+                    fn (string $number) => $this->formatMemberUnitRow(null, $number, 'invite', false, $member, $detailed),
+                    $inviteUnits,
+                );
+            }
+        }
+
+        $fallback = trim((string) ($member->unit_number ?? ''));
+
+        return $fallback !== ''
+            ? [$this->formatMemberUnitRow(null, $fallback, 'active', false, $member, $detailed)]
+            : [];
+    }
+
+    /** @return array<string, mixed> */
+    private function formatMemberUnitRow(
+        ?int $unitId,
+        string $unitNumber,
+        string $status,
+        bool $isBillingContact,
+        object $member,
+        bool $detailed,
+    ): array {
+        $row = [
+            'id' => $unitId,
+            'unit_number' => $unitNumber,
+            'association_status' => $status,
+            'is_billing_contact' => $isBillingContact,
+        ];
+
+        if (! $detailed) {
+            return $row;
+        }
+
+        $userId = (int) ($member->id ?? 0);
+        $communityId = isset($member->community_id) ? (int) $member->community_id : 0;
+        $residenceType = null;
+        $utilityUrl = null;
+        $packageItemId = null;
+
+        $packageId = null;
+        if (\Illuminate\Support\Facades\Schema::hasTable('unit_registration_package_items')) {
+            $itemQuery = DB::table('unit_registration_package_items as items')
+                ->join('unit_registration_packages as packages', 'packages.id', '=', 'items.package_id')
+                ->where('packages.user_id', $userId)
+                ->where('packages.community_id', $communityId)
+                ->orderByRaw("CASE packages.status WHEN 'pending' THEN 0 WHEN 'rejected' THEN 1 ELSE 2 END")
+                ->orderByDesc('items.id');
+
+            if ($unitId) {
+                $itemQuery->where(function ($q) use ($unitId, $unitNumber) {
+                    $q->where('items.unit_id', $unitId)
+                        ->orWhere('items.unit_number', $unitNumber);
+                });
+            } else {
+                $itemQuery->where('items.unit_number', $unitNumber);
+            }
+
+            $item = $itemQuery->select(
+                'items.residence_type',
+                'items.id',
+                'packages.id as package_id',
+                'packages.status as package_status',
+            )->first();
+            if ($item) {
+                $residenceType = $item->residence_type ?: null;
+                $packageItemId = isset($item->id) ? (int) $item->id : null;
+                if (($item->package_status ?? '') === 'pending') {
+                    $packageId = isset($item->package_id) ? (int) $item->package_id : null;
+                }
+            }
+        }
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('unit_proof_documents')) {
+            $proofQuery = DB::table('unit_proof_documents')
+                ->where('user_id', $userId)
+                ->where('community_id', $communityId)
+                ->where('kind', 'utility_bill')
+                ->orderByDesc('id');
+
+            if ($packageItemId) {
+                $proofQuery->where(function ($q) use ($packageItemId, $unitId) {
+                    $q->where('package_item_id', $packageItemId);
+                    if ($unitId) {
+                        $q->orWhere('unit_id', $unitId);
+                    }
+                });
+            } elseif ($unitId) {
+                $proofQuery->where('unit_id', $unitId);
+            } else {
+                // No unit id or package item — skip ambiguous cross-unit proofs.
+                $proofQuery = null;
+            }
+
+            $proof = $proofQuery?->value('file_url');
+            if ($proof) {
+                $utilityUrl = $this->resolveMediaUrl((string) $proof);
+            }
+        }
+
+        // Profile-level utility_bill_url remains on the member payload for single-unit
+        // fallback in the admin UI; do not attach it to every multi-unit row.
+
+        if (! $residenceType) {
+            $residenceType = $member->residence_type ?? null;
+        }
+
+        $row['residence_type'] = $residenceType;
+        $row['utility_bill_url'] = $utilityUrl;
+        if ($packageId) {
+            $row['package_id'] = $packageId;
+        }
+
+        return $row;
     }
 }

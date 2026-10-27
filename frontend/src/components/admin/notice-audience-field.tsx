@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchMembers, type Member } from "@/lib/api/members";
 import { apiError } from "@/lib/api/client";
 import { UserAvatar } from "@/components/admin/user-avatar";
+import { MemberUnitsLabel } from "@/components/admin/member-units-label";
 
 type Props = {
   audienceType: "all" | "selected";
@@ -121,9 +122,13 @@ export function NoticeAudienceField({
                     <UserAvatar name={name} src={member.avatar_url} size={32} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-slate-900">{name}</span>
-                      {member.unit_number ? (
-                        <span className="block truncate text-xs text-slate-500">Unit {member.unit_number}</span>
-                      ) : null}
+                      <MemberUnitsLabel
+                        units={member.units}
+                        unitNumber={member.unit_number}
+                        variant="inline"
+                        empty={null}
+                        className="block truncate text-xs text-slate-500"
+                      />
                     </span>
                   </label>
                 );

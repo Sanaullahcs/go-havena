@@ -229,6 +229,8 @@ export function actionTypeLabel(type: AdminDashboardPendingAction["type"]) {
       return "Amenity bill";
     case "service_payment":
       return "Service bill";
+    case "unit_registration":
+      return "Unit request";
     default:
       return "Item";
   }
@@ -254,6 +256,8 @@ export function actionTypeStyle(type: AdminDashboardPendingAction["type"]) {
     case "booking":
     case "amenity_review":
       return "bg-cyan-50 text-cyan-800 ring-cyan-100";
+    case "unit_registration":
+      return "bg-teal-50 text-teal-800 ring-teal-100";
     default:
       return "bg-slate-100 text-slate-700 ring-slate-200";
   }

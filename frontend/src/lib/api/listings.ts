@@ -7,7 +7,7 @@ export interface Listing {
   id: number; type: string; category: string | null; condition: string | null; title: string; price: number | null;
   description: string; location: string | null; images: string[]; status: string;
   is_verified: boolean; is_saved: boolean; created_at: string;
-  seller_name: string; seller_unit: string | null; seller_avatar: string | null;
+  seller_name: string; seller_unit: string | null; seller_units?: string[]; seller_avatar: string | null;
 }
 
 export const LISTING_CONDITIONS = ["Like New", "Good", "Fair", "For Parts"] as const;

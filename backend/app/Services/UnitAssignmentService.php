@@ -20,6 +20,10 @@ class UnitAssignmentService
 
     public const RESIDENT_ACTIVE = 'active';
 
+    public const RESIDENT_PENDING = 'pending';
+
+    public const RESIDENT_REJECTED = 'rejected';
+
     public const RESIDENT_LEFT = 'left';
 
     public const PLACEHOLDER_UNITS = ['office', 'management office'];
@@ -87,31 +91,86 @@ class UnitAssignmentService
 
     public function findActiveUnitForUser(int $userId, int $communityId): ?object
     {
+        return $this->findActiveUnitsForUser($userId, $communityId)[0] ?? null;
+    }
+
+    /** @return list<object> */
+    public function findActiveUnitsForUser(int $userId, int $communityId): array
+    {
         return DB::table('unit_residents as ur')
             ->join('units', 'units.id', '=', 'ur.unit_id')
             ->where('ur.user_id', $userId)
             ->where('ur.community_id', $communityId)
             ->where('ur.status', self::RESIDENT_ACTIVE)
-            ->select('units.*', 'ur.id as unit_resident_id')
-            ->first();
+            ->where('units.kind', self::KIND_RESIDENTIAL)
+            ->orderBy('units.unit_number')
+            ->select('units.*', 'ur.id as unit_resident_id', 'ur.status as unit_resident_status', 'ur.source as unit_resident_source')
+            ->get()
+            ->all();
     }
 
-    /** @return array<string, mixed>|null */
+    /** @return list<object> */
+    public function findUnitAssociationsForUser(int $userId, int $communityId): array
+    {
+        return DB::table('unit_residents as ur')
+            ->join('units', 'units.id', '=', 'ur.unit_id')
+            ->where('ur.user_id', $userId)
+            ->where('ur.community_id', $communityId)
+            ->whereIn('ur.status', [self::RESIDENT_ACTIVE, self::RESIDENT_PENDING, self::RESIDENT_REJECTED])
+            ->where('units.kind', self::KIND_RESIDENTIAL)
+            ->orderByRaw("CASE ur.status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END")
+            ->orderBy('units.unit_number')
+            ->select(
+                'units.*',
+                'ur.id as unit_resident_id',
+                'ur.status as unit_resident_status',
+                'ur.source as unit_resident_source',
+                'ur.rejection_reason as unit_resident_rejection_reason',
+                'ur.joined_at as unit_resident_joined_at',
+            )
+            ->get()
+            ->all();
+    }
+
+    /** @return array<string, mixed>|null First active unit — legacy single-unit clients. */
     public function userUnitBrief(User $user, ?int $communityId = null): ?array
+    {
+        $units = $this->userUnitsBrief($user, $communityId);
+
+        return $units[0] ?? null;
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function userUnitsBrief(User $user, ?int $communityId = null): array
     {
         $communityId = $communityId ?: $this->approvedCommunityId((int) $user->id);
         if (! $communityId) {
-            return null;
+            return [];
         }
 
-        $unit = $this->findActiveUnitForUser((int) $user->id, $communityId);
-        if (! $unit) {
-            return null;
-        }
+        $rows = $this->findUnitAssociationsForUser((int) $user->id, $communityId);
 
-        $unit = $this->refreshBillingContactIfStale((int) $unit->id) ?? $unit;
+        return array_map(function ($unit) use ($user) {
+            // Preserve join aliases — refreshBillingContactIfStale reloads units.* only.
+            $associationStatus = $unit->unit_resident_status ?? self::RESIDENT_ACTIVE;
+            $associationSource = $unit->unit_resident_source ?? null;
+            $associationRejectionReason = $unit->unit_resident_rejection_reason ?? null;
+            $unitResidentId = isset($unit->unit_resident_id) ? (int) $unit->unit_resident_id : null;
 
-        return $this->formatUnit($unit, (int) $user->id);
+            $fresh = $this->refreshBillingContactIfStale((int) $unit->id) ?? $unit;
+            $payload = $this->formatUnit($fresh, (int) $user->id);
+            $payload['association_status'] = $associationStatus;
+            $payload['association_source'] = $associationSource;
+            $payload['association_rejection_reason'] = $associationRejectionReason;
+            $payload['unit_resident_id'] = $unitResidentId;
+
+            return $payload;
+        }, $rows);
+    }
+
+    public function activeUnitCountForUser(int $userId, int $communityId): int
+    {
+        return count($this->findActiveUnitsForUser($userId, $communityId));
     }
 
     public function syncUserToCommunity(User $user, int $communityId): ?object
@@ -131,16 +190,170 @@ class UnitAssignmentService
             return $this->assignUserToUnitNumber($communityId, (int) $user->id, 'Office', true);
         }
 
+        $inviteUnits = [];
+        if (Schema::hasTable('invite_unit_assignments')) {
+            $inviteUnits = DB::table('invite_unit_assignments')
+                ->where('community_id', $communityId)
+                ->where('user_id', $user->id)
+                ->orderBy('sort_order')
+                ->pluck('unit_number')
+                ->map(fn ($n) => trim((string) $n))
+                ->filter()
+                ->values()
+                ->all();
+        }
+
+        if ($inviteUnits !== []) {
+            $assigned = $this->assignUserToMultipleUnitNumbers(
+                $communityId,
+                (int) $user->id,
+                $inviteUnits,
+                'invite',
+            );
+
+            return $assigned[0] ?? null;
+        }
+
+        // Never collapse multi-unit residents back to the single profile display unit.
+        $active = $this->findActiveUnitsForUser((int) $user->id, $communityId);
+        if ($active !== []) {
+            $this->syncProfileUnitNumberDisplay((int) $user->id, $communityId);
+
+            return $active[0];
+        }
+
         $unitNumber = trim((string) ($user->profile?->unit_number ?? ''));
         if ($unitNumber === '') {
-            return $this->findActiveUnitForUser((int) $user->id, $communityId);
+            return null;
         }
 
         return $this->assignUserToUnitNumber($communityId, (int) $user->id, $unitNumber, false);
     }
 
-    public function assignUserToUnitNumber(int $communityId, int $userId, string $unitNumber, bool $isAdmin = false): object
+    /**
+     * Batch brief unit lists for admin identity labels (chat, notices, guests, etc.).
+     *
+     * @param  list<int>  $userIds
+     * @return array<int, list<array{id: int, unit_number: string}>>
+     */
+    public function unitsBriefMapForUsers(int $communityId, array $userIds): array
     {
+        $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds))));
+        if ($userIds === [] || $communityId < 1) {
+            return [];
+        }
+
+        // Identity labels (chat, notices, etc.) only show approved associations.
+        $rows = DB::table('unit_residents as ur')
+            ->join('units', 'units.id', '=', 'ur.unit_id')
+            ->where('ur.community_id', $communityId)
+            ->whereIn('ur.user_id', $userIds)
+            ->where('ur.status', self::RESIDENT_ACTIVE)
+            ->where('units.kind', self::KIND_RESIDENTIAL)
+            ->orderBy('units.unit_number')
+            ->get([
+                'ur.user_id',
+                'units.id',
+                'units.unit_number',
+            ]);
+
+        $map = [];
+        foreach ($rows as $row) {
+            $uid = (int) $row->user_id;
+            $map[$uid] ??= [];
+            $map[$uid][] = [
+                'id' => (int) $row->id,
+                'unit_number' => (string) $row->unit_number,
+            ];
+        }
+
+        return $map;
+    }
+
+    /** @return list<string> */
+    public function listInviteUnitNumbers(int $communityId, int $userId): array
+    {
+        if (! Schema::hasTable('invite_unit_assignments')) {
+            return [];
+        }
+
+        return DB::table('invite_unit_assignments')
+            ->where('community_id', $communityId)
+            ->where('user_id', $userId)
+            ->orderBy('sort_order')
+            ->pluck('unit_number')
+            ->map(fn ($n) => trim((string) $n))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /** Persist admin-invite unit list applied at membership sync. */
+    public function storeInviteUnitAssignments(int $communityId, int $userId, array $unitNumbers): void
+    {
+        if (! Schema::hasTable('invite_unit_assignments')) {
+            return;
+        }
+
+        DB::table('invite_unit_assignments')
+            ->where('community_id', $communityId)
+            ->where('user_id', $userId)
+            ->delete();
+
+        $order = 0;
+        $seen = [];
+        foreach ($unitNumbers as $raw) {
+            $trimmed = trim((string) $raw);
+            if ($trimmed === '') {
+                continue;
+            }
+            $normalized = $this->normalizeUnitNumber($trimmed);
+            if ($normalized === '' || isset($seen[$normalized])) {
+                continue;
+            }
+            $seen[$normalized] = true;
+            DB::table('invite_unit_assignments')->insert([
+                'community_id' => $communityId,
+                'user_id' => $userId,
+                'unit_number' => $trimmed,
+                'unit_number_normalized' => $normalized,
+                'sort_order' => $order++,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        if ($seen !== []) {
+            $first = reset($seen);
+            // Keep profile display in sync with first invited unit number string.
+            $firstNumber = DB::table('invite_unit_assignments')
+                ->where('community_id', $communityId)
+                ->where('user_id', $userId)
+                ->orderBy('sort_order')
+                ->value('unit_number');
+            if ($firstNumber) {
+                DB::table('profiles')->where('user_id', $userId)->update([
+                    'unit_number' => $firstNumber,
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @param  bool  $replaceOthers  When true (legacy), leave other units in this community.
+     *                               When false, attach as an additional unit (multi-unit).
+     */
+    public function assignUserToUnitNumber(
+        int $communityId,
+        int $userId,
+        string $unitNumber,
+        bool $isAdmin = false,
+        bool $replaceOthers = true,
+        string $status = self::RESIDENT_ACTIVE,
+        ?string $source = null,
+        bool $claimBillingContactIfEmpty = true,
+    ): object {
         $user = User::query()->find($userId);
         $membership = DB::table('community_memberships')
             ->where('user_id', $userId)
@@ -165,7 +378,18 @@ class UnitAssignmentService
         $normalized = $this->normalizeUnitNumber($unitNumber);
         $kind = $isAdmin ? self::KIND_OFFICE : self::KIND_RESIDENTIAL;
 
-        $unit = DB::transaction(function () use ($communityId, $userId, $unitNumber, $normalized, $kind, $isAdmin) {
+        $unit = DB::transaction(function () use (
+            $communityId,
+            $userId,
+            $unitNumber,
+            $normalized,
+            $kind,
+            $isAdmin,
+            $replaceOthers,
+            $status,
+            $source,
+            $claimBillingContactIfEmpty,
+        ) {
             $unit = DB::table('units')
                 ->where('community_id', $communityId)
                 ->where('unit_number_normalized', $normalized)
@@ -188,11 +412,17 @@ class UnitAssignmentService
                 $unit = DB::table('units')->find($unitId);
             }
 
-            $this->moveUserToUnit($communityId, $userId, (int) $unit->id);
+            if ($replaceOthers) {
+                $this->moveUserToUnit($communityId, $userId, (int) $unit->id, true, $status, $source);
+            } else {
+                $this->attachUserToUnit($communityId, $userId, (int) $unit->id, $status, $source);
+            }
 
             $unit = DB::table('units')->lockForUpdate()->find($unit->id);
             if (
-                $unit
+                $claimBillingContactIfEmpty
+                && $status === self::RESIDENT_ACTIVE
+                && $unit
                 && $unit->kind === self::KIND_RESIDENTIAL
                 && empty($unit->billing_contact_user_id)
                 && ! $isAdmin
@@ -206,10 +436,7 @@ class UnitAssignmentService
                 $this->clearMissingBillingContactNotifications($communityId, (int) $unit->id, (string) $unit->unit_number);
             }
 
-            DB::table('profiles')->where('user_id', $userId)->update([
-                'unit_number' => $unit->unit_number,
-                'updated_at' => $now,
-            ]);
+            $this->syncProfileUnitNumberDisplay($userId, $communityId, $unit?->unit_number);
 
             return $unit;
         });
@@ -391,14 +618,28 @@ class UnitAssignmentService
 
     public function isBillingContact(int $userId, int $communityId): bool
     {
-        $unit = $this->findActiveUnitForUser($userId, $communityId);
-        if (! $unit) {
-            return false;
+        foreach ($this->findActiveUnitsForUser($userId, $communityId) as $unit) {
+            $effectiveId = $this->effectiveBillingContactUserId($unit);
+            if ($effectiveId !== null && $effectiveId === $userId) {
+                return true;
+            }
         }
 
-        $effectiveId = $this->effectiveBillingContactUserId($unit);
+        return false;
+    }
 
-        return $effectiveId !== null && $effectiveId === $userId;
+    /** @return list<object> Units where the user is the effective billing contact. */
+    public function billingContactUnitsForUser(int $userId, int $communityId): array
+    {
+        $out = [];
+        foreach ($this->findActiveUnitsForUser($userId, $communityId) as $unit) {
+            $effectiveId = $this->effectiveBillingContactUserId($unit);
+            if ($effectiveId !== null && $effectiveId === $userId) {
+                $out[] = $unit;
+            }
+        }
+
+        return $out;
     }
 
     public function effectiveBillingContactUserId(object $unit): ?int
@@ -648,13 +889,71 @@ class UnitAssignmentService
         ]);
     }
 
-    private function moveUserToUnit(int $communityId, int $userId, int $unitId, bool $cancelPendingTransfers = true): void
-    {
+    /**
+     * Attach user to a unit without removing other active unit associations.
+     */
+    public function attachUserToUnit(
+        int $communityId,
+        int $userId,
+        int $unitId,
+        string $status = self::RESIDENT_ACTIVE,
+        ?string $source = null,
+    ): int {
+        $now = now();
+        $existing = DB::table('unit_residents')
+            ->where('unit_id', $unitId)
+            ->where('user_id', $userId)
+            ->first();
+
+        $payload = [
+            'status' => $status,
+            'left_at' => null,
+            'rejection_reason' => null,
+            'updated_at' => $now,
+        ];
+        if ($source !== null && Schema::hasColumn('unit_residents', 'source')) {
+            $payload['source'] = $source;
+        }
+
+        if ($existing) {
+            if ($status === self::RESIDENT_ACTIVE) {
+                $payload['joined_at'] = $existing->joined_at ?: $now;
+            }
+            DB::table('unit_residents')->where('id', $existing->id)->update($payload);
+
+            return (int) $existing->id;
+        }
+
+        $insert = [
+            'unit_id' => $unitId,
+            'community_id' => $communityId,
+            'user_id' => $userId,
+            'status' => $status,
+            'joined_at' => $status === self::RESIDENT_ACTIVE ? $now : null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+        if (Schema::hasColumn('unit_residents', 'source')) {
+            $insert['source'] = $source;
+        }
+
+        return (int) DB::table('unit_residents')->insertGetId($insert);
+    }
+
+    /** Leave other units, then attach (legacy single-unit move). */
+    private function moveUserToUnit(
+        int $communityId,
+        int $userId,
+        int $unitId,
+        bool $cancelPendingTransfers = true,
+        string $status = self::RESIDENT_ACTIVE,
+        ?string $source = null,
+    ): void {
         $now = now();
         $current = DB::table('unit_residents')
             ->where('user_id', $userId)
             ->where('community_id', $communityId)
-            ->where('status', self::RESIDENT_ACTIVE)
+            ->whereIn('status', [self::RESIDENT_ACTIVE, self::RESIDENT_PENDING])
             ->get();
 
         foreach ($current as $row) {
@@ -682,31 +981,73 @@ class UnitAssignmentService
             }
         }
 
-        $existing = DB::table('unit_residents')
-            ->where('unit_id', $unitId)
-            ->where('user_id', $userId)
-            ->first();
+        $this->attachUserToUnit($communityId, $userId, $unitId, $status, $source);
+    }
 
-        if ($existing) {
-            DB::table('unit_residents')->where('id', $existing->id)->update([
-                'status' => self::RESIDENT_ACTIVE,
-                'joined_at' => $existing->joined_at ?: $now,
-                'left_at' => null,
-                'updated_at' => $now,
-            ]);
-
+    /** Keep profiles.unit_number as a display hint (first active residential unit). */
+    public function syncProfileUnitNumberDisplay(int $userId, int $communityId, ?string $fallbackUnitNumber = null): void
+    {
+        $first = $this->findActiveUnitForUser($userId, $communityId);
+        $unitNumber = $first?->unit_number ?? $fallbackUnitNumber;
+        if ($unitNumber === null || trim((string) $unitNumber) === '') {
             return;
         }
 
-        DB::table('unit_residents')->insert([
-            'unit_id' => $unitId,
-            'community_id' => $communityId,
-            'user_id' => $userId,
-            'status' => self::RESIDENT_ACTIVE,
-            'joined_at' => $now,
-            'created_at' => $now,
-            'updated_at' => $now,
+        DB::table('profiles')->where('user_id', $userId)->update([
+            'unit_number' => $unitNumber,
+            'updated_at' => now(),
         ]);
+    }
+
+    /**
+     * Assign multiple units for admin invite / create (one seat; all units active).
+     *
+     * @param  list<string>  $unitNumbers
+     * @return list<object>
+     */
+    public function assignUserToMultipleUnitNumbers(
+        int $communityId,
+        int $userId,
+        array $unitNumbers,
+        string $source = 'invite',
+    ): array {
+        $normalizedList = [];
+        foreach ($unitNumbers as $raw) {
+            $trimmed = trim((string) $raw);
+            if ($trimmed === '') {
+                continue;
+            }
+            $key = $this->normalizeUnitNumber($trimmed);
+            if ($key === '' || isset($normalizedList[$key])) {
+                continue;
+            }
+            $normalizedList[$key] = $trimmed;
+        }
+
+        if ($normalizedList === []) {
+            throw ValidationException::withMessages([
+                'units' => 'At least one unit is required.',
+            ]);
+        }
+
+        $assigned = [];
+        foreach ($normalizedList as $unitNumber) {
+            // Always attach — never leave sibling units mid-loop (that dropped multi-unit rows).
+            $assigned[] = $this->assignUserToUnitNumber(
+                $communityId,
+                $userId,
+                $unitNumber,
+                false,
+                false,
+                self::RESIDENT_ACTIVE,
+                $source,
+                true,
+            );
+        }
+
+        $this->syncProfileUnitNumberDisplay($userId, $communityId);
+
+        return $assigned;
     }
 
     public function repairStaffAssignments(int $communityId): void

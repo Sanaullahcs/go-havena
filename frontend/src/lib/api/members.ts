@@ -16,6 +16,15 @@ export interface Member {
   community_name?: string | null;
   membership_id: number | null;
   unit_number: string | null;
+  units?: Array<{
+    id: number | null;
+    unit_number: string;
+    association_status: string;
+    is_billing_contact: boolean;
+    residence_type?: string | null;
+    utility_bill_url?: string | null;
+    package_id?: number | null;
+  }>;
   avatar_url: string | null;
   display_name: string | null;
   created_at: string;
@@ -270,15 +279,21 @@ export async function inviteMember(data: {
   phone: string;
   role: string;
   unit_number?: string;
+  units?: string[];
   community_id?: number;
 }) {
   const communityId = data.community_id ?? getAdminCommunityId();
+  const units = (data.units ?? []).map((u) => u.trim()).filter(Boolean);
   const res = await api.post("/v1/admin/members/invite", {
     name: data.name,
     email: data.email,
     phone: data.phone,
     role: roleToApi(data.role),
-    unit_number: data.unit_number,
+    ...(units.length > 0
+      ? { units }
+      : data.unit_number
+        ? { unit_number: data.unit_number }
+        : {}),
     ...(communityId ? { community_id: communityId } : {}),
   });
   return res.data as { data: MemberInviteResult; message: string };
@@ -366,7 +381,9 @@ export function membersToCsv(rows: Member[]): string {
     m.email,
     (m.phone ?? "").trim(),
     m.community_name ?? "",
-    m.unit_number ?? "",
+    (m.units?.length
+      ? m.units.map((u) => u.unit_number).filter(Boolean).join("; ")
+      : m.unit_number) ?? "",
     roleLabel(m.role),
     statusLabel(m.status),
     new Date(m.created_at).toISOString().slice(0, 10),

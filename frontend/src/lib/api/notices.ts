@@ -59,6 +59,7 @@ export interface NoticeRecipient {
   id: number;
   name: string;
   unit_number?: string | null;
+  units?: string[];
 }
 
 export interface NoticeStats {

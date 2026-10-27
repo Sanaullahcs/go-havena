@@ -130,11 +130,14 @@ class NoticeAudienceService
     }
 
     /**
-     * @return array<int, array{id: int, name: string, unit_number: ?string}>
+     * @return array<int, array{id: int, name: string, unit_number: ?string, units: list<string>}>
      */
     public static function recipients(int $noticeId): array
     {
-        return DB::table('notice_recipients')
+        $notice = DB::table('notices')->where('id', $noticeId)->first(['id', 'community_id']);
+        $communityId = $notice ? (int) ($notice->community_id ?? 0) : 0;
+
+        $rows = DB::table('notice_recipients')
             ->join('users', 'users.id', '=', 'notice_recipients.user_id')
             ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
             ->where('notice_recipients.notice_id', $noticeId)
@@ -144,12 +147,33 @@ class NoticeAudienceService
                 'users.name',
                 'profiles.display_name',
                 'profiles.unit_number',
-            ])
-            ->map(fn ($row) => [
-                'id'          => (int) $row->id,
-                'name'        => trim((string) ($row->display_name ?: $row->name)) ?: 'Resident',
-                'unit_number' => $row->unit_number ? (string) $row->unit_number : null,
-            ])
+            ]);
+
+        $unitsMap = $communityId > 0
+            ? app(\App\Services\UnitAssignmentService::class)->unitsBriefMapForUsers(
+                $communityId,
+                $rows->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            )
+            : [];
+
+        return $rows
+            ->map(function ($row) use ($unitsMap) {
+                $uid = (int) $row->id;
+                $unitNumbers = array_values(array_map(
+                    static fn (array $u) => (string) $u['unit_number'],
+                    $unitsMap[$uid] ?? [],
+                ));
+                if ($unitNumbers === [] && $row->unit_number) {
+                    $unitNumbers = [(string) $row->unit_number];
+                }
+
+                return [
+                    'id'          => $uid,
+                    'name'        => trim((string) ($row->display_name ?: $row->name)) ?: 'Resident',
+                    'unit_number' => $unitNumbers[0] ?? null,
+                    'units'       => $unitNumbers,
+                ];
+            })
             ->all();
     }
 

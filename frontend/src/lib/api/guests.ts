@@ -40,7 +40,13 @@ export type GuestInvitation = {
   last_activity_at?: string | null;
   created_at: string;
   invited_by?: { id: number; name: string; display_name?: string } | null;
-  resident?: { id: number; name: string; display_name?: string; unit_number?: string } | null;
+  resident?: {
+    id: number;
+    name: string;
+    display_name?: string;
+    unit_number?: string;
+    units?: string[];
+  } | null;
   guest_avatar_url?: string | null;
 };
 

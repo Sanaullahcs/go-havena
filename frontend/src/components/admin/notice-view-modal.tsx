@@ -5,6 +5,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 
 import { AdminBadge } from "@/components/admin/ui";
+import { MemberUnitsLabel } from "@/components/admin/member-units-label";
 
 import type { AdminTone } from "@/lib/admin/admin-tones";
 
@@ -520,11 +521,13 @@ export default function NoticeViewModal({ notice, onClose, onEdit, onNoticeUpdat
 
                         <p className="truncate text-[13px] font-semibold text-[#0f172a]">{recipient.name}</p>
 
-                        {recipient.unit_number ? (
-
-                          <p className="truncate text-[11px] text-[#64748b]">Unit {recipient.unit_number}</p>
-
-                        ) : null}
+                        <MemberUnitsLabel
+                          units={recipient.units}
+                          unitNumber={recipient.unit_number}
+                          variant="inline"
+                          empty={null}
+                          className="block truncate text-[11px] text-[#64748b]"
+                        />
 
                       </div>
 

@@ -282,6 +282,40 @@ export function getProfileFields(user, preferredCommunityId) {
   };
 }
 
+/** Approved unit numbers only. Pending and rejected associations are omitted. */
+export function activeUnitNumbers(user) {
+  const rows = Array.isArray(user?.units) ? user.units : [];
+  const seen = new Set();
+  const numbers = [];
+
+  for (const row of rows) {
+    const status = String(row?.association_status || "active").toLowerCase();
+    if (status !== "active" && status !== "invite") continue;
+    const value = String(row?.unit_number ?? "").trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    numbers.push(value);
+  }
+
+  if (numbers.length > 0 || rows.length > 0) return numbers;
+
+  const fallback = String(user?.profile?.unit_number ?? user?.unit_number ?? "").trim();
+  return fallback ? [fallback] : [];
+}
+
+/** One approved unit shows "Unit N". More than one shows "Multiple units". */
+export function formatResidentUnitLabel(user, t, variant = "nav") {
+  const numbers = activeUnitNumbers(user);
+  if (numbers.length === 0) return null;
+  if (numbers.length > 1) {
+    return t("nav.multipleUnits", { defaultValue: "Multiple units" });
+  }
+  const key = variant === "profile" ? "profile.unit" : "nav.unit";
+  return t(key, { number: numbers[0] });
+}
+
 export function getProfileInitial(name) {
   const trimmed = String(name ?? "").trim();
   return trimmed.charAt(0).toUpperCase() || "?";

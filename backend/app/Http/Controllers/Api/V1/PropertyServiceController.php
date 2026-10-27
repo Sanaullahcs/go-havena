@@ -146,11 +146,16 @@ class PropertyServiceController extends Controller
     public function residentIndex(Request $request): JsonResponse
     {
         $communityId = $this->resolveResidentCommunityId($request);
-        $unit = $this->units->findActiveUnitForUser((int) $request->user()->id, $communityId);
+        $billingUnits = $this->units->billingContactUnitsForUser((int) $request->user()->id, $communityId);
+        $unit = $billingUnits[0] ?? $this->units->findActiveUnitForUser((int) $request->user()->id, $communityId);
 
         return response()->json([
             'data' => $this->catalog->listResidentCatalog($communityId, $unit),
             'unit' => $unit ? $this->units->formatUnit($unit, (int) $request->user()->id) : null,
+            'units' => array_map(
+                fn ($row) => $this->units->formatUnit($row, (int) $request->user()->id),
+                $billingUnits,
+            ),
         ]);
     }
 
@@ -160,10 +165,12 @@ class PropertyServiceController extends Controller
         $communityId = $this->resolveResidentCommunityId($request);
         $service = $this->catalog->findInCommunity($communityId, $id);
         abort_if(! $service, 404, 'Service not found.');
-        $unit = $this->units->findActiveUnitForUser((int) $request->user()->id, $communityId);
-        abort_if(! $unit, 422, 'Join a unit before subscribing to services.');
-
-        $data = $request->validate(['note' => 'nullable|string|max:500']);
+        $data = $request->validate([
+            'note' => 'nullable|string|max:500',
+            'unit_id' => 'nullable|integer|exists:units,id',
+        ]);
+        $unit = $this->resolveBillingContactUnit($request, $communityId, isset($data['unit_id']) ? (int) $data['unit_id'] : null);
+        abort_if(! $unit, 422, 'Join a unit as billing contact before subscribing to services.');
 
         return response()->json([
             'data' => $this->bills->requestSubscription($service, $unit, (int) $request->user()->id, $data['note'] ?? null),
@@ -177,8 +184,11 @@ class PropertyServiceController extends Controller
         $communityId = $this->resolveResidentCommunityId($request);
         $service = $this->catalog->findInCommunity($communityId, $id);
         abort_if(! $service, 404, 'Service not found.');
-        $unit = $this->units->findActiveUnitForUser((int) $request->user()->id, $communityId);
-        abort_if(! $unit, 422, 'Join a unit before managing services.');
+        $data = $request->validate([
+            'unit_id' => 'nullable|integer|exists:units,id',
+        ]);
+        $unit = $this->resolveBillingContactUnit($request, $communityId, isset($data['unit_id']) ? (int) $data['unit_id'] : null);
+        abort_if(! $unit, 422, 'Join a unit as billing contact before managing services.');
 
         return response()->json([
             'data' => $this->bills->cancelSubscription($service, $unit, (int) $request->user()->id),
@@ -307,5 +317,25 @@ class PropertyServiceController extends Controller
         abort_if(! $scope, 422, 'No community scope available.');
 
         return (int) $scope;
+    }
+
+    private function resolveBillingContactUnit(Request $request, int $communityId, ?int $unitId = null): ?object
+    {
+        $billingUnits = $this->units->billingContactUnitsForUser((int) $request->user()->id, $communityId);
+        if ($billingUnits === []) {
+            return null;
+        }
+
+        if ($unitId) {
+            foreach ($billingUnits as $candidate) {
+                if ((int) $candidate->id === $unitId) {
+                    return $candidate;
+                }
+            }
+
+            return null;
+        }
+
+        return $billingUnits[0];
     }
 }

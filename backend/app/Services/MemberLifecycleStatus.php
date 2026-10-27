@@ -116,6 +116,13 @@ class MemberLifecycleStatus
                             $p->where('profiles.unit_number', 'like', "%{$search}%")
                                 ->orWhere('profiles.display_name', 'like', "%{$search}%");
                         });
+                })
+                ->orWhereExists(function ($sub) use ($search, $usersAlias) {
+                    $sub->from('unit_residents as ur')
+                        ->join('units', 'units.id', '=', 'ur.unit_id')
+                        ->whereColumn('ur.user_id', "{$usersAlias}.id")
+                        ->whereIn('ur.status', ['active', 'pending'])
+                        ->where('units.unit_number', 'like', "%{$search}%");
                 });
 
             if ($includeCommunityName) {

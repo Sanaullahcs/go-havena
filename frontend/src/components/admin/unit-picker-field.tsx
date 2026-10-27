@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Loader2, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, Loader2, Plus, Search, X } from "lucide-react";
 import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
 import { inputClass } from "@/lib/admin/form-validation-utils";
 import { normalizeUnitNumber } from "@/lib/admin/unit-number";
@@ -15,9 +15,7 @@ export type UnitPickerRow = {
   resident_count?: number;
 };
 
-type UnitPickerFieldProps = {
-  value: string;
-  onChange: (unitNumber: string) => void;
+type UnitPickerFieldBase = {
   onBlur?: () => void;
   error?: string;
   disabled?: boolean;
@@ -30,20 +28,58 @@ type UnitPickerFieldProps = {
   unitMax?: number;
 };
 
-export function UnitPickerField({
-  value,
-  onChange,
-  onBlur,
-  error,
-  disabled,
-  dataField = "unit",
-  id,
-  placeholder = "Select unit",
-  loadUnits,
-  createUnit,
-  validateNewUnit,
-  unitMax = 50,
-}: UnitPickerFieldProps) {
+type UnitPickerSingleProps = UnitPickerFieldBase & {
+  multiple?: false;
+  value: string;
+  onChange: (unitNumber: string) => void;
+  values?: never;
+  onChangeValues?: never;
+};
+
+type UnitPickerMultiProps = UnitPickerFieldBase & {
+  multiple: true;
+  values: string[];
+  onChangeValues: (unitNumbers: string[]) => void;
+  value?: never;
+  onChange?: never;
+};
+
+export type UnitPickerFieldProps = UnitPickerSingleProps | UnitPickerMultiProps;
+
+function dedupeUnits(units: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of units) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const key = normalizeUnitNumber(trimmed);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+export function UnitPickerField(props: UnitPickerFieldProps) {
+  const {
+    onBlur,
+    error,
+    disabled,
+    dataField = "unit",
+    id,
+    placeholder = "Select unit",
+    loadUnits,
+    createUnit,
+    validateNewUnit,
+    unitMax = 50,
+  } = props;
+  const multiple = props.multiple === true;
+  const selected = multiple
+    ? dedupeUnits(props.values)
+    : props.value.trim()
+      ? [props.value.trim()]
+      : [];
+
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -122,11 +158,34 @@ export function UnitPickerField({
     return list.filter((unit) => unit.unit_number.toLowerCase().includes(q));
   }, [units, search]);
 
-  const triggerLabel = value.trim() || placeholder;
+  const isSelected = (unitNumber: string) =>
+    selected.some((row) => normalizeUnitNumber(row) === normalizeUnitNumber(unitNumber));
+
+  const commitSelection = (next: string[]) => {
+    const clean = dedupeUnits(next);
+    if (multiple) {
+      props.onChangeValues(clean);
+      return;
+    }
+    props.onChange(clean[0] ?? "");
+  };
 
   const handleSelect = (unitNumber: string) => {
-    onChange(unitNumber);
+    if (multiple) {
+      if (isSelected(unitNumber)) {
+        commitSelection(selected.filter((row) => normalizeUnitNumber(row) !== normalizeUnitNumber(unitNumber)));
+      } else {
+        commitSelection([...selected, unitNumber]);
+      }
+      return;
+    }
+    commitSelection([unitNumber]);
     setOpen(false);
+    onBlur?.();
+  };
+
+  const removeChip = (unitNumber: string) => {
+    commitSelection(selected.filter((row) => normalizeUnitNumber(row) !== normalizeUnitNumber(unitNumber)));
     onBlur?.();
   };
 
@@ -148,13 +207,29 @@ export function UnitPickerField({
         const withoutDup = prev.filter((u) => normalizeUnitNumber(u.unit_number) !== normalized);
         return [...withoutDup, created];
       });
-      handleSelect(created.unit_number);
+      if (multiple) {
+        if (!isSelected(created.unit_number)) {
+          commitSelection([...selected, created.unit_number]);
+        }
+        setShowCreate(false);
+        setNewUnit("");
+      } else {
+        handleSelect(created.unit_number);
+      }
     } catch (err: unknown) {
       toastError(apiError(err));
     } finally {
       setCreating(false);
     }
   };
+
+  const triggerLabel = multiple
+    ? selected.length === 0
+      ? placeholder
+      : selected.length === 1
+        ? selected[0]
+        : `${selected.length} units selected`
+    : selected[0] || placeholder;
 
   return (
     <div className="min-w-0 w-full" ref={wrapRef}>
@@ -170,13 +245,13 @@ export function UnitPickerField({
           onClick={() => !disabled && setOpen((v) => !v)}
           className={[
             "nl-picker-trigger h-11 w-full",
-            value.trim() ? "has-value" : "",
+            selected.length > 0 ? "has-value" : "",
             error ? "border-red-300 ring-1 ring-red-100" : "",
             open ? "nl-picker-trigger-open" : "",
             disabled ? "cursor-not-allowed bg-slate-50 opacity-70" : "",
           ].join(" ")}
         >
-          <span className={["nl-picker-text flex-1 text-left", value.trim() ? "" : "is-placeholder"].join(" ")}>
+          <span className={["nl-picker-text flex-1 text-left", selected.length > 0 ? "" : "is-placeholder"].join(" ")}>
             {triggerLabel}
           </span>
           <ChevronDown
@@ -187,6 +262,30 @@ export function UnitPickerField({
           />
         </button>
 
+        {multiple && selected.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {selected.map((unitNumber) => (
+              <span
+                key={normalizeUnitNumber(unitNumber)}
+                className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-[12px] font-semibold text-teal-800 ring-1 ring-teal-100"
+              >
+                {unitNumber}
+                <button
+                  type="button"
+                  aria-label={`Remove unit ${unitNumber}`}
+                  className="rounded-full p-0.5 text-teal-700/70 transition hover:bg-teal-100 hover:text-teal-900"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removeChip(unitNumber);
+                  }}
+                >
+                  <X size={12} strokeWidth={2.5} />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+
         {open && mounted
           ? createPortal(
               <div
@@ -194,6 +293,7 @@ export function UnitPickerField({
                 className="nl-themed-popover nl-select-popover !overflow-hidden flex flex-col shadow-xl ring-1 ring-slate-200/80"
                 style={popoverStyle}
                 role="listbox"
+                aria-multiselectable={multiple || undefined}
               >
                 <div className="shrink-0 border-b border-slate-100 px-3 py-2.5">
                   <div className="relative">
@@ -207,6 +307,11 @@ export function UnitPickerField({
                       autoFocus
                     />
                   </div>
+                  {multiple ? (
+                    <p className="mt-2 text-[11.5px] text-slate-500">
+                      Select one or more units. Click again to deselect.
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="grid shrink-0 grid-cols-[1fr_auto] gap-2 border-b border-slate-100 bg-slate-50/90 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
@@ -268,7 +373,7 @@ export function UnitPickerField({
                     </p>
                   ) : (
                     filtered.map((unit) => {
-                      const active = normalizeUnitNumber(unit.unit_number) === normalizeUnitNumber(value);
+                      const active = isSelected(unit.unit_number);
                       const count = unit.resident_count ?? 0;
                       return (
                         <button
@@ -292,6 +397,21 @@ export function UnitPickerField({
                     })
                   )}
                 </div>
+
+                {multiple ? (
+                  <div className="shrink-0 border-t border-slate-100 px-3 py-2.5">
+                    <button
+                      type="button"
+                      className="nl-btn-primary w-full justify-center"
+                      onClick={() => {
+                        setOpen(false);
+                        onBlur?.();
+                      }}
+                    >
+                      Done{selected.length > 0 ? ` (${selected.length})` : ""}
+                    </button>
+                  </div>
+                ) : null}
               </div>,
               document.body,
             )

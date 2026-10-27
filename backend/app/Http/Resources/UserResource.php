@@ -5,8 +5,10 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Services\UnitAssignmentService;
+use App\Services\UnitRegistrationPackageService;
 use App\Support\MediaUrl;
 use App\Support\OnboardingContext;
+use Illuminate\Support\Facades\DB;
 
 /** @mixin \App\Models\User */
 class UserResource extends JsonResource
@@ -68,6 +70,9 @@ class UserResource extends JsonResource
                 ]);
             }),
             'unit' => app(UnitAssignmentService::class)->userUnitBrief($this->resource),
+            'units' => app(UnitAssignmentService::class)->userUnitsBrief($this->resource),
+            'invite_units' => $this->inviteUnitsPayload(),
+            ...$this->unitAccessPayload(),
             'guest_access' => \App\Services\GuestAccessService::guestAccessSummary($this->resource),
             'family' => \App\Services\FamilyService::onboardingBrief($this->resource),
             // Money display for the community the user is currently acting in.
@@ -81,6 +86,48 @@ class UserResource extends JsonResource
         ];
     }
 
+    /** @return list<array{unit_number: string, locked: bool}> */
+    private function inviteUnitsPayload(): array
+    {
+        $unitsService = app(UnitAssignmentService::class);
+        $membership = DB::table('community_memberships')
+            ->where('user_id', $this->id)
+            ->whereIn('status', ['approved', 'pending'])
+            ->orderByDesc('created_at')
+            ->first();
+
+        $communityId = $membership?->community_id
+            ? (int) $membership->community_id
+            : null;
+
+        if (! $communityId) {
+            // Invite may exist before membership row in some flows — scan all invite rows.
+            if (! \Illuminate\Support\Facades\Schema::hasTable('invite_unit_assignments')) {
+                return [];
+            }
+            $numbers = DB::table('invite_unit_assignments')
+                ->where('user_id', $this->id)
+                ->orderBy('sort_order')
+                ->pluck('unit_number')
+                ->map(fn ($n) => trim((string) $n))
+                ->filter()
+                ->values()
+                ->all();
+
+            return array_map(
+                fn (string $number) => ['unit_number' => $number, 'locked' => true],
+                $numbers,
+            );
+        }
+
+        $numbers = $unitsService->listInviteUnitNumbers($communityId, (int) $this->id);
+
+        return array_map(
+            fn (string $number) => ['unit_number' => $number, 'locked' => true],
+            $numbers,
+        );
+    }
+
     /** @return array<string, mixed> */
     private function residentFeaturesPayload(): array
     {
@@ -90,5 +137,29 @@ class UserResource extends JsonResource
             $features->communityIdForUser($this->resource),
             $this->resource,
         );
+    }
+
+    /** @return array{pending_unit_package: bool, has_full_unit_access: bool} */
+    private function unitAccessPayload(): array
+    {
+        $communityId = DB::table('community_memberships')
+            ->where('user_id', $this->id)
+            ->where('status', 'approved')
+            ->orderByDesc('created_at')
+            ->value('community_id');
+
+        if (! $communityId) {
+            return [
+                'pending_unit_package' => false,
+                'has_full_unit_access' => false,
+            ];
+        }
+
+        $packages = app(UnitRegistrationPackageService::class);
+
+        return [
+            'pending_unit_package' => $packages->hasPendingInitialPackage((int) $this->id, (int) $communityId),
+            'has_full_unit_access' => $packages->residentHasFullUnitAccess((int) $this->id, (int) $communityId),
+        ];
     }
 }

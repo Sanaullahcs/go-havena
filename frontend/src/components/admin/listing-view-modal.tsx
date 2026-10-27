@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { AdminBadge } from "@/components/admin/ui";
+import { MemberUnitsLabel } from "@/components/admin/member-units-label";
 import type { Listing } from "@/lib/api/listings";
 import { formatCommunityMoney } from "@/lib/money";
 
@@ -125,7 +126,16 @@ export default function ListingViewModal({ listing, onClose }: Props) {
             <DetailRow label="Condition" value={listing.condition ?? "—"} />
             <DetailRow label="Location" value={listing.location ?? "—"} />
             <DetailRow label="Seller" value={listing.seller_name ?? "—"} />
-            <DetailRow label="Unit" value={listing.seller_unit ?? "—"} />
+            <DetailRow
+              label="Unit"
+              value={
+                <MemberUnitsLabel
+                  sellerUnits={listing.seller_units}
+                  sellerUnit={listing.seller_unit}
+                  empty="—"
+                />
+              }
+            />
           </div>
         </div>
 

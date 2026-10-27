@@ -180,6 +180,10 @@ export default function RootLayout() {
           options={{ headerShown: false, contentStyle: styles.screen }}
         />
         <Stack.Screen
+          name="screens/my-units/index"
+          options={{ headerShown: false, contentStyle: styles.screen }}
+        />
+        <Stack.Screen
           name="screens/my-family/index"
           options={{ headerShown: false, contentStyle: styles.screen }}
         />

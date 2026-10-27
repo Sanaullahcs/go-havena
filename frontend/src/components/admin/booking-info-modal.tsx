@@ -3,6 +3,7 @@
 import { Building2, Calendar, Clock3, User, Users, X } from "lucide-react";
 import { AdminBadge } from "@/components/admin/ui";
 import { AmenityIcon } from "@/components/admin/amenity-icon";
+import { MemberUnitsLabel } from "@/components/admin/member-units-label";
 import type { Booking } from "@/lib/api/amenities";
 import { formatCommunityMoney } from "@/lib/money";
 
@@ -105,7 +106,12 @@ export function BookingInfoModal({
                   {booking.user_name || "Resident"}
                 </p>
                 <p className="mt-0.5 text-sm text-slate-500">
-                  {booking.user_unit ? `Unit ${booking.user_unit}` : "No unit on file"}
+                  <MemberUnitsLabel
+                    userUnits={booking.user_units}
+                    userUnit={booking.user_unit}
+                    variant="inline"
+                    empty="No unit on file"
+                  />
                 </p>
               </div>
             </div>

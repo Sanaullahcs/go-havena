@@ -321,11 +321,18 @@ class AmenityController extends Controller
             $query->whereNotIn('bookings.status', ['cancelled', 'rejected']);
         }
 
-        $bookings = $query
+        $rows = $query
             ->orderByRaw("FIELD(bookings.status, 'pending', 'awaiting_payment', 'confirmed', 'rejected', 'cancelled')")
             ->orderBy('bookings.date', 'asc')
-            ->get()
-            ->map(fn ($row) => $this->formatInboxBooking($row))
+            ->get();
+
+        $unitsMap = app(\App\Services\UnitAssignmentService::class)->unitsBriefMapForUsers(
+            (int) $communityId,
+            $rows->pluck('user_id')->map(fn ($id) => (int) $id)->all(),
+        );
+
+        $bookings = $rows
+            ->map(fn ($row) => $this->formatInboxBooking($row, $unitsMap[(int) ($row->user_id ?? 0)] ?? []))
             ->values();
 
         return response()->json(['data' => $bookings]);
@@ -1522,8 +1529,19 @@ class AmenityController extends Controller
         return $this->resolveResidentCommunityId($request, $user);
     }
 
-    private function formatInboxBooking(object $row): array
+    /**
+     * @param  list<array{id: int, unit_number: string}>  $userUnits
+     */
+    private function formatInboxBooking(object $row, array $userUnits = []): array
     {
+        $unitNumbers = array_values(array_map(
+            static fn (array $u) => (string) $u['unit_number'],
+            $userUnits,
+        ));
+        if ($unitNumbers === [] && ! empty($row->user_unit)) {
+            $unitNumbers = [(string) $row->user_unit];
+        }
+
         return [
             ...$this->formatBookingCore($row),
             'community_id' => isset($row->community_id) ? (int) $row->community_id : null,
@@ -1538,7 +1556,8 @@ class AmenityController extends Controller
             'amenity_hours' => $row->amenity_hours ?? null,
             'user_id' => isset($row->user_id) ? (int) $row->user_id : null,
             'user_name' => $row->user_name ?? null,
-            'user_unit' => $row->user_unit ?? null,
+            'user_unit' => $unitNumbers[0] ?? ($row->user_unit ?? null),
+            'user_units' => $unitNumbers,
         ];
     }
 
