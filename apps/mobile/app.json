@@ -3,7 +3,7 @@
     "name": "Havena",
     "slug": "havena",
     "owner": "sanas-team",
-    "version": "1.0.4",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "havena",
@@ -17,6 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zsquare.havena",
+      "buildNumber": "44",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Havena uses Face ID to sign you in quickly and securely.",
         "NSCameraUsageDescription": "Havena uses the camera to scan invite QR codes and take photos for your profile, feed, or payment receipts.",
@@ -54,7 +55,7 @@
       ],
       "package": "com.zsquare.havena",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 4
+      "versionCode": 25
     },
     "web": {
       "bundler": "metro",
