@@ -12,6 +12,7 @@ use App\Services\GuestAccessService;
 use App\Services\GuestActivityService;
 use App\Services\NotificationService;
 use App\Services\PlaidAchService;
+use App\Services\UserActingContextService;
 use App\Models\PlaidTransfer;
 use App\Support\AmenitySlots;
 use App\Support\MediaUrl;
@@ -1743,15 +1744,7 @@ class AmenityController extends Controller
             return (int) $request->community_id;
         }
 
-        $membership = DB::table('community_memberships')
-            ->where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->orderByDesc('created_at')
-            ->first();
-
-        abort_if(! $membership, 422, 'No approved community membership found.');
-
-        return (int) $membership->community_id;
+        return UserActingContextService::requireCurrentCommunityId($user);
     }
 
     private function findAdminAmenity(int $id, Request $request): ?object

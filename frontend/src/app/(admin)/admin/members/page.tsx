@@ -39,7 +39,7 @@ import { adminTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading"
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
-import { MemberUnitsLabel } from "@/components/admin/member-units-label";
+import { MemberCommunitiesLabel, MemberUnitsLabel, ResidentDirectoryUnitsLabel } from "@/components/admin/member-units-label";
 import { MemberUnitsDetail } from "@/components/admin/member-units-detail";
 import { fetchAdminCommunities, type AdminCommunityOption } from "@/lib/api/communities";
 import { MemberInviteResultModal } from "@/components/admin/member-invite-result-modal";
@@ -69,6 +69,7 @@ const STATUS_META: Record<MembershipStatus, { tone: "green" | "amber" | "slate" 
   approved:         { tone: "green", label: "Active" },
   pending:          { tone: "amber", label: "Pending" },
   invitation_sent:  { tone: "slate", label: "Invitation Sent" },
+  invite_rejected:  { tone: "red", label: "Invite Rejected" },
   not_invited:      { tone: "amber", label: "Not Invited" },
   onboarding:       { tone: "blue",  label: "Onboarding" },
   banned:           { tone: "red",   label: "Suspended" },
@@ -321,7 +322,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     setBusyUnitPackageId(null);
     setViewing(member);
     try {
-      const detail = await fetchMember(member.id, memberCommunityId(member));
+      const detail = await fetchMember(
+        member.id,
+        isSystemResidents ? "all" : memberCommunityId(member),
+      );
       setViewing(detail);
     } catch (err) {
       toastError(apiError(err));
@@ -332,7 +336,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   };
 
   const refreshViewingMember = async (member: Member) => {
-    const detail = await fetchMember(member.id, memberCommunityId(member));
+    const detail = await fetchMember(
+      member.id,
+      isSystemResidents ? "all" : memberCommunityId(member),
+    );
     setViewing(detail);
     await load(true);
   };
@@ -493,7 +500,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
       await load(true);
       if (closeProfile) setViewing(null);
       else if (viewing?.id === member.id) {
-        const detail = await fetchMember(member.id, member.community_id ?? undefined);
+        const detail = await fetchMember(
+          member.id,
+          isSystemResidents ? "all" : memberCommunityId(member),
+        );
         setViewing(detail);
       }
     } catch (err) {
@@ -518,7 +528,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
       await load(true);
       if (closeProfile) setViewing(null);
       else if (viewing?.id === member.id) {
-        const detail = await fetchMember(member.id, member.community_id ?? undefined);
+        const detail = await fetchMember(
+          member.id,
+          isSystemResidents ? "all" : memberCommunityId(member),
+        );
         setViewing(detail);
       }
     } catch (err) {
@@ -741,7 +754,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
               const selected = selectable && selectedIds.includes(m.id);
               return (
                 <DtRow
-                  key={`${m.id}-${m.membership_id ?? "onboarding"}`}
+                  key={isSystemResidents ? String(m.id) : `${m.id}-${m.community_id ?? "none"}-${m.membership_id ?? m.status}`}
                   muted={m.status === "banned" || m.status === "inactive"}
                   className={selected ? "bg-blue-50/70" : undefined}
                 >
@@ -765,10 +778,27 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     </div>
                   </DtCell>
                   {viewingAllCommunities && (
-                    <DtCell nowrap muted>{m.community_name ?? "—"}</DtCell>
+                    <DtCell nowrap muted>
+                      {isSystemResidents ? (
+                        <MemberCommunitiesLabel
+                          communities={m.communities}
+                          fallbackName={m.community_name}
+                        />
+                      ) : (
+                        (m.community_name ?? "—")
+                      )}
+                    </DtCell>
                   )}
                   <DtCell nowrap>
-                    <MemberUnitsLabel units={m.units} unitNumber={m.unit_number} />
+                    {isSystemResidents ? (
+                      <ResidentDirectoryUnitsLabel
+                        communities={m.communities}
+                        units={m.units}
+                        unitNumber={m.unit_number}
+                      />
+                    ) : (
+                      <MemberUnitsLabel units={m.units} unitNumber={m.unit_number} />
+                    )}
                   </DtCell>
                   <DtCell>
                     <span className={`rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${ROLE_STYLE[m.role] ?? ROLE_STYLE.member}`}>
@@ -889,7 +919,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                                   label: isCancellableInvitation(m) ? "Cancel invitation" : "Remove member",
                                   icon: "delete",
                                   tone: "danger",
-                                  hidden: isSystemResidents || m.role === "admin" || m.status === "inactive",
+                                  hidden: isSystemResidents || m.role === "admin" || m.status === "inactive" || m.status === "invite_rejected",
                                   onClick: async () => {
                                     const canCancelInvite = isCancellableInvitation(m);
                                     const r = await confirmDelete({
@@ -1183,7 +1213,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   <ProfileRow label="Email" value={formatDisplayEmail(viewing.email) ?? "—"} />
                   <ProfileRow label="Role" value={roleLabel(viewing.role)} />
                   <ProfileRow label="Status" value={statusLabel(viewing.status)} />
-                  {viewing.status === "invitation_sent" && viewing.invite_code ? (
+                  {(viewing.status === "invitation_sent" || viewing.status === "invite_rejected") && viewing.invite_code ? (
                     <ProfileRow
                       label="Invite code"
                       value={
@@ -1224,8 +1254,44 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     />
                   ) : null}
                   <ProfileRow label="Phone" value={<PhoneDisplay value={viewing.phone} />} />
+                  {isSystemResidents ? (
+                    <ProfileRow
+                      label="Communities"
+                      value={
+                        (viewing.community_count ?? viewing.communities?.length ?? 0) > 0 ? (
+                          <span>
+                            {(viewing.community_count ?? viewing.communities?.length ?? 0) === 1
+                              ? (viewing.communities?.[0]?.name ?? viewing.community_name ?? "1 community")
+                              : `${viewing.community_count ?? viewing.communities?.length} communities`}
+                            {(viewing.communities?.length ?? 0) > 1 ? (
+                              <span className="mt-1.5 block space-y-1">
+                                {viewing.communities?.map((community, index) => (
+                                  <span
+                                    key={`${community.id ?? community.name ?? "community"}-${index}`}
+                                    className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-slate-600"
+                                  >
+                                    <span className="font-medium text-slate-800">{community.name ?? "Community"}</span>
+                                    {community.status ? (
+                                      <span className="rounded-full bg-slate-100 px-1.5 py-px text-[10px] font-semibold text-slate-500">
+                                        {statusLabel(community.status)}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                ))}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          (viewing.community_name ?? "—")
+                        )
+                      }
+                    />
+                  ) : viewing.community_name ? (
+                    <ProfileRow label="Community" value={viewing.community_name} />
+                  ) : null}
                   <MemberUnitsDetail
                     units={viewing.units}
+                    communities={isSystemResidents ? viewing.communities : undefined}
                     fallbackUnitNumber={viewing.unit_number}
                     fallbackResidenceType={viewing.residence_type}
                     fallbackUtilityBillUrl={viewing.utility_bill_url}

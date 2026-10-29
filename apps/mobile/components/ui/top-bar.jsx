@@ -1,26 +1,33 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import BurgerButton from "./burger-button";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useFocusEffect } from "expo-router";
 import { getProfileFields, getRoleLabel } from "../../utils/profile-display";
-import { isGuestUser } from "../../services/community-access";
-import { fetchMe } from "../../services/profile-api";
+import {
+  canSwitchCommunities,
+  getPrimaryMembership,
+  isCommunityAdmin,
+  isGuestUser,
+} from "../../services/community-access";
+import { fetchMe, fetchMyCommunities, switchActiveCommunity } from "../../services/profile-api";
 import { getCommunityId, getUser, setCommunityId, subscribeSessionUser } from "../../services/auth-session";
-import { getPrimaryMembership } from "../../services/community-access";
 import { HeaderShell } from "../layout/header-chrome";
 import { sw, sf } from "../../utils/responsive";
+import { navigateAfterAuth } from "../../constants/onboarding-routes";
 import { useNotificationUnread } from "../../hooks/use-notification-unread";
 import { useMessageUnread } from "../../hooks/use-message-unread";
+import { useApiAction } from "../../hooks/use-api-action";
 import NotificationCountBadge from "./notification-count-badge";
 import LanguageToggle from "./language-toggle";
 import InboxMenu from "./inbox-menu";
+import CommunityLocationMenu from "./community-location-menu";
 import LocationPickerSheet from "./location-picker-sheet";
+import SwitchCommunitySheet from "./switch-community-sheet";
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
 
 export default function TopBar({ onMenuPress }) {
@@ -29,13 +36,20 @@ export default function TopBar({ onMenuPress }) {
   const [user, setUser] = useState(null);
   const { unread, messageAlerts } = useNotificationUnread();
   const { unread: messageUnread } = useMessageUnread();
+  const { dialog, showFailure } = useApiAction();
   const headerRef = useRef(null);
   const inboxBtnRef = useRef(null);
+  const locationBtnRef = useRef(null);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [communityMenuOpen, setCommunityMenuOpen] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
   const [locationFresh, setLocationFresh] = useState(true);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [switchRows, setSwitchRows] = useState([]);
+  const [switching, setSwitching] = useState(false);
   const [activeCommunityId, setActiveCommunityId] = useState(null);
   const inboxNavigatingRef = useRef(false);
+  const menuActionRef = useRef(false);
 
   const navigateFromInbox = useCallback(
     (route) => {
@@ -50,6 +64,83 @@ export default function TopBar({ onMenuPress }) {
       });
     },
     [router],
+  );
+
+  const afterMenuClose = useCallback((action) => {
+    if (menuActionRef.current) return;
+    menuActionRef.current = true;
+    requestAnimationFrame(() => {
+      setCommunityMenuOpen(false);
+      setTimeout(() => {
+        menuActionRef.current = false;
+        action();
+      }, 280);
+    });
+  }, []);
+
+  const openDiscoverNearby = useCallback(() => {
+    afterMenuClose(() => {
+      setLocationFresh(true);
+      setLocationOpen(true);
+    });
+  }, [afterMenuClose]);
+
+  const loadSwitchCommunities = useCallback(async () => {
+    try {
+      const payload = await fetchMyCommunities();
+      const currentId = payload.activeCommunityId ?? activeCommunityId;
+      const rows = (payload.communities || []).filter((row) => {
+        if (String(row.status || "").toLowerCase() !== "approved") return false;
+        if (Number(row.community_id) === Number(currentId)) return false;
+        const community = row.community;
+        if (!community) return true;
+        if (community.review_status === "pending" || community.review_status === "rejected") return false;
+        if (community.status && community.status !== "active") return false;
+        return true;
+      });
+      if (rows.length === 0) {
+        await dialog.showError(t("topBar.switchCommunity"), t("myCommunity.noApprovedToSwitch"));
+        return;
+      }
+      setSwitchRows(rows);
+      setSwitchOpen(true);
+    } catch (err) {
+      await showFailure(t("nav.couldNotSwitchCommunity"), err);
+    }
+  }, [activeCommunityId, dialog, showFailure, t]);
+
+  const openSwitchCommunity = useCallback(() => {
+    afterMenuClose(() => {
+      void loadSwitchCommunities();
+    });
+  }, [afterMenuClose, loadSwitchCommunities]);
+
+  const confirmSwitch = useCallback(
+    async (row) => {
+      const name = row.community?.name || t("community.myCommunity");
+      const choice = await dialog.showConfirm(
+        t("nav.switchCommunityTitle"),
+        t("nav.switchCommunityBody", { name }),
+        {
+          confirmLabel: t("nav.switchCommunityConfirm"),
+          cancelLabel: t("common.cancel"),
+        },
+      );
+      if (choice !== "confirm") return;
+
+      setSwitching(true);
+      try {
+        const next = await switchActiveCommunity(row.community_id);
+        setSwitchOpen(false);
+        setActiveCommunityId(row.community_id);
+        navigateAfterAuth(router, next, { mode: "login" });
+      } catch (err) {
+        await showFailure(t("nav.couldNotSwitchCommunity"), err);
+      } finally {
+        setSwitching(false);
+      }
+    },
+    [dialog, router, showFailure, t],
   );
 
   useEffect(() => subscribeSessionUser((next) => {
@@ -80,15 +171,33 @@ export default function TopBar({ onMenuPress }) {
   );
 
   const guestUser = isGuestUser(user);
+  const adminUser = isCommunityAdmin(user);
   const { communityName } = getProfileFields(user, activeCommunityId);
   const roleLabel = getRoleLabel(user);
   const hasCommunity = Boolean(user?.memberships?.some((m) => m?.community?.name));
   const title = hasCommunity ? communityName : t("topBar.chooseYourCommunity");
   const rangeLabel = t("topBar.compactKm", { count: 3 });
   const showNearby = isResidentFeatureEnabled(user, "nearby_places");
+  // Community admins manage one community; switch is residents-only when multi-approved.
+  const showSwitch = !guestUser && !adminUser && canSwitchCommunities(user);
+  const showLocationMenu = showNearby || showSwitch;
   const showMessages = isResidentFeatureEnabled(user, "messages");
   const notificationOnly = Math.max(0, (unread || 0) - (messageAlerts || 0));
   const inboxUnread = showMessages ? notificationOnly + (messageUnread || 0) : unread || 0;
+
+  const onLocationPress = () => {
+    if (!showLocationMenu) return;
+    if (showNearby && showSwitch) {
+      setCommunityMenuOpen((open) => !open);
+      return;
+    }
+    if (showNearby) {
+      setLocationFresh(true);
+      setLocationOpen(true);
+      return;
+    }
+    void loadSwitchCommunities();
+  };
 
   return (
     <View ref={headerRef} collapsable={false}>
@@ -97,14 +206,17 @@ export default function TopBar({ onMenuPress }) {
           <View style={styles.left}>
             <BurgerButton onPress={onMenuPress} compact plain iconColor={T.navy} />
             <Pressable
+              ref={locationBtnRef}
+              collapsable={false}
               style={styles.location}
               accessibilityRole="button"
-              accessibilityLabel={t("topBar.communityLocation", { name: title })}
-              onPress={() => {
-                if (!showNearby) return;
-                setLocationFresh(true);
-                setLocationOpen(true);
-              }}
+              accessibilityLabel={
+                showLocationMenu
+                  ? t("topBar.communityMenu", { name: title })
+                  : t("topBar.communityLocation", { name: title })
+              }
+              onPress={onLocationPress}
+              disabled={!showLocationMenu}
             >
               <View style={styles.pinWrap}>
                 <Feather name="map-pin" size={sf(12)} color={T.white} />
@@ -121,7 +233,7 @@ export default function TopBar({ onMenuPress }) {
                   <Text style={styles.rangeChipText}>{rangeLabel}</Text>
                 </View>
               ) : null}
-              {showNearby ? <Feather name="chevron-down" size={sf(14)} color={T.navy} /> : null}
+              {showLocationMenu ? <Feather name="chevron-down" size={sf(14)} color={T.navy} /> : null}
             </Pressable>
           </View>
 
@@ -141,12 +253,31 @@ export default function TopBar({ onMenuPress }) {
         </View>
       </HeaderShell>
 
+      <CommunityLocationMenu
+        visible={communityMenuOpen && showNearby && showSwitch}
+        onClose={() => setCommunityMenuOpen(false)}
+        headerRef={headerRef}
+        triggerRef={locationBtnRef}
+        showDiscoverNearby={showNearby}
+        showSwitchCommunity={showSwitch}
+        onDiscoverNearby={openDiscoverNearby}
+        onSwitchCommunity={openSwitchCommunity}
+      />
+
       <LocationPickerSheet
         visible={locationOpen}
         freshOpen={locationFresh}
         onClose={() => setLocationOpen(false)}
         communityName={hasCommunity ? communityName : title}
         communityId={activeCommunityId}
+      />
+
+      <SwitchCommunitySheet
+        visible={switchOpen}
+        communities={switchRows}
+        switching={switching}
+        onClose={() => setSwitchOpen(false)}
+        onSelect={confirmSwitch}
       />
 
       <InboxMenu

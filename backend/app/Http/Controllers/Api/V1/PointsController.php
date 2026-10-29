@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\AchievementsService;
 use App\Services\LoginStreakService;
 use App\Services\PointsRewardService;
+use App\Services\UserActingContextService;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -214,12 +215,7 @@ class PointsController extends Controller
             return (int) $header;
         }
 
-        $membership = $user->memberships()
-            ->where('status', 'approved')
-            ->orderBy('id')
-            ->first();
-
-        return $membership?->community_id;
+        return UserActingContextService::currentCommunityId($user);
     }
 
     private function sumPoints(int $userId, ?int $communityId, $since = null): int

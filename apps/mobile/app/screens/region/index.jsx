@@ -33,11 +33,12 @@ export default function RegionScreen() {
   const router = useRouter();
   const dialog = useAppDialog();
   const insets = useSafeAreaInsets();
-  const { role: roleParam } = useLocalSearchParams();
+  const { role: roleParam, joinAnother, returnTo } = useLocalSearchParams();
   const activeRole =
     roleParam === "admin" || roleParam === "resident"
       ? roleParam
       : getCurrentRole();
+  const isJoinAnother = joinAnother === "1" || joinAnother === true;
 
   const [countryFilter, setCountryFilter] = useState(null);
   const [stateFilter, setStateFilter] = useState(null);
@@ -132,6 +133,8 @@ export default function RegionScreen() {
         regionArea: region.area || "",
         regionState: region.state || "",
         role: activeRole,
+        ...(isJoinAnother ? { joinAnother: "1" } : {}),
+        ...(returnTo ? { returnTo: String(returnTo) } : {}),
       },
     });
   };
@@ -146,14 +149,35 @@ export default function RegionScreen() {
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
       <View style={[styles.hero, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.headerRow}>
-          <BackButton iconOnly compact onPress={() => confirmLeaveOnboarding(dialog)} />
-          <Text style={styles.kicker}>{t("region.findYourArea")}</Text>
+          <BackButton
+            iconOnly
+            compact
+            onPress={() => {
+              if (isJoinAnother) {
+                if (router.canGoBack?.()) router.back();
+                else router.replace("/(tabs)/home");
+                return;
+              }
+              confirmLeaveOnboarding(dialog);
+            }}
+          />
+          <Text style={styles.kicker}>
+            {isJoinAnother ? t("nav.joinAnotherCommunity") : t("region.findYourArea")}
+          </Text>
         </View>
         <Text style={styles.heroTitle}>
-          {isResident ? t("region.liveHere") : t("region.operateHere")}
+          {isJoinAnother
+            ? t("region.joinAnotherTitle")
+            : isResident
+              ? t("region.liveHere")
+              : t("region.operateHere")}
         </Text>
         <Text style={styles.heroCopy}>
-          {isResident ? t("region.liveHereHint") : t("region.operateHereHint")}
+          {isJoinAnother
+            ? t("region.joinAnotherHint")
+            : isResident
+              ? t("region.liveHereHint")
+              : t("region.operateHereHint")}
         </Text>
       </View>
 

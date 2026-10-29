@@ -7,6 +7,7 @@ use App\Services\AdminRoleService;
 use App\Services\BillingContactTransferService;
 use App\Services\UnitAssignmentService;
 use App\Services\UnitRegistrationPackageService;
+use App\Services\UserActingContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,7 @@ class UnitController extends Controller
     /** GET /v1/communities/{id}/units — complete-profile picker. */
     public function communityIndex(Request $request, int $id): JsonResponse
     {
-        $this->assertCommunityUnitsAccess($request, $id);
+        $this->assertCommunityUnitsAccess($request, $id, mutating: false);
         $includeOffice = AdminRoleService::isCommunityAdminRole($request->user())
             || AdminRoleService::isSystemAdmin($request->user());
 
@@ -36,7 +37,7 @@ class UnitController extends Controller
     /** POST /v1/communities/{id}/units — onboarding / profile unit catalog. */
     public function communityStore(Request $request, int $id): JsonResponse
     {
-        $this->assertCommunityUnitsAccess($request, $id);
+        $this->assertCommunityUnitsAccess($request, $id, mutating: true);
         $data = $request->validate([
             'unit_number' => 'required|string|max:50',
         ]);
@@ -143,10 +144,15 @@ class UnitController extends Controller
 
         $user = $request->user();
         $inviteUnits = $this->units->listInviteUnitNumbers($communityId, (int) $user->id);
-        $invited = $inviteUnits !== []
-            || \App\Support\OnboardingContext::invitedByAdmin($user);
+        $invitedHere = $inviteUnits !== []
+            || DB::table('community_memberships')
+                ->where('user_id', $user->id)
+                ->where('community_id', $communityId)
+                ->whereNotNull('invite_code_used')
+                ->where('invite_code_used', '!=', '')
+                ->exists();
 
-        if ($invited) {
+        if ($invitedHere) {
             $assigned = $this->packages->completeInvitedOnboarding(
                 (int) $user->id,
                 $communityId,
@@ -290,6 +296,7 @@ class UnitController extends Controller
     {
         $communityId = $this->resolveAdminCommunityId($request);
         $this->units->repairStaffAssignments($communityId);
+        $this->units->pruneCopiedUnitsForCommunity($communityId);
         $rows = DB::table('units')
             ->where('community_id', $communityId)
             ->orderByRaw("CASE kind WHEN 'residential' THEN 0 ELSE 1 END")
@@ -376,15 +383,7 @@ class UnitController extends Controller
             return (int) $request->community_id;
         }
 
-        $membership = DB::table('community_memberships')
-            ->where('user_id', $request->user()->id)
-            ->where('status', 'approved')
-            ->orderByDesc('created_at')
-            ->first();
-
-        abort_if(! $membership, 422, 'No approved community membership found.');
-
-        return (int) $membership->community_id;
+        return UserActingContextService::requireCurrentCommunityId($request->user());
     }
 
     /** Allow pending membership during complete-profile onboarding. */
@@ -403,10 +402,15 @@ class UnitController extends Controller
             }
         }
 
+        $current = UserActingContextService::currentCommunityId($request->user());
+        if ($current) {
+            return $current;
+        }
+
         $membership = DB::table('community_memberships')
             ->where('user_id', $request->user()->id)
             ->whereIn('status', ['approved', 'pending'])
-            ->orderByDesc('created_at')
+            ->orderBy('created_at')
             ->first();
 
         abort_if(! $membership, 422, 'Join a community before submitting units.');
@@ -422,7 +426,7 @@ class UnitController extends Controller
         return (int) $scope;
     }
 
-    private function assertCommunityUnitsAccess(Request $request, int $communityId): void
+    private function assertCommunityUnitsAccess(Request $request, int $communityId, bool $mutating = false): void
     {
         $user = $request->user();
         if (AdminRoleService::canManageCommunity($user, $communityId)) {
@@ -435,6 +439,26 @@ class UnitController extends Controller
             ->whereIn('status', ['approved', 'pending'])
             ->exists();
 
-        abort_if(! $allowed, 403, 'You cannot access units for this community.');
+        if ($allowed) {
+            return;
+        }
+
+        if (! $mutating) {
+            $open = DB::table('communities')
+                ->where('id', $communityId)
+                ->whereNull('deleted_at')
+                ->where(function ($query) {
+                    $query->whereNull('status')->orWhere('status', 'active');
+                })
+                ->where(function ($query) {
+                    $query->whereNull('review_status')->orWhere('review_status', 'approved');
+                })
+                ->exists();
+            if ($open) {
+                return;
+            }
+        }
+
+        abort(403, 'You cannot access units for this community.');
     }
 }

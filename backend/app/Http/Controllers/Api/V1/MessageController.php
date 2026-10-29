@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AdminRoleService;
 use App\Services\NotificationService;
+use App\Services\UserActingContextService;
 use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
@@ -781,17 +782,12 @@ class MessageController extends Controller
             }
         }
 
-        return $user->memberships()
-            ->where('status', 'approved')
-            ->whereIn('role', ['admin', 'moderator'])
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->value('community_id')
-            ?? $user->memberships()
-                ->where('status', 'approved')
-                ->orderByDesc('updated_at')
-                ->orderByDesc('id')
-                ->value('community_id');
+        $current = UserActingContextService::currentCommunityId($user);
+        if ($current && in_array($current, $approvedIds, true)) {
+            return $current;
+        }
+
+        return $approvedIds[0] ?? null;
     }
 
     /** @return list<int> */

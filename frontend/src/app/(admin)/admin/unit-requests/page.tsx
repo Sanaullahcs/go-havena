@@ -226,7 +226,7 @@ export default function UnitRequestsPage() {
     <div className="space-y-6">
       <div>
         <p className="nl-eyebrow">Property</p>
-        <h1 className="nl-page-title">Unit Requests</h1>
+        <h1 className="nl-page-title font-bold">Unit Requests</h1>
         <p className="mt-1 max-w-2xl text-[13.5px] text-slate-500">
           Review self-signup unit packages and add-on unit requests. Approve or reject the entire package in one action.
         </p>
@@ -249,7 +249,7 @@ export default function UnitRequestsPage() {
               applyStatus(value);
             }}
             className={`rounded-full px-3 py-1.5 text-[12px] font-semibold capitalize transition ${
-              status === value ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              status === value ? "bg-[#1B4F8A] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
             {value === "all" ? "All statuses" : value}
@@ -265,7 +265,7 @@ export default function UnitRequestsPage() {
               applyKind(value);
             }}
             className={`rounded-full px-3 py-1.5 text-[12px] font-semibold transition ${
-              kind === value ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              kind === value ? "bg-[#14B8A6] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
             {value === "all" ? "All kinds" : kindLabel(value)}

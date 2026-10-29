@@ -583,7 +583,7 @@ const styles = {
     marginTop: sw(4),
     minHeight: sw(46),
     borderRadius: sw(12),
-    backgroundColor: "#0F172A",
+    backgroundColor: "#14B8A6",
     alignItems: "center",
     justifyContent: "center",
   },

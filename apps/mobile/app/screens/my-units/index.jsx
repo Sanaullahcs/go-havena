@@ -142,7 +142,7 @@ export default function MyUnitsScreen() {
         }
 
         return submitUnitRegistrationPackage({
-          kind: "addon",
+          kind: activeCount > 0 ? "addon" : "initial",
           units: [
             {
               unit_number: trimmed,
@@ -272,7 +272,7 @@ export default function MyUnitsScreen() {
           </View>
         )}
 
-        {!meta?.pending_initial_package && meta?.has_full_access !== false ? (
+        {!meta?.pending_initial_package ? (
           <Pressable style={styles.cta} onPress={() => void openRequest()}>
             <Feather name="plus" size={18} color="#FFF" />
             <Text style={styles.ctaText}>{t("myUnits.requestAnother")}</Text>

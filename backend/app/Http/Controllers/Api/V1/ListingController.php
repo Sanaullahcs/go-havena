@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\BlocksGuestWrites;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
 use App\Services\NotificationService;
+use App\Services\UserActingContextService;
 use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use Illuminate\Http\Request;
@@ -680,15 +681,10 @@ class ListingController extends Controller
         }
 
         if ($user) {
-            $membership = DB::table('community_memberships')
-                ->where('user_id', $user->id)
-                ->where('status', 'approved')
-                ->orderBy('id')
-                ->first();
-
-            if ($membership) {
-                return (int) $membership->community_id;
-            }
+            return UserActingContextService::requireCurrentCommunityId(
+                $user,
+                'No community is assigned to your account.',
+            );
         }
 
         abort(422, 'No community is assigned to your account.');

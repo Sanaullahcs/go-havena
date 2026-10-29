@@ -69,13 +69,7 @@ class FamilyService
 
     public static function resolveCommunityId(User $user): ?int
     {
-        $membership = DB::table('community_memberships')
-            ->where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->orderByDesc('created_at')
-            ->first();
-
-        return $membership ? (int) $membership->community_id : null;
+        return UserActingContextService::currentCommunityId($user);
     }
 
     public static function activeMembership(User $user, ?int $communityId = null): ?FamilyMember
@@ -145,11 +139,16 @@ class FamilyService
 
     public static function resolveCommunityIdForProvision(User $user): ?int
     {
+        $current = UserActingContextService::currentCommunityId($user);
+        if ($current) {
+            return $current;
+        }
+
         $membership = DB::table('community_memberships')
             ->where('user_id', $user->id)
             ->whereIn('status', ['approved', 'pending'])
             ->orderByRaw("CASE WHEN status = 'approved' THEN 0 ELSE 1 END")
-            ->orderByDesc('created_at')
+            ->orderBy('created_at')
             ->first();
 
         return $membership ? (int) $membership->community_id : null;
@@ -1229,31 +1228,17 @@ class FamilyService
         $displayName = trim("{$firstName} {$lastName}") ?: 'Neighbor';
 
         if ($candidate) {
-            $otherCommunity = CommunityMembership::query()
-                ->where('user_id', $candidate->id)
-                ->where('community_id', '!=', $communityId)
-                ->whereIn('status', ['pending', 'approved'])
-                ->exists();
-
-            $sameCommunity = CommunityMembership::query()
-                ->where('user_id', $candidate->id)
-                ->where('community_id', $communityId)
-                ->exists();
-
-            if ($otherCommunity && ! $sameCommunity) {
-                throw ValidationException::withMessages([
-                    'email' => ['This person already belongs to another community.'],
-                ]);
-            }
-
             if ($unitNumber !== '') {
                 $candidate->loadMissing('profile');
+                $profileValues = [
+                    'display_name' => $candidate->profile?->display_name ?: $displayName,
+                ];
+                if (! filled($candidate->profile?->unit_number)) {
+                    $profileValues['unit_number'] = $unitNumber;
+                }
                 \App\Models\Profile::query()->updateOrCreate(
                     ['user_id' => $candidate->id],
-                    [
-                        'display_name' => $candidate->profile?->display_name ?: $displayName,
-                        'unit_number'  => $unitNumber,
-                    ],
+                    $profileValues,
                 );
             }
 

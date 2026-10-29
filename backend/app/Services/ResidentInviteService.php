@@ -42,8 +42,14 @@ class ResidentInviteService
             $billing->assertCanAllocateSeat($communityId);
         }
 
-        $existingUser = ContactIdentityService::findUserByEmail($email);
-        if ($existingUser) {
+        $existingByEmail = ContactIdentityService::findUserByEmail($email);
+        $existingByPhone = ContactIdentityService::findOccupyingUserByPhone($normalizedPhone);
+        if ($existingByEmail && $existingByPhone && (int) $existingByEmail->id !== (int) $existingByPhone->id) {
+            ContactIdentityService::failDuplicate('phone', ContactIdentityService::DUPLICATE_PHONE_MESSAGE);
+        }
+
+        $existingUser = $existingByEmail ?: $existingByPhone;
+        if ($existingUser && ! $existingUser->trashed()) {
             $inactiveMembership = DB::table('community_memberships')
                 ->where('user_id', $existingUser->id)
                 ->where('community_id', $communityId)
@@ -60,6 +66,41 @@ class ResidentInviteService
                     $unitNumber,
                     $residenceType,
                     $role,
+                );
+            }
+
+            $blockingMembership = DB::table('community_memberships')
+                ->where('user_id', $existingUser->id)
+                ->where('community_id', $communityId)
+                ->whereIn('status', ['approved', 'pending', 'banned', 'not_invited'])
+                ->first();
+
+            if ($blockingMembership) {
+                throw ValidationException::withMessages([
+                    'email' => ['This resident already belongs to this community.'],
+                ]);
+            }
+
+            $pendingInvite = \App\Models\InviteCode::query()
+                ->pendingForUser((int) $existingUser->id)
+                ->where('community_id', $communityId)
+                ->exists();
+            if ($pendingInvite) {
+                throw ValidationException::withMessages([
+                    'email' => ['This resident already has a pending invitation to this community.'],
+                ]);
+            }
+
+            if (($existingUser->role ?? '') === 'resident') {
+                return $this->inviteExisting(
+                    $actor,
+                    $existingUser,
+                    $communityId,
+                    $name,
+                    $unitNumber,
+                    $residenceType,
+                    $role,
+                    overwriteProfile: false,
                 );
             }
         }
@@ -130,6 +171,7 @@ class ResidentInviteService
         string $unitNumber,
         ?string $residenceType = null,
         string $role = 'member',
+        bool $overwriteProfile = true,
     ): array {
         $billing = app(CommunityBillingService::class);
         if ($role !== 'admin') {
@@ -137,23 +179,25 @@ class ResidentInviteService
             $billing->assertCanAllocateSeat($communityId);
         }
 
-        $profileUpdate = [
-            'display_name' => $name,
-            'unit_number' => $unitNumber,
-            'updated_at' => now(),
-        ];
-        if ($residenceType !== null && $residenceType !== '') {
-            $profileUpdate['residence_type'] = $residenceType;
-        }
+        if ($overwriteProfile) {
+            $profileUpdate = [
+                'display_name' => $name,
+                'unit_number' => $unitNumber,
+                'updated_at' => now(),
+            ];
+            if ($residenceType !== null && $residenceType !== '') {
+                $profileUpdate['residence_type'] = $residenceType;
+            }
 
-        $hasProfile = DB::table('profiles')->where('user_id', $invitee->id)->exists();
-        if ($hasProfile) {
-            DB::table('profiles')->where('user_id', $invitee->id)->update($profileUpdate);
-        } else {
-            DB::table('profiles')->insert(array_merge($profileUpdate, [
-                'user_id' => $invitee->id,
-                'created_at' => now(),
-            ]));
+            $hasProfile = DB::table('profiles')->where('user_id', $invitee->id)->exists();
+            if ($hasProfile) {
+                DB::table('profiles')->where('user_id', $invitee->id)->update($profileUpdate);
+            } else {
+                DB::table('profiles')->insert(array_merge($profileUpdate, [
+                    'user_id' => $invitee->id,
+                    'created_at' => now(),
+                ]));
+            }
         }
 
         return $this->finalizeInvitation(

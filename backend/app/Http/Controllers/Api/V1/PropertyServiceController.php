@@ -7,6 +7,7 @@ use App\Services\AdminRoleService;
 use App\Services\PropertyServiceCatalogService;
 use App\Services\UnitAssignmentService;
 use App\Services\UnitServiceBillService;
+use App\Services\UserActingContextService;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -150,7 +151,7 @@ class PropertyServiceController extends Controller
         $unit = $billingUnits[0] ?? $this->units->findActiveUnitForUser((int) $request->user()->id, $communityId);
 
         return response()->json([
-            'data' => $this->catalog->listResidentCatalog($communityId, $unit),
+            'data' => $this->catalog->listResidentCatalog($communityId, $unit, $billingUnits),
             'unit' => $unit ? $this->units->formatUnit($unit, (int) $request->user()->id) : null,
             'units' => array_map(
                 fn ($row) => $this->units->formatUnit($row, (int) $request->user()->id),
@@ -300,15 +301,7 @@ class PropertyServiceController extends Controller
             return (int) $request->community_id;
         }
 
-        $membership = DB::table('community_memberships')
-            ->where('user_id', $request->user()->id)
-            ->where('status', 'approved')
-            ->orderByDesc('created_at')
-            ->first();
-
-        abort_if(! $membership, 422, 'No approved community membership found.');
-
-        return (int) $membership->community_id;
+        return UserActingContextService::requireCurrentCommunityId($request->user());
     }
 
     private function resolveAdminCommunityId(Request $request): int

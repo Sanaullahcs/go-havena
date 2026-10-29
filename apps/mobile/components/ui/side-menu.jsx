@@ -307,6 +307,14 @@ function SideMenuPanel({ visible, onClose }) {
       ? [
           !isCommunityAdmin(user)
             ? {
+                iconName: "map",
+                titleKey: "nav.myCommunity",
+                route: "/screens/my-community",
+                badgeCount: Number(user?.pending_invitation_count) || 0,
+              }
+            : null,
+          !isCommunityAdmin(user)
+            ? {
                 iconName: "layers",
                 titleKey: "nav.myUnits",
                 route: "/screens/my-units",
@@ -843,6 +851,44 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     color: "#94A3B8",
     marginBottom: 8,
+  },
+  communitySwitch: {
+    marginBottom: 16,
+  },
+  communityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    marginBottom: 6,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  communityRowOn: {
+    backgroundColor: "#F0FDFA",
+    borderColor: "rgba(20, 184, 166, 0.4)",
+  },
+  communityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#CBD5E1",
+  },
+  communityDotOn: {
+    backgroundColor: "#14B8A6",
+  },
+  communityRowText: {
+    flex: 1,
+    fontFamily: Fonts.medium,
+    fontSize: 14,
+    color: "#475569",
+  },
+  communityRowTextOn: {
+    fontFamily: Fonts.semiBold,
+    color: "#0F172A",
   },
   menuGroup: {
     marginBottom: 16,

@@ -35,6 +35,8 @@ const STATUS_META = {
   rejected: { label: "admin.rejected", bg: "#FEF2F2", text: "#DC2626" },
   banned: { label: "admin.suspended", bg: "#F1F5F9", text: "#64748B" },
   onboarding: { label: "admin.onboarding", bg: "#D1FAF5", text: "#14B8A6" },
+  invitation_sent: { label: "admin.invitationSent", bg: "#F1F5F9", text: "#475569" },
+  invite_rejected: { label: "admin.inviteRejected", bg: "#FEF2F2", text: "#B91C1C" },
 };
 
 function memberStatusMeta(status) {

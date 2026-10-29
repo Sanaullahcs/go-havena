@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Keyboard, BackHandler } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
@@ -42,7 +42,10 @@ export default function InviteCodeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
-  const [inviteCode, setInviteCode] = useState("");
+  const { inviteCode: prefillCode, returnTo } = useLocalSearchParams();
+  const [inviteCode, setInviteCode] = useState(() =>
+    prefillCode ? normalizeResidentInviteCode(String(prefillCode)) : "",
+  );
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
   const { submitting, run } = useSubmitLock();
   const [showScanner, setShowScanner] = useState(false);
@@ -175,6 +178,7 @@ export default function InviteCodeScreen() {
             communityId: String(data.community.id),
             communityName: data.community.name,
             invited: "1",
+            ...(returnTo ? { returnTo: String(returnTo) } : {}),
           },
         });
       } catch (err) {

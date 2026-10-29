@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\CommunityAdminPushPreferenceController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PointsController;
 use App\Http\Controllers\Api\V1\ProfileController;
+use App\Http\Controllers\Api\V1\ResidentCommunityController;
 use App\Http\Controllers\Api\V1\UserBlockController;
 use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\NoticeController;
@@ -132,6 +133,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/users/{id}/block', [UserBlockController::class, 'store'])->whereNumber('id');
         Route::delete('/users/{id}/block', [UserBlockController::class, 'destroy'])->whereNumber('id');
         Route::put('/me/active-context', [ProfileController::class, 'updateActiveContext']);
+        Route::get('/me/communities', [ResidentCommunityController::class, 'communities']);
+        Route::get('/me/invitations', [ResidentCommunityController::class, 'invitations']);
+        Route::post('/me/invitations/{invite}/reject', [ResidentCommunityController::class, 'rejectInvitation'])->whereNumber('invite');
         Route::put('/me',             [ProfileController::class, 'update']);
         Route::post('/me',            [ProfileController::class, 'update']);
         Route::delete('/me',          [ProfileController::class, 'destroy']);

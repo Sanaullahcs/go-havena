@@ -33,6 +33,10 @@ class EnsureResidentFeature
             return $next($request);
         }
 
+        if (AdminRoleService::isCommunityAdminRole($user) && ! AdminRoleService::isResidentMode($user)) {
+            return $next($request);
+        }
+
         $service = app(CommunityFeatureService::class);
         $communityId = $service->communityIdForUser($user);
 

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
+use App\Models\CommunityMembership;
+use App\Models\InviteCode;
 use App\Models\Region;
 use App\Models\User;
 use App\Services\AdminRoleService;
@@ -61,30 +63,38 @@ class ProfileController extends Controller
         ]);
 
         $context = $validated['context'] ?? $validated['active_mode'] ?? null;
-        if (! $context) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'context' => ['Provide context or active_mode.'],
+        $communityId = isset($validated['community_id']) ? (int) $validated['community_id'] : null;
+        $user = $request->user();
+
+        if ($context) {
+            if (! UserActingContextService::canSwitchModes($user)) {
+                return response()->json([
+                    'message' => 'Only a Community Admin can switch modes.',
+                    'code' => 'MODE_SWITCH_NOT_ALLOWED',
+                ], 403);
+            }
+
+            $user = UserActingContextService::switch($user, $context, $communityId);
+
+            return response()->json([
+                'data' => $this->buildUserPayload($user),
+                'message' => $context === UserActingContextService::CONTEXT_RESIDENT
+                    ? 'Switched to Resident Mode'
+                    : 'Switched to Admin Mode',
             ]);
         }
 
-        if (! UserActingContextService::canSwitchModes($request->user())) {
+        if ($communityId) {
+            $user = UserActingContextService::switchCommunity($user, $communityId);
+
             return response()->json([
-                'message' => 'Only a Community Admin can switch modes.',
-                'code' => 'MODE_SWITCH_NOT_ALLOWED',
-            ], 403);
+                'data' => $this->buildUserPayload($user),
+                'message' => 'Switched community',
+            ]);
         }
 
-        $user = UserActingContextService::switch(
-            $request->user(),
-            $context,
-            isset($validated['community_id']) ? (int) $validated['community_id'] : null,
-        );
-
-        return response()->json([
-            'data' => $this->buildUserPayload($user),
-            'message' => $context === UserActingContextService::CONTEXT_RESIDENT
-                ? 'Switched to Resident Mode'
-                : 'Switched to Admin Mode',
+        throw \Illuminate\Validation\ValidationException::withMessages([
+            'community_id' => ['Choose a community to switch to.'],
         ]);
     }
 
@@ -261,9 +271,19 @@ class ProfileController extends Controller
                 // A unit assigned on the invitation stays fixed. Residents can only set one when none exists yet.
                 if ($current !== '') {
                     if (strcasecmp($incoming, $current) !== 0) {
-                        throw ValidationException::withMessages([
-                            'unit_number' => ['Unit / apartment cannot be changed from your profile. Contact your community admin if you need an update.'],
-                        ]);
+                        $approvedCount = \App\Models\CommunityMembership::query()
+                            ->where('user_id', $user->id)
+                            ->where('status', 'approved')
+                            ->count();
+                        $membershipCount = \App\Models\CommunityMembership::query()
+                            ->where('user_id', $user->id)
+                            ->count();
+                        $isAdditionalCommunity = $approvedCount > 0 && $membershipCount > 1;
+                        if (! $isAdditionalCommunity) {
+                            throw ValidationException::withMessages([
+                                'unit_number' => ['Unit / apartment cannot be changed from your profile. Contact your community admin if you need an update.'],
+                            ]);
+                        }
                     }
                     $profileData['unit_number'] = $current;
                 } elseif ($incoming !== '') {
@@ -290,7 +310,7 @@ class ProfileController extends Controller
             }
 
             $user->load('profile.region');
-            MembershipService::approvePendingForActiveCommunities($user);
+            MembershipService::approvePendingForActiveCommunities($user, afterProfileSave: true);
             $user->unsetRelation('memberships');
             $user->load('memberships');
             if (! $isCommunityAdmin) {
@@ -326,7 +346,10 @@ class ProfileController extends Controller
             [],
             $user->name,
             (int) $user->id,
-            ['related_item' => $user->name],
+            array_filter([
+                'related_item' => $user->name,
+                'community_id' => $this->profileActivityCommunityId($user),
+            ]),
         );
 
         return response()->json([
@@ -672,6 +695,43 @@ class ProfileController extends Controller
     }
 
 
+    /**
+     * Stamp profile activity on the community the resident is currently joining
+     * (pending membership or invite), otherwise their active home.
+     */
+    private function profileActivityCommunityId(User $user): ?int
+    {
+        $pending = CommunityMembership::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'pending')
+            ->orderByDesc('id')
+            ->value('community_id');
+        if ($pending) {
+            return (int) $pending;
+        }
+
+        if ($user->active_context_community_id) {
+            return (int) $user->active_context_community_id;
+        }
+
+        $inviteCommunityId = InviteCode::query()
+            ->where('invited_user_id', $user->id)
+            ->whereNull('rejected_at')
+            ->orderByDesc('id')
+            ->value('community_id');
+        if ($inviteCommunityId) {
+            return (int) $inviteCommunityId;
+        }
+
+        $approved = CommunityMembership::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->orderByDesc('id')
+            ->value('community_id');
+
+        return $approved ? (int) $approved : null;
+    }
+
     private function resolveViewerCommunityId(Request $request, User $user): ?int
     {
         $approvedIds = $user->memberships()
@@ -699,12 +759,8 @@ class ProfileController extends Controller
             }
         }
 
-        $fallback = $user->memberships()
-            ->where('status', 'approved')
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->value('community_id');
+        $current = UserActingContextService::currentCommunityId($user);
 
-        return $fallback !== null ? (int) $fallback : null;
+        return $current && in_array($current, $approvedIds, true) ? $current : ($approvedIds[0] ?? null);
     }
 }

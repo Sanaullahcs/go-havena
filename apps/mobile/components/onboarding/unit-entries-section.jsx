@@ -64,6 +64,7 @@ export default function UnitEntriesSection({
   createUnit,
   errors = {},
   dialog,
+  hint,
 }) {
   const { t } = useTranslation();
 
@@ -112,7 +113,7 @@ export default function UnitEntriesSection({
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.sectionTitle}>{t("onboarding.yourUnits")}</Text>
-          <Text style={styles.sectionHint}>{t("onboarding.yourUnitsHint")}</Text>
+          <Text style={styles.sectionHint}>{hint || t("onboarding.yourUnitsHint")}</Text>
         </View>
         {canAdd && entries.length < maxUnits ? (
           <TouchableOpacity style={styles.addBtn} onPress={addEntry} activeOpacity={0.85}>

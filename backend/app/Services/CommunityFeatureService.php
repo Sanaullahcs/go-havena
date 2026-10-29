@@ -185,6 +185,11 @@ class CommunityFeatureService
             return UserActingContextService::currentCommunityId($user);
         }
 
+        $preferred = UserActingContextService::currentCommunityId($user);
+        if ($preferred) {
+            return $preferred;
+        }
+
         $membership = CommunityMembership::query()
             ->where('user_id', $user->id)
             ->where('status', 'approved')

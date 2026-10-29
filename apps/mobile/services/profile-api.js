@@ -5,7 +5,14 @@ import { beginMeSync, commitMeSync, syncUserFromApi } from "./auth-api";
 import { API_BASE_URL } from "../constants/api-config";
 import { getProfileFields, resolveMediaUrl } from "../utils/profile-display";
 import { guessImageMeta, normalizeUploadAsset, uploadMultipartFile } from "../utils/upload-form-data";
+import { clearWellnessHubCache } from "./wellness-api";
+import { invalidateBillsSummary } from "../hooks/use-bills-summary";
 import i18n from "../i18n";
+
+function clearCommunityScopedCaches() {
+  clearWellnessHubCache();
+  invalidateBillsSummary();
+}
 
 function normalizeMe(data) {
   if (!data) return null;
@@ -19,11 +26,38 @@ function normalizeMe(data) {
   };
 }
 
-export async function fetchMe() {
+export async function fetchMe({ inviteCommunityId } = {}) {
   const seq = beginMeSync();
-  const res = await apiRequest("/me", { community: false, cache: "no-store" });
+  const query = inviteCommunityId
+    ? `?invite_community_id=${encodeURIComponent(inviteCommunityId)}`
+    : "";
+  const res = await apiRequest(`/me${query}`, { community: false, cache: "no-store" });
   const data = await commitMeSync(seq, res.data);
   return normalizeMe(data);
+}
+
+export async function fetchMyCommunities() {
+  const res = await apiRequest("/me/communities", { community: false, cache: "no-store" });
+  return {
+    communities: res.data ?? [],
+    activeCommunityId: res.meta?.active_community_id ?? null,
+  };
+}
+
+export async function fetchMyInvitations() {
+  const res = await apiRequest("/me/invitations", { community: false, cache: "no-store" });
+  return res.data ?? [];
+}
+
+export async function rejectMyInvitation(inviteId) {
+  const res = await apiRequest(`/me/invitations/${inviteId}/reject`, {
+    method: "POST",
+    community: false,
+  });
+  if (res.data?.user) {
+    await syncUserFromApi(res.data.user);
+  }
+  return res;
 }
 
 export async function switchActiveContext(context, communityId) {
@@ -47,6 +81,22 @@ export async function switchActiveContext(context, communityId) {
   if (nextCommunityId) {
     await setCommunityId(nextCommunityId);
   }
+  clearCommunityScopedCaches();
+  return normalizeMe((await getUser()) ?? res.data);
+}
+
+export async function switchActiveCommunity(communityId) {
+  const res = await apiRequest("/me/active-context", {
+    method: "PUT",
+    community: false,
+    body: { community_id: communityId },
+  });
+  await syncUserFromApi(res.data);
+  const nextCommunityId = res.data?.active_context_community_id ?? communityId;
+  if (nextCommunityId) {
+    await setCommunityId(nextCommunityId);
+  }
+  clearCommunityScopedCaches();
   return normalizeMe((await getUser()) ?? res.data);
 }
 

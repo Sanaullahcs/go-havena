@@ -9,11 +9,11 @@ import FloatingNavMenu from "../../components/layout/floating-nav-menu";
 
 import CreateNewModal from "../../components/ui/CreateNewModal";
 
-import { getUser, getToken, clearSession, subscribeSessionUser } from "../../services/auth-session";
+import { getUser, getToken, getCachedUser, clearSession, subscribeSessionUser } from "../../services/auth-session";
 
 import { fetchMe } from "../../services/auth-api";
 
-import { canAccessDashboard, isCommunityAdmin, isGuestUser } from "../../services/community-access";
+import { canAccessDashboard, currentCommunityId, isCommunityAdmin, isGuestUser } from "../../services/community-access";
 
 import { getPostAuthRoute, needsCompleteProfile, Routes } from "../../constants/onboarding-routes";
 import { syncRoleFromUser } from "../../constants/role-session";
@@ -44,6 +44,9 @@ export default function TabLayout() {
   const { t } = useTranslation();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [communityAdminUser, setCommunityAdminUser] = useState(false);
+  const [activeCommunityId, setActiveCommunityId] = useState(
+    () => currentCommunityId(getCachedUser()) ?? 0,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +65,7 @@ export default function TabLayout() {
       if (!user || cancelled) return;
       syncRoleFromUser(user);
       setCommunityAdminUser(isCommunityAdmin(user));
+      setActiveCommunityId(currentCommunityId(user) ?? 0);
     };
 
     const redirectIfBlocked = (user) => {
@@ -130,10 +134,12 @@ export default function TabLayout() {
     return subscribeSessionUser((user) => {
       if (!user) {
         setCommunityAdminUser(false);
+        setActiveCommunityId(0);
         return;
       }
       syncRoleFromUser(user);
       setCommunityAdminUser(isCommunityAdmin(user));
+      setActiveCommunityId(currentCommunityId(user) ?? 0);
     });
   }, []);
 
@@ -193,6 +199,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      key={`community-${activeCommunityId || "none"}`}
       tabBar={renderTabBar}
       screenOptions={{
         headerShown: false,

@@ -45,6 +45,7 @@ import { applyCharacterLimit, hasFieldErrors, LIMITS, validateCompleteProfileFor
 import { extractNationalDigits, toE164 } from "../../../utils/phone";
 import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
 import { getProfileFields, isPlaceholderDisplayName, isPlaceholderResidenceType, isPlaceholderUnitNumber } from "../../../utils/profile-display";
+import { getPendingInvitedMembership } from "../../../services/community-access";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import KeyboardSafeScreen, { useScrollFieldRefIntoView } from "../../../components/layout/keyboard-safe-screen";
 import { HomeTheme as T } from "../../../constants/home-theme";
@@ -127,8 +128,14 @@ export default function CompleteProfile() {
     mode,
     familyMode: familyModeParam,
     invited: invitedParam,
+    returnTo,
   } = useLocalSearchParams();
   const isEditMode = mode === "edit";
+  const resolvedCommunityId = (() => {
+    const raw = Array.isArray(communityId) ? communityId[0] : communityId;
+    const numeric = Number(raw);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+  })();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -219,7 +226,11 @@ export default function CompleteProfile() {
     invitedParam,
     isAdminClaim,
   });
-  const showFamilyNumberField = role !== "admin" && !isCommunityRequest;
+  const hasOtherApprovedMembership = (profileUser?.memberships ?? []).some(
+    (membership) =>
+      membership?.status === "approved" && String(membership.community_id) !== String(communityId),
+  );
+  const showFamilyNumberField = role !== "admin" && !isCommunityRequest && !hasOtherApprovedMembership;
   const showResidenceType = !isGuestProfile && !isCommunityAdminProfile;
   const showUnitNumber = !isCommunityAdminProfile;
   const invitedFromMembership = (profileUser?.memberships ?? []).some(
@@ -232,6 +243,11 @@ export default function CompleteProfile() {
     (invitedParam === "1" || invitedFromMembership);
   const assignedUnitNumber = (() => {
     if (!isInvitedProfile) return "";
+    const inviteUnits = Array.isArray(profileUser?.invite_units) ? profileUser.invite_units : [];
+    if (inviteUnits.length > 0) {
+      return String(inviteUnits[0]?.unit_number ?? "").trim();
+    }
+    if (hasOtherApprovedMembership) return "";
     const raw = profileUser?.profile?.unit_number ?? profileUser?.unit_number ?? "";
     return isPlaceholderUnitNumber(raw) ? "" : String(raw).trim();
   })();
@@ -549,8 +565,23 @@ export default function CompleteProfile() {
     (async () => {
       setProfileLoading(true);
       try {
-        const user = await fetchMe();
+        let user = await fetchMe(
+          !isEditMode && resolvedCommunityId
+            ? { inviteCommunityId: resolvedCommunityId }
+            : undefined,
+        );
         if (cancelled) return;
+        const pendingInvite = getPendingInvitedMembership(user);
+        const pendingInviteCommunityId = Number(pendingInvite?.community_id || 0);
+        if (
+          !isEditMode &&
+          pendingInviteCommunityId > 0 &&
+          pendingInviteCommunityId !== resolvedCommunityId &&
+          !(Array.isArray(user?.invite_units) && user.invite_units.length > 0)
+        ) {
+          user = await fetchMe({ inviteCommunityId: pendingInviteCommunityId });
+          if (cancelled) return;
+        }
         setProfileUser(user);
         setIsGuestProfile(isGuestUser(user));
         setSkipUtilityBill(shouldSkipUtilityBill(user, { role }));
@@ -576,6 +607,11 @@ export default function CompleteProfile() {
         setExistingUtilityBillUrl(fields.utilityBillUrl);
 
         const inviteUnits = Array.isArray(user.invite_units) ? user.invite_units : [];
+        const otherApproved = (user.memberships ?? []).some(
+          (membership) =>
+            membership?.status === "approved" &&
+            String(membership.community_id) !== String(resolvedCommunityId || communityId),
+        );
         if (inviteUnits.length > 0) {
           setUnitEntries(
             inviteUnits.map((row, index) => ({
@@ -588,7 +624,12 @@ export default function CompleteProfile() {
             })),
           );
         } else {
-          const seedUnit = isPlaceholderUnitNumber(fields.unitNumber) ? "" : (fields.unitNumber ?? "");
+          const seedUnit =
+            otherApproved && invitedParam === "1"
+              ? ""
+              : isPlaceholderUnitNumber(fields.unitNumber)
+                ? ""
+                : (fields.unitNumber ?? "");
           setUnitEntries([
             {
               key: "unit-1",
@@ -612,7 +653,7 @@ export default function CompleteProfile() {
     return () => {
       cancelled = true;
     };
-  }, [isEditMode, router, dialog, role, invitedParam, isAdminClaim, isCommunityRequest]);
+  }, [isEditMode, router, dialog, role, invitedParam, isAdminClaim, isCommunityRequest, resolvedCommunityId, communityId]);
 
   useEffect(() => {
     if (name && isPlaceholderDisplayName(name)) {
@@ -817,7 +858,7 @@ export default function CompleteProfile() {
           bio: bio.trim(),
           ...(showOfficeAddress
             ? { office_address: officeAddress.trim() }
-            : isEditMode
+            : isEditMode || hasOtherApprovedMembership
               ? {}
               : { unit_number: primaryUnitNumber }),
           ...(showResidenceType || useMultiUnitOnboarding
@@ -948,7 +989,7 @@ export default function CompleteProfile() {
             };
           });
           await completeOnboardingUnits({
-            communityId: Number(communityId),
+            communityId: resolvedCommunityId || Number(communityId),
             units: payloadUnits,
           });
           try {
@@ -1055,7 +1096,11 @@ export default function CompleteProfile() {
             goToPendingFamily(router, { role });
             return;
           }
-          finishOnboarding(router, { role, user: savedUser });
+          finishOnboarding(router, {
+            role,
+            user: savedUser,
+            returnTo: returnTo ? String(returnTo) : undefined,
+          });
         }}
       />
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]} importantForAutofill="no">
@@ -1351,15 +1396,20 @@ export default function CompleteProfile() {
                   clearError("residenceType");
                   clearError("utilityFile");
                 }}
-                canAdd={!isInvitedProfile && !unitEntries.some((row) => row.locked)}
-                canRemove={!isInvitedProfile && !unitEntries.some((row) => row.locked)}
+                canAdd
+                canRemove
+                hint={
+                  isInvitedProfile
+                    ? t("onboarding.yourUnitsInvitedHint")
+                    : t("onboarding.yourUnitsHint")
+                }
                 unitMax={unitMax}
                 errors={liveErrors}
                 dialog={dialog}
                 loadUnits={
-                  communityId
+                  resolvedCommunityId
                     ? async () => {
-                        const rows = await fetchCommunityUnits(Number(communityId));
+                        const rows = await fetchCommunityUnits(resolvedCommunityId);
                         return (rows ?? []).map((unit) => ({
                           id: unit.id,
                           unit_number: unit.unit_number,

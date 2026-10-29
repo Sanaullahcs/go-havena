@@ -449,11 +449,13 @@ class UnitRegistrationPackageService
     }
 
     /**
-     * Admin-invited onboarding: assign all invite units as active and store per-unit proofs.
-     * Does not create a registration package (no Pending Approval queue for initial invite units).
+     * Admin-invited onboarding: assign invite units as active and store per-unit proofs.
+     * Extra units the resident adds themselves go to the addon queue (pending admin review).
+     * Access is granted through the admin-assigned unit without waiting on extras.
      *
      * @param  list<array{
      *   unit_number: string,
+     *   is_new_unit?: bool,
      *   residence_type?: string|null,
      *   utility_bill_url?: string|null,
      *   ownership_proof_url?: string|null,
@@ -473,13 +475,11 @@ class UnitRegistrationPackageService
             $expected[$this->units->normalizeUnitNumber($number)] = $number;
         }
 
-        // Fall back to submitted list when invite rows were already applied / cleared.
+        // Legacy first-home invites without invite rows: treat the first submitted unit as assigned.
         if ($expected === []) {
-            foreach ($items as $raw) {
-                $trimmed = trim((string) ($raw['unit_number'] ?? ''));
-                if ($trimmed !== '') {
-                    $expected[$this->units->normalizeUnitNumber($trimmed)] = $trimmed;
-                }
+            $first = trim((string) ($items[0]['unit_number'] ?? ''));
+            if ($first !== '') {
+                $expected[$this->units->normalizeUnitNumber($first)] = $first;
             }
         }
 
@@ -488,15 +488,20 @@ class UnitRegistrationPackageService
         }
 
         $submitted = [];
+        $extraItems = [];
         foreach ($items as $index => $raw) {
             $unitNumber = trim((string) ($raw['unit_number'] ?? ''));
             $key = $this->units->normalizeUnitNumber($unitNumber);
-            if ($key === '' || ! isset($expected[$key])) {
+            if ($key === '') {
                 throw ValidationException::withMessages([
-                    "units.{$index}.unit_number" => 'This unit was not included in your invitation.',
+                    "units.{$index}.unit_number" => 'Unit number is required.',
                 ]);
             }
-            $submitted[$key] = $raw;
+            if (isset($expected[$key])) {
+                $submitted[$key] = $raw;
+                continue;
+            }
+            $extraItems[] = $raw;
         }
 
         foreach ($expected as $key => $displayNumber) {
@@ -507,7 +512,7 @@ class UnitRegistrationPackageService
             }
         }
 
-        return DB::transaction(function () use ($userId, $communityId, $expected, $submitted) {
+        $assigned = DB::transaction(function () use ($userId, $communityId, $expected, $submitted) {
             $assigned = $this->units->assignUserToMultipleUnitNumbers(
                 $communityId,
                 $userId,
@@ -542,6 +547,12 @@ class UnitRegistrationPackageService
 
             return $assigned;
         });
+
+        if ($extraItems !== []) {
+            $this->submitPackage($userId, $communityId, self::KIND_ADDON, $extraItems);
+        }
+
+        return $assigned;
     }
 
     /**

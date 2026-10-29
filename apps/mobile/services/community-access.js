@@ -14,12 +14,53 @@ export function getPrimaryMembership(user) {
   const memberships = user?.memberships ?? [];
   if (!memberships.length) return null;
 
+  const activeId = user?.active_context_community_id;
+  if (activeId) {
+    const active = memberships.find((m) => String(m.community_id) === String(activeId));
+    if (active?.status === "approved") return active;
+  }
+
   const newest = (status) =>
     memberships
       .filter((m) => m.status === status)
       .sort((a, b) => membershipRecency(b) - membershipRecency(a))[0] ?? null;
 
   return newest("approved") || newest("pending") || newest("rejected") || memberships[0];
+}
+
+/** Newest pending membership created from an admin invite code. */
+export function getPendingInvitedMembership(user) {
+  const memberships = user?.memberships ?? [];
+  return (
+    memberships
+      .filter(
+        (membership) =>
+          membership?.status === "pending" &&
+          String(membership?.invite_code_used ?? "").trim() !== "",
+      )
+      .sort((a, b) => membershipRecency(b) - membershipRecency(a))[0] ?? null
+  );
+}
+
+export function approvedResidentMemberships(user) {
+  return (user?.memberships ?? []).filter((m) => {
+    if (m.status !== "approved") return false;
+    const community = m.community;
+    if (!community) return true;
+    if (community.review_status === "pending" || community.review_status === "rejected") return false;
+    if (community.status && community.status !== "active") return false;
+    return true;
+  });
+}
+
+export function canSwitchCommunities(user) {
+  if (user?.can_switch_communities === true) return true;
+  return approvedResidentMemberships(user).length > 1;
+}
+
+export function membershipForCommunity(user, communityId) {
+  if (!communityId) return null;
+  return (user?.memberships ?? []).find((m) => String(m.community_id) === String(communityId)) ?? null;
 }
 
 function isAwaitingCommunityReview(membership) {
@@ -30,12 +71,14 @@ function isAwaitingCommunityReview(membership) {
 }
 
 export function hasPendingCommunityRequest(user) {
+  if (approvedResidentMemberships(user).length > 0) return false;
   return (user?.memberships ?? []).some(isAwaitingCommunityReview);
 }
 
 /** Resident selected an existing community — waiting for community admin to approve membership. */
 export function hasPendingMembershipApproval(user) {
   if (isCommunityAdminRole(user)) return false;
+  if (approvedResidentMemberships(user).length > 0) return false;
 
   return (user?.memberships ?? []).some((m) => {
     if (m.status !== "pending") return false;
@@ -61,6 +104,7 @@ export function hasRejectedCommunityRequest(user) {
 /** Resident's join request to an existing community was declined. */
 export function hasRejectedMembershipApproval(user) {
   if (isCommunityAdminRole(user)) return false;
+  if (approvedResidentMemberships(user).length > 0) return false;
   if (hasPendingCommunityRequest(user) || hasPendingMembershipApproval(user)) return false;
 
   return (user?.memberships ?? []).some((m) => {
@@ -195,6 +239,19 @@ export function resolveOnboardingReviewState(user, reviewSnapshot = null) {
   }
 
   const memberships = user?.memberships ?? [];
+  const approved = approvedResidentMemberships(user);
+  if (approved.length > 0) {
+    const primary = getPrimaryMembership(user);
+    const membership =
+      approved.find((row) => String(row.community_id) === String(primary?.community_id)) ??
+      approved[0];
+
+    return {
+      reviewState: "approved",
+      kind: "membership_approval",
+      community: membership.community ?? fallbackCommunity(membership),
+    };
+  }
 
   for (const membership of memberships) {
     const community = membership.community;
@@ -291,7 +348,7 @@ export function currentCommunityId(user) {
   if (user?.active_context_community_id) {
     return Number(user.active_context_community_id);
   }
-  const membership = getAdminMembership(user);
+  const membership = getAdminMembership(user) || getPrimaryMembership(user);
   return membership?.community_id ? Number(membership.community_id) : null;
 }
 

@@ -504,8 +504,12 @@ export function ResidentActivityModal({ member, communityId, onClose }: Props) {
               </h3>
               <p className="nl-resident-activity-sub">
                 <MemberUnitsLabel
-                  units={member.units}
-                  unitNumber={member.unit_number}
+                  units={meta?.member?.units ?? member.units}
+                  unitNumber={
+                    meta?.member
+                      ? meta.member.unit_number ?? null
+                      : member.unit_number
+                  }
                   variant="inline"
                   empty="Community member"
                 />

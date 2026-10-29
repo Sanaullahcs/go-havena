@@ -110,6 +110,7 @@ const STATUS_COLORS: Record<string, string> = {
   approved: "#0D9488",
   pending: "#d97706",
   invitation_sent: "#64748b",
+  invite_rejected: "#b91c1c",
   banned: "#dc2626",
   rejected: "#94a3b8",
   onboarding: CHART_PRIMARY,
@@ -117,6 +118,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 function formatStatusLabel(status: string) {
   if (status === "invitation_sent") return "Invitation Sent";
+  if (status === "invite_rejected") return "Invite Rejected";
   if (status === "approved") return "Active";
   return status.charAt(0).toUpperCase() + status.slice(1);
 }

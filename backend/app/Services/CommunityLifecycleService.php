@@ -563,6 +563,17 @@ class CommunityLifecycleService
 
         if (($user->role ?? '') === 'resident') {
             $approved = $memberships->where('status', 'approved');
+            $hasActiveCommunity = $approved->contains(function ($membership) {
+                $community = $membership->community;
+
+                return $community
+                    && in_array($community->review_status, [null, 'approved'], true)
+                    && ($community->status === null || $community->status === 'active');
+            });
+            if ($hasActiveCommunity) {
+                return null;
+            }
+
             foreach ($approved as $membership) {
                 $community = $membership->community;
                 if ($community && $community->review_status === 'approved' && $community->status === 'inactive') {
@@ -587,6 +598,21 @@ class CommunityLifecycleService
     {
         if (($user->role ?? '') !== 'resident') {
             abort(422, 'Only resident accounts can be suspended from the members list.');
+        }
+
+        $hasApproved = CommunityMembership::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->exists();
+
+        if ($hasApproved) {
+            if ($user->status === 'suspended' && $user->suspension_reason === self::REASON_MEMBER_SUSPENDED) {
+                $this->restoreSuspendedMember($user);
+                $user->refresh();
+            }
+            UserActingContextService::clearUnavailableActiveCommunity($user);
+
+            return;
         }
 
         $user->update([
@@ -739,17 +765,28 @@ class CommunityLifecycleService
     public function authenticationBlock(User $user, ?string $portal = null, bool $includeRejections = true): ?array
     {
         if ($user->status === 'suspended') {
-            return $this->withBlockDetails([
-                'message' => $user->suspension_reason === self::REASON_COMMUNITY_DEACTIVATED
-                    ? self::COMMUNITY_DEACTIVATED_MESSAGE
-                    : self::ACCOUNT_SUSPENDED_MESSAGE,
-                'code' => $user->suspension_reason === self::REASON_COMMUNITY_DEACTIVATED
-                    ? 'COMMUNITY_DEACTIVATED'
-                    : 'ACCOUNT_SUSPENDED',
-                'status' => 'suspended',
-                'reason' => null,
-                'rejected_by' => null,
-            ]);
+            $hasApprovedMembership = ($user->role ?? '') === 'resident'
+                && $user->suspension_reason === self::REASON_MEMBER_SUSPENDED
+                && $user->memberships()->where('status', 'approved')->exists();
+
+            if ($hasApprovedMembership) {
+                $this->restoreSuspendedMember($user);
+                $user->refresh();
+                UserActingContextService::clearUnavailableActiveCommunity($user);
+                $user->refresh();
+            } else {
+                return $this->withBlockDetails([
+                    'message' => $user->suspension_reason === self::REASON_COMMUNITY_DEACTIVATED
+                        ? self::COMMUNITY_DEACTIVATED_MESSAGE
+                        : self::ACCOUNT_SUSPENDED_MESSAGE,
+                    'code' => $user->suspension_reason === self::REASON_COMMUNITY_DEACTIVATED
+                        ? 'COMMUNITY_DEACTIVATED'
+                        : 'ACCOUNT_SUSPENDED',
+                    'status' => 'suspended',
+                    'reason' => null,
+                    'rejected_by' => null,
+                ]);
+            }
         }
 
         if (($user->role ?? '') === 'resident') {
@@ -761,8 +798,11 @@ class CommunityLifecycleService
             $hasBannedMembership = $user->memberships()
                 ->where('status', 'banned')
                 ->exists();
+            $hasApprovedMembership = $user->memberships()
+                ->where('status', 'approved')
+                ->exists();
 
-            if ($hasBannedMembership) {
+            if ($hasBannedMembership && ! $hasApprovedMembership) {
                 return $this->withBlockDetails([
                     'message' => self::ACCOUNT_SUSPENDED_MESSAGE,
                     'code'    => 'ACCOUNT_SUSPENDED',
@@ -830,6 +870,10 @@ class CommunityLifecycleService
             return null;
         }
 
+        $hasApprovedMembership = $user->memberships->contains(
+            fn ($membership) => ($membership->status ?? '') === 'approved',
+        );
+
         foreach ($user->memberships as $membership) {
             $community = $membership->community;
             if (! $community) {
@@ -842,6 +886,10 @@ class CommunityLifecycleService
             }
 
             if ($membership->status === 'rejected' && $community->review_status !== 'rejected') {
+                if ($hasApprovedMembership) {
+                    continue;
+                }
+
                 return [
                     'message'     => 'Your membership request was not approved.',
                     'code'        => 'MEMBERSHIP_REJECTED',

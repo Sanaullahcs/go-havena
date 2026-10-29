@@ -10,6 +10,7 @@ use App\Models\FamilyJoinRequest;
 use App\Models\InviteCode;
 use App\Models\Region;
 use App\Models\User;
+use App\Services\UnitAssignmentService;
 use Database\Seeders\SystemAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -925,5 +926,91 @@ class AdminMembersListTest extends TestCase
         $this->assertSame(1, $response->json('meta.stats.onboarding'));
         $this->assertSame('onboarding', $response->json('data.0.status'));
         $this->assertSame($residentId, (int) $response->json('data.0.id'));
+    }
+
+    public function test_system_admin_residents_list_shows_one_row_per_multi_community_resident(): void
+    {
+        $this->seed(SystemAdminSeeder::class);
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
+
+        $region = Region::query()->create([
+            'title'       => 'Cairo Metro',
+            'area'        => 'Cairo',
+            'state'       => 'EG',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $amana = Community::query()->create([
+            'name'          => 'amana mall',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+        $centaurus = Community::query()->create([
+            'name'          => 'centaurus mall',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $resident = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'name'   => 'Alex Walton',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $resident->id,
+            'community_id' => $amana->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $resident->id,
+            'community_id' => $centaurus->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        $units = app(UnitAssignmentService::class);
+        $units->assignUserToUnitNumber($amana->id, $resident->id, 'A-301', false, true, 'active', 'invite');
+        $units->assignUserToUnitNumber($centaurus->id, $resident->id, '12B', false, true, 'active', 'invite');
+
+        $list = $this->getJson('/api/v1/admin/members?community_id=all&role=member')->assertOk();
+        $rows = collect($list->json('data'))->where('id', $resident->id)->values();
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(1, collect($list->json('data'))->where('id', $resident->id)->count());
+        $this->assertSame(2, $rows[0]['community_count']);
+        $this->assertEqualsCanonicalizing(
+            ['amana mall', 'centaurus mall'],
+            collect($rows[0]['communities'])->pluck('name')->all(),
+        );
+        $this->assertEqualsCanonicalizing(
+            ['A-301', '12B'],
+            collect($rows[0]['units'])->pluck('unit_number')->all(),
+        );
+        $this->assertNull($rows[0]['unit_number']);
+
+        $unfiltered = $this->getJson('/api/v1/admin/members?community_id=all')->assertOk();
+        $this->assertSame(2, collect($unfiltered->json('data'))->where('id', $resident->id)->count());
+
+        $detail = $this->getJson("/api/v1/admin/members/{$resident->id}?community_id=all")->assertOk();
+        $this->assertSame(2, $detail->json('data.community_count'));
+        $this->assertEqualsCanonicalizing(
+            ['amana mall', 'centaurus mall'],
+            collect($detail->json('data.communities'))->pluck('name')->all(),
+        );
+
+        $unitsByCommunity = collect($detail->json('data.communities'))
+            ->mapWithKeys(fn ($community) => [
+                $community['name'] => collect($community['units'])->pluck('unit_number')->all(),
+            ]);
+        $this->assertSame(['A-301'], $unitsByCommunity['amana mall']);
+        $this->assertSame(['12B'], $unitsByCommunity['centaurus mall']);
     }
 }

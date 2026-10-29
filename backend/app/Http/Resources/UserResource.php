@@ -80,6 +80,7 @@ class UserResource extends JsonResource
             // currency through every amenity, bill, and listing payload.
             'currency' => app(\App\Services\CommunityCurrencyService::class)->forUser($this->resource),
             'needs_invite_code' => \App\Services\InviteCodeService::userNeedsInviteCode($this->resource),
+            'pending_invitation_count' => \App\Models\InviteCode::query()->pendingForUser((int) $this->id)->count(),
             'invited_by_admin' => OnboardingContext::invitedByAdmin($this->resource),
             'resident_features' => $this->residentFeaturesPayload(),
             ...\App\Services\UserActingContextService::payload($this->resource),
@@ -90,15 +91,7 @@ class UserResource extends JsonResource
     private function inviteUnitsPayload(): array
     {
         $unitsService = app(UnitAssignmentService::class);
-        $membership = DB::table('community_memberships')
-            ->where('user_id', $this->id)
-            ->whereIn('status', ['approved', 'pending'])
-            ->orderByDesc('created_at')
-            ->first();
-
-        $communityId = $membership?->community_id
-            ? (int) $membership->community_id
-            : null;
+        $communityId = $this->inviteUnitsCommunityId();
 
         if (! $communityId) {
             // Invite may exist before membership row in some flows — scan all invite rows.
@@ -120,12 +113,82 @@ class UserResource extends JsonResource
             );
         }
 
-        $numbers = $unitsService->listInviteUnitNumbers($communityId, (int) $this->id);
+        $numbers = $communityId
+            ? $unitsService->listInviteUnitNumbers($communityId, (int) $this->id)
+            : [];
+        if ($numbers === []) {
+            $pendingCommunityId = $this->pendingInvitedCommunityId();
+            if ($pendingCommunityId && $pendingCommunityId !== $communityId) {
+                $numbers = $unitsService->listInviteUnitNumbers($pendingCommunityId, (int) $this->id);
+            }
+        }
+        if ($numbers === []) {
+            $outstandingCommunityId = $this->outstandingInviteCommunityId();
+            if ($outstandingCommunityId && $outstandingCommunityId !== $communityId) {
+                $numbers = $unitsService->listInviteUnitNumbers($outstandingCommunityId, (int) $this->id);
+            }
+        }
 
         return array_map(
             fn (string $number) => ['unit_number' => $number, 'locked' => true],
             $numbers,
         );
+    }
+
+    private function inviteUnitsCommunityId(): ?int
+    {
+        $requestedCommunityId = (int) request()->input('invite_community_id', 0);
+        if ($requestedCommunityId > 0) {
+            return $requestedCommunityId;
+        }
+
+        $pendingCommunityId = $this->pendingInvitedCommunityId();
+        if ($pendingCommunityId) {
+            return $pendingCommunityId;
+        }
+
+        return $this->outstandingInviteCommunityId();
+    }
+
+    private function outstandingInviteCommunityId(): ?int
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('invite_unit_assignments')) {
+            return null;
+        }
+
+        $activeId = \App\Services\UserActingContextService::currentCommunityId($this->resource);
+        $query = DB::table('invite_unit_assignments')
+            ->where('user_id', $this->id)
+            ->orderByDesc('id');
+        if ($activeId) {
+            $query->where('community_id', '!=', $activeId);
+        }
+
+        $communityId = $query->value('community_id');
+
+        return $communityId ? (int) $communityId : null;
+    }
+
+    private function pendingInvitedCommunityId(): ?int
+    {
+        if ($this->resource->relationLoaded('memberships')) {
+            $pending = $this->resource->memberships->first(
+                fn ($membership) => ($membership->status ?? '') === 'pending'
+                    && filled($membership->invite_code_used),
+            );
+
+            return $pending ? (int) $pending->community_id : null;
+        }
+
+        $pending = DB::table('community_memberships')
+            ->where('user_id', $this->id)
+            ->where('status', 'pending')
+            ->whereNotNull('invite_code_used')
+            ->where('invite_code_used', '!=', '')
+            ->orderByDesc('id')
+            ->value('community_id');
+
+        return $pending ? (int) $pending : null;
     }
 
     /** @return array<string, mixed> */
@@ -142,11 +205,7 @@ class UserResource extends JsonResource
     /** @return array{pending_unit_package: bool, has_full_unit_access: bool} */
     private function unitAccessPayload(): array
     {
-        $communityId = DB::table('community_memberships')
-            ->where('user_id', $this->id)
-            ->where('status', 'approved')
-            ->orderByDesc('created_at')
-            ->value('community_id');
+        $communityId = \App\Services\UserActingContextService::currentCommunityId($this->resource);
 
         if (! $communityId) {
             return [

@@ -116,10 +116,6 @@ class MemberController extends Controller
                 $q->whereNotNull('cm.id')
                     ->orWhere(function ($q2) use ($communityId) {
                         $q2->where('users.role', 'resident')
-                            ->whereNotExists(function ($sub) {
-                                $sub->from('community_memberships as cm_all')
-                                    ->whereColumn('cm_all.user_id', 'users.id');
-                            })
                             ->whereExists(function ($sub) use ($communityId) {
                                 $sub->from('invite_codes')
                                     ->whereColumn('invite_codes.invited_user_id', 'users.id')
@@ -136,12 +132,27 @@ class MemberController extends Controller
         if ($request->filled('status') && $request->status !== 'all') {
             if ($request->status === MemberLifecycleStatus::INVITATION_SENT) {
                 $query->whereNull('cm.id');
-                MemberLifecycleStatus::applyNotStartedSignup($query);
+                MemberLifecycleStatus::applyInvitationSentAudience($query, 'users', $communityId);
+                $query->whereExists(function ($sub) use ($communityId) {
+                    MemberLifecycleStatus::invitationSentInviteSubquery($sub, 'users', $communityId);
+                });
             } elseif ($request->status === MemberLifecycleStatus::ONBOARDING) {
-                $query->where(function ($q) {
-                    $q->where(function ($pre) {
+                $query->where(function ($q) use ($communityId) {
+                    $q->where(function ($pre) use ($communityId) {
                         $pre->whereNull('cm.id');
                         MemberLifecycleStatus::applyStartedSignup($pre);
+                        $pre->whereNotExists(function ($sub) use ($communityId) {
+                            $sub->from('community_memberships as cm_other')
+                                ->whereColumn('cm_other.user_id', 'users.id')
+                                ->where('cm_other.community_id', '!=', $communityId);
+                        });
+                        $pre->whereNotExists(function ($sub) use ($communityId) {
+                            $sub->from('invite_codes')
+                                ->whereColumn('invite_codes.invited_user_id', 'users.id')
+                                ->where('invite_codes.community_id', $communityId)
+                                ->whereNotNull('invite_codes.rejected_at')
+                                ->whereNull('invite_codes.deleted_at');
+                        });
                     })->orWhere(function ($post) {
                         $post->where('cm.status', 'pending')
                             ->whereNotNull('cm.invite_code_used');
@@ -191,11 +202,32 @@ class MemberController extends Controller
         $perPage = min((int) ($request->per_page ?? 15), 100);
         $page = max(1, (int) ($request->page ?? 1));
 
+        if ($residentsOnly) {
+            $members = $this->paginateAllCommunitiesGroupedByResident($request, $status, $perPage, $page);
+
+            return response()->json([
+                'data' => collect($members->items())->map(function ($row) {
+                    $userId = (int) (is_object($row) ? ($row->uid ?? $row->id ?? 0) : $row);
+
+                    return $userId > 0 ? $this->groupedResidentPayload($userId) : null;
+                })->filter()->values(),
+                'meta' => [
+                    'current_page' => $members->currentPage(),
+                    'last_page'    => $members->lastPage(),
+                    'total'        => $members->total(),
+                    'per_page'     => $members->perPage(),
+                    'community_id' => null,
+                    'scope'        => 'all',
+                    'stats'        => $this->memberStatsAll($residentsOnly, $request),
+                ],
+            ]);
+        }
+
         if ($status === MemberLifecycleStatus::ONBOARDING) {
             $members = $this->paginateAllCommunitiesOnboarding($request, $residentsOnly, $perPage, $page);
         } elseif ($status === MemberLifecycleStatus::INVITATION_SENT) {
-            $members = $this->onboardingUsersQuery($request, $residentsOnly, $status)
-                ->orderByDesc('users.created_at')
+            $members = $this->invitationSentRowsQuery($request, $residentsOnly)
+                ->orderByDesc('sort_created_at')
                 ->paginate($perPage, ['*'], 'page', $page);
         } elseif ($status === null) {
             $members = $this->paginateAllCommunitiesCombined($request, $residentsOnly, $perPage, $page);
@@ -335,6 +367,79 @@ class MemberController extends Controller
         return $query;
     }
 
+    private function invitationSentRowsQuery(Request $request, bool $residentsOnly, bool $requireOtherMemberships = false)
+    {
+        $query = DB::table('invite_codes as ic')
+            ->join('users', 'users.id', '=', 'ic.invited_user_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->leftJoin('communities', 'communities.id', '=', 'ic.community_id')
+            ->leftJoin('community_memberships as cm', function ($join) {
+                $join->on('cm.user_id', '=', 'users.id')
+                    ->on('cm.community_id', '=', 'ic.community_id');
+            })
+            ->select(
+                'users.id',
+                'users.name',
+                'users.email',
+                'users.phone',
+                'users.status as account_status',
+                'users.email_verified_at',
+                'users.phone_verified_at',
+                'users.created_at',
+                DB::raw('NULL as membership_id'),
+                DB::raw("'member' as role"),
+                DB::raw('NULL as status'),
+                DB::raw('NULL as invite_code_used'),
+                DB::raw('NULL as rejection_reason'),
+                DB::raw('NULL as rejected_by'),
+                'ic.community_id as community_id',
+                'communities.name as community_name',
+                'profiles.unit_number',
+                'profiles.avatar_url',
+                'profiles.display_name',
+                'profiles.residence_type',
+                'profiles.utility_bill_url',
+                MemberLifecycleStatus::pendingInviteCountSelect(),
+                MemberLifecycleStatus::authTokenCountSelect(),
+                'ic.created_at as sort_created_at',
+            )
+            ->where('users.role', 'resident')
+            ->where('users.status', '!=', 'deleted')
+            ->whereNull('ic.deleted_at')
+            ->whereNull('cm.id')
+            ->whereRaw('ic.id = (select max(ic2.id) from invite_codes ic2 where ic2.invited_user_id = ic.invited_user_id and ic2.community_id = ic.community_id and ic2.deleted_at is null)')
+            ->where(function ($q) {
+                $q->whereNotNull('ic.rejected_at')
+                    ->orWhere(function ($pending) {
+                        $pending->whereNull('ic.rejected_at')
+                            ->where(function ($uses) {
+                                $uses->whereNull('ic.max_uses')
+                                    ->orWhereColumn('ic.used_count', '<', 'ic.max_uses');
+                            })
+                            ->where(function ($exp) {
+                                $exp->whereNull('ic.expires_at')
+                                    ->orWhere('ic.expires_at', '>', now());
+                            });
+                    });
+            });
+
+        if ($requireOtherMemberships) {
+            $query->whereExists(function ($sub) {
+                $sub->from('community_memberships as cm_other')
+                    ->whereColumn('cm_other.user_id', 'users.id')
+                    ->whereColumn('cm_other.community_id', '!=', 'ic.community_id');
+            });
+        } else {
+            MemberLifecycleStatus::applyInvitationSentAudience($query, 'users', null);
+        }
+
+        $this->excludePlatformAdminsScope($query);
+        $this->applyResidentsOnlyScope($query, $residentsOnly);
+        $this->applyMemberSearch($query, $request, includeCommunityName: true);
+
+        return $query;
+    }
+
     private function paginateAllCommunitiesOnboarding(
         Request $request,
         bool $residentsOnly,
@@ -372,7 +477,8 @@ class MemberController extends Controller
     ): LengthAwarePaginator {
         $membershipQuery = $this->membershipRowsQuery($request, $residentsOnly);
         $onboardingQuery = $this->onboardingUsersQuery($request, $residentsOnly);
-        $union = $membershipQuery->unionAll($onboardingQuery);
+        $invitationQuery = $this->invitationSentRowsQuery($request, $residentsOnly, requireOtherMemberships: true);
+        $union = $membershipQuery->unionAll($onboardingQuery)->unionAll($invitationQuery);
 
         $total = (int) DB::query()->fromSub($union, 'combined')->count();
 
@@ -387,6 +493,210 @@ class MemberController extends Controller
             'path' => $request->url(),
             'query' => $request->query(),
         ]);
+    }
+
+    /**
+     * System Admin Residents directory: one row per person across every community.
+     */
+    private function paginateAllCommunitiesGroupedByResident(
+        Request $request,
+        ?string $status,
+        int $perPage,
+        int $page,
+    ): LengthAwarePaginator {
+        $parts = [];
+
+        if (
+            $status === null
+            || ! in_array($status, [MemberLifecycleStatus::ONBOARDING, MemberLifecycleStatus::INVITATION_SENT], true)
+        ) {
+            $membership = $this->membershipRowsQuery($request, true);
+            if ($status === 'pending') {
+                $membership->where('cm.status', 'pending')->whereNull('cm.invite_code_used');
+            } elseif ($status !== null) {
+                $membership->where('cm.status', $status);
+            }
+            $parts[] = (clone $membership)->select('users.id as uid', 'cm.created_at as sort_at');
+        }
+
+        if ($status === null || $status === MemberLifecycleStatus::ONBOARDING) {
+            $preMembership = $this->onboardingUsersQuery(
+                $request,
+                true,
+                $status === MemberLifecycleStatus::ONBOARDING ? MemberLifecycleStatus::ONBOARDING : null,
+            );
+            $parts[] = (clone $preMembership)->select('users.id as uid', 'users.created_at as sort_at');
+
+            if ($status === MemberLifecycleStatus::ONBOARDING) {
+                $membershipOnboarding = $this->membershipRowsQuery($request, true);
+                $membershipOnboarding->where('cm.status', 'pending')->whereNotNull('cm.invite_code_used');
+                MemberLifecycleStatus::applyOnboardingPendingMembershipScope($membershipOnboarding);
+                $parts[] = (clone $membershipOnboarding)->select('users.id as uid', 'cm.created_at as sort_at');
+            }
+        }
+
+        if ($status === null || $status === MemberLifecycleStatus::INVITATION_SENT) {
+            $invites = $this->invitationSentRowsQuery(
+                $request,
+                true,
+                requireOtherMemberships: $status === null,
+            );
+            $parts[] = (clone $invites)->select('users.id as uid', 'ic.created_at as sort_at');
+        }
+
+        $union = array_shift($parts);
+        if (! $union) {
+            return new LengthAwarePaginator([], 0, $perPage, $page, [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]);
+        }
+        foreach ($parts as $part) {
+            $union->unionAll($part);
+        }
+
+        $grouped = DB::query()
+            ->fromSub($union, 'resident_ids')
+            ->select('uid', DB::raw('MAX(sort_at) as sort_at'))
+            ->groupBy('uid');
+
+        $total = (int) DB::query()->fromSub($grouped, 'resident_dir')->count();
+        $items = DB::query()
+            ->fromSub($grouped, 'resident_dir')
+            ->orderByDesc('sort_at')
+            ->offset(($page - 1) * $perPage)
+            ->limit($perPage)
+            ->get();
+
+        return new LengthAwarePaginator($items, $total, $perPage, $page, [
+            'path' => $request->url(),
+            'query' => $request->query(),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function groupedResidentPayload(int $userId, bool $detailed = false): ?array
+    {
+        if ($userId < 1) {
+            return null;
+        }
+
+        $memberships = DB::table('community_memberships as cm')
+            ->join('users', 'users.id', '=', 'cm.user_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->leftJoin('communities', 'communities.id', '=', 'cm.community_id')
+            ->select(
+                'users.id',
+                'users.name',
+                'users.email',
+                'users.phone',
+                'users.status as account_status',
+                'users.email_verified_at',
+                'users.phone_verified_at',
+                'users.created_at',
+                'users.updated_at',
+                'cm.id as membership_id',
+                'cm.role',
+                'cm.status',
+                'cm.invite_code_used',
+                'cm.rejection_reason',
+                'cm.rejected_by',
+                'cm.community_id',
+                'communities.name as community_name',
+                'profiles.unit_number',
+                'profiles.avatar_url',
+                'profiles.display_name',
+                'profiles.bio',
+                'profiles.residence_type',
+                'profiles.utility_bill_url',
+                MemberLifecycleStatus::pendingInviteCountSelect(),
+                MemberLifecycleStatus::authTokenCountSelect(),
+            )
+            ->where('users.id', $userId)
+            ->where('users.status', '!=', 'deleted')
+            ->where('cm.role', '!=', 'guest')
+            ->orderByRaw("CASE cm.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 WHEN 'banned' THEN 2 WHEN 'rejected' THEN 3 WHEN 'inactive' THEN 4 ELSE 5 END")
+            ->orderByDesc('cm.updated_at')
+            ->get();
+
+        $communityRows = $memberships->all();
+        if ($communityRows === []) {
+            $inviteRows = $this->invitationSentRowsQuery(request(), true)
+                ->where('users.id', $userId)
+                ->orderByDesc('ic.id')
+                ->get();
+            if ($inviteRows->isEmpty()) {
+                $onboarding = $this->onboardingUsersQuery(request(), true)
+                    ->where('users.id', $userId)
+                    ->first();
+                if (! $onboarding) {
+                    return null;
+                }
+                $communityRows = [$onboarding];
+            } else {
+                $communityRows = $inviteRows->all();
+            }
+        }
+
+        $communities = [];
+        $flatUnits = [];
+        $primary = null;
+        foreach ($communityRows as $row) {
+            $formatted = $this->formatMember($row, $detailed);
+            $communityUnits = [];
+            foreach ($formatted['units'] ?? [] as $unit) {
+                $unit['community_id'] = $formatted['community_id'];
+                $unit['community_name'] = $formatted['community_name'];
+                $communityUnits[] = $unit;
+                $flatUnits[] = $unit;
+            }
+            $communities[] = [
+                'id' => $formatted['community_id'],
+                'name' => $formatted['community_name'],
+                'status' => $formatted['status'],
+                'membership_id' => $formatted['membership_id'],
+                'units' => $communityUnits,
+            ];
+            if ($primary === null) {
+                $primary = $formatted;
+            }
+        }
+
+        if ($primary === null) {
+            return null;
+        }
+
+        $communitiesWithUnits = count(array_filter(
+            $communities,
+            fn (array $community) => ($community['units'] ?? []) !== [],
+        ));
+
+        $primary['communities'] = $communities;
+        $primary['community_count'] = count($communities);
+        $primary['units'] = $flatUnits;
+        $primary['unit_number'] = $communitiesWithUnits > 1
+            ? null
+            : ($flatUnits[0]['unit_number'] ?? $primary['unit_number'] ?? null);
+
+        if ($detailed) {
+            $profile = DB::table('users')
+                ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+                ->where('users.id', $userId)
+                ->select('users.updated_at', 'profiles.bio', 'profiles.residence_type', 'profiles.utility_bill_url')
+                ->first();
+            if ($profile) {
+                $primary['bio'] = $profile->bio ?? $primary['bio'] ?? null;
+                $primary['updated_at'] = $profile->updated_at ?? $primary['updated_at'] ?? null;
+                $primary['residence_type'] = $primary['residence_type'] ?? $profile->residence_type;
+                if (empty($primary['utility_bill_url'])) {
+                    $primary['utility_bill_url'] = $this->resolveMediaUrl($profile->utility_bill_url ?? null);
+                }
+            }
+        }
+
+        return $primary;
     }
 
     private function applyMemberSearch($query, Request $request, bool $includeCommunityName): void
@@ -408,6 +718,12 @@ class MemberController extends Controller
     public function show(int $id, Request $request): JsonResponse
     {
         $communityId = $this->resolveCommunityScope($request, $request->user());
+        if ($communityId === null && AdminRoleService::isSystemAdmin($request->user())) {
+            $grouped = $this->groupedResidentPayload($id, detailed: true);
+            if ($grouped) {
+                return response()->json(['data' => $grouped]);
+            }
+        }
         if ($communityId === null) {
             $communityId = $this->resolveCommunityIdForMember($id, $request);
         }
@@ -494,15 +810,13 @@ class MemberController extends Controller
         $logs = app(ActivityLogQueryService::class);
         $query = $logs->baseQuery()->where('a.log_type', 'user');
         $logs->constrainToPerson($query, $id);
-        $query->where(function ($scope) use ($communityId) {
-            $scope->where('a.community_id', $communityId)
-                ->orWhereNull('a.community_id');
-        });
+        $this->constrainMemberActivityToCommunity($query, $id, $communityId);
         $request->attributes->set('activity_community_locked', true);
         $logs->applyFilters($query, $request);
         $perPage = min((int) $request->input('per_page', 25), 100);
         $result = $query->paginate($perPage);
         $payload = $logs->present($result);
+        $units = $this->memberUnitsBrief($member, detailed: false);
 
         return response()->json([
             'data' => $payload['data'],
@@ -514,7 +828,8 @@ class MemberController extends Controller
                 'member'       => [
                     'id'           => (int) $member->id,
                     'name'         => $member->display_name ?: $member->name,
-                    'unit_number'  => $member->unit_number,
+                    'unit_number'  => $units[0]['unit_number'] ?? null,
+                    'units'        => $units,
                     'community_id' => (int) $member->community_id,
                 ],
             ],
@@ -622,9 +937,18 @@ class MemberController extends Controller
                         'message' => 'Existing member reactivated successfully.',
                     ], 201);
                 }
-            }
 
-            ContactIdentityService::assertAvailableForRegistration($request->email, $phone);
+                $blockingMembership = DB::table('community_memberships')
+                    ->where('user_id', $existingUser->id)
+                    ->where('community_id', $communityId)
+                    ->whereIn('status', ['approved', 'pending', 'banned', 'not_invited'])
+                    ->exists();
+                if ($blockingMembership) {
+                    ContactIdentityService::assertAvailableForRegistration($request->email, $phone);
+                }
+            } else {
+                ContactIdentityService::assertAvailableForRegistration($request->email, $phone);
+            }
         }
 
         $sent = app(ResidentInviteService::class)->send(
@@ -1157,12 +1481,8 @@ class MemberController extends Controller
         if ($userModel = User::query()->find($id)) {
             app(CommunityLifecycleService::class)->restoreSuspendedMember($userModel);
             $userModel->load(['profile', 'memberships']);
-            try {
-                app(\App\Services\UnitAssignmentService::class)->syncUserToCommunity($userModel, (int) $communityId);
-            } catch (\Throwable) {
-            }
-            // Self-signup unit packages must clear with membership approval, otherwise
-            // /me keeps pending_unit_package=true and mobile stays on the wait screen.
+            // Activate requested units first so sync cannot copy another community's
+            // profile.unit_number (e.g. Haly Tower 100) into this community.
             try {
                 app(\App\Services\UnitRegistrationPackageService::class)
                     ->approvePendingInitialPackagesForUser(
@@ -1170,6 +1490,10 @@ class MemberController extends Controller
                         (int) $communityId,
                         (int) $request->user()->id,
                     );
+            } catch (\Throwable) {
+            }
+            try {
+                app(\App\Services\UnitAssignmentService::class)->syncUserToCommunity($userModel, (int) $communityId);
             } catch (\Throwable) {
             }
             FamilyService::promoteAddMemberAfterCommunityApproval(
@@ -1339,6 +1663,7 @@ class MemberController extends Controller
 
         $user = User::query()->findOrFail($id);
         $previousStatus = $user->status;
+        $communityName = Community::query()->where('id', $communityId)->value('name') ?? 'a community';
 
         DB::transaction(function () use ($id, $communityId, $user) {
             DB::table('community_memberships')
@@ -1346,14 +1671,19 @@ class MemberController extends Controller
                 ->where('community_id', $communityId)
                 ->update(['status' => 'banned', 'updated_at' => now()]);
 
-            app(CommunityLifecycleService::class)->suspendMember($user);
+            app(CommunityLifecycleService::class)->suspendMember($user->fresh() ?? $user);
         });
+
+        $user->refresh();
+        $accountLocked = $user->status === 'suspended';
 
         NotificationService::send(
             $id,
             'warning',
-            'Account suspended',
-            CommunityLifecycleService::ACCOUNT_SUSPENDED_MESSAGE,
+            $accountLocked ? 'Account suspended' : 'Community access suspended',
+            $accountLocked
+                ? CommunityLifecycleService::ACCOUNT_SUSPENDED_MESSAGE
+                : "Your membership in {$communityName} has been suspended. Your other communities are unchanged.",
         );
 
         ActivityLogService::recordStatusChange(
@@ -1361,11 +1691,14 @@ class MemberController extends Controller
             'User',
             $id,
             $previousStatus,
-            'suspended',
+            $accountLocked ? 'suspended' : 'active',
             'Status',
             $user->name,
             $id,
-            ['related_item' => $user->name],
+            [
+                'related_item' => $user->name,
+                'community_id' => $communityId,
+            ],
             'warning',
         );
 
@@ -1484,15 +1817,40 @@ class MemberController extends Controller
     {
         $membershipStatus = $member->status ?? null;
         if (! $member->membership_id) {
+            $invite = InviteCode::query()
+                ->where('invited_user_id', (int) $member->id)
+                ->when(
+                    $member->community_id,
+                    fn ($query) => $query->where('community_id', (int) $member->community_id),
+                )
+                ->orderByDesc('id')
+                ->first();
+
             $startedSignup = MemberLifecycleStatus::hasStartedSignup(
                 $member->email_verified_at ?? null,
                 $member->phone_verified_at ?? null,
                 isset($member->auth_token_count) && (int) $member->auth_token_count > 0,
             );
-            $hasPendingInvite = isset($member->pending_invite_count)
-                ? (int) $member->pending_invite_count > 0
-                : InviteCode::query()->pendingForUser((int) $member->id)->exists();
-            $membershipStatus = MemberLifecycleStatus::statusWithoutMembership($startedSignup, $hasPendingInvite);
+            $hasPendingInvite = $invite?->isValid() ?? (
+                isset($member->pending_invite_count)
+                    ? (int) $member->pending_invite_count > 0
+                    : InviteCode::query()->pendingForUser((int) $member->id)->exists()
+            );
+            $hasOtherMemberships = CommunityMembership::query()
+                ->where('user_id', (int) $member->id)
+                ->when(
+                    $member->community_id,
+                    fn ($query) => $query->where('community_id', '!=', (int) $member->community_id),
+                )
+                ->exists();
+
+            if ($invite && $invite->isRejected()) {
+                $membershipStatus = MemberLifecycleStatus::INVITE_REJECTED;
+            } elseif ($hasPendingInvite && (! $startedSignup || $hasOtherMemberships)) {
+                $membershipStatus = MemberLifecycleStatus::INVITATION_SENT;
+            } else {
+                $membershipStatus = MemberLifecycleStatus::ONBOARDING;
+            }
         } elseif (
             $membershipStatus === 'pending'
             && filled($member->invite_code_used ?? null)
@@ -1514,24 +1872,25 @@ class MemberController extends Controller
             'membership_id'  => $member->membership_id ? (int) $member->membership_id : null,
             'rejection_reason' => $member->rejection_reason ?? null,
             'rejected_by'      => $member->rejected_by ?? null,
-            'unit_number'    => $member->unit_number,
             'units'          => $this->memberUnitsBrief($member, detailed: false),
             'avatar_url'     => $this->resolveMediaUrl($member->avatar_url ?? null),
             'display_name'   => $member->display_name,
             'utility_bill_url' => $this->resolveMediaUrl($member->utility_bill_url ?? null),
             'created_at'     => $member->created_at,
         ];
+        $payload['unit_number'] = $payload['units'][0]['unit_number'] ?? null;
 
         if ($detailed) {
             $payload['units'] = $this->memberUnitsBrief($member, detailed: true);
+            $payload['unit_number'] = $payload['units'][0]['unit_number'] ?? $payload['unit_number'];
             $payload['phone'] = $member->phone ?? null;
             $payload['bio'] = $member->bio ?? null;
             $payload['residence_type'] = $member->residence_type ?? null;
             $payload['updated_at'] = $member->updated_at ?? null;
 
-            if ($membershipStatus === MemberLifecycleStatus::INVITATION_SENT) {
+            if (in_array($membershipStatus, [MemberLifecycleStatus::INVITATION_SENT, MemberLifecycleStatus::INVITE_REJECTED], true)) {
                 $invite = InviteCode::query()
-                    ->pendingForUser((int) $member->id)
+                    ->where('invited_user_id', (int) $member->id)
                     ->when(
                         $member->community_id,
                         fn ($query) => $query->where('community_id', (int) $member->community_id),
@@ -1542,6 +1901,7 @@ class MemberController extends Controller
                 if ($invite) {
                     $payload['invite_code'] = $invite->code;
                     $payload['invite_code_expires_at'] = $invite->expires_at?->toIso8601String();
+                    $payload['invite_rejected_at'] = $invite->rejected_at?->toIso8601String();
                 }
             }
         }
@@ -1551,10 +1911,13 @@ class MemberController extends Controller
 
     private function memberStatsAll(bool $residentsOnly = false, ?Request $request = null): array
     {
+        $statusCount = $residentsOnly
+            ? 'count(distinct users.id)'
+            : 'count(*)';
         $query = DB::table('community_memberships as cm')
             ->join('users', 'users.id', '=', 'cm.user_id')
             ->leftJoin('communities', 'communities.id', '=', 'cm.community_id')
-            ->select('cm.status', DB::raw('count(*) as total'))
+            ->select('cm.status', DB::raw($statusCount.' as total'))
             ->whereNotIn('users.role', ['system_admin', 'admin', 'guest'])
             ->where('cm.role', '!=', 'guest')
             ->where('users.status', '!=', 'deleted');
@@ -1571,12 +1934,18 @@ class MemberController extends Controller
         $search = $request ? $this->memberSearchTerm($request) : null;
         $onboardingPendingMemberships = MemberLifecycleStatus::countOnboardingPendingMemberships(null, $search);
 
-        return $this->composeMemberStats(
+        $stats = $this->composeMemberStats(
             $rows,
             MemberLifecycleStatus::countOnboarding(null, $search),
             MemberLifecycleStatus::countInvitationSent(null, $search),
             $onboardingPendingMemberships,
         );
+
+        if ($residentsOnly && $request) {
+            $stats['total'] = $this->paginateAllCommunitiesGroupedByResident($request, null, 1, 1)->total();
+        }
+
+        return $stats;
     }
 
     private function memberStats(int $communityId, bool $residentsOnly = false, ?Request $request = null): array
@@ -1722,7 +2091,7 @@ class MemberController extends Controller
     private function onboardingMemberForShow(int $userId, int $communityId): ?object
     {
         $invite = InviteCode::query()
-            ->pendingForUser($userId)
+            ->where('invited_user_id', $userId)
             ->where('community_id', $communityId)
             ->orderByDesc('id')
             ->first();
@@ -1767,6 +2136,28 @@ class MemberController extends Controller
             ->first();
 
         return $member ?: null;
+    }
+
+    /**
+     * Community-admin resident activity must not mix homes.
+     * Unscoped (null community_id) logs only stay visible when this is the
+     * resident's only community — otherwise they leak profile/region changes
+     * from another join into this member's timeline.
+     */
+    private function constrainMemberActivityToCommunity($query, int $userId, int $communityId): void
+    {
+        $hasOtherCommunity = DB::table('community_memberships')
+            ->where('user_id', $userId)
+            ->where('community_id', '!=', $communityId)
+            ->whereIn('status', ['approved', 'pending'])
+            ->exists();
+
+        $query->where(function ($scope) use ($communityId, $hasOtherCommunity) {
+            $scope->where('a.community_id', $communityId);
+            if (! $hasOtherCommunity) {
+                $scope->orWhereNull('a.community_id');
+            }
+        });
     }
 
     private function onboardingMemberForActivity(int $userId, int $communityId): ?object
@@ -1852,12 +2243,19 @@ class MemberController extends Controller
 
         $units = app(UnitAssignmentService::class)->userUnitsBrief($user, $communityId);
 
-        // Table / hover labels: active units only. Profile detail keeps pending + rejected.
+        // Table / hover: active units when the resident already belongs here.
+        // Pending-only join requests keep those unit numbers so admins can verify them.
         if (! $detailed) {
-            $units = array_values(array_filter(
+            $active = array_values(array_filter(
                 $units,
                 fn (array $row) => ($row['association_status'] ?? 'active') === UnitAssignmentService::RESIDENT_ACTIVE,
             ));
+            $units = $active !== []
+                ? $active
+                : array_values(array_filter(
+                    $units,
+                    fn (array $row) => ($row['association_status'] ?? '') === UnitAssignmentService::RESIDENT_PENDING,
+                ));
         }
 
         if ($units !== []) {
@@ -1894,11 +2292,9 @@ class MemberController extends Controller
             }
         }
 
-        $fallback = trim((string) ($member->unit_number ?? ''));
-
-        return $fallback !== ''
-            ? [$this->formatMemberUnitRow(null, $fallback, 'active', false, $member, $detailed)]
-            : [];
+        // Never fall back to profiles.unit_number — that field is global and
+        // belongs to another community when this resident has a second home.
+        return [];
     }
 
     /** @return array<string, mixed> */

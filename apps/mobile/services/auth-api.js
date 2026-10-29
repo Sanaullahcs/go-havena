@@ -214,9 +214,12 @@ export async function deleteAccount() {
   clearNearbyPlacesCache();
 }
 
-export async function fetchMe() {
+export async function fetchMe({ inviteCommunityId } = {}) {
   const seq = beginMeSync();
-  const result = await apiRequest("/me", { community: false, cache: "no-store" });
+  const query = inviteCommunityId
+    ? `?invite_community_id=${encodeURIComponent(inviteCommunityId)}`
+    : "";
+  const result = await apiRequest(`/me${query}`, { community: false, cache: "no-store" });
   return commitMeSync(seq, result.data);
 }
 
@@ -399,7 +402,7 @@ export async function joinByInviteCode(inviteCode) {
       }
 
       try {
-        await fetchMe();
+        await fetchMe({ inviteCommunityId: result.data?.community?.id });
       } catch {
         // Session already updated above when possible.
       }

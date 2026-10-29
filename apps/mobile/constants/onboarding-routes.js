@@ -6,6 +6,7 @@ import {
   hasPendingMembershipApproval,
   hasRejectedCommunityRequest,
   hasRejectedMembershipApproval,
+  getPendingInvitedMembership,
   getPrimaryMembership,
   hasLinkedCommunityForProfile,
   isCommunityAdminRole,
@@ -28,6 +29,8 @@ export const Routes = {
   SIGNUP_VERIFY: "/screens/verifyregistration",
   REGION: "/screens/region",
   REGION_COMMUNITIES: "/screens/region/communities",
+  JOIN_COMMUNITY_UNITS: "/screens/join-community-units",
+  MY_COMMUNITY: "/screens/my-community",
   INVITE_CODE: "/screens/invite-code",
   REQUEST_COMMUNITY: "/screens/request-for-community",
   COMPLETE_PROFILE: "/screens/complete-profile",
@@ -68,7 +71,7 @@ export function needsCompleteProfile(user) {
 }
 
 export function getCompleteProfileParams(user, role = "resident") {
-  const membership = getPrimaryMembership(user);
+  const membership = getPendingInvitedMembership(user) || getPrimaryMembership(user);
   const community = membership?.community;
 
   return {
@@ -382,6 +385,23 @@ export function goToCompleteProfile(router, params = {}) {
   router.push({ pathname: Routes.COMPLETE_PROFILE, params });
 }
 
+export function goToJoinCommunityUnits(router, { communityId, communityName, regionId, returnTo } = {}) {
+  router.push({
+    pathname: Routes.JOIN_COMMUNITY_UNITS,
+    params: {
+      communityId: communityId != null ? String(communityId) : undefined,
+      communityName: communityName ? String(communityName) : undefined,
+      regionId: regionId != null ? String(regionId) : undefined,
+      joinAnother: "1",
+      ...(returnTo ? { returnTo: String(returnTo) } : {}),
+    },
+  });
+}
+
+export function goToMyCommunity(router) {
+  resetTo(router, Routes.MY_COMMUNITY);
+}
+
 export function goToPendingCommunity(router, params = {}) {
   resetTo(router, Routes.PENDING_COMMUNITY, params);
 }
@@ -395,7 +415,11 @@ export function goToLogin(router) {
 }
 
 /** Onboarding step finished (profile saved, invite joined, etc.) */
-export function finishOnboarding(router, { role, user } = {}) {
+export function finishOnboarding(router, { role, user, returnTo } = {}) {
+  if (returnTo === "my-community") {
+    goToMyCommunity(router);
+    return;
+  }
   if (user) {
     navigateAfterAuth(router, user, { role });
     return;

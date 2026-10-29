@@ -51,7 +51,7 @@ class AuthAccountBlockTest extends TestCase
             'user_id'      => $resident->id,
             'community_id' => $community->id,
             'role'         => 'member',
-            'status'       => 'approved',
+            'status'       => 'banned',
         ]);
 
         $this->postJson('/api/v1/auth/login', [

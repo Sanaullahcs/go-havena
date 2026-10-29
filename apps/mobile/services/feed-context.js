@@ -22,8 +22,13 @@ function pickApprovedCommunityId(user, storedId = null) {
   const approved = (user?.memberships ?? []).filter(isActiveApprovedMembership);
   if (!approved.length) return null;
 
-  if (storedId && approved.some((m) => m.community_id === storedId)) {
-    return storedId;
+  const preferred = user?.active_context_community_id;
+  if (preferred && approved.some((m) => String(m.community_id) === String(preferred))) {
+    return Number(preferred);
+  }
+
+  if (storedId && approved.some((m) => String(m.community_id) === String(storedId))) {
+    return Number(storedId);
   }
 
   return approved[0]?.community_id ?? null;

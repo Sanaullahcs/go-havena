@@ -308,4 +308,93 @@ class MultiUnitResidentTest extends TestCase
             'unit_number_normalized' => '302',
         ]);
     }
+
+    public function test_invited_resident_can_add_extra_unit_that_stays_pending(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin();
+        Sanctum::actingAs($admin);
+
+        $res = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Invited Extra Unit',
+            'email' => 'invited.extra@havena.test',
+            'phone' => '+12025550301',
+            'role' => 'member',
+            'unit_number' => '301',
+            'community_id' => $community->id,
+        ])->assertCreated();
+
+        $userId = (int) $res->json('data.id');
+        $inviteCode = $res->json('data.invite_code');
+        $resident = User::query()->findOrFail($userId);
+        $resident->profile()->update([
+            'display_name' => 'Invited Extra Unit',
+            'unit_number' => '301',
+            'residence_type' => 'homeowner',
+            'utility_bill_url' => '/storage/utility-bills/invited.jpg',
+        ]);
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/communities/join-by-invite', [
+            'invite_code' => $inviteCode,
+        ])->assertSuccessful();
+
+        $this->getJson('/api/v1/me?invite_community_id='.$community->id)
+            ->assertOk()
+            ->assertJsonPath('data.invite_units.0.unit_number', '301');
+
+        $this->putJson('/api/v1/me', [
+            'display_name' => 'Invited Extra Unit',
+            'residence_type' => 'homeowner',
+        ])->assertOk();
+
+        $this->postJson('/api/v1/units/mine/onboarding-units', [
+            'community_id' => $community->id,
+            'units' => [
+                [
+                    'unit_number' => '301',
+                    'is_new_unit' => false,
+                    'residence_type' => 'homeowner',
+                    'utility_bill_url' => '/storage/proofs/utility-301.jpg',
+                ],
+                [
+                    'unit_number' => '305',
+                    'is_new_unit' => true,
+                    'residence_type' => 'tenant',
+                    'utility_bill_url' => '/storage/proofs/utility-305.jpg',
+                ],
+            ],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.mode', 'invite');
+
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => 'approved',
+        ]);
+        $this->assertDatabaseHas('unit_residents', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => UnitAssignmentService::RESIDENT_ACTIVE,
+            'source' => 'invite',
+        ]);
+        $this->assertDatabaseHas('unit_registration_packages', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'kind' => UnitRegistrationPackageService::KIND_ADDON,
+            'status' => UnitRegistrationPackageService::STATUS_PENDING,
+        ]);
+        $this->assertTrue(
+            app(UnitRegistrationPackageService::class)->residentHasFullUnitAccess(
+                $resident->id,
+                $community->id,
+            ),
+        );
+        $this->assertFalse(
+            app(UnitRegistrationPackageService::class)->hasPendingInitialPackage(
+                $resident->id,
+                $community->id,
+            ),
+        );
+    }
 }

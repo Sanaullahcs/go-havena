@@ -38,10 +38,19 @@ class OtpService
                     'error' => $e->getMessage(),
                 ]);
 
-                throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
-                    'message' => 'We could not send a verification email. Please try again.',
-                    'code' => 'OTP_MAIL_FAILED',
-                ], 503));
+                // Local/dev SMTP outages must not block login — OTP is already stored.
+                // Production still fails closed so users are not told a code was emailed.
+                if ($this->requiresMailDelivery()) {
+                    throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+                        'message' => 'We could not send a verification email. Please try again.',
+                        'code' => 'OTP_MAIL_FAILED',
+                    ], 503));
+                }
+
+                Log::warning('Havena OTP continuing without email delivery', [
+                    'email' => $email,
+                    'environment' => app()->environment(),
+                ]);
             }
         }
 
@@ -164,7 +173,19 @@ class OtpService
     {
         $mailer = (string) config('mail.default', 'log');
 
-        return ! in_array($mailer, ['array', 'log'], true) || app()->environment('local');
+        // array/log drivers do not deliver real email — skip the send path.
+        return ! in_array($mailer, ['array', 'log'], true);
+    }
+
+    /** Fail the OTP request when outbound mail cannot be delivered. */
+    private function requiresMailDelivery(): bool
+    {
+        $configured = config('otp.require_mail');
+        if ($configured !== null) {
+            return (bool) $configured;
+        }
+
+        return app()->environment('production');
     }
 
     /**

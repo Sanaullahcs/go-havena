@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Services\UserActingContextService;
 use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
@@ -69,12 +70,6 @@ class UserBlockController extends Controller
             }
         }
 
-        $fallback = DB::table('community_memberships')
-            ->where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->orderByDesc('updated_at')
-            ->value('community_id');
-
-        return $fallback ? (int) $fallback : null;
+        return UserActingContextService::currentCommunityId($user);
     }
 }

@@ -61,6 +61,14 @@ return [
     'expire_minutes' => (int) env('OTP_EXPIRE_MINUTES', 5),
 
     /*
+    | When true, a mail transport failure returns OTP_MAIL_FAILED (503).
+    | Defaults to production only so local SMTP outages do not block login.
+    */
+    'require_mail' => env('OTP_REQUIRE_MAIL') === null
+        ? null
+        : filter_var(env('OTP_REQUIRE_MAIL'), FILTER_VALIDATE_BOOLEAN),
+
+    /*
     |--------------------------------------------------------------------------
     | Resend / verify rate limits (all OTP verification screens)
     |--------------------------------------------------------------------------

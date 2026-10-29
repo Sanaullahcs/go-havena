@@ -148,6 +148,8 @@ class UnitAssignmentService
             return [];
         }
 
+        $this->pruneUnitsCopiedFromOtherCommunities((int) $user->id, $communityId);
+
         $rows = $this->findUnitAssociationsForUser((int) $user->id, $communityId);
 
         return array_map(function ($unit) use ($user) {
@@ -203,6 +205,8 @@ class UnitAssignmentService
                 ->all();
         }
 
+        $this->pruneUnitsCopiedFromOtherCommunities((int) $user->id, $communityId);
+
         if ($inviteUnits !== []) {
             $assigned = $this->assignUserToMultipleUnitNumbers(
                 $communityId,
@@ -215,11 +219,27 @@ class UnitAssignmentService
         }
 
         // Never collapse multi-unit residents back to the single profile display unit.
-        $active = $this->findActiveUnitsForUser((int) $user->id, $communityId);
+        // Pending requests in THIS community already identify the units to review.
+        $existing = $this->findUnitAssociationsForUser((int) $user->id, $communityId);
+        $active = array_values(array_filter(
+            $existing,
+            fn ($unit) => ($unit->unit_resident_status ?? '') === self::RESIDENT_ACTIVE,
+        ));
         if ($active !== []) {
             $this->syncProfileUnitNumberDisplay((int) $user->id, $communityId);
 
             return $active[0];
+        }
+        if ($existing !== []) {
+            return $existing[0];
+        }
+
+        // profiles.unit_number is a single global display field. Never copy it
+        // into a second community — it belongs to the resident's other home.
+        if ($this->userHasUnitsInOtherCommunity((int) $user->id, $communityId)
+            || $this->userHasOtherCommunityMembership((int) $user->id, $communityId)
+            || $this->userHasPackageOrInviteUnitsInCommunity((int) $user->id, $communityId)) {
+            return null;
         }
 
         $unitNumber = trim((string) ($user->profile?->unit_number ?? ''));
@@ -325,17 +345,24 @@ class UnitAssignmentService
 
         if ($seen !== []) {
             $first = reset($seen);
-            // Keep profile display in sync with first invited unit number string.
-            $firstNumber = DB::table('invite_unit_assignments')
-                ->where('community_id', $communityId)
+            $hasOtherApproved = DB::table('community_memberships')
                 ->where('user_id', $userId)
-                ->orderBy('sort_order')
-                ->value('unit_number');
-            if ($firstNumber) {
-                DB::table('profiles')->where('user_id', $userId)->update([
-                    'unit_number' => $firstNumber,
-                    'updated_at' => now(),
-                ]);
+                ->where('community_id', '!=', $communityId)
+                ->where('status', 'approved')
+                ->exists();
+            if (! $hasOtherApproved) {
+                // Keep profile display in sync with first invited unit number string.
+                $firstNumber = DB::table('invite_unit_assignments')
+                    ->where('community_id', $communityId)
+                    ->where('user_id', $userId)
+                    ->orderBy('sort_order')
+                    ->value('unit_number');
+                if ($firstNumber) {
+                    DB::table('profiles')->where('user_id', $userId)->update([
+                        'unit_number' => $firstNumber,
+                        'updated_at' => now(),
+                    ]);
+                }
             }
         }
     }
@@ -1181,15 +1208,181 @@ class UnitAssignmentService
             ->all();
     }
 
+    /**
+     * Units copied from another community (same number, no invite/package source)
+     * must not stay associated here — they belong to the other home.
+     */
+    public function pruneUnitsCopiedFromOtherCommunities(int $userId, int $communityId): void
+    {
+        if ($userId < 1 || $communityId < 1) {
+            return;
+        }
+
+        $foreignKeys = [];
+        $foreignRows = DB::table('unit_residents as ur')
+            ->join('units', 'units.id', '=', 'ur.unit_id')
+            ->where('ur.user_id', $userId)
+            ->where('ur.community_id', '!=', $communityId)
+            ->whereIn('ur.status', [self::RESIDENT_ACTIVE, self::RESIDENT_PENDING])
+            ->get(['units.unit_number', 'units.unit_number_normalized']);
+
+        foreach ($foreignRows as $row) {
+            $key = $this->normalizeUnitNumber((string) ($row->unit_number_normalized ?: $row->unit_number));
+            if ($key !== '') {
+                $foreignKeys[$key] = true;
+            }
+        }
+
+        if ($foreignKeys === []) {
+            return;
+        }
+
+        $protected = $this->protectedUnitNumbersInCommunity($userId, $communityId);
+        $now = now();
+
+        foreach ($this->findUnitAssociationsForUser($userId, $communityId) as $unit) {
+            $status = (string) ($unit->unit_resident_status ?? '');
+            if (! in_array($status, [self::RESIDENT_ACTIVE, self::RESIDENT_PENDING], true)) {
+                continue;
+            }
+
+            $key = $this->normalizeUnitNumber((string) ($unit->unit_number_normalized ?? $unit->unit_number ?? ''));
+            if ($key === '' || ! isset($foreignKeys[$key]) || isset($protected[$key])) {
+                continue;
+            }
+
+            $source = (string) ($unit->unit_resident_source ?? '');
+            if (in_array($source, ['package', 'addon', 'invite'], true)) {
+                continue;
+            }
+
+            $residentId = isset($unit->unit_resident_id) ? (int) $unit->unit_resident_id : 0;
+            $unitId = (int) ($unit->id ?? 0);
+            if ($residentId > 0) {
+                DB::table('unit_residents')->where('id', $residentId)->update([
+                    'status' => self::RESIDENT_LEFT,
+                    'left_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+
+            if ($unitId > 0 && (int) ($unit->billing_contact_user_id ?? 0) === $userId) {
+                $next = $this->nextEligibleBillingContact($unitId, $communityId);
+                DB::table('units')->where('id', $unitId)->update([
+                    'billing_contact_user_id' => $next,
+                    'updated_at' => $now,
+                ]);
+            }
+
+            if ($unitId > 0) {
+                try {
+                    $this->deleteUnit($communityId, $unitId);
+                } catch (\Throwable) {
+                    // Keep the catalog row when it still has residents or cannot be removed.
+                }
+            }
+        }
+    }
+
+    public function pruneCopiedUnitsForCommunity(int $communityId): void
+    {
+        if ($communityId < 1) {
+            return;
+        }
+
+        $userIds = DB::table('unit_residents')
+            ->where('community_id', $communityId)
+            ->whereIn('status', [self::RESIDENT_ACTIVE, self::RESIDENT_PENDING])
+            ->distinct()
+            ->pluck('user_id');
+
+        foreach ($userIds as $userId) {
+            $this->pruneUnitsCopiedFromOtherCommunities((int) $userId, $communityId);
+        }
+    }
+
+    private function userHasUnitsInOtherCommunity(int $userId, int $communityId): bool
+    {
+        return DB::table('unit_residents')
+            ->where('user_id', $userId)
+            ->where('community_id', '!=', $communityId)
+            ->whereIn('status', [self::RESIDENT_ACTIVE, self::RESIDENT_PENDING])
+            ->exists();
+    }
+
+    private function userHasOtherCommunityMembership(int $userId, int $communityId): bool
+    {
+        return DB::table('community_memberships')
+            ->where('user_id', $userId)
+            ->where('community_id', '!=', $communityId)
+            ->whereIn('status', ['approved', 'pending'])
+            ->exists();
+    }
+
+    private function userHasPackageOrInviteUnitsInCommunity(int $userId, int $communityId): bool
+    {
+        if (Schema::hasTable('unit_registration_packages')
+            && DB::table('unit_registration_packages')
+                ->where('user_id', $userId)
+                ->where('community_id', $communityId)
+                ->whereIn('status', ['pending', 'approved'])
+                ->exists()) {
+            return true;
+        }
+
+        if (Schema::hasTable('invite_unit_assignments')
+            && DB::table('invite_unit_assignments')
+                ->where('user_id', $userId)
+                ->where('community_id', $communityId)
+                ->exists()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /** @return array<string, true> */
+    private function protectedUnitNumbersInCommunity(int $userId, int $communityId): array
+    {
+        $out = [];
+
+        if (Schema::hasTable('unit_registration_package_items')) {
+            $numbers = DB::table('unit_registration_package_items as items')
+                ->join('unit_registration_packages as packages', 'packages.id', '=', 'items.package_id')
+                ->where('packages.user_id', $userId)
+                ->where('packages.community_id', $communityId)
+                ->pluck('items.unit_number_normalized');
+            foreach ($numbers as $number) {
+                $key = $this->normalizeUnitNumber((string) $number);
+                if ($key !== '') {
+                    $out[$key] = true;
+                }
+            }
+        }
+
+        if (Schema::hasTable('invite_unit_assignments')) {
+            $numbers = DB::table('invite_unit_assignments')
+                ->where('user_id', $userId)
+                ->where('community_id', $communityId)
+                ->pluck('unit_number_normalized');
+            foreach ($numbers as $number) {
+                $key = $this->normalizeUnitNumber((string) $number);
+                if ($key !== '') {
+                    $out[$key] = true;
+                }
+            }
+        }
+
+        return $out;
+    }
+
     private function approvedCommunityId(int $userId): ?int
     {
-        $id = DB::table('community_memberships')
-            ->where('user_id', $userId)
-            ->where('status', 'approved')
-            ->orderByDesc('created_at')
-            ->value('community_id');
+        $user = \App\Models\User::query()
+            ->select('id', 'active_context_community_id', 'role', 'active_context')
+            ->find($userId);
 
-        return $id ? (int) $id : null;
+        return \App\Services\UserActingContextService::currentCommunityId($user);
     }
 
     private function throwDuplicateUnitNumber(): never

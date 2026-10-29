@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Services\ActivityLogService;
+use App\Services\UserActingContextService;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,14 +30,7 @@ class CommunityDocumentController extends Controller
         if ($this->isPlatformAdmin($user) && $request->filled('community_id')) {
             return (int) $request->community_id;
         }
-        $membership = DB::table('community_memberships')
-            ->where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->orderByDesc('created_at')
-            ->first();
-
-        abort_if(!$membership, 422, 'No approved community membership found.');
-        return (int) $membership->community_id;
+        return UserActingContextService::requireCurrentCommunityId($user);
     }
 
     private function isCommunityAdmin($user): bool

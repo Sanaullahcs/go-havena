@@ -41,14 +41,135 @@ class UserActingContextService
             return null;
         }
 
-        if ($user->active_context_community_id) {
-            return (int) $user->active_context_community_id;
+        $allowed = self::approvedCommunityIds($user);
+        $preferred = $user->active_context_community_id ? (int) $user->active_context_community_id : null;
+        if ($preferred && in_array($preferred, $allowed, true)) {
+            return $preferred;
+        }
+
+        if ($allowed !== []) {
+            return $allowed[0];
         }
 
         $membership = AdminRoleService::getApprovedAdminMembership($user)
             ?? AdminRoleService::getAdminMembershipIncludingPending($user);
 
         return $membership?->community_id ? (int) $membership->community_id : null;
+    }
+
+    /**
+     * Approved communities this account can act in (resident or staff).
+     *
+     * @return list<int>
+     */
+    public static function approvedCommunityIds(User $user): array
+    {
+        return DB::table('community_memberships as cm')
+            ->join('communities as c', 'c.id', '=', 'cm.community_id')
+            ->where('cm.user_id', $user->id)
+            ->where('cm.status', 'approved')
+            ->whereNull('c.deleted_at')
+            ->where(function ($query) {
+                $query->whereNull('c.status')->orWhere('c.status', 'active');
+            })
+            ->orderBy('cm.created_at')
+            ->orderBy('cm.id')
+            ->pluck('cm.community_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{id: int, name: string, role: string}>
+     */
+    public static function switchableCommunities(User $user): array
+    {
+        return DB::table('community_memberships as cm')
+            ->join('communities as c', 'c.id', '=', 'cm.community_id')
+            ->where('cm.user_id', $user->id)
+            ->where('cm.status', 'approved')
+            ->whereNull('c.deleted_at')
+            ->where(function ($query) {
+                $query->whereNull('c.status')->orWhere('c.status', 'active');
+            })
+            ->orderBy('c.name')
+            ->get(['c.id', 'c.name', 'cm.role'])
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'name' => (string) $row->name,
+                'role' => (string) $row->role,
+            ])
+            ->values()
+            ->all();
+    }
+
+    public static function switchCommunity(User $user, int $communityId): User
+    {
+        $allowed = self::approvedCommunityIds($user);
+        if (! in_array($communityId, $allowed, true)) {
+            throw ValidationException::withMessages([
+                'community_id' => ['Choose one of your approved communities.'],
+            ]);
+        }
+
+        $user->active_context_community_id = $communityId;
+        $user->save();
+
+        ActivityLogService::user(
+            'switched_community',
+            'Switched active community',
+            'Community',
+            $communityId,
+            'info',
+            (int) $user->id,
+            [
+                'community_id' => $communityId,
+                'module' => 'Auth',
+                'active_context' => self::effectiveMode($user),
+            ],
+        );
+
+        return $user->fresh();
+    }
+
+    public static function rememberCommunityIfUnset(User $user, int $communityId): void
+    {
+        if ($user->active_context_community_id) {
+            return;
+        }
+
+        $user->active_context_community_id = $communityId;
+        $user->save();
+    }
+
+    /** Move off a banned/unavailable community onto another approved membership. */
+    public static function clearUnavailableActiveCommunity(User $user): User
+    {
+        $allowed = self::approvedCommunityIds($user);
+        $preferred = $user->active_context_community_id ? (int) $user->active_context_community_id : null;
+        if ($preferred && in_array($preferred, $allowed, true)) {
+            return $user;
+        }
+
+        $next = $allowed[0] ?? null;
+        if ((int) ($user->active_context_community_id ?? 0) === (int) ($next ?? 0)) {
+            return $user;
+        }
+
+        $user->active_context_community_id = $next;
+        $user->save();
+
+        return $user->fresh() ?? $user;
+    }
+
+    public static function requireCurrentCommunityId(?User $user, string $message = 'No approved community membership found.'): int
+    {
+        $id = self::currentCommunityId($user);
+        abort_if(! $id, 422, $message);
+
+        return $id;
     }
 
     public static function residentCommunityId(?User $user): ?int
@@ -185,6 +306,8 @@ class UserActingContextService
             'can_switch_modes' => self::canSwitchModes($user),
             'can_use_admin_mode' => self::canSwitchModes($user),
             'can_use_resident_mode' => self::canSwitchModes($user),
+            'can_switch_communities' => count(self::approvedCommunityIds($user)) > 1,
+            'resident_communities' => self::switchableCommunities($user),
             'resident_mode_communities' => self::canSwitchModes($user)
                 ? self::residentModeCommunities($user)
                 : [],

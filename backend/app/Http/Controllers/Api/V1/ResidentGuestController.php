@@ -8,6 +8,7 @@ use App\Services\AdminRoleService;
 use App\Services\GuestAccessService;
 use App\Services\GuestInvitationService;
 use App\Services\NotificationService;
+use App\Services\UserActingContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -128,12 +129,6 @@ class ResidentGuestController extends Controller
 
     private function resolveCommunityId($user): ?int
     {
-        $membership = DB::table('community_memberships')
-            ->where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->orderByDesc('created_at')
-            ->first();
-
-        return $membership ? (int) $membership->community_id : null;
+        return UserActingContextService::currentCommunityId($user);
     }
 }

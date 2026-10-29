@@ -299,7 +299,8 @@ export function activeUnitNumbers(user) {
     numbers.push(value);
   }
 
-  if (numbers.length > 0 || rows.length > 0) return numbers;
+  // `units` is community-scoped. An empty array means none in the current community.
+  if (Array.isArray(user?.units)) return numbers;
 
   const fallback = String(user?.profile?.unit_number ?? user?.unit_number ?? "").trim();
   return fallback ? [fallback] : [];

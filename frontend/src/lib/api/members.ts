@@ -2,7 +2,7 @@ import api, { isProxyMethodBlocked } from "./client";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { getManagedCommunityId, getUser, isSystemAdminUser } from "@/lib/auth/session";
 
-export type MembershipStatus = "approved" | "pending" | "banned" | "rejected" | "inactive" | "onboarding" | "invitation_sent" | "not_invited";
+export type MembershipStatus = "approved" | "pending" | "banned" | "rejected" | "inactive" | "onboarding" | "invitation_sent" | "invite_rejected" | "not_invited";
 export type MembershipRole = "member" | "moderator" | "admin";
 
 export interface Member {
@@ -24,7 +24,17 @@ export interface Member {
     residence_type?: string | null;
     utility_bill_url?: string | null;
     package_id?: number | null;
+    community_id?: number | null;
+    community_name?: string | null;
   }>;
+  communities?: Array<{
+    id: number | null;
+    name: string | null;
+    status: MembershipStatus;
+    membership_id: number | null;
+    units?: Member["units"];
+  }>;
+  community_count?: number;
   avatar_url: string | null;
   display_name: string | null;
   created_at: string;
@@ -104,6 +114,8 @@ export function statusLabel(status: MembershipStatus): string {
       return "Pending";
     case "invitation_sent":
       return "Invitation Sent";
+    case "invite_rejected":
+      return "Invite Rejected";
     case "not_invited":
       return "Not Invited";
     case "onboarding":
@@ -143,9 +155,9 @@ export async function fetchMembers(params: MembersQuery = {}) {
   return res.data as { data: Member[]; meta: MemberMeta };
 }
 
-export async function fetchMember(id: number, communityId?: number) {
+export async function fetchMember(id: number, communityId?: number | "all") {
   const res = await api.get(`/v1/admin/members/${id}`, {
-    params: communityId ? { community_id: communityId } : undefined,
+    params: communityId != null ? { community_id: communityId } : undefined,
   });
   return res.data.data as Member;
 }
@@ -183,6 +195,7 @@ export type MemberActivityMeta = {
     id: number;
     name: string;
     unit_number?: string | null;
+    units?: Member["units"];
     community_id: number;
   };
 };

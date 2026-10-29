@@ -11,6 +11,7 @@ use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\Writer\PngWriter;
 use Endroid\QrCode\Writer\SvgWriter;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 
 class InviteCodeService
@@ -145,6 +146,15 @@ class InviteCodeService
                 ->where('user_id', $invited->id)
                 ->delete();
 
+            if (Schema::hasTable('invite_unit_assignments')) {
+                DB::table('invite_unit_assignments')
+                    ->where('user_id', $invited->id)
+                    ->update([
+                        'user_id' => $claimant->id,
+                        'updated_at' => now(),
+                    ]);
+            }
+
             $invited->update([
                 'email' => 'claimed-'.$invited->id.'@invited-claimed.havena.local',
             ]);
@@ -197,7 +207,38 @@ class InviteCodeService
     /** True when this account still must redeem its member invite code in the app. */
     public static function userNeedsInviteCode(User $user): bool
     {
+        if (CommunityMembership::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->exists()) {
+            return false;
+        }
+
         return InviteCode::query()->pendingForUser((int) $user->id)->exists();
+    }
+
+    public static function rejectForUser(InviteCode $invite, User $user): InviteCode
+    {
+        if ((int) $invite->invited_user_id !== (int) $user->id) {
+            abort(404, 'Invitation not found.');
+        }
+
+        if ($invite->rejected_at || ! $invite->isValid()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'invite' => ['This invitation is no longer pending.'],
+            ]);
+        }
+
+        $invite->forceFill([
+            'rejected_at' => now(),
+        ])->save();
+
+        app(CommunityBillingService::class)->releaseReservationsForUser(
+            (int) $invite->community_id,
+            (int) $user->id,
+        );
+
+        return $invite->fresh();
     }
 
     /**
