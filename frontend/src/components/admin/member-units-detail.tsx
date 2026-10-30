@@ -34,6 +34,21 @@ function ProfileRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+function associationStatusLabel(status: string): string {
+  switch (status) {
+    case "pending":
+      return "Pending";
+    case "invite":
+      return "Invite";
+    case "rejected":
+      return "Rejected";
+    case "left":
+      return "Left";
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+}
+
 type MemberUnitsDetailProps = {
   units?: MemberUnitDetail[] | null;
   communities?: MemberCommunityDetail[] | null;
@@ -83,13 +98,13 @@ function UnitDetailCard({
         ) : null}
         {unit.association_status && unit.association_status !== "active" ? (
           <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
               unit.association_status === "rejected"
                 ? "bg-rose-50 text-rose-700"
                 : "bg-amber-50 text-amber-700"
             }`}
           >
-            {unit.association_status}
+            {associationStatusLabel(unit.association_status)}
           </span>
         ) : null}
       </div>

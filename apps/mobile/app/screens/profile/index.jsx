@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from "react-native";
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -12,7 +12,11 @@ import ProfileStats from "../../../components/profile/profilestats";
 import RecentAchievements from "../../../components/profile/recentAchievements";
 import QuickAccess from "../../../components/profile/quickAccess";
 import ProfileSubscriptionTab from "../../../components/profile/profile-subscription-tab";
-import { ProfileSkeleton } from "../../../components/ui/skeleton-loader";
+import {
+  ProfileIdentitySkeleton,
+  ProfileStatsSkeleton,
+  ProfileAchievementsSkeleton,
+} from "../../../components/ui/skeleton-loader";
 import { fetchMe } from "../../../services/profile-api";
 import { fetchPointsStats, formatPoints } from "../../../services/points-api";
 import { fetchAchievements } from "../../../services/achievements-api";
@@ -24,63 +28,109 @@ import { useProfilePhoto } from "../../../hooks/use-profile-photo";
 import { sw, sf, hp } from "../../../utils/responsive";
 import { rnShadow } from "../../../utils/shadow";
 
-
 export default function Profile() {
   const router = useRouter();
   const { t } = useTranslation();
   const sessionUser = useSessionUser();
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(sessionUser ?? null);
   const [pointsStats, setPointsStats] = useState(null);
   const [achievements, setAchievements] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(!sessionUser);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [achievementsLoading, setAchievementsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
+  const hasProfileRef = useRef(Boolean(sessionUser));
+  const hasStatsRef = useRef(false);
+  const hasAchievementsRef = useRef(false);
 
   const load = useCallback(async () => {
+    const showIdentitySkeleton = !hasProfileRef.current;
+    if (showIdentitySkeleton) setProfileLoading(true);
+
+    let nextProfile = null;
     try {
-      setLoading(true);
-      const profileData = await fetchMe();
-      setProfile(profileData);
-      const showPoints = isResidentFeatureEnabled(profileData, "points");
-      if (!showPoints) {
+      nextProfile = await fetchMe();
+      setProfile(nextProfile);
+      hasProfileRef.current = true;
+    } catch {
+      if (!hasProfileRef.current) {
+        setProfile(null);
         setPointsStats(null);
         setAchievements(null);
-        return;
+        hasStatsRef.current = false;
+        hasAchievementsRef.current = false;
       }
-      const [statsData, achievementsData] = await Promise.all([
-        fetchPointsStats().catch(() => null),
-        fetchAchievements().catch(() => null),
-      ]);
-      setPointsStats(statsData);
-      setAchievements(achievementsData);
-    } catch {
-      setProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+
+    const pointsEnabled = isResidentFeatureEnabled(nextProfile ?? sessionUser, "points");
+
+    if (!pointsEnabled) {
       setPointsStats(null);
       setAchievements(null);
-    } finally {
-      setLoading(false);
+      hasStatsRef.current = false;
+      hasAchievementsRef.current = false;
+      setStatsLoading(false);
+      setAchievementsLoading(false);
+      return;
     }
-  }, []);
+
+    // Skeleton only when that section has no data yet; keep prior UI while refreshing.
+    if (!hasStatsRef.current) setStatsLoading(true);
+    if (!hasAchievementsRef.current) setAchievementsLoading(true);
+
+    void fetchPointsStats()
+      .then((statsData) => {
+        setPointsStats(statsData);
+        hasStatsRef.current = true;
+      })
+      .catch(() => {
+        if (!hasStatsRef.current) setPointsStats(null);
+      })
+      .finally(() => setStatsLoading(false));
+
+    void fetchAchievements()
+      .then((achievementsData) => {
+        setAchievements(achievementsData);
+        hasAchievementsRef.current = true;
+      })
+      .catch(() => {
+        if (!hasAchievementsRef.current) setAchievements(null);
+      })
+      .finally(() => setAchievementsLoading(false));
+  }, [sessionUser]);
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
     }, [load]),
   );
 
-  const fields = getProfileFields(profile);
+  const fields = getProfileFields(profile ?? sessionUser);
   const { changePhoto, uploading, uploadFailed, ProfilePhotoViewerModal } = useProfilePhoto({
-    onUpdated: (data) => setProfile(data),
+    onUpdated: (data) => {
+      setProfile(data);
+      hasProfileRef.current = true;
+      setProfileLoading(false);
+    },
     avatarUrl: fields.avatarUrl,
   });
-  const unitLine = formatResidentUnitLabel(profile, t, "profile");
+  const unitLine = formatResidentUnitLabel(profile ?? sessionUser, t, "profile");
   const regionLine = fields.regionTitle || null;
-  const roleKey = fields.role === "guest" ? "guest" : fields.role === "community_admin" || fields.role === "admin" ? "admin" : "resident";
+  const roleKey =
+    fields.role === "guest"
+      ? "guest"
+      : fields.role === "community_admin" || fields.role === "admin"
+        ? "admin"
+        : "resident";
   const roleLabel = t(`profile.roles.${roleKey}`);
-  const showSubscriptionTab = isCommunityAdmin(profile);
+  const showSubscriptionTab = isCommunityAdmin(profile ?? sessionUser);
   const showSettingsGear = isCommunityAdmin(profile ?? sessionUser);
   const featureUser = profile ?? sessionUser;
   const showPoints = isResidentFeatureEnabled(featureUser, "points");
   const showPosts = isResidentFeatureEnabled(featureUser, "feed");
+  const statsRowCount = [showPoints, showPoints, showPosts, showPoints].filter(Boolean).length;
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
@@ -135,15 +185,13 @@ export default function Profile() {
       {showSubscriptionTab && activeTab === "subscription" ? (
         <ProfileSubscriptionTab />
       ) : (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {loading ? (
-          <ProfileSkeleton />
-        ) : (
-          <>
-            {/* Identity card */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {profileLoading ? (
+            <ProfileIdentitySkeleton />
+          ) : (
             <View style={styles.identityCard}>
               <Pressable
                 onPress={changePhoto}
@@ -189,9 +237,13 @@ export default function Profile() {
                     style={styles.pointsPill}
                   >
                     <Feather name="star" size={sf(12)} color={Colors.brandPrimaryDeep} />
-                    <Text style={styles.pointsPillText}>
-                      {formatPoints(pointsStats?.total_points ?? 0)} {t("points.ptsLabel")}
-                    </Text>
+                    {statsLoading && !pointsStats ? (
+                      <View style={styles.pointsPillSkeleton} />
+                    ) : (
+                      <Text style={styles.pointsPillText}>
+                        {formatPoints(pointsStats?.total_points ?? 0)} {t("points.ptsLabel")}
+                      </Text>
+                    )}
                   </Pressable>
                 ) : null}
               </View>
@@ -215,13 +267,26 @@ export default function Profile() {
                 </View>
               </View>
             </View>
-          </>
-        )}
+          )}
 
-        {!loading ? <ProfileStats stats={pointsStats} showPoints={showPoints} showPosts={showPosts} /> : null}
-        {showPoints ? <RecentAchievements achievements={achievements} /> : null}
-        <QuickAccess />
-      </ScrollView>
+          {showPoints || showPosts ? (
+            statsLoading && !pointsStats ? (
+              <ProfileStatsSkeleton rows={statsRowCount || 3} />
+            ) : (
+              <ProfileStats stats={pointsStats} showPoints={showPoints} showPosts={showPosts} />
+            )
+          ) : null}
+
+          {showPoints ? (
+            achievementsLoading && !achievements ? (
+              <ProfileAchievementsSkeleton />
+            ) : (
+              <RecentAchievements achievements={achievements} />
+            )
+          ) : null}
+
+          <QuickAccess />
+        </ScrollView>
       )}
       <ProfilePhotoViewerModal />
     </SafeAreaView>
@@ -274,9 +339,6 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     color: "#FFFFFF",
-  },
-  pressed: {
-    opacity: 0.9,
   },
   headerBtn: {
     width: sw(38),
@@ -379,6 +441,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(10),
     paddingVertical: sw(5),
     overflow: "hidden",
+    minHeight: sw(26),
+  },
+  pointsPillSkeleton: {
+    width: sw(48),
+    height: sf(11),
+    borderRadius: 999,
+    backgroundColor: "rgba(27, 79, 138, 0.18)",
   },
   pointsPillText: {
     fontFamily: Fonts.semiBold,

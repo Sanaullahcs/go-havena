@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { OTP_RESEND_LOCK_MINUTES, OTP_RESEND_SECONDS } from "../constants/otp-config";
+import {
+  OTP_RESEND_LOCK_MINUTES,
+  OTP_RESEND_LOCK_SECONDS,
+  OTP_RESEND_SECONDS,
+} from "../constants/otp-config";
 import i18n from "../i18n";
 import {
   extractOtpRateLimitFromError,
@@ -41,14 +45,26 @@ export function useOtpResendLimit(initialRateLimit = null, { dialog } = {}) {
   );
 
   const applyRateLimit = useCallback(
-    (raw) => {
+    (raw, options = {}) => {
       const normalized = normalizeOtpRateLimit(raw);
       setLimits(normalized);
+      const extendCooldown = Boolean(options.extendCooldown);
 
-      if (normalized.retryAfterSeconds > 0) {
-        setSecondsLeft(normalized.retryAfterSeconds);
+      let retrySeconds = normalized.retryAfterSeconds;
+      if (retrySeconds <= 0 && normalized.locked) {
+        if (normalized.lockType === "resend_limit" || normalized.lockType === "security") {
+          retrySeconds = OTP_RESEND_LOCK_SECONDS;
+        }
+      }
+
+      if (retrySeconds > 0) {
+        setSecondsLeft((current) =>
+          extendCooldown ? Math.max(current, retrySeconds) : retrySeconds,
+        );
       } else if (!normalized.locked) {
-        setSecondsLeft(OTP_RESEND_SECONDS);
+        setSecondsLeft((current) =>
+          extendCooldown ? Math.max(current, OTP_RESEND_SECONDS) : OTP_RESEND_SECONDS,
+        );
       }
 
       maybeShowResendLimitDialog(normalized);
@@ -61,7 +77,9 @@ export function useOtpResendLimit(initialRateLimit = null, { dialog } = {}) {
     (error) => {
       const extracted = extractOtpRateLimitFromError(error);
       if (!extracted) return false;
-      applyRateLimit(extracted);
+      const code = error?.code;
+      const extendCooldown = code === "INVALID_OTP" || code === "OTP_VERIFY_LOCKED";
+      applyRateLimit(extracted, { extendCooldown });
       return true;
     },
     [applyRateLimit],
@@ -79,7 +97,7 @@ export function useOtpResendLimit(initialRateLimit = null, { dialog } = {}) {
 
   useEffect(() => {
     if (secondsLeft <= 0) {
-      if (limits.locked && limits.lockType === "resend_limit") {
+      if (limits.locked && (limits.lockType === "resend_limit" || limits.lockType === "security")) {
         setLimits((current) => ({
           ...current,
           locked: false,

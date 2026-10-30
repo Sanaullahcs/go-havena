@@ -184,8 +184,13 @@ class OtpController extends Controller
         $rateLimit->assertCanVerify($email);
 
         if (! $otp->verify($email, $validated['code'])) {
-            $rateLimit->recordFailedVerify($email);
-            $this->failValidation('code', 'Invalid or expired verification code.', 'INVALID_OTP');
+            $limits = $rateLimit->recordFailedVerify($email);
+            $this->failValidation(
+                'code',
+                'Invalid or expired verification code.',
+                'INVALID_OTP',
+                $limits,
+            );
         }
 
         $rateLimit->clear($email);
@@ -412,15 +417,25 @@ class OtpController extends Controller
         );
     }
 
-    private function failValidation(string $field, string $message, string $code): never
+    /** @param  array<string, mixed>|null  $rateLimit */
+    private function failValidation(string $field, string $message, string $code, ?array $rateLimit = null): never
     {
-        throw new HttpResponseException(response()->json([
+        $payload = [
             'message' => $message,
             'code' => $code,
             'errors' => [
                 $field => [$message],
             ],
-        ], 422));
+        ];
+
+        if ($rateLimit !== null) {
+            $payload['rate_limit'] = $rateLimit;
+            if (isset($rateLimit['retry_after_seconds'])) {
+                $payload['retry_after_seconds'] = (int) $rateLimit['retry_after_seconds'];
+            }
+        }
+
+        throw new HttpResponseException(response()->json($payload, 422));
     }
 
     /** @param array{message: string, code: string, status?: string, reason?: ?string, rejected_by?: ?string} $block */

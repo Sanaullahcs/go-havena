@@ -2272,7 +2272,9 @@ class MemberController extends Controller
             );
         }
 
-        // Invited but not yet synced — show pending invite unit rows.
+        // Invited / join-request units not yet synced to unit_residents.
+        // Membership pending (e.g. second-community request or redeemed invite
+        // awaiting admin review) must show as pending — not invite.
         if (\Illuminate\Support\Facades\Schema::hasTable('invite_unit_assignments')) {
             $inviteUnits = DB::table('invite_unit_assignments')
                 ->where('community_id', $communityId)
@@ -2285,8 +2287,13 @@ class MemberController extends Controller
                 ->all();
 
             if ($inviteUnits !== []) {
+                $membershipStatus = (string) ($member->status ?? '');
+                $associationStatus = $membershipStatus === 'pending'
+                    ? UnitAssignmentService::RESIDENT_PENDING
+                    : 'invite';
+
                 return array_map(
-                    fn (string $number) => $this->formatMemberUnitRow(null, $number, 'invite', false, $member, $detailed),
+                    fn (string $number) => $this->formatMemberUnitRow(null, $number, $associationStatus, false, $member, $detailed),
                     $inviteUnits,
                 );
             }

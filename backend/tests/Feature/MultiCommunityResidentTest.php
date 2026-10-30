@@ -690,6 +690,19 @@ class MultiCommunityResidentTest extends TestCase
             'community_id' => $world['communityB']->id,
             'status' => 'pending',
         ]);
+
+        Sanctum::actingAs($world['adminB']);
+        $detail = $this->getJson('/api/v1/admin/members/'.$resident->id)->assertOk();
+        $this->assertSame('pending', $detail->json('data.status'));
+        $this->assertSame(
+            ['B-12'],
+            array_column($detail->json('data.units') ?? [], 'unit_number'),
+        );
+        $this->assertSame(
+            ['pending'],
+            array_column($detail->json('data.units') ?? [], 'association_status'),
+            'Pending second-community membership must not surface unit status as invite.',
+        );
     }
 
     public function test_invited_second_community_auto_approves_admin_unit_and_queues_extra_units(): void

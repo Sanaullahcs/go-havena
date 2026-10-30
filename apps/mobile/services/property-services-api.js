@@ -113,26 +113,65 @@ export function viewerIsBillingContact(unit, userId) {
   return contactId != null && Number(contactId) === viewerId;
 }
 
-export async function resolveViewerBillingAccess() {
-  const [payload, user] = await Promise.all([
-    fetchMyUnits().catch(() => ({ unit: null, units: [], meta: {} })),
-    getUser(),
-  ]);
+const BILLING_ACCESS_TTL_MS = 60_000;
+let billingAccessCache = { value: null, at: 0, inflight: null };
 
-  const active = (payload.units || []).filter(
-    (row) => (row.association_status || "active") === "active",
-  );
-  const billingUnits = active.filter((row) => viewerIsBillingContact(row, user?.id));
-  const unit = billingUnits[0] || payload.unit || active[0] || null;
+export function getCachedViewerBillingAccess() {
+  if (!billingAccessCache.value) return null;
+  if (Date.now() - billingAccessCache.at > BILLING_ACCESS_TTL_MS) return null;
+  return billingAccessCache.value;
+}
 
-  return {
-    unit,
-    units: active,
-    billingUnits,
-    isBillingContact: billingUnits.length > 0,
-    contactName: unit?.billing_contact?.name || "",
-    meta: payload.meta || {},
-  };
+export function invalidateViewerBillingAccessCache() {
+  billingAccessCache = { value: null, at: 0, inflight: null };
+}
+
+function rememberViewerBillingAccess(value) {
+  billingAccessCache = { value, at: Date.now(), inflight: null };
+  return value;
+}
+
+export async function resolveViewerBillingAccess({ force = false } = {}) {
+  if (!force) {
+    const cached = getCachedViewerBillingAccess();
+    if (cached) return cached;
+    if (billingAccessCache.inflight) return billingAccessCache.inflight;
+  }
+
+  const request = (async () => {
+    const [payload, user] = await Promise.all([
+      fetchMyUnits().catch(() => ({ unit: null, units: [], meta: {} })),
+      getUser(),
+    ]);
+
+    const active = (payload.units || []).filter(
+      (row) => (row.association_status || "active") === "active",
+    );
+    const billingUnits = active.filter((row) => viewerIsBillingContact(row, user?.id));
+    const unit = billingUnits[0] || payload.unit || active[0] || null;
+
+    return rememberViewerBillingAccess({
+      unit,
+      units: active,
+      billingUnits,
+      isBillingContact: billingUnits.length > 0,
+      contactName: unit?.billing_contact?.name || "",
+      meta: payload.meta || {},
+    });
+  })();
+
+  if (!force) {
+    billingAccessCache.inflight = request;
+    try {
+      return await request;
+    } finally {
+      if (billingAccessCache.inflight === request) {
+        billingAccessCache.inflight = null;
+      }
+    }
+  }
+
+  return request;
 }
 
 export async function requestBillingContactTransfer(nomineeUserId, message, unitId) {
@@ -144,11 +183,13 @@ export async function requestBillingContactTransfer(nomineeUserId, message, unit
       ...(message ? { message } : {}),
     },
   });
+  invalidateViewerBillingAccessCache();
   return { data: res.data, message: res.message };
 }
 
 export async function acceptBillingContactTransfer(id) {
   const res = await apiRequest(`/billing-contact-transfers/${id}/accept`, { method: "PATCH" });
+  invalidateViewerBillingAccessCache();
   return { data: res.data, message: res.message };
 }
 
@@ -157,11 +198,13 @@ export async function rejectBillingContactTransfer(id, rejectionReason) {
     method: "PATCH",
     body: rejectionReason ? { rejection_reason: rejectionReason } : {},
   });
+  invalidateViewerBillingAccessCache();
   return { data: res.data, message: res.message };
 }
 
 export async function cancelBillingContactTransfer(id) {
   const res = await apiRequest(`/billing-contact-transfers/${id}/cancel`, { method: "PATCH" });
+  invalidateViewerBillingAccessCache();
   return { data: res.data, message: res.message };
 }
 

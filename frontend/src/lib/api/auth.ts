@@ -96,12 +96,28 @@ export type CommunityAdminOtpIntent = "login" | "signup";
  * - mode "signup": force signup (register page)
  * - mode "login": login only
  */
-function otpRequestPayload(data: unknown): { rate_limit: unknown; expires_at: string | null } {
-  if (!data || typeof data !== "object") return { rate_limit: null, expires_at: null };
-  const record = data as { data?: { rate_limit?: unknown; expires_at?: unknown } };
+function otpRequestPayload(data: unknown): {
+  rate_limit: unknown;
+  expires_at: string | null;
+  expires_in_seconds: number | null;
+} {
+  if (!data || typeof data !== "object") {
+    return { rate_limit: null, expires_at: null, expires_in_seconds: null };
+  }
+  const record = data as {
+    data?: { rate_limit?: unknown; expires_at?: unknown; expires_in_seconds?: unknown };
+  };
+  const rawSeconds = record.data?.expires_in_seconds;
+  const expiresInSeconds =
+    typeof rawSeconds === "number" && Number.isFinite(rawSeconds)
+      ? Math.max(0, Math.ceil(rawSeconds))
+      : typeof rawSeconds === "string" && rawSeconds.trim() !== "" && Number.isFinite(Number(rawSeconds))
+        ? Math.max(0, Math.ceil(Number(rawSeconds)))
+        : null;
   return {
     rate_limit: record.data?.rate_limit ?? null,
     expires_at: typeof record.data?.expires_at === "string" ? record.data.expires_at : null,
+    expires_in_seconds: expiresInSeconds,
   };
 }
 
@@ -112,7 +128,12 @@ function otpRequestRateLimit(data: unknown): unknown {
 export async function requestCommunityAdminOtp(
   email: string,
   mode: "auto" | "login" | "signup" = "auto",
-): Promise<{ intent: CommunityAdminOtpIntent; rate_limit: unknown; expires_at: string | null }> {
+): Promise<{
+  intent: CommunityAdminOtpIntent;
+  rate_limit: unknown;
+  expires_at: string | null;
+  expires_in_seconds: number | null;
+}> {
   if (mode === "signup") {
     try {
       const res = await api.post("/v1/auth/otp/request", {
@@ -215,7 +236,7 @@ export async function verifyCommunityAdminOtp(
 
 export async function requestResidentOtp(
   email: string,
-): Promise<{ rate_limit: unknown; expires_at: string | null }> {
+): Promise<{ rate_limit: unknown; expires_at: string | null; expires_in_seconds: number | null }> {
   try {
     const res = await api.post("/v1/auth/otp/request", {
       email,

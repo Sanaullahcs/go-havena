@@ -1,9 +1,16 @@
-/** OTP timing — aligned with mobile `apps/mobile/constants/otp-config.js`. */
+/** OTP timing — aligned with mobile `apps/mobile/constants/otp-config.js` + backend `otp.expire_minutes`. */
 export const OTP_EXPIRE_MINUTES = 5;
+export const OTP_EXPIRE_SECONDS = OTP_EXPIRE_MINUTES * 60;
 export const OTP_RESEND_SECONDS = 60;
 /** Lockout after max resends — aligned with backend `otp.resend_lock_seconds` (900). */
 export const OTP_RESEND_LOCK_SECONDS = 900;
 export const OTP_RESEND_LOCK_MINUTES = OTP_RESEND_LOCK_SECONDS / 60;
+
+/** Prefer server-relative remaining seconds; never show longer than the configured window. */
+export function clampOtpExpirySeconds(seconds: number | null | undefined): number | null {
+  if (seconds == null || !Number.isFinite(seconds)) return null;
+  return Math.max(0, Math.min(OTP_EXPIRE_SECONDS, Math.ceil(seconds)));
+}
 
 export function otpResendLockUserMessage(): string {
   return `Too many code requests. Please try again in ${OTP_RESEND_LOCK_MINUTES} minutes.`;

@@ -10,7 +10,6 @@ import {
   Pressable,
   Platform,
   StatusBar,
-  Alert,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import AppModal from "../layout/app-modal";
@@ -597,24 +596,56 @@ function SideMenuPanel({ visible, onClose }) {
                   style={[styles.actionRow, styles.actionRowMode]}
                   activeOpacity={0.7}
                   onPress={() => {
-                    const finish = async (communityId) => {
+                    const switchingToResident = !isResidentMode(user);
+                    const communityId =
+                      currentCommunityId(user) ?? user?.resident_mode_communities?.[0]?.id;
+
+                    // Close the menu first so the confirm dialog is not blocked by stacked modals.
+                    dismissImageSourcePicker();
+                    slideAnim.stopAnimation();
+                    slideAnim.setValue(-MENU_WIDTH);
+                    onClose();
+
+                    setTimeout(async () => {
+                      const choice = await dialog.showConfirm(
+                        switchingToResident
+                          ? t("nav.switchToResidentTitle")
+                          : t("nav.returnToAdminTitle"),
+                        switchingToResident
+                          ? t("nav.switchToResidentBody")
+                          : t("nav.returnToAdminBody"),
+                        {
+                          confirmLabel: t("nav.switchModeConfirm"),
+                          cancelLabel: t("common.cancel"),
+                        },
+                      );
+                      if (choice !== "confirm") return;
+
                       try {
                         const next = await switchActiveContext(
-                          isResidentMode(user) ? "community_admin" : "resident",
+                          switchingToResident ? "resident" : "community_admin",
                           communityId,
                         );
                         syncRoleFromUser(next);
                         setUser(next);
-                        slideAnim.stopAnimation();
-                        slideAnim.setValue(-MENU_WIDTH);
-                        dismissImageSourcePicker();
-                        onClose();
                         navigateAfterAuth(router, next, { mode: "login" });
+                        setTimeout(() => {
+                          void dialog.showSuccess(
+                            switchingToResident
+                              ? t("nav.switchedToResidentTitle")
+                              : t("nav.switchedToAdminTitle"),
+                            switchingToResident
+                              ? t("nav.switchedToResidentBody")
+                              : t("nav.switchedToAdminBody"),
+                          );
+                        }, 280);
                       } catch (err) {
-                        Alert.alert("Could not switch mode", err?.message || "Please try again.");
+                        await dialog.showError(
+                          t("nav.couldNotSwitchMode"),
+                          err?.message || t("common.tryAgain"),
+                        );
                       }
-                    };
-                    void finish(currentCommunityId(user) ?? user?.resident_mode_communities?.[0]?.id);
+                    }, 120);
                   }}
                 >
                   <View style={styles.actionLeft}>
@@ -627,7 +658,9 @@ function SideMenuPanel({ visible, onClose }) {
                     </View>
                     <View style={styles.actionLabel}>
                       <Text style={[styles.actionText, styles.actionTextMode]}>
-                        {canSwitchToAdminMode(user) ? "Return to Admin" : "Switch to Resident Mode"}
+                        {canSwitchToAdminMode(user)
+                          ? t("nav.returnToAdminMode")
+                          : t("nav.switchToResidentMode")}
                       </Text>
                     </View>
                   </View>
@@ -1036,6 +1069,7 @@ const styles = StyleSheet.create({
   },
   actionRowMode: {
     marginBottom: 4,
+    paddingVertical: 8,
     paddingHorizontal: 8,
     borderRadius: 12,
     backgroundColor: Colors.roleAdminBg,

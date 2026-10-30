@@ -5,10 +5,12 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -38,6 +40,7 @@ function statusTone(status) {
 export default function MyUnitsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { dialog, showFailure, showSuccess, runAction } = useApiAction();
   const [units, setUnits] = useState([]);
   const [meta, setMeta] = useState({});
@@ -282,110 +285,122 @@ export default function MyUnitsScreen() {
 
       <Modal visible={requestOpen} animationType="slide" transparent onRequestClose={() => setRequestOpen(false)}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t("myUnits.requestTitle")}</Text>
-              <Pressable onPress={() => setRequestOpen(false)} hitSlop={12}>
-                <Feather name="x" size={20} color="#64748B" />
-              </Pressable>
-            </View>
-            <Text style={styles.modalBody}>{t("myUnits.requestBody")}</Text>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setRequestOpen(false)} />
+          <KeyboardAvoidingView behavior="padding" style={styles.modalKeyboard}>
+            <View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, sw(16)) }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{t("myUnits.requestTitle")}</Text>
+                <Pressable onPress={() => setRequestOpen(false)} hitSlop={12}>
+                  <Feather name="x" size={20} color="#64748B" />
+                </Pressable>
+              </View>
 
-            <View style={styles.toggleRow}>
-              <Pressable
-                style={[styles.toggle, isNewUnit && styles.toggleOn]}
-                onPress={() => setIsNewUnit(true)}
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.modalScrollContent}
+                bounces={false}
               >
-                <Text style={[styles.toggleText, isNewUnit && styles.toggleTextOn]}>
-                  {t("myUnits.newUnit")}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.toggle, !isNewUnit && styles.toggleOn]}
-                onPress={() => setIsNewUnit(false)}
-              >
-                <Text style={[styles.toggleText, !isNewUnit && styles.toggleTextOn]}>
-                  {t("myUnits.existingUnit")}
-                </Text>
-              </Pressable>
-            </View>
+                <Text style={styles.modalBody}>{t("myUnits.requestBody")}</Text>
 
-            {isNewUnit ? (
-              <LocaleTextInput
-                value={unitNumber}
-                onChangeText={setUnitNumber}
-                placeholder={t("myUnits.unitPlaceholder")}
-                style={styles.input}
-                autoCapitalize="characters"
-              />
-            ) : (
-              <ScrollView style={{ maxHeight: sw(140) }} nestedScrollEnabled>
-                {selectableCatalog.length === 0 ? (
-                  <Text style={styles.catalogEmpty}>
-                    {t("myUnits.noOtherUnits", {
-                      defaultValue: "You are already enrolled in every existing unit.",
-                    })}
-                  </Text>
+                <View style={styles.toggleRow}>
+                  <Pressable
+                    style={[styles.toggle, isNewUnit && styles.toggleOn]}
+                    onPress={() => setIsNewUnit(true)}
+                  >
+                    <Text style={[styles.toggleText, isNewUnit && styles.toggleTextOn]}>
+                      {t("myUnits.newUnit")}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.toggle, !isNewUnit && styles.toggleOn]}
+                    onPress={() => setIsNewUnit(false)}
+                  >
+                    <Text style={[styles.toggleText, !isNewUnit && styles.toggleTextOn]}>
+                      {t("myUnits.existingUnit")}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {isNewUnit ? (
+                  <LocaleTextInput
+                    value={unitNumber}
+                    onChangeText={setUnitNumber}
+                    placeholder={t("myUnits.unitPlaceholder")}
+                    style={styles.input}
+                    autoCapitalize="characters"
+                    returnKeyType="done"
+                  />
                 ) : (
-                  selectableCatalog.map((row) => {
-                    const selected = unitNumber === row.unit_number;
-                    return (
-                      <Pressable
-                        key={row.id}
-                        style={[styles.catalogRow, selected && styles.catalogRowOn]}
-                        onPress={() => setUnitNumber(row.unit_number)}
-                      >
-                        <Text style={[styles.catalogText, selected && styles.catalogTextOn]}>
-                          {row.unit_number}
-                        </Text>
-                        {selected ? <Feather name="check" size={16} color="#0F766E" /> : null}
-                      </Pressable>
-                    );
-                  })
+                  <ScrollView style={{ maxHeight: sw(140) }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    {selectableCatalog.length === 0 ? (
+                      <Text style={styles.catalogEmpty}>
+                        {t("myUnits.noOtherUnits", {
+                          defaultValue: "You are already enrolled in every existing unit.",
+                        })}
+                      </Text>
+                    ) : (
+                      selectableCatalog.map((row) => {
+                        const selected = unitNumber === row.unit_number;
+                        return (
+                          <Pressable
+                            key={row.id}
+                            style={[styles.catalogRow, selected && styles.catalogRowOn]}
+                            onPress={() => setUnitNumber(row.unit_number)}
+                          >
+                            <Text style={[styles.catalogText, selected && styles.catalogTextOn]}>
+                              {row.unit_number}
+                            </Text>
+                            {selected ? <Feather name="check" size={16} color="#0F766E" /> : null}
+                          </Pressable>
+                        );
+                      })
+                    )}
+                  </ScrollView>
                 )}
+
+                <View style={[styles.toggleRow, { marginTop: sw(8) }]}>
+                  <Pressable
+                    style={[styles.toggle, residenceType === "homeowner" && styles.toggleOn]}
+                    onPress={() => setResidenceType("homeowner")}
+                  >
+                    <Text style={[styles.toggleText, residenceType === "homeowner" && styles.toggleTextOn]}>
+                      {t("myUnits.homeowner")}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.toggle, residenceType === "tenant" && styles.toggleOn]}
+                    onPress={() => setResidenceType("tenant")}
+                  >
+                    <Text style={[styles.toggleText, residenceType === "tenant" && styles.toggleTextOn]}>
+                      {t("myUnits.tenant")}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <Pressable style={styles.uploadRow} onPress={() => pickProof(setUtilityFile, "utility-bill")}>
+                  <Feather name="paperclip" size={16} color="#0F766E" />
+                  <Text style={styles.uploadText}>
+                    {utilityFile?.fileName || utilityFile?.uri
+                      ? t("myUnits.utilityAttached")
+                      : t("myUnits.attachUtility")}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.cta, submitting && { opacity: 0.6 }]}
+                  disabled={submitting}
+                  onPress={() => void submitRequest()}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <Text style={styles.ctaText}>{t("myUnits.submitRequest")}</Text>
+                  )}
+                </Pressable>
               </ScrollView>
-            )}
-
-            <View style={[styles.toggleRow, { marginTop: sw(8) }]}>
-              <Pressable
-                style={[styles.toggle, residenceType === "homeowner" && styles.toggleOn]}
-                onPress={() => setResidenceType("homeowner")}
-              >
-                <Text style={[styles.toggleText, residenceType === "homeowner" && styles.toggleTextOn]}>
-                  {t("myUnits.homeowner")}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.toggle, residenceType === "tenant" && styles.toggleOn]}
-                onPress={() => setResidenceType("tenant")}
-              >
-                <Text style={[styles.toggleText, residenceType === "tenant" && styles.toggleTextOn]}>
-                  {t("myUnits.tenant")}
-                </Text>
-              </Pressable>
             </View>
-
-            <Pressable style={styles.uploadRow} onPress={() => pickProof(setUtilityFile, "utility-bill")}>
-              <Feather name="paperclip" size={16} color="#0F766E" />
-              <Text style={styles.uploadText}>
-                {utilityFile?.fileName || utilityFile?.uri
-                  ? t("myUnits.utilityAttached")
-                  : t("myUnits.attachUtility")}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.cta, submitting && { opacity: 0.6 }]}
-              disabled={submitting}
-              onPress={() => void submitRequest()}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#FFF" />
-              ) : (
-                <Text style={styles.ctaText}>{t("myUnits.submitRequest")}</Text>
-              )}
-            </Pressable>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -533,12 +548,20 @@ const styles = {
     backgroundColor: "rgba(15,23,42,0.45)",
     justifyContent: "flex-end",
   },
+  modalKeyboard: {
+    width: "100%",
+    maxHeight: "92%",
+  },
   modalCard: {
     backgroundColor: "#FFF",
     borderTopLeftRadius: sw(22),
     borderTopRightRadius: sw(22),
-    padding: sw(18),
-    paddingBottom: sw(28),
+    paddingHorizontal: sw(18),
+    paddingTop: sw(18),
+    maxHeight: "100%",
+  },
+  modalScrollContent: {
+    paddingBottom: sw(8),
   },
   modalHeader: {
     flexDirection: "row",
