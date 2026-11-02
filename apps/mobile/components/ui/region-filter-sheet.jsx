@@ -7,13 +7,12 @@ import {
   FlatList,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -35,7 +34,10 @@ const SEARCH_FONT_SIZE = 13;
 const SEARCH_ROW_HEIGHT = 44;
 const LIST_MAX_HEIGHT = 220;
 const LIST_TARGET_HEIGHT = 168;
+const LIST_MIN_VISIBLE = 96;
 const LIST_GAP = 12;
+/** Space KeyboardAwareScrollView keeps under the focused search field for results. */
+export const REGION_FILTER_KEYBOARD_BOTTOM_OFFSET = SEARCH_ROW_HEIGHT + LIST_TARGET_HEIGHT + LIST_GAP;
 
 /**
  * No height and no lineHeight. iOS top-aligns and clips TextInput glyphs when
@@ -98,6 +100,7 @@ function SearchableField({
   const [listMaxHeight, setListMaxHeight] = useState(LIST_MAX_HEIGHT);
   const fieldRef = useRef(null);
   const searchRowRef = useRef(null);
+  const searchInputRef = useRef(null);
   const keyboardTopRef = useRef(null);
   const fitTimerRef = useRef(null);
   const fitRetryRef = useRef(null);
@@ -151,24 +154,21 @@ function SearchableField({
 
       scroll.measureInWindow((_sx, viewY, _sw, viewH) => {
         const visibleBottom = Math.min(keyboardTop, viewY + viewH);
-        const room = visibleBottom - searchBottom - LIST_GAP;
-        if (room >= LIST_TARGET_HEIGHT || !scrollOffsetRef) {
-          setListHeight(room);
-          return;
-        }
-
-        const deficit = LIST_TARGET_HEIGHT - Math.max(room, 0);
+        // Keep the search row above the keyboard, then leave room for results.
+        const targetSearchBottom = visibleBottom - LIST_GAP - LIST_MIN_VISIBLE;
+        const liftNeeded = Math.max(0, searchBottom - targetSearchBottom);
         const maxLift = Math.max(0, rowY - (viewY + 8));
-        const lift = Math.min(deficit, maxLift);
-        if (lift > 4) {
+        const lift = Math.min(liftNeeded, maxLift);
+
+        if (lift > 4 && scrollOffsetRef) {
           const nextOffset = scrollOffsetRef.current + lift;
           scrollOffsetRef.current = nextOffset;
-          scroll.scrollTo({ y: Math.max(0, nextOffset), animated: false });
+          scroll.scrollTo?.({ y: Math.max(0, nextOffset), animated: false });
           requestAnimationFrame(applyMeasured);
           return;
         }
 
-        setListHeight(room);
+        setListHeight(visibleBottom - searchBottom - LIST_GAP);
       });
     });
   }, [open, scrollOffsetRef, scrollRef, setListHeight]);
@@ -178,14 +178,18 @@ function SearchableField({
     keyboardTopRef.current = keyboardTop;
     if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
     if (fitRetryRef.current) clearTimeout(fitRetryRef.current);
-    // iOS adds scroll padding on keyboardWillShow; measure after that layout.
-    const delay = Platform.OS === "ios" ? 80 : 140;
+    // Wait for KeyboardAwareScrollView / native keyboard layout to settle.
+    const delay = Platform.OS === "ios" ? 100 : 160;
     fitTimerRef.current = setTimeout(() => fitToKeyboard(keyboardTop), delay);
-    fitRetryRef.current = setTimeout(() => fitToKeyboard(keyboardTop), delay + 220);
+    fitRetryRef.current = setTimeout(() => fitToKeyboard(keyboardTop), delay + 280);
   }, [fitToKeyboard]);
 
   useEffect(() => {
     if (!open) return undefined;
+
+    const focusTimer = setTimeout(() => {
+      searchInputRef.current?.focus?.();
+    }, 40);
 
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
@@ -214,6 +218,7 @@ function SearchableField({
     if (alreadyOpen != null) scheduleFit(alreadyOpen);
 
     return () => {
+      clearTimeout(focusTimer);
       if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
       if (fitRetryRef.current) clearTimeout(fitRetryRef.current);
       subs.forEach((sub) => sub.remove());
@@ -263,6 +268,7 @@ function SearchableField({
           <View ref={searchRowRef} collapsable={false} style={styles.dropdownSearch}>
             <Ionicons name="search-outline" size={16} color={T.gray} />
             <LocaleTextInput
+              ref={searchInputRef}
               value={query}
               onChangeText={setQuery}
               placeholder={searchPlaceholder}
@@ -546,42 +552,41 @@ export default function RegionFilterSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior="padding"
-      >
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]} onPress={(e) => e.stopPropagation()}>
-          <ScrollView
+        <Pressable
+          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <KeyboardAwareScrollView
             ref={modalScrollRef}
+            bottomOffset={REGION_FILTER_KEYBOARD_BOTTOM_OFFSET}
             keyboardShouldPersistTaps="always"
-            keyboardDismissMode="none"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "none"}
             showsVerticalScrollIndicator={false}
             onScroll={(event) => {
               modalOffsetRef.current = event.nativeEvent.contentOffset.y;
             }}
             scrollEventThrottle={16}
           >
-          <View style={styles.handle} />
-          <Text style={styles.title}>{t("region.filterRegions")}</Text>
-          <Text style={styles.subtitle}>{t("region.filterHint")}</Text>
-          {fields}
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.clearBtn} onPress={handleClear} activeOpacity={0.85}>
-              <Text style={styles.clearText}>{t("region.clearFilter")}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.applyBtn}
-              onPress={() => onApply({ country: draftCountry, state: draftState, city: draftCity })}
-              activeOpacity={0.88}
-            >
-              <Text style={styles.applyText}>{t("region.applyFilter")}</Text>
-            </TouchableOpacity>
-          </View>
-          </ScrollView>
+            <View style={styles.handle} />
+            <Text style={styles.title}>{t("region.filterRegions")}</Text>
+            <Text style={styles.subtitle}>{t("region.filterHint")}</Text>
+            {fields}
+            <View style={styles.actions}>
+              <TouchableOpacity style={styles.clearBtn} onPress={handleClear} activeOpacity={0.85}>
+                <Text style={styles.clearText}>{t("region.clearFilter")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.applyBtn}
+                onPress={() => onApply({ country: draftCountry, state: draftState, city: draftCity })}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.applyText}>{t("region.applyFilter")}</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAwareScrollView>
         </Pressable>
       </Pressable>
-      </KeyboardAvoidingView>
     </Modal>
   );
 }

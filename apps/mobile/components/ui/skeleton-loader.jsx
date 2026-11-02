@@ -332,77 +332,75 @@ export function HomeSectionSkeleton({ cardHeight = 118 }) {
   );
 }
 
-/** Profile screen — avatar, info, points card, stats grid */
+/** Profile — identity card only */
+export function ProfileIdentitySkeleton() {
+  return (
+    <View style={styles.profileIdentityCard}>
+      <SkeletonCircle size={sw(84)} tone="soft" />
+      <SkeletonLine width={sw(150)} height={sf(18)} style={{ marginTop: sw(12) }} />
+      <SkeletonLine width={sw(96)} height={sf(20)} tone="brand" style={{ marginTop: sw(10), borderRadius: 999 }} />
+      <SkeletonLine width={sw(120)} height={sf(11)} tone="soft" style={{ marginTop: sw(10) }} />
+
+      <View style={styles.profileDivider} />
+
+      <View style={styles.profilePlaceRow}>
+        <SkeletonCircle size={sw(40)} tone="brand" style={{ borderRadius: sw(12) }} />
+        <View style={styles.profilePlaceCopy}>
+          <SkeletonLine width={sw(70)} height={sf(9)} tone="soft" />
+          <SkeletonLine width="60%" height={sf(13)} style={{ marginTop: sw(6) }} />
+          <SkeletonLine width="42%" height={sf(11)} tone="soft" style={{ marginTop: sw(6) }} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/** Profile — activity / stats rows only */
+export function ProfileStatsSkeleton({ rows = 4 }) {
+  const count = Math.max(1, rows);
+  return (
+    <View style={styles.profileSection}>
+      <SkeletonLine width={sw(70)} height={sf(11)} tone="brand" style={styles.profileSectionLabel} />
+      <View style={styles.profileListCard}>
+        {Array.from({ length: count }, (_, key) => (
+          <View
+            key={key}
+            style={[styles.profileRow, key < count - 1 && styles.profileRowBorder]}
+          >
+            <SkeletonCircle size={sw(34)} tone="brand" style={{ borderRadius: sw(10) }} />
+            <SkeletonLine width="45%" height={sf(13)} style={{ flex: 1 }} />
+            <SkeletonLine width={sw(44)} height={sf(13)} tone="soft" />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** Profile — achievements strip only */
+export function ProfileAchievementsSkeleton() {
+  return (
+    <View style={styles.profileSection}>
+      <SkeletonLine width={sw(96)} height={sf(11)} tone="brand" style={styles.profileSectionLabel} />
+      <View style={styles.profileAchievementsRow}>
+        {[0, 1, 2].map((key) => (
+          <View key={key} style={styles.profileAchievementCard}>
+            <SkeletonCircle size={sw(42)} tone="brand" style={{ borderRadius: sw(13) }} />
+            <SkeletonLine width={sw(52)} height={sf(11)} style={{ marginTop: sw(8) }} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** Profile screen — full placeholder (identity + dependent sections) */
 export function ProfileSkeleton() {
   return (
     <>
-      {/* Identity card */}
-      <View style={styles.profileIdentityCard}>
-        <SkeletonCircle size={sw(84)} tone="soft" />
-        <SkeletonLine width={sw(150)} height={sf(18)} style={{ marginTop: sw(12) }} />
-        <SkeletonLine width={sw(96)} height={sf(20)} tone="brand" style={{ marginTop: sw(10), borderRadius: 999 }} />
-        <SkeletonLine width={sw(120)} height={sf(11)} tone="soft" style={{ marginTop: sw(10) }} />
-
-        <View style={styles.profileDivider} />
-
-        <View style={styles.profilePlaceRow}>
-          <SkeletonCircle size={sw(40)} tone="brand" style={{ borderRadius: sw(12) }} />
-          <View style={styles.profilePlaceCopy}>
-            <SkeletonLine width={sw(70)} height={sf(9)} tone="soft" />
-            <SkeletonLine width="60%" height={sf(13)} style={{ marginTop: sw(6) }} />
-            <SkeletonLine width="42%" height={sf(11)} tone="soft" style={{ marginTop: sw(6) }} />
-          </View>
-        </View>
-      </View>
-
-      {/* Activity */}
-      <View style={styles.profileSection}>
-        <SkeletonLine width={sw(70)} height={sf(11)} tone="brand" style={styles.profileSectionLabel} />
-        <View style={styles.profileListCard}>
-          {[0, 1, 2, 3].map((key) => (
-            <View
-              key={key}
-              style={[styles.profileRow, key < 3 && styles.profileRowBorder]}
-            >
-              <SkeletonCircle size={sw(34)} tone="brand" style={{ borderRadius: sw(10) }} />
-              <SkeletonLine width="45%" height={sf(13)} style={{ flex: 1 }} />
-              <SkeletonLine width={sw(44)} height={sf(13)} tone="soft" />
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Achievements */}
-      <View style={styles.profileSection}>
-        <SkeletonLine width={sw(96)} height={sf(11)} tone="brand" style={styles.profileSectionLabel} />
-        <View style={styles.profileAchievementsRow}>
-          {[0, 1, 2].map((key) => (
-            <View key={key} style={styles.profileAchievementCard}>
-              <SkeletonCircle size={sw(42)} tone="brand" style={{ borderRadius: sw(13) }} />
-              <SkeletonLine width={sw(52)} height={sf(11)} style={{ marginTop: sw(8) }} />
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Quick access */}
-      <View style={styles.profileSection}>
-        <SkeletonLine width={sw(84)} height={sf(11)} tone="brand" style={styles.profileSectionLabel} />
-        <View style={styles.profileListCard}>
-          {[0, 1, 2].map((key) => (
-            <View
-              key={key}
-              style={[styles.profileRowTall, key < 2 && styles.profileRowBorder]}
-            >
-              <SkeletonCircle size={sw(38)} tone="brand" style={{ borderRadius: sw(11) }} />
-              <View style={styles.profileRowCopy}>
-                <SkeletonLine width="55%" height={sf(13)} />
-                <SkeletonLine width="75%" height={sf(11)} tone="soft" style={{ marginTop: sw(6) }} />
-              </View>
-            </View>
-          ))}
-        </View>
-      </View>
+      <ProfileIdentitySkeleton />
+      <ProfileStatsSkeleton />
+      <ProfileAchievementsSkeleton />
     </>
   );
 }

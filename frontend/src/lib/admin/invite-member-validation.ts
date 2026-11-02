@@ -5,6 +5,8 @@ export type InviteMemberForm = {
   name: string;
   email: string;
   unit: string;
+  /** Extra units beyond the first (optional). Prefer `units` when inviting multi-unit. */
+  units?: string[];
 };
 
 export const INVITE_MEMBER_NAME_RE = /^[\p{L} .]+$/u;
@@ -57,6 +59,26 @@ export function inviteMemberUnitLiveError(unit: string): string | null {
   return inviteMemberUnitFieldError(unit);
 }
 
+export function collectInviteUnitNumbers(form: InviteMemberForm): string[] {
+  const fromList = (form.units ?? []).map((u) => u.trim()).filter(Boolean);
+  if (fromList.length > 0) return fromList;
+  const single = form.unit.trim();
+  return single ? [single] : [];
+}
+
+export function inviteMemberUnitsFieldError(units: string[]): string | null {
+  if (units.length === 0) return "At least one unit is required.";
+  const seen = new Set<string>();
+  for (const unit of units) {
+    const err = inviteMemberUnitFieldError(unit);
+    if (err) return err;
+    const key = unit.trim().toLowerCase();
+    if (seen.has(key)) return "Each unit can only be added once.";
+    seen.add(key);
+  }
+  return null;
+}
+
 export function validateInviteMemberForm(
   form: InviteMemberForm,
   phone: PhoneFieldState,
@@ -75,8 +97,9 @@ export function validateInviteMemberForm(
     errors.phone = getPhoneValidationError(phone.digits, phone.country) ?? "Enter a valid phone number.";
   }
 
-  const unitError = inviteMemberUnitFieldError(form.unit);
-  if (unitError) errors.unit = unitError;
+  const unitNumbers = collectInviteUnitNumbers(form);
+  const unitsError = inviteMemberUnitsFieldError(unitNumbers);
+  if (unitsError) errors.unit = unitsError;
 
   return errors;
 }

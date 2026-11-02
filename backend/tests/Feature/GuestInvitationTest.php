@@ -12,6 +12,8 @@ use App\Services\GuestAccessService;
 use App\Services\GuestInvitationService;
 use App\Services\OtpService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -627,6 +629,35 @@ class GuestInvitationTest extends TestCase
         $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->first();
         $approve = $this->patchJson("/api/v1/guest-invitations/{$invitation->id}/approve");
         $approve->assertOk()->assertJsonPath('data.status', 'active');
+    }
+
+    public function test_guest_wrong_otp_verify_includes_rate_limit(): void
+    {
+        Config::set('otp.rate_limit_enabled', true);
+        Config::set('otp.resend_cooldown_seconds', 60);
+        Cache::flush();
+
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Rate Limit Guest',
+            'guest_email' => 'guest.ratelimit@example.com',
+            'guest_phone' => '+15554443334',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertOk();
+
+        app(OtpService::class)->send('guest.ratelimit@example.com');
+
+        $this->postJson('/api/v1/auth/guest/otp/verify', [
+            'email' => 'guest.ratelimit@example.com',
+            'code'  => '000000',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_OTP')
+            ->assertJsonPath('rate_limit.verify_fail_count', 1)
+            ->assertJsonPath('rate_limit.retry_after_seconds', 60);
     }
 
     public function test_guest_two_step_verify_then_invite(): void

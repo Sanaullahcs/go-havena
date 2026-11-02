@@ -16,6 +16,8 @@ class MemberLifecycleStatus
 {
     public const INVITATION_SENT = 'invitation_sent';
 
+    public const INVITE_REJECTED = 'invite_rejected';
+
     public const ONBOARDING = 'onboarding';
 
     public static function hasStartedSignup(mixed $emailVerifiedAt, mixed $phoneVerifiedAt, bool $hasAuthenticated = false): bool
@@ -116,6 +118,13 @@ class MemberLifecycleStatus
                             $p->where('profiles.unit_number', 'like', "%{$search}%")
                                 ->orWhere('profiles.display_name', 'like', "%{$search}%");
                         });
+                })
+                ->orWhereExists(function ($sub) use ($search, $usersAlias) {
+                    $sub->from('unit_residents as ur')
+                        ->join('units', 'units.id', '=', 'ur.unit_id')
+                        ->whereColumn('ur.user_id', "{$usersAlias}.id")
+                        ->whereIn('ur.status', ['active', 'pending'])
+                        ->where('units.unit_number', 'like', "%{$search}%");
                 });
 
             if ($includeCommunityName) {
@@ -126,12 +135,85 @@ class MemberLifecycleStatus
 
     public static function countInvitationSent(?int $communityId, ?string $search = null): int
     {
-        $query = self::preMembershipResidentsQuery($communityId);
-        self::applyNotStartedSignup($query);
-        self::applyAssignedUnusedInviteExists($query, 'users', $communityId);
+        $query = DB::table('users')
+            ->where('role', 'resident')
+            ->where('status', '!=', 'deleted');
+
+        if ($communityId) {
+            $query->whereNotExists(function ($sub) use ($communityId) {
+                $sub->from('community_memberships as cm_this')
+                    ->whereColumn('cm_this.user_id', 'users.id')
+                    ->where('cm_this.community_id', $communityId);
+            });
+        }
+
+        $query->whereExists(function ($sub) use ($communityId) {
+            self::invitationSentInviteSubquery($sub, 'users', $communityId);
+        });
+        self::applyInvitationSentAudience($query, 'users', $communityId);
         self::applySearch($query, $search);
 
         return (int) $query->count();
+    }
+
+    /** Unused or resident-rejected invite that still belongs on Invitation Sent. */
+    public static function invitationSentInviteSubquery($sub, string $usersAlias, ?int $communityId): void
+    {
+        $sub->from('invite_codes')
+            ->whereColumn('invite_codes.invited_user_id', "{$usersAlias}.id")
+            ->whereNull('invite_codes.deleted_at')
+            ->where(function ($q) {
+                $q->whereNotNull('invite_codes.rejected_at')
+                    ->orWhere(function ($pending) {
+                        $pending->whereNull('invite_codes.rejected_at')
+                            ->where(function ($uses) {
+                                $uses->whereNull('invite_codes.max_uses')
+                                    ->orWhereColumn('invite_codes.used_count', '<', 'invite_codes.max_uses');
+                            })
+                            ->where(function ($exp) {
+                                $exp->whereNull('invite_codes.expires_at')
+                                    ->orWhere('invite_codes.expires_at', '>', now());
+                            });
+                    });
+            });
+
+        if ($communityId) {
+            $sub->where('invite_codes.community_id', $communityId);
+        } else {
+            $sub->whereNotExists(function ($membership) {
+                $membership->from('community_memberships as cm_invite')
+                    ->whereColumn('cm_invite.user_id', 'invite_codes.invited_user_id')
+                    ->whereColumn('cm_invite.community_id', 'invite_codes.community_id');
+            });
+        }
+    }
+
+    /**
+     * Invitation Sent includes unused invites that have not been signed in yet,
+     * unused invites for residents who already belong to another community,
+     * and invites the resident rejected.
+     */
+    public static function applyInvitationSentAudience($query, string $usersAlias = 'users', ?int $communityId = null): void
+    {
+        $query->where(function ($q) use ($usersAlias, $communityId) {
+            $q->where(function ($notStarted) use ($usersAlias) {
+                self::applyNotStartedSignup($notStarted, $usersAlias);
+            })->orWhereExists(function ($sub) use ($usersAlias, $communityId) {
+                $sub->from('community_memberships as cm_other')
+                    ->whereColumn('cm_other.user_id', "{$usersAlias}.id");
+                if ($communityId) {
+                    $sub->where('cm_other.community_id', '!=', $communityId);
+                }
+            })->orWhereExists(function ($sub) use ($usersAlias, $communityId) {
+                $sub->from('invite_codes')
+                    ->whereColumn('invite_codes.invited_user_id', "{$usersAlias}.id")
+                    ->whereNotNull('invite_codes.rejected_at')
+                    ->whereNull('invite_codes.deleted_at');
+                if ($communityId) {
+                    $sub->where('invite_codes.community_id', $communityId);
+                }
+            });
+        });
     }
 
     public static function countOnboarding(?int $communityId, ?string $search = null): int
@@ -197,7 +279,7 @@ class MemberLifecycleStatus
         $now = now()->toDateTimeString();
 
         return DB::raw(
-            "(select count(*) from invite_codes where invited_user_id = {$usersAlias}.id and deleted_at is null and (max_uses is null or used_count < max_uses) and (expires_at is null or expires_at > '{$now}')) as pending_invite_count"
+            "(select count(*) from invite_codes where invited_user_id = {$usersAlias}.id and deleted_at is null and rejected_at is null and (max_uses is null or used_count < max_uses) and (expires_at is null or expires_at > '{$now}')) as pending_invite_count"
         );
     }
 
@@ -222,6 +304,7 @@ class MemberLifecycleStatus
         $sub->from('invite_codes')
             ->whereColumn('invite_codes.invited_user_id', "{$usersAlias}.id")
             ->whereNull('invite_codes.deleted_at')
+            ->whereNull('invite_codes.rejected_at')
             ->where(function ($q) {
                 $q->whereNull('invite_codes.max_uses')
                     ->orWhereColumn('invite_codes.used_count', '<', 'invite_codes.max_uses');

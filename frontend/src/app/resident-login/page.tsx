@@ -32,7 +32,9 @@ export default function ResidentLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpRateLimit, setOtpRateLimit] = useState<unknown>(null);
+  const [extendOtpResendCooldown, setExtendOtpResendCooldown] = useState(false);
   const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
+  const [otpExpiresInSeconds, setOtpExpiresInSeconds] = useState<number | null>(null);
 
   useEffect(() => {
     if (getToken()) router.replace("/home");
@@ -53,9 +55,11 @@ export default function ResidentLoginPage() {
     setOtp("");
     setOtpSending(true);
     try {
-      const { rate_limit, expires_at } = await requestResidentOtp(email.trim());
+      const { rate_limit, expires_at, expires_in_seconds } = await requestResidentOtp(email.trim());
       setOtpRateLimit(rate_limit);
+      setExtendOtpResendCooldown(false);
       setOtpExpiresAt(expires_at);
+      setOtpExpiresInSeconds(expires_in_seconds);
       setOtpStep("code");
     } catch (err) {
       await handleLoginError(err, setError);
@@ -78,6 +82,9 @@ export default function ResidentLoginPage() {
       setLoading(false);
       if (err instanceof ApiError && err.rateLimit) {
         setOtpRateLimit(err.rateLimit);
+        if (err.code === "INVALID_OTP" || err.code === "OTP_VERIFY_LOCKED") {
+          setExtendOtpResendCooldown(true);
+        }
         setError(err.code === "OTP_RESEND_LOCKED" ? otpResendLockUserMessage() : err.message);
       } else {
         await handleLoginError(err, setError);
@@ -89,9 +96,11 @@ export default function ResidentLoginPage() {
     setError(null);
     setOtpSending(true);
     try {
-      const { rate_limit, expires_at } = await requestResidentOtp(email.trim());
+      const { rate_limit, expires_at, expires_in_seconds } = await requestResidentOtp(email.trim());
+      setExtendOtpResendCooldown(false);
       setOtpExpiresAt(expires_at);
-      return { rate_limit, expires_at };
+      setOtpExpiresInSeconds(expires_in_seconds);
+      return { rate_limit, expires_at, expires_in_seconds };
     } catch (err) {
       if (err instanceof ApiError && (err.code?.startsWith("OTP_") ?? false)) {
         if (err.rateLimit) setOtpRateLimit(err.rateLimit);
@@ -186,6 +195,7 @@ export default function ResidentLoginPage() {
                     setOtpStep("email");
                     setOtp("");
                     setOtpExpiresAt(null);
+                    setOtpExpiresInSeconds(null);
                     setError(null);
                   }}
                   className="mt-4 text-[13px] font-semibold text-[#0D9488] hover:text-[#0A2A43]"
@@ -255,7 +265,9 @@ export default function ResidentLoginPage() {
                   verifying={loading}
                   error={Boolean(error)}
                   initialRateLimit={otpRateLimit}
+                  extendResendCooldown={extendOtpResendCooldown}
                   expiresAt={otpExpiresAt}
+                  expiresInSeconds={otpExpiresInSeconds}
                   onExpired={() => setError("This code has expired. Tap Resend code to get a new one.")}
                 />
               )}

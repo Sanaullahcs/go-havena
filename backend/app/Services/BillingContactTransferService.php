@@ -41,9 +41,9 @@ class BillingContactTransferService
         return $payload;
     }
 
-    public function requestTransfer(User $requester, int $nomineeUserId, ?string $message = null): array
+    public function requestTransfer(User $requester, int $nomineeUserId, ?string $message = null, ?int $unitId = null): array
     {
-        $unit = $this->requireViewerUnit($requester);
+        $unit = $this->requireViewerUnit($requester, $unitId);
         if ((int) ($unit->billing_contact_user_id ?? 0) !== (int) $requester->id) {
             throw ValidationException::withMessages([
                 'unit' => 'Only the current billing contact can nominate another resident.',
@@ -270,10 +270,24 @@ class BillingContactTransferService
         ];
     }
 
-    private function requireViewerUnit(User $user): object
+    private function requireViewerUnit(User $user, ?int $unitId = null): object
     {
         $communityId = $this->units->approvedCommunityIdFor((int) $user->id);
         abort_if(! $communityId, 422, 'No approved community membership found.');
+
+        if ($unitId) {
+            $match = null;
+            foreach ($this->units->findActiveUnitsForUser((int) $user->id, $communityId) as $candidate) {
+                if ((int) $candidate->id === $unitId) {
+                    $match = $candidate;
+                    break;
+                }
+            }
+            abort_if(! $match, 422, 'You are not assigned to that unit.');
+
+            return $match;
+        }
+
         $unit = $this->units->findActiveUnitForUser((int) $user->id, $communityId);
         abort_if(! $unit, 422, 'You are not assigned to a unit.');
 

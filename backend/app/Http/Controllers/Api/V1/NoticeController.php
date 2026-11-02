@@ -13,6 +13,7 @@ use App\Services\NotificationService;
 use App\Services\ScheduledNoticeService;
 use App\Services\AmenitySharedBillService;
 use App\Services\UnitServiceBillService;
+use App\Services\UserActingContextService;
 use App\Services\UserBlockService;
 use App\Support\ActivityActionCatalog;
 use App\Support\MediaUrl;
@@ -2366,14 +2367,9 @@ class NoticeController extends Controller
         }
 
         if ($user) {
-            $membership = DB::table('community_memberships')
-                ->where('user_id', $user->id)
-                ->where('status', 'approved')
-                ->orderBy('id')
-                ->first();
-
-            if ($membership) {
-                return (int) $membership->community_id;
+            $current = UserActingContextService::currentCommunityId($user);
+            if ($current) {
+                return $current;
             }
         }
 

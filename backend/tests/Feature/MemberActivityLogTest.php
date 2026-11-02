@@ -168,6 +168,24 @@ class MemberActivityLogTest extends TestCase
             ->assertJsonPath('data.0.status', 'approved');
     }
 
+    public function test_single_community_resident_activity_still_includes_unscoped_logs(): void
+    {
+        ['admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdminAndResident();
+
+        Sanctum::actingAs($resident);
+        ActivityLogService::user('login', 'Signed in to Havena', null, null, 'info', (int) $resident->id);
+        \Illuminate\Support\Facades\DB::table('activity_logs')
+            ->where('action', 'login')
+            ->where('user_id', $resident->id)
+            ->update(['community_id' => null]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson("/api/v1/admin/members/{$resident->id}/activity-logs")
+            ->assertOk()
+            ->assertJsonPath('data.0.action', 'login');
+    }
+
     public function test_community_admin_can_view_onboarding_member_activity_without_membership(): void
     {
         ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdminAndResident();

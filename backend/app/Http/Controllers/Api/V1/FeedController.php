@@ -12,6 +12,7 @@ use App\Services\FcmNotificationService;
 use App\Services\NotificationService;
 use App\Services\PostReportModeration;
 use App\Services\PushNotificationService;
+use App\Services\UserActingContextService;
 use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use App\Support\ReportTypes;
@@ -1937,11 +1938,12 @@ class FeedController extends Controller
             }
         }
 
-        return $user->memberships()
-            ->where('status', 'approved')
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->value('community_id');
+        $current = UserActingContextService::currentCommunityId($user);
+        if ($current && in_array($current, $approvedIds, true)) {
+            return $current;
+        }
+
+        return $approvedIds[0] ?? null;
     }
 
     private function formatTimestamp(mixed $value): ?string

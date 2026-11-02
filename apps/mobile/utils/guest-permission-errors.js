@@ -35,11 +35,20 @@ export function isAccountRestrictedError(error) {
   return Boolean(code && ACCOUNT_RESTRICTED_CODES.has(code));
 }
 
+function membershipStatus(membership) {
+  return String(membership?.status ?? "").toLowerCase();
+}
+
+function hasApprovedMembership(user) {
+  return (user?.memberships ?? []).some((membership) => membershipStatus(membership) === "approved");
+}
+
+/** True only when this account has no remaining approved community membership. */
 export function isUserLocallyRestricted(user) {
   if (!user) return false;
+  if (hasApprovedMembership(user)) return false;
   if (String(user.status ?? "").toLowerCase() === "suspended") return true;
-  const memberships = user.memberships ?? [];
-  return memberships.some((membership) => String(membership.status ?? "").toLowerCase() === "banned");
+  return (user.memberships ?? []).some((membership) => membershipStatus(membership) === "banned");
 }
 
 export function formatRestrictedSince(iso) {

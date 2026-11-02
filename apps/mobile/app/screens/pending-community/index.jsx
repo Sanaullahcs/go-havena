@@ -348,7 +348,8 @@ export default function PendingCommunityScreen() {
   const router = useRouter();
   const dialog = useAppDialog();
   const routeParams = useLocalSearchParams();
-  const { role = "resident", guest: guestParam } = routeParams;
+  const { role = "resident", guest: guestParam, unitPackage: unitPackageParam } = routeParams;
+  const isUnitPackagePending = readParam(unitPackageParam) === "1";
   const guestRejectedSnapshotKey = useMemo(
     () => guestRejectedSnapshotKeyFromParams(routeParams),
     [
@@ -486,6 +487,17 @@ export default function PendingCommunityScreen() {
       setIsAdminApplicant(isCommunityAdminRole(user));
       setAdminApprovedAwaitingCommunity(awaitsCommunityReviewOnly(user));
 
+      // Self-signup initial unit package: stay on Pending Approval until admin approves.
+      if (user.pending_unit_package) {
+        setReviewState("pending");
+        setApprovalKind("unit_package");
+        setRejectionReason(null);
+        setRejectedBy(null);
+        const membership = getPrimaryMembership(user);
+        if (membership?.community) setCommunity(membership.community);
+        return true;
+      }
+
       const review = resolveOnboardingReviewState(user, reviewSnapshot);
       if (review && ["pending", "rejected", "approved"].includes(review.reviewState)) {
         const isResidentMembershipFlow =
@@ -499,6 +511,7 @@ export default function PendingCommunityScreen() {
           setRejectedBy(review.rejected_by ?? null);
 
           if (review.reviewState === "approved" && canAccessDashboard(user)) {
+            navigateAfterAuth(router, user);
             return true;
           }
 
@@ -529,22 +542,6 @@ export default function PendingCommunityScreen() {
       }
 
       if (canAccessDashboard(user)) {
-        if (!isCommunityAdminRole(user)) {
-          const membership = getPrimaryMembership(user);
-          if (
-            membership?.status === "approved" &&
-            membership.community &&
-            membership.community.review_status !== "pending"
-          ) {
-            setReviewState("approved");
-            setApprovalKind("membership_approval");
-            setCommunity(membership.community);
-            setRejectionReason(null);
-            setRejectedBy(null);
-            return true;
-          }
-        }
-
         navigateAfterAuth(router, user);
         return true;
       }
@@ -1104,7 +1101,11 @@ export default function PendingCommunityScreen() {
               <View style={styles.reviewPill}>
                 <Ionicons name="time-outline" size={14} color="#14B8A6" />
                 <Text style={styles.reviewPillText}>
-                  {isGuestMode ? t("guests.waitingForHostApproval") : t("guests.reviewInProgress")}
+                  {isGuestMode
+                    ? t("guests.waitingForHostApproval")
+                    : isUnitPackagePending
+                      ? t("myUnits.pendingInitial")
+                      : t("guests.reviewInProgress")}
                 </Text>
               </View>
             ) : null}

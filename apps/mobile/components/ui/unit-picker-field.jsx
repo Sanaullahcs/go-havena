@@ -73,6 +73,7 @@ export default function UnitPickerField({
   const [showCreate, setShowCreate] = useState(false);
   const [newUnit, setNewUnit] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createFocused, setCreateFocused] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!loadUnits) return;
@@ -98,6 +99,7 @@ export default function UnitPickerField({
       setSearch("");
       setShowCreate(false);
       setNewUnit("");
+      setCreateFocused(false);
       return undefined;
     }
     void refresh();
@@ -202,29 +204,38 @@ export default function UnitPickerField({
   return (
     <>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <Pressable
-        disabled={disabled || locked}
-        onPress={openSheet}
+      <View
         style={[
           styles.trigger,
+          open && !locked && styles.triggerOpen,
           error && !locked && styles.triggerError,
           disabled && !locked && styles.triggerDisabled,
           locked && styles.triggerLocked,
           containerStyle,
         ]}
       >
-        <Text
-          style={[
-            styles.triggerText,
-            locked && styles.triggerTextLocked,
-            !displayValue && !locked && styles.placeholder,
-          ]}
-          numberOfLines={1}
+        <Pressable
+          disabled={disabled || locked}
+          onPress={openSheet}
+          focusable={false}
+          android_ripple={disabled || locked ? null : { color: "rgba(15, 23, 42, 0.06)" }}
+          style={styles.triggerHit}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: disabled || locked, expanded: open }}
         >
-          {displayValue || (locked ? "" : placeholder || t("unitPicker.selectUnit"))}
-        </Text>
-        {locked ? null : <Feather name="chevron-down" size={sf(18)} color={T.gray} />}
-      </Pressable>
+          <Text
+            style={[
+              styles.triggerText,
+              locked && styles.triggerTextLocked,
+              !displayValue && !locked && styles.placeholder,
+            ]}
+            numberOfLines={1}
+          >
+            {displayValue || (locked ? "" : placeholder || t("unitPicker.selectUnit"))}
+          </Text>
+          {locked ? null : <Feather name="chevron-down" size={sf(18)} color={T.gray} />}
+        </Pressable>
+      </View>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <Modal
@@ -295,13 +306,16 @@ export default function UnitPickerField({
                   {showCreate ? (
                     <View style={styles.createRow}>
                       <LocaleTextInput
-                        style={styles.createInput}
+                        style={[styles.createInput, createFocused && styles.createInputFocused]}
                         value={newUnit}
                         onChangeText={setNewUnit}
                         placeholder={t("unitPicker.createPlaceholder")}
                         maxLength={unitMax}
                         autoFocus={false}
                         autoCapitalize="characters"
+                        underlineColorAndroid="transparent"
+                        onFocus={() => setCreateFocused(true)}
+                        onBlur={() => setCreateFocused(false)}
                       />
                       <TouchableOpacity
                         style={[styles.createBtn, (creating || !newUnit.trim()) && styles.createBtnDisabled]}
@@ -400,15 +414,24 @@ const styles = {
     marginBottom: sw(6),
   },
   trigger: {
+    minHeight: sw(48),
+    borderWidth: 1,
+    borderColor: T.border,
+    borderRadius: sw(12),
+    backgroundColor: "#fff",
+    overflow: "hidden",
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } : null),
+  },
+  triggerOpen: {
+    borderColor: T.teal,
+  },
+  triggerHit: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     minHeight: sw(48),
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: sw(12),
     paddingHorizontal: sw(14),
-    backgroundColor: "#fff",
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } : null),
   },
   triggerError: {
     borderColor: "#F87171",
@@ -525,12 +548,16 @@ const styles = {
     flex: 1,
     minHeight: sw(44),
     borderWidth: 1,
-    borderColor: "#CBD5E1",
+    borderColor: T.border,
     borderRadius: sw(10),
     paddingHorizontal: sw(12),
     fontFamily: Fonts.regular,
     fontSize: sf(14),
     color: T.navy,
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } : null),
+  },
+  createInputFocused: {
+    borderColor: T.teal,
   },
   createBtn: {
     minHeight: sw(44),

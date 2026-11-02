@@ -34,7 +34,10 @@ import {
   getPropertyHubServices,
   filterPropertyServicesForViewer,
 } from "../../constants/property-management-theme";
-import { resolveViewerBillingAccess } from "../../services/property-services-api";
+import {
+  getCachedViewerBillingAccess,
+  resolveViewerBillingAccess,
+} from "../../services/property-services-api";
 import {
   fetchMyBookings,
   fetchBookingInbox,
@@ -102,7 +105,9 @@ export default function PropertyManagment() {
 
   const sessionUser = useSessionUser();
   const [isAdmin, setIsAdmin] = useState(() => getCurrentRole() === "admin");
-  const [isBillingContact, setIsBillingContact] = useState(false);
+  const [isBillingContact, setIsBillingContact] = useState(
+    () => Boolean(getCachedViewerBillingAccess()?.isBillingContact),
+  );
   const hubServices = useMemo(() => {
     const services = getPropertyHubServices(isAdmin, t);
     const visible = isAdmin
@@ -122,11 +127,41 @@ export default function PropertyManagment() {
   });
   const [activityLoading, setActivityLoading] = useState(true);
 
-  const loadActivity = useCallback(async () => {
+  const refreshBillingAccess = useCallback(async ({ force = false } = {}) => {
+    if (getCurrentRole() === "admin") {
+      setIsBillingContact(false);
+      return;
+    }
+    try {
+      const billingAccess = await resolveViewerBillingAccess({ force });
+      setIsBillingContact(Boolean(billingAccess.isBillingContact));
+    } catch {
+      if (!getCachedViewerBillingAccess()) setIsBillingContact(false);
+    }
+  }, []);
+
+  const loadActivity = useCallback(async ({ forceBilling = false } = {}) => {
+    setActivityLoading(true);
+
+    // Start billing access immediately so My Unit Bills can appear without waiting
+    // for fetchMe / bookings / inbox.
+    const roleHint = getCurrentRole();
+    if (roleHint === "admin") {
+      setIsBillingContact(false);
+    } else {
+      void refreshBillingAccess({ force: forceBilling });
+    }
+
     await fetchMe().catch(() => null);
     const admin = getCurrentRole() === "admin";
     setIsAdmin(admin);
-    setActivityLoading(true);
+
+    if (admin) {
+      setIsBillingContact(false);
+    } else if (roleHint === "admin") {
+      // Role resolved to resident after /me — fetch billing access now.
+      void refreshBillingAccess({ force: forceBilling });
+    }
 
     try {
       if (admin) {
@@ -145,7 +180,6 @@ export default function PropertyManagment() {
         });
         setAdminActivity(built);
         setResidentActivity(getEmptyResidentActivity(t));
-        setIsBillingContact(false);
         setBookingCounts({
           myReservationCount: upcomingCount,
           approveRequestCount: pendingBookings.length,
@@ -163,12 +197,10 @@ export default function PropertyManagment() {
         return;
       }
 
-      const [inbox, bookings, billingAccess] = await Promise.all([
+      const [inbox, bookings] = await Promise.all([
         fetchBookingInbox({ status: "pending" }).catch(() => []),
         fetchMyBookings().catch(() => []),
-        resolveViewerBillingAccess(),
       ]);
-      setIsBillingContact(Boolean(billingAccess.isBillingContact));
 
       const resident = buildResidentHubActivity({
         inbox: inbox ?? [],
@@ -186,7 +218,6 @@ export default function PropertyManagment() {
       });
       setHubStats([]);
     } catch {
-      setIsBillingContact(false);
       setAdminActivity({ title: t("services.approvalQueue"), items: [] });
       setResidentActivity(getEmptyResidentActivity(t));
       setBookingCounts({ myReservationCount: 0, approveRequestCount: 0 });
@@ -195,17 +226,17 @@ export default function PropertyManagment() {
       setActivityLoading(false);
       setRefreshing(false);
     }
-  }, [t]);
+  }, [refreshBillingAccess, t]);
 
   useFocusEffect(
     useCallback(() => {
-      loadActivity();
+      void loadActivity();
     }, [loadActivity]),
   );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadActivity();
+    void loadActivity({ forceBilling: true });
   }, [loadActivity]);
 
   const goTo = (routeKey) => {

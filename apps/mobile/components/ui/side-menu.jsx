@@ -10,7 +10,6 @@ import {
   Pressable,
   Platform,
   StatusBar,
-  Alert,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import AppModal from "../layout/app-modal";
@@ -32,11 +31,11 @@ import { confirmSignOut } from "../../services/sign-out";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 import { getUser, getCachedUser, subscribeSessionUser } from "../../services/auth-session";
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
-import { canSwitchModes, canSwitchToAdminMode, currentCommunityId, isGuestUser, isResidentMode } from "../../services/community-access";
+import { canSwitchModes, canSwitchToAdminMode, currentCommunityId, isCommunityAdmin, isGuestUser, isResidentMode } from "../../services/community-access";
 import { fetchMe, switchActiveContext } from "../../services/profile-api";
 import { syncRoleFromUser } from "../../constants/role-session";
 import { navigateAfterAuth } from "../../constants/onboarding-routes";
-import { getProfileFields } from "../../utils/profile-display";
+import { formatResidentUnitLabel, getProfileFields } from "../../utils/profile-display";
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import HavenaLogo from "./havena-logo";
 import HavenaWordmark from "./havena-wordmark";
@@ -210,6 +209,7 @@ function SideMenuPanel({ visible, onClose }) {
   }, [visible]);
 
   const profile = getProfileFields(user);
+  const unitLabel = formatResidentUnitLabel(user, t);
   const roleLabelKey = getRoleLabelKey(user);
   const isNewProfile =
     !profile.avatarUrl ||
@@ -304,6 +304,21 @@ function SideMenuPanel({ visible, onClose }) {
       : null,
     ...(user && !isGuestUser(user)
       ? [
+          !isCommunityAdmin(user)
+            ? {
+                iconName: "map",
+                titleKey: "nav.myCommunity",
+                route: "/screens/my-community",
+                badgeCount: Number(user?.pending_invitation_count) || 0,
+              }
+            : null,
+          !isCommunityAdmin(user)
+            ? {
+                iconName: "layers",
+                titleKey: "nav.myUnits",
+                route: "/screens/my-units",
+              }
+            : null,
           isResidentFeatureEnabled(user, "family")
             ? {
                 iconName: "users",
@@ -511,8 +526,8 @@ function SideMenuPanel({ visible, onClose }) {
                     {profile.displayName || profile.displayPhone || t("nav.welcome")}
                   </Text>
                   <Text style={styles.profileAddress} numberOfLines={2}>
-                    {profile.unitNumber
-                      ? `${profile.communityName} · ${t("nav.unit", { number: profile.unitNumber })}`
+                    {unitLabel
+                      ? `${profile.communityName} · ${unitLabel}`
                       : profile.communityName}
                   </Text>
                   {!isNewProfile ? (
@@ -581,24 +596,56 @@ function SideMenuPanel({ visible, onClose }) {
                   style={[styles.actionRow, styles.actionRowMode]}
                   activeOpacity={0.7}
                   onPress={() => {
-                    const finish = async (communityId) => {
+                    const switchingToResident = !isResidentMode(user);
+                    const communityId =
+                      currentCommunityId(user) ?? user?.resident_mode_communities?.[0]?.id;
+
+                    // Close the menu first so the confirm dialog is not blocked by stacked modals.
+                    dismissImageSourcePicker();
+                    slideAnim.stopAnimation();
+                    slideAnim.setValue(-MENU_WIDTH);
+                    onClose();
+
+                    setTimeout(async () => {
+                      const choice = await dialog.showConfirm(
+                        switchingToResident
+                          ? t("nav.switchToResidentTitle")
+                          : t("nav.returnToAdminTitle"),
+                        switchingToResident
+                          ? t("nav.switchToResidentBody")
+                          : t("nav.returnToAdminBody"),
+                        {
+                          confirmLabel: t("nav.switchModeConfirm"),
+                          cancelLabel: t("common.cancel"),
+                        },
+                      );
+                      if (choice !== "confirm") return;
+
                       try {
                         const next = await switchActiveContext(
-                          isResidentMode(user) ? "community_admin" : "resident",
+                          switchingToResident ? "resident" : "community_admin",
                           communityId,
                         );
                         syncRoleFromUser(next);
                         setUser(next);
-                        slideAnim.stopAnimation();
-                        slideAnim.setValue(-MENU_WIDTH);
-                        dismissImageSourcePicker();
-                        onClose();
                         navigateAfterAuth(router, next, { mode: "login" });
+                        setTimeout(() => {
+                          void dialog.showSuccess(
+                            switchingToResident
+                              ? t("nav.switchedToResidentTitle")
+                              : t("nav.switchedToAdminTitle"),
+                            switchingToResident
+                              ? t("nav.switchedToResidentBody")
+                              : t("nav.switchedToAdminBody"),
+                          );
+                        }, 280);
                       } catch (err) {
-                        Alert.alert("Could not switch mode", err?.message || "Please try again.");
+                        await dialog.showError(
+                          t("nav.couldNotSwitchMode"),
+                          err?.message || t("common.tryAgain"),
+                        );
                       }
-                    };
-                    void finish(currentCommunityId(user) ?? user?.resident_mode_communities?.[0]?.id);
+                    }, 120);
                   }}
                 >
                   <View style={styles.actionLeft}>
@@ -611,7 +658,9 @@ function SideMenuPanel({ visible, onClose }) {
                     </View>
                     <View style={styles.actionLabel}>
                       <Text style={[styles.actionText, styles.actionTextMode]}>
-                        {canSwitchToAdminMode(user) ? "Return to Admin" : "Switch to Resident Mode"}
+                        {canSwitchToAdminMode(user)
+                          ? t("nav.returnToAdminMode")
+                          : t("nav.switchToResidentMode")}
                       </Text>
                     </View>
                   </View>
@@ -836,6 +885,44 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     marginBottom: 8,
   },
+  communitySwitch: {
+    marginBottom: 16,
+  },
+  communityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    marginBottom: 6,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  communityRowOn: {
+    backgroundColor: "#F0FDFA",
+    borderColor: "rgba(20, 184, 166, 0.4)",
+  },
+  communityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#CBD5E1",
+  },
+  communityDotOn: {
+    backgroundColor: "#14B8A6",
+  },
+  communityRowText: {
+    flex: 1,
+    fontFamily: Fonts.medium,
+    fontSize: 14,
+    color: "#475569",
+  },
+  communityRowTextOn: {
+    fontFamily: Fonts.semiBold,
+    color: "#0F172A",
+  },
   menuGroup: {
     marginBottom: 16,
     gap: 2,
@@ -982,6 +1069,7 @@ const styles = StyleSheet.create({
   },
   actionRowMode: {
     marginBottom: 4,
+    paddingVertical: 8,
     paddingHorizontal: 8,
     borderRadius: 12,
     backgroundColor: Colors.roleAdminBg,

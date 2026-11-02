@@ -27,9 +27,14 @@ class PlaidResidentService
 
         if ($communityId) {
             $query->where('community_id', $communityId);
+        } else {
+            $current = UserActingContextService::currentCommunityId($user);
+            if ($current) {
+                $query->where('community_id', $current);
+            }
         }
 
-        $membership = $query->orderByDesc('created_at')->first();
+        $membership = $query->orderBy('created_at')->first();
         if (! $membership) {
             throw PlaidException::noManagedCommunity();
         }

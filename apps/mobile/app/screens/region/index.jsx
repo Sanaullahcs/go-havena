@@ -4,11 +4,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   ActivityIndicator,
-  Keyboard,
   Platform,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
@@ -22,7 +21,9 @@ import { normalizeRegion } from "../../../services/regions-api";
 import { prefetchCountries, resolveLocation } from "../../../services/geography-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import BackButton from "../../../components/ui/back-button";
-import RegionFilterSheet from "../../../components/ui/region-filter-sheet";
+import RegionFilterSheet, {
+  REGION_FILTER_KEYBOARD_BOTTOM_OFFSET,
+} from "../../../components/ui/region-filter-sheet";
 import { confirmLeaveOnboarding } from "../../../services/sign-out";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
@@ -33,11 +34,12 @@ export default function RegionScreen() {
   const router = useRouter();
   const dialog = useAppDialog();
   const insets = useSafeAreaInsets();
-  const { role: roleParam } = useLocalSearchParams();
+  const { role: roleParam, joinAnother, returnTo } = useLocalSearchParams();
   const activeRole =
     roleParam === "admin" || roleParam === "resident"
       ? roleParam
       : getCurrentRole();
+  const isJoinAnother = joinAnother === "1" || joinAnother === true;
 
   const [countryFilter, setCountryFilter] = useState(null);
   const [stateFilter, setStateFilter] = useState(null);
@@ -48,27 +50,10 @@ export default function RegionScreen() {
   const [selectingId, setSelectingId] = useState(null);
   const scrollRef = useRef(null);
   const scrollOffsetRef = useRef(0);
-  const [keyboardPad, setKeyboardPad] = useState(0);
   const isResident = activeRole !== "admin";
 
   useEffect(() => {
     prefetchCountries();
-  }, []);
-
-  useEffect(() => {
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const showSub = Keyboard.addListener(showEvent, (event) => {
-      // Android already resizes the window. Extra padding there would stack
-      // on top of the keyboard and push the field too far.
-      if (Platform.OS !== "ios") return;
-      setKeyboardPad(event?.endCoordinates?.height ?? 0);
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardPad(0));
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
   }, []);
 
   const handleApplyFilter = ({ country, state, city }) => {
@@ -132,6 +117,8 @@ export default function RegionScreen() {
         regionArea: region.area || "",
         regionState: region.state || "",
         role: activeRole,
+        ...(isJoinAnother ? { joinAnother: "1" } : {}),
+        ...(returnTo ? { returnTo: String(returnTo) } : {}),
       },
     });
   };
@@ -146,27 +133,46 @@ export default function RegionScreen() {
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
       <View style={[styles.hero, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.headerRow}>
-          <BackButton iconOnly compact onPress={() => confirmLeaveOnboarding(dialog)} />
-          <Text style={styles.kicker}>{t("region.findYourArea")}</Text>
+          <BackButton
+            iconOnly
+            compact
+            onPress={() => {
+              if (isJoinAnother) {
+                if (router.canGoBack?.()) router.back();
+                else router.replace("/(tabs)/home");
+                return;
+              }
+              confirmLeaveOnboarding(dialog);
+            }}
+          />
+          <Text style={styles.kicker}>
+            {isJoinAnother ? t("nav.joinAnotherCommunity") : t("region.findYourArea")}
+          </Text>
         </View>
         <Text style={styles.heroTitle}>
-          {isResident ? t("region.liveHere") : t("region.operateHere")}
+          {isJoinAnother
+            ? t("region.joinAnotherTitle")
+            : isResident
+              ? t("region.liveHere")
+              : t("region.operateHere")}
         </Text>
         <Text style={styles.heroCopy}>
-          {isResident ? t("region.liveHereHint") : t("region.operateHereHint")}
+          {isJoinAnother
+            ? t("region.joinAnotherHint")
+            : isResident
+              ? t("region.liveHereHint")
+              : t("region.operateHereHint")}
         </Text>
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         ref={scrollRef}
         style={styles.flex}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          keyboardPad > 0 && { paddingBottom: 28 + keyboardPad },
-        ]}
+        contentContainerStyle={styles.scrollContent}
+        bottomOffset={REGION_FILTER_KEYBOARD_BOTTOM_OFFSET}
         keyboardShouldPersistTaps="always"
-        keyboardDismissMode="none"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "none"}
         onScroll={(event) => {
           scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
         }}
@@ -239,7 +245,7 @@ export default function RegionScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

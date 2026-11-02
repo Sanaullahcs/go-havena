@@ -15,6 +15,7 @@ import {
   Building2,
   CalendarCheck,
   CalendarDays,
+  ClipboardList,
   CreditCard,
   Droplets,
   FileText,
@@ -85,6 +86,7 @@ const communityContentNav: NavItem[] = [
 
 const communityPropertyNav: NavItem[] = [
   { href: "/admin/units", label: "Units", icon: Home },
+  { href: "/admin/unit-requests", label: "Unit Requests", icon: ClipboardList },
   { href: "/admin/services", label: "Services", icon: Droplets },
   { href: "/admin/service-bills", label: "Service Bills", icon: CreditCard },
   { href: "/admin/amenities", label: "Amenities", icon: Building2 },

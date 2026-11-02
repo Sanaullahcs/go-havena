@@ -10,8 +10,8 @@ import { inviteMember, type MemberInviteResult } from "@/lib/api/members";
 import { apiError, apiFieldErrors } from "@/lib/api/client";
 import { confirmSendMemberInvite } from "@/lib/admin/dashboard-confirmations";
 import {
+  collectInviteUnitNumbers,
   inviteMemberNameLiveError,
-  inviteMemberUnitLiveError,
   validateInviteMemberForm,
   type InviteMemberForm,
 } from "@/lib/admin/invite-member-validation";
@@ -25,7 +25,7 @@ import {
 } from "@/lib/api/property-services";
 import { inviteMemberUnitFieldError } from "@/lib/admin/invite-member-validation";
 
-const EMPTY_FORM: InviteMemberForm = { name: "", email: "", unit: "" };
+const EMPTY_FORM: InviteMemberForm = { name: "", email: "", unit: "", units: [] };
 
 type InviteField = keyof InviteMemberForm | "phone";
 
@@ -106,12 +106,14 @@ export function MemberInviteModal({
 
     setInviting(true);
     try {
+      const units = collectInviteUnitNumbers(form);
       const res = await inviteMember({
         name,
         email,
         phone: phone.e164,
         role: "Resident",
-        unit_number: form.unit.trim() || undefined,
+        units,
+        unit_number: units[0],
       });
       setInviteResult(res.data);
       toastSuccess("Invite sent");
@@ -227,13 +229,18 @@ export function MemberInviteModal({
             />
           </Field>
 
-          <Field label="Unit / Apartment" required error={inviteMemberUnitLiveError(form.unit) || (showError("unit") ? errors.unit : undefined)}>
+          <Field
+            label="Units"
+            required
+            error={showError("unit") ? errors.unit : undefined}
+          >
             <UnitPickerField
+              multiple
               dataField="unit"
-              value={form.unit}
-              placeholder="Select unit"
+              values={collectInviteUnitNumbers(form)}
+              placeholder="Select one or more units"
               unitMax={20}
-              error={inviteMemberUnitLiveError(form.unit) || (showError("unit") ? errors.unit : undefined)}
+              error={showError("unit") ? errors.unit : undefined}
               validateNewUnit={(unit) => inviteMemberUnitFieldError(unit)}
               loadUnits={async () => {
                 const rows = await fetchAdminUnits();
@@ -258,9 +265,13 @@ export function MemberInviteModal({
                 const next = validateInviteMemberForm(form, phone);
                 setErrors((prev) => ({ ...prev, unit: next.unit }));
               }}
-              onChange={(unit) => {
+              onChange={(units) => {
                 clearFieldError("unit");
-                setForm((f) => ({ ...f, unit }));
+                setForm((f) => ({
+                  ...f,
+                  units,
+                  unit: units[0] ?? "",
+                }));
               }}
             />
           </Field>

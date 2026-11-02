@@ -2,7 +2,7 @@ import api, { isProxyMethodBlocked } from "./client";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { getManagedCommunityId, getUser, isSystemAdminUser } from "@/lib/auth/session";
 
-export type MembershipStatus = "approved" | "pending" | "banned" | "rejected" | "inactive" | "onboarding" | "invitation_sent" | "not_invited";
+export type MembershipStatus = "approved" | "pending" | "banned" | "rejected" | "inactive" | "onboarding" | "invitation_sent" | "invite_rejected" | "not_invited";
 export type MembershipRole = "member" | "moderator" | "admin";
 
 export interface Member {
@@ -16,6 +16,25 @@ export interface Member {
   community_name?: string | null;
   membership_id: number | null;
   unit_number: string | null;
+  units?: Array<{
+    id: number | null;
+    unit_number: string;
+    association_status: string;
+    is_billing_contact: boolean;
+    residence_type?: string | null;
+    utility_bill_url?: string | null;
+    package_id?: number | null;
+    community_id?: number | null;
+    community_name?: string | null;
+  }>;
+  communities?: Array<{
+    id: number | null;
+    name: string | null;
+    status: MembershipStatus;
+    membership_id: number | null;
+    units?: Member["units"];
+  }>;
+  community_count?: number;
   avatar_url: string | null;
   display_name: string | null;
   created_at: string;
@@ -95,6 +114,8 @@ export function statusLabel(status: MembershipStatus): string {
       return "Pending";
     case "invitation_sent":
       return "Invitation Sent";
+    case "invite_rejected":
+      return "Invite Rejected";
     case "not_invited":
       return "Not Invited";
     case "onboarding":
@@ -134,9 +155,9 @@ export async function fetchMembers(params: MembersQuery = {}) {
   return res.data as { data: Member[]; meta: MemberMeta };
 }
 
-export async function fetchMember(id: number, communityId?: number) {
+export async function fetchMember(id: number, communityId?: number | "all") {
   const res = await api.get(`/v1/admin/members/${id}`, {
-    params: communityId ? { community_id: communityId } : undefined,
+    params: communityId != null ? { community_id: communityId } : undefined,
   });
   return res.data.data as Member;
 }
@@ -174,6 +195,7 @@ export type MemberActivityMeta = {
     id: number;
     name: string;
     unit_number?: string | null;
+    units?: Member["units"];
     community_id: number;
   };
 };
@@ -270,15 +292,21 @@ export async function inviteMember(data: {
   phone: string;
   role: string;
   unit_number?: string;
+  units?: string[];
   community_id?: number;
 }) {
   const communityId = data.community_id ?? getAdminCommunityId();
+  const units = (data.units ?? []).map((u) => u.trim()).filter(Boolean);
   const res = await api.post("/v1/admin/members/invite", {
     name: data.name,
     email: data.email,
     phone: data.phone,
     role: roleToApi(data.role),
-    unit_number: data.unit_number,
+    ...(units.length > 0
+      ? { units }
+      : data.unit_number
+        ? { unit_number: data.unit_number }
+        : {}),
     ...(communityId ? { community_id: communityId } : {}),
   });
   return res.data as { data: MemberInviteResult; message: string };
@@ -366,7 +394,9 @@ export function membersToCsv(rows: Member[]): string {
     m.email,
     (m.phone ?? "").trim(),
     m.community_name ?? "",
-    m.unit_number ?? "",
+    (m.units?.length
+      ? m.units.map((u) => u.unit_number).filter(Boolean).join("; ")
+      : m.unit_number) ?? "",
     roleLabel(m.role),
     statusLabel(m.status),
     new Date(m.created_at).toISOString().slice(0, 10),

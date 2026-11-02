@@ -61,6 +61,14 @@ return [
     'expire_minutes' => (int) env('OTP_EXPIRE_MINUTES', 5),
 
     /*
+    | When true, a mail transport failure returns OTP_MAIL_FAILED (503).
+    | Defaults to production only so local SMTP outages do not block login.
+    */
+    'require_mail' => env('OTP_REQUIRE_MAIL') === null
+        ? null
+        : filter_var(env('OTP_REQUIRE_MAIL'), FILTER_VALIDATE_BOOLEAN),
+
+    /*
     |--------------------------------------------------------------------------
     | Resend / verify rate limits (all OTP verification screens)
     |--------------------------------------------------------------------------
@@ -69,6 +77,15 @@ return [
     'max_resends' => (int) env('OTP_MAX_RESENDS', 3),
     'resend_lock_seconds' => (int) env('OTP_RESEND_LOCK_SECONDS', 900),
     'wrong_verify_lock_seconds' => (int) env('OTP_WRONG_VERIFY_LOCK_SECONDS', 3600),
+    /** Wrong verify attempts before a security lock (default 3). */
+    'verify_fail_threshold' => (int) env('OTP_VERIFY_FAIL_THRESHOLD', 3),
+    /** First-tier lock after threshold (seconds); default 15 minutes. */
+    'verify_fail_lock_seconds' => (int) env('OTP_VERIFY_FAIL_LOCK_SECONDS', 900),
+    /** Escalating lock durations: 15m, 30m, 60m by default. */
+    'verify_fail_lock_schedule' => array_values(array_filter(array_map(
+        'intval',
+        explode(',', (string) env('OTP_VERIFY_FAIL_LOCK_SCHEDULE', '900,1800,3600')),
+    ))),
 
     'rate_limit_enabled' => filter_var(env('OTP_RATE_LIMIT_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
 

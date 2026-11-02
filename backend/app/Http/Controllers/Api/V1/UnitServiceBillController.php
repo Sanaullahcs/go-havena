@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\AdminRoleService;
 use App\Services\GuestAccessService;
 use App\Services\UnitServiceBillService;
+use App\Services\UserActingContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -144,15 +145,7 @@ class UnitServiceBillController extends Controller
             return (int) $request->community_id;
         }
 
-        $membership = DB::table('community_memberships')
-            ->where('user_id', $request->user()->id)
-            ->where('status', 'approved')
-            ->orderByDesc('created_at')
-            ->first();
-
-        abort_if(! $membership, 422, 'No approved community membership found.');
-
-        return (int) $membership->community_id;
+        return UserActingContextService::requireCurrentCommunityId($request->user());
     }
 
     private function resolveAdminCommunityId(Request $request): int

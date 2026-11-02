@@ -27,16 +27,18 @@ class AuthOtpMail extends Mailable
 
     public function content(): Content
     {
+        $minutes = max(1, (int) config('otp.expire_minutes', 5));
+
         return new Content(
             html: 'emails.transactional-html',
             text: 'emails.transactional-text',
             with: array_merge(EmailBrand::viewData(), [
-                'preheader' => 'Your verification code expires in 5 minutes. Use it to sign in to Havena.',
+                'preheader' => "Your verification code expires in {$minutes} minutes. Use it to sign in to Havena.",
                 'eyebrow' => 'Verification',
                 'heading' => 'Your verification code',
                 'intro' => 'Use the verification code below to continue signing in to Havena.',
                 'paragraphs' => [
-                    'This code will expire in 5 minutes. If you did not request this code, please ignore this email.',
+                    "This code will expire in {$minutes} minutes. If you did not request this code, please ignore this email.",
                 ],
                 'details' => [],
                 'highlightCode' => $this->code,

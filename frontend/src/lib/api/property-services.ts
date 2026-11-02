@@ -259,6 +259,50 @@ export async function fetchMyUnit() {
   return (data.data ?? null) as CommunityUnit | null;
 }
 
+export type UnitRegistrationPackage = {
+  id: number;
+  community_id: number;
+  user_id: number;
+  kind: "initial" | "addon" | string;
+  status: "pending" | "approved" | "rejected" | string;
+  rejection_reason?: string | null;
+  reviewed_at?: string | null;
+  created_at?: string | null;
+  resident_name?: string | null;
+  resident_email?: string | null;
+  unit_count: number;
+  units: Array<{
+    id: number;
+    unit_id: number | null;
+    unit_number: string;
+    is_new_unit: boolean;
+    residence_type?: string | null;
+    status: string;
+    proofs: Array<{ id: number; kind: string; file_url: string; review_status?: string | null }>;
+  }>;
+};
+
+export async function fetchUnitRegistrationPackages(params?: { status?: string; kind?: string }) {
+  const { data } = await api.get("/v1/admin/unit-registration-packages", {
+    params: { ...communityParams(), ...params },
+  });
+  return (data.data ?? []) as UnitRegistrationPackage[];
+}
+
+export async function approveUnitRegistrationPackage(id: number) {
+  const { data } = await api.post(`/v1/admin/unit-registration-packages/${id}/approve`, {}, { params: communityParams() });
+  return data.data as UnitRegistrationPackage;
+}
+
+export async function rejectUnitRegistrationPackage(id: number, reason: string) {
+  const { data } = await api.post(
+    `/v1/admin/unit-registration-packages/${id}/reject`,
+    { reason },
+    { params: communityParams() },
+  );
+  return data.data as UnitRegistrationPackage;
+}
+
 export async function fetchAdminUnits() {
   const { data } = await api.get("/v1/admin/units", { params: communityParams() });
   return (data.data ?? []) as CommunityUnit[];

@@ -92,12 +92,21 @@ class GuestAuthController extends Controller
 
         if (! $email || ! $otp->check($email, $validated['code'])) {
             try {
-                $rateLimit->recordFailedVerify($email ?? '');
+                $limits = $rateLimit->recordFailedVerify($email ?? '');
             } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
                 throw $e;
             }
 
-            return response()->json(['message' => 'Invalid or expired verification code.', 'code' => 'INVALID_OTP'], 422);
+            $payload = [
+                'message' => 'Invalid or expired verification code.',
+                'code' => 'INVALID_OTP',
+                'rate_limit' => $limits,
+            ];
+            if (isset($limits['retry_after_seconds'])) {
+                $payload['retry_after_seconds'] = (int) $limits['retry_after_seconds'];
+            }
+
+            return response()->json($payload, 422);
         }
 
         $rateLimit->clear($email);

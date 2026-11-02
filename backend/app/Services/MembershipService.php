@@ -41,21 +41,34 @@ class MembershipService
         return 'pending';
     }
 
-    /** Upgrade pending memberships when the resident finishes onboarding profile. */
-    public static function approvePendingForActiveCommunities(User $user): void
+    /** Upgrade pending invite memberships after the resident finishes Complete Profile. */
+    public static function approvePendingForActiveCommunities(User $user, bool $afterProfileSave = false): void
     {
         if (! self::hasCompleteProfile($user)) {
             return;
         }
 
-        CommunityMembership::query()
+        $query = CommunityMembership::query()
             ->where('user_id', $user->id)
             ->where('status', 'pending')
-            ->whereNotNull('invite_code_used')
-            ->update([
-                'status' => 'approved',
-                'updated_at' => now(),
-            ]);
+            ->whereNotNull('invite_code_used');
+
+        if (! $afterProfileSave) {
+            // GET /me must not auto-approve a second-community invite just because
+            // the resident already completed profile in another community.
+            $hasApproved = CommunityMembership::query()
+                ->where('user_id', $user->id)
+                ->where('status', 'approved')
+                ->exists();
+            if ($hasApproved) {
+                return;
+            }
+        }
+
+        $query->update([
+            'status' => 'approved',
+            'updated_at' => now(),
+        ]);
     }
 
     public static function residentProfileFieldsComplete(

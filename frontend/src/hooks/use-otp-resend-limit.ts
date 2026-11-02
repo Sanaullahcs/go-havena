@@ -7,36 +7,60 @@ import {
   otpRateLimitCountdownLabel,
   type OtpRateLimitState,
 } from "@/lib/auth/otp-rate-limit";
-import { OTP_RESEND_SECONDS } from "@/lib/auth/otp-config";
+import { OTP_RESEND_LOCK_SECONDS, OTP_RESEND_SECONDS } from "@/lib/auth/otp-config";
+
+function initialSecondsLeft(initialRateLimit: unknown): number {
+  const normalized = normalizeOtpRateLimit(initialRateLimit);
+  return normalized.retryAfterSeconds > 0 ? normalized.retryAfterSeconds : OTP_RESEND_SECONDS;
+}
 
 export function useOtpResendLimit(initialRateLimit: unknown = null) {
   const [limits, setLimits] = useState<OtpRateLimitState>(() =>
     normalizeOtpRateLimit(initialRateLimit),
   );
-  const [secondsLeft, setSecondsLeft] = useState(() => {
-    if (initialRateLimit == null) return OTP_RESEND_SECONDS;
-    return normalizeOtpRateLimit(initialRateLimit).retryAfterSeconds;
-  });
+  const [secondsLeft, setSecondsLeft] = useState(() => initialSecondsLeft(initialRateLimit));
 
-  const applyRateLimit = useCallback((raw: unknown) => {
-    const normalized = normalizeOtpRateLimit(raw);
-    setLimits(normalized);
+  const applyRateLimit = useCallback(
+    (raw: unknown, options?: { extendCooldown?: boolean }) => {
+      const normalized = normalizeOtpRateLimit(raw);
+      setLimits(normalized);
 
-    if (normalized.retryAfterSeconds > 0) {
-      setSecondsLeft(normalized.retryAfterSeconds);
-      return;
-    }
+      let retrySeconds = normalized.retryAfterSeconds;
+      if (retrySeconds <= 0 && normalized.locked) {
+        if (normalized.lockType === "resend_limit") {
+          retrySeconds = OTP_RESEND_LOCK_SECONDS;
+        } else if (normalized.lockType === "security") {
+          retrySeconds = OTP_RESEND_LOCK_SECONDS;
+        }
+      }
 
-    if (!normalized.locked) {
-      setSecondsLeft(raw == null ? OTP_RESEND_SECONDS : 0);
-    }
-  }, []);
+      if (retrySeconds > 0) {
+        setSecondsLeft((current) =>
+          options?.extendCooldown ? Math.max(current, retrySeconds) : retrySeconds,
+        );
+        return;
+      }
+
+      // Demo / bypass emails return retry_after 0 — still enforce the 1-minute UX cooldown.
+      if (!normalized.locked) {
+        setSecondsLeft((current) =>
+          options?.extendCooldown ? Math.max(current, OTP_RESEND_SECONDS) : OTP_RESEND_SECONDS,
+        );
+      }
+    },
+    [],
+  );
 
   const applyRateLimitFromError = useCallback(
     (error: unknown) => {
       const extracted = extractOtpRateLimitFromError(error);
       if (!extracted) return false;
-      applyRateLimit(extracted);
+      const code =
+        error instanceof Error
+          ? (error as Error & { code?: string }).code
+          : undefined;
+      const extendCooldown = code === "INVALID_OTP" || code === "OTP_VERIFY_LOCKED";
+      applyRateLimit(extracted, { extendCooldown });
       return true;
     },
     [applyRateLimit],
@@ -44,7 +68,7 @@ export function useOtpResendLimit(initialRateLimit: unknown = null) {
 
   useEffect(() => {
     if (secondsLeft <= 0) {
-      if (limits.locked && limits.lockType === "resend_limit") {
+      if (limits.locked && (limits.lockType === "resend_limit" || limits.lockType === "security")) {
         setLimits((current) => ({
           ...current,
           locked: false,

@@ -65,11 +65,13 @@ export function BillPayListLayout({
   data,
   keyExtractor,
   renderItem,
+  chromeExtra = null,
 }) {
   return (
     <View style={styles.payListRoot}>
       <View style={styles.payListChrome}>
         <BillSummary summary={summary} t={t} />
+        {chromeExtra}
         <BillFilters value={activeFilter} onChange={onFilterChange} summary={summary} t={t} />
       </View>
       <FlatList

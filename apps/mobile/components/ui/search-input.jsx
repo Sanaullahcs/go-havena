@@ -47,6 +47,7 @@ export default function SearchInput({
         blurOnSubmit={false}
         imeSync={imeSync}
         clearButtonMode="never"
+        underlineColorAndroid="transparent"
       />
       {value?.length > 0 ? (
         <Pressable onPress={clear} hitSlop={8} accessibilityLabel={t("common.clearSearch")} style={styles.clearBtn}>

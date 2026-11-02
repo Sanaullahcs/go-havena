@@ -60,6 +60,7 @@ class ResidentSuspensionTest extends TestCase
             'status'            => 'suspended',
             'suspension_reason' => CommunityLifecycleService::REASON_MEMBER_SUSPENDED,
         ]);
+        CommunityMembership::query()->where('user_id', $resident->id)->update(['status' => 'banned']);
 
         $this->postJson('/api/v1/auth/otp/request', [
             'email'  => $resident->email,
@@ -76,6 +77,7 @@ class ResidentSuspensionTest extends TestCase
             'status'            => 'suspended',
             'suspension_reason' => CommunityLifecycleService::REASON_MEMBER_SUSPENDED,
         ]);
+        CommunityMembership::query()->where('user_id', $resident->id)->update(['status' => 'banned']);
 
         $this->postJson('/api/v1/auth/otp/verify', [
             'email'  => $resident->email,
@@ -128,6 +130,7 @@ class ResidentSuspensionTest extends TestCase
             'status'            => 'suspended',
             'suspension_reason' => CommunityLifecycleService::REASON_MEMBER_SUSPENDED,
         ]);
+        CommunityMembership::query()->where('user_id', $resident->id)->update(['status' => 'banned']);
 
         $this->getJson('/api/v1/me')
             ->assertStatus(403)
@@ -147,6 +150,7 @@ class ResidentSuspensionTest extends TestCase
             'status'            => 'suspended',
             'suspension_reason' => CommunityLifecycleService::REASON_MEMBER_SUSPENDED,
         ]);
+        CommunityMembership::query()->where('user_id', $resident->id)->update(['status' => 'banned']);
 
         $this->getJson('/api/v1/feed')
             ->assertStatus(403)

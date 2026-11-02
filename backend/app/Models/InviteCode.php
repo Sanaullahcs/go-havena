@@ -18,12 +18,14 @@ class InviteCode extends Model
         'max_uses',
         'used_count',
         'expires_at',
+        'rejected_at',
     ];
 
     protected function casts(): array
     {
         return [
             'expires_at' => 'datetime',
+            'rejected_at' => 'datetime',
         ];
     }
 
@@ -44,6 +46,10 @@ class InviteCode extends Model
 
     public function isValid(): bool
     {
+        if ($this->rejected_at) {
+            return false;
+        }
+
         if ($this->expires_at && $this->expires_at->isPast()) {
             return false;
         }
@@ -55,11 +61,17 @@ class InviteCode extends Model
         return true;
     }
 
+    public function isRejected(): bool
+    {
+        return $this->rejected_at !== null;
+    }
+
     /** Unused invite still assigned to this placeholder resident. */
     public function scopePendingForUser($query, int $userId)
     {
         return $query
             ->where('invited_user_id', $userId)
+            ->whereNull('rejected_at')
             ->where(function ($q) {
                 $q->whereNull('max_uses')
                     ->orWhereColumn('used_count', '<', 'max_uses');

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Services\AdminRoleService;
 use App\Services\BillingContactTransferService;
 use App\Services\UnitAssignmentService;
+use App\Services\UnitRegistrationPackageService;
+use App\Services\UserActingContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,12 +19,13 @@ class UnitController extends Controller
     public function __construct(
         private UnitAssignmentService $units,
         private BillingContactTransferService $transfers,
+        private UnitRegistrationPackageService $packages,
     ) {}
 
     /** GET /v1/communities/{id}/units — complete-profile picker. */
     public function communityIndex(Request $request, int $id): JsonResponse
     {
-        $this->assertCommunityUnitsAccess($request, $id);
+        $this->assertCommunityUnitsAccess($request, $id, mutating: false);
         $includeOffice = AdminRoleService::isCommunityAdminRole($request->user())
             || AdminRoleService::isSystemAdmin($request->user());
 
@@ -34,7 +37,7 @@ class UnitController extends Controller
     /** POST /v1/communities/{id}/units — onboarding / profile unit catalog. */
     public function communityStore(Request $request, int $id): JsonResponse
     {
-        $this->assertCommunityUnitsAccess($request, $id);
+        $this->assertCommunityUnitsAccess($request, $id, mutating: true);
         $data = $request->validate([
             'unit_number' => 'required|string|max:50',
         ]);
@@ -54,17 +57,182 @@ class UnitController extends Controller
         ], 201);
     }
 
-    /** GET /v1/units/mine */
+    /** GET /v1/units/mine — multi-unit list (+ legacy single `unit` for older clients). */
     public function mine(Request $request): JsonResponse
     {
         $communityId = $this->resolveResidentCommunityId($request);
-        $data = $this->units->userUnitBrief($request->user(), $communityId);
-        if ($data) {
-            $data = $this->transfers->enrichResidentUnit($data, $request->user());
+        $list = $this->units->userUnitsBrief($request->user(), $communityId);
+        $list = array_map(
+            fn (array $row) => $this->transfers->enrichResidentUnit($row, $request->user()),
+            $list,
+        );
+
+        $active = array_values(array_filter(
+            $list,
+            fn (array $row) => ($row['association_status'] ?? 'active') === 'active',
+        ));
+        $billingUnits = array_values(array_filter(
+            $active,
+            fn (array $row) => (bool) ($row['is_billing_contact'] ?? false),
+        ));
+
+        $pendingPackage = null;
+        if ($this->packages->hasPendingInitialPackage((int) $request->user()->id, $communityId)) {
+            $pendingPackage = ['kind' => 'initial', 'status' => 'pending'];
         }
 
         return response()->json([
-            'data' => $data,
+            // Legacy: first active unit (or first association).
+            'data' => $active[0] ?? $list[0] ?? null,
+            'units' => $list,
+            'meta' => [
+                'unit_count' => count($active),
+                'association_count' => count($list),
+                'billing_contact_unit_count' => count($billingUnits),
+                'has_full_access' => $this->packages->residentHasFullUnitAccess((int) $request->user()->id, $communityId),
+                'pending_initial_package' => $pendingPackage,
+            ],
+        ]);
+    }
+
+    /** POST /v1/units/mine/registration-packages — self-signup initial or add-on request. */
+    public function submitRegistrationPackage(Request $request): JsonResponse
+    {
+        $communityId = $this->resolveResidentCommunityId($request);
+        $data = $request->validate([
+            'kind' => 'required|in:initial,addon',
+            'units' => 'required|array|min:1|max:20',
+            'units.*.unit_number' => 'required|string|max:50',
+            'units.*.is_new_unit' => 'sometimes|boolean',
+            'units.*.residence_type' => 'nullable|in:homeowner,tenant',
+            'units.*.utility_bill_url' => 'required|string|max:1024',
+            'units.*.ownership_proof_url' => 'nullable|string|max:1024',
+            'units.*.tenancy_proof_url' => 'nullable|string|max:1024',
+        ]);
+
+        $package = $this->packages->submitPackage(
+            (int) $request->user()->id,
+            $communityId,
+            (string) $data['kind'],
+            $data['units'],
+        );
+
+        return response()->json([
+            'data' => $this->packages->formatPackage($package),
+            'message' => $data['kind'] === 'addon'
+                ? 'Additional unit request submitted for admin review.'
+                : 'Unit registration submitted for admin review.',
+        ], 201);
+    }
+
+    /**
+     * POST /v1/units/mine/onboarding-units
+     * Complete-profile multi-unit submit: invited → assign + proofs; self-signup → initial package.
+     */
+    public function completeOnboardingUnits(Request $request): JsonResponse
+    {
+        $communityId = $this->resolveResidentCommunityIdFlexible($request);
+        $data = $request->validate([
+            'units' => 'required|array|min:1|max:20',
+            'units.*.unit_number' => 'required|string|max:50',
+            'units.*.is_new_unit' => 'sometimes|boolean',
+            'units.*.residence_type' => 'required|in:homeowner,tenant',
+            'units.*.utility_bill_url' => 'required|string|max:1024',
+            'units.*.ownership_proof_url' => 'nullable|string|max:1024',
+            'units.*.tenancy_proof_url' => 'nullable|string|max:1024',
+        ]);
+
+        $user = $request->user();
+        $inviteUnits = $this->units->listInviteUnitNumbers($communityId, (int) $user->id);
+        $invitedHere = $inviteUnits !== []
+            || DB::table('community_memberships')
+                ->where('user_id', $user->id)
+                ->where('community_id', $communityId)
+                ->whereNotNull('invite_code_used')
+                ->where('invite_code_used', '!=', '')
+                ->exists();
+
+        if ($invitedHere) {
+            $assigned = $this->packages->completeInvitedOnboarding(
+                (int) $user->id,
+                $communityId,
+                $data['units'],
+            );
+
+            return response()->json([
+                'data' => [
+                    'mode' => 'invite',
+                    'units' => array_map(
+                        fn ($row) => $this->units->formatUnit($row, (int) $user->id),
+                        $assigned,
+                    ),
+                ],
+                'message' => 'Units and proofs saved.',
+            ]);
+        }
+
+        $package = $this->packages->submitPackage(
+            (int) $user->id,
+            $communityId,
+            UnitRegistrationPackageService::KIND_INITIAL,
+            $data['units'],
+        );
+
+        return response()->json([
+            'data' => [
+                'mode' => 'package',
+                'package' => $this->packages->formatPackage($package),
+            ],
+            'message' => 'Unit registration submitted for admin review.',
+        ], 201);
+    }
+
+    /** GET /v1/admin/unit-registration-packages */
+    public function adminPackagesIndex(Request $request): JsonResponse
+    {
+        $communityId = $this->resolveAdminCommunityId($request);
+        $status = $request->query('status');
+        $kind = $request->query('kind');
+
+        return response()->json([
+            'data' => $this->packages->listPackagesForCommunity(
+                $communityId,
+                is_string($status) && $status !== 'all' ? $status : null,
+                is_string($kind) && $kind !== 'all' ? $kind : null,
+            ),
+        ]);
+    }
+
+    /** POST /v1/admin/unit-registration-packages/{id}/approve */
+    public function adminApprovePackage(Request $request, int $id): JsonResponse
+    {
+        $communityId = $this->resolveAdminCommunityId($request);
+        $package = DB::table('unit_registration_packages')->find($id);
+        abort_if(! $package || (int) $package->community_id !== $communityId, 404);
+
+        $fresh = $this->packages->approvePackage($id, (int) $request->user()->id);
+
+        return response()->json([
+            'data' => $this->packages->formatPackage($fresh),
+            'message' => 'Unit registration approved.',
+        ]);
+    }
+
+    /** POST /v1/admin/unit-registration-packages/{id}/reject */
+    public function adminRejectPackage(Request $request, int $id): JsonResponse
+    {
+        $communityId = $this->resolveAdminCommunityId($request);
+        $data = $request->validate([
+            'reason' => 'required|string|max:1000',
+        ]);
+        $package = DB::table('unit_registration_packages')->find($id);
+        abort_if(! $package || (int) $package->community_id !== $communityId, 404);
+
+        $fresh = $this->packages->rejectPackage($id, (int) $request->user()->id, $data['reason']);
+
+        return response()->json([
+            'data' => $this->packages->formatPackage($fresh),
+            'message' => 'Unit registration rejected.',
         ]);
     }
 
@@ -73,6 +241,7 @@ class UnitController extends Controller
     {
         $data = $request->validate([
             'nominee_user_id' => 'required|integer|exists:users,id',
+            'unit_id' => 'nullable|integer|exists:units,id',
             'message' => 'nullable|string|max:500',
         ]);
 
@@ -81,6 +250,7 @@ class UnitController extends Controller
                 $request->user()->loadMissing('profile'),
                 (int) $data['nominee_user_id'],
                 $data['message'] ?? null,
+                isset($data['unit_id']) ? (int) $data['unit_id'] : null,
             ),
             'message' => 'Billing contact request sent. The resident must accept before the contact changes.',
         ], 201);
@@ -126,6 +296,7 @@ class UnitController extends Controller
     {
         $communityId = $this->resolveAdminCommunityId($request);
         $this->units->repairStaffAssignments($communityId);
+        $this->units->pruneCopiedUnitsForCommunity($communityId);
         $rows = DB::table('units')
             ->where('community_id', $communityId)
             ->orderByRaw("CASE kind WHEN 'residential' THEN 0 ELSE 1 END")
@@ -212,13 +383,37 @@ class UnitController extends Controller
             return (int) $request->community_id;
         }
 
+        return UserActingContextService::requireCurrentCommunityId($request->user());
+    }
+
+    /** Allow pending membership during complete-profile onboarding. */
+    private function resolveResidentCommunityIdFlexible(Request $request): int
+    {
+        if ($request->filled('community_id')) {
+            $communityId = (int) $request->community_id;
+            $allowed = DB::table('community_memberships')
+                ->where('user_id', $request->user()->id)
+                ->where('community_id', $communityId)
+                ->whereIn('status', ['approved', 'pending', 'onboarding'])
+                ->exists();
+            // Self-signup may submit before membership exists — still accept community_id.
+            if ($allowed || $request->user()) {
+                return $communityId;
+            }
+        }
+
+        $current = UserActingContextService::currentCommunityId($request->user());
+        if ($current) {
+            return $current;
+        }
+
         $membership = DB::table('community_memberships')
             ->where('user_id', $request->user()->id)
-            ->where('status', 'approved')
-            ->orderByDesc('created_at')
+            ->whereIn('status', ['approved', 'pending'])
+            ->orderBy('created_at')
             ->first();
 
-        abort_if(! $membership, 422, 'No approved community membership found.');
+        abort_if(! $membership, 422, 'Join a community before submitting units.');
 
         return (int) $membership->community_id;
     }
@@ -231,7 +426,7 @@ class UnitController extends Controller
         return (int) $scope;
     }
 
-    private function assertCommunityUnitsAccess(Request $request, int $communityId): void
+    private function assertCommunityUnitsAccess(Request $request, int $communityId, bool $mutating = false): void
     {
         $user = $request->user();
         if (AdminRoleService::canManageCommunity($user, $communityId)) {
@@ -244,6 +439,26 @@ class UnitController extends Controller
             ->whereIn('status', ['approved', 'pending'])
             ->exists();
 
-        abort_if(! $allowed, 403, 'You cannot access units for this community.');
+        if ($allowed) {
+            return;
+        }
+
+        if (! $mutating) {
+            $open = DB::table('communities')
+                ->where('id', $communityId)
+                ->whereNull('deleted_at')
+                ->where(function ($query) {
+                    $query->whereNull('status')->orWhere('status', 'active');
+                })
+                ->where(function ($query) {
+                    $query->whereNull('review_status')->orWhere('review_status', 'approved');
+                })
+                ->exists();
+            if ($open) {
+                return;
+            }
+        }
+
+        abort(403, 'You cannot access units for this community.');
     }
 }

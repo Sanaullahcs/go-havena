@@ -14,6 +14,7 @@ export type NoticeBoard = "events" | "alerts" | "notices";
 const KNOWN_ADMIN_PREFIXES = [
   "/admin/amenities",
   "/admin/units",
+  "/admin/unit-requests",
   "/admin/services",
   "/admin/service-bills",
   "/admin/bookings",
@@ -167,6 +168,14 @@ function mapByHints(type?: string, hints?: NoticeRoutingHints): string | null {
   if (type === "message") return "/admin/messages";
 
   const haystack = `${hints?.title ?? ""} ${hints?.body ?? ""}`.toLowerCase();
+  if (
+    haystack.includes("additional unit request") ||
+    haystack.includes("unit registration pending") ||
+    (haystack.includes("requested unit") && haystack.includes("review"))
+  ) {
+    return "/admin/unit-requests";
+  }
+
   if (haystack.includes("pending approval") || (haystack.includes("submitted") && haystack.includes("for review"))) {
     const board = inferNoticeBoard(hints);
     const base =

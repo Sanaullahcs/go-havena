@@ -30,6 +30,7 @@ import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { formatAmenityFeeLabel, formatBookingDisplayFee, getAmenityReviewMeta, getAmenityStatusMeta } from "@/lib/admin/amenity-display";
 import { confirmAction, confirmDelete, confirmRejectWithReason, toastError, toastSuccess } from "@/lib/alert";
 import { BookingInfoModal } from "@/components/admin/booking-info-modal";
+import { MemberUnitsLabel } from "@/components/admin/member-units-label";
 import { apiError } from "@/lib/api/client";
 import {
   approveAmenity,
@@ -619,7 +620,13 @@ export default function AdminAmenitiesPage() {
                   </DtCell>
                   <DtCell className="max-w-0 overflow-hidden">
                     <p className="truncate font-medium text-slate-900">{booking.user_name || "Resident"}</p>
-                    <p className="truncate text-xs text-slate-500">{booking.user_unit || "—"}</p>
+                    <p className="truncate text-xs text-slate-500">
+                      <MemberUnitsLabel
+                        userUnits={booking.user_units}
+                        userUnit={booking.user_unit}
+                        empty="—"
+                      />
+                    </p>
                   </DtCell>
                   <DtCell className="max-w-0 overflow-hidden">
                     <p className="truncate">{formatBookingDate(booking.date)}</p>

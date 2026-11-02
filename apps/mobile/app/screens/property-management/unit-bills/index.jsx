@@ -1,5 +1,13 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -22,6 +30,7 @@ import { Fonts } from "../../../../constants/font";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { useSessionUser } from "../../../../hooks/use-session-user";
 import { sf, sw } from "../../../../utils/responsive";
+import { rnShadow } from "../../../../utils/shadow";
 import { billListFields, buildBillDocument, canPayBill, sortBills, summarizeBills } from "../../../../utils/bill-document";
 import {
   acknowledgeServiceBill,
@@ -41,6 +50,52 @@ function payActionLabel(bill, t) {
   return String(bill.status ?? "").toLowerCase() === "rejected" ? t("bills.list.resubmitProof") : t("bills.list.uploadProof");
 }
 
+function UnitFilterMenu({ units, value, onChange, billCounts, t }) {
+  const options = useMemo(
+    () => [
+      { id: "all", label: t("services.unitBillsFilterAll"), count: billCounts.all ?? 0 },
+      ...units.map((unit) => ({
+        id: unit.id,
+        label: String(unit.unit_number || ""),
+        count: billCounts[String(unit.id)] ?? 0,
+      })),
+    ],
+    [units, billCounts, t],
+  );
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.unitChips}
+    >
+      {options.map((option) => {
+        const active = String(value) === String(option.id);
+        return (
+          <Pressable
+            key={String(option.id)}
+            onPress={() => {
+              if (!active) onChange(option.id);
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            style={[styles.unitChip, active && styles.unitChipOn]}
+          >
+            <Text style={[styles.unitChipText, active && styles.unitChipTextOn]} numberOfLines={1}>
+              {option.label}
+            </Text>
+            <View style={[styles.unitChipCount, active && styles.unitChipCountOn]}>
+              <Text style={[styles.unitChipCountText, active && styles.unitChipCountTextOn]}>
+                {option.count}
+              </Text>
+            </View>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 export default function UnitBillsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -55,10 +110,16 @@ export default function UnitBillsScreen() {
   const [isContact, setIsContact] = useState(false);
   const [contactName, setContactName] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
+  const [billingUnits, setBillingUnits] = useState([]);
+  const [unitFilterId, setUnitFilterId] = useState("all");
   const [busyId, setBusyId] = useState(null);
   const [filter, setFilter] = useState(null);
 
-  const sorted = useMemo(() => sortBills(bills, t), [bills, t]);
+  const unitFiltered = useMemo(() => {
+    if (unitFilterId === "all") return bills;
+    return bills.filter((bill) => String(bill.unit_id) === String(unitFilterId));
+  }, [bills, unitFilterId]);
+  const sorted = useMemo(() => sortBills(unitFiltered, t), [unitFiltered, t]);
   const summary = useMemo(() => summarizeBills(sorted, t), [sorted, t]);
   const activeFilter = filter ?? defaultBillFilter(summary);
   const visible = useMemo(() => filterBills(sorted, activeFilter, t), [sorted, activeFilter, t]);
@@ -68,13 +129,35 @@ export default function UnitBillsScreen() {
       : null),
     [detailFor, sessionUser, t, unitNumber],
   );
+  const showUnitFilter = billingUnits.length > 1;
+  const unitBillCounts = useMemo(() => {
+    const counts = { all: bills.length };
+    for (const unit of billingUnits) {
+      counts[String(unit.id)] = bills.filter((bill) => String(bill.unit_id) === String(unit.id)).length;
+    }
+    return counts;
+  }, [bills, billingUnits]);
+  const emptyTitle =
+    bills.length > 0 && unitFilterId !== "all"
+      ? t("services.unitBillsFilterEmptyTitle")
+      : t("services.unitBillsEmptyTitle");
+  const emptyBody =
+    bills.length > 0 && unitFilterId !== "all"
+      ? t("services.unitBillsFilterEmptyBody")
+      : t("services.unitBillsEmptyBody");
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const { unit, isBillingContact, contactName: billingContactName } = await resolveViewerBillingAccess();
+      const {
+        unit,
+        billingUnits: contactUnits,
+        isBillingContact,
+        contactName: billingContactName,
+      } = await resolveViewerBillingAccess();
       setIsContact(isBillingContact);
       setContactName(billingContactName);
+      setBillingUnits(contactUnits || []);
       setUnitNumber(unit?.unit_number || "");
       if (!isBillingContact) {
         setBills([]);
@@ -133,9 +216,11 @@ export default function UnitBillsScreen() {
     openPayment(bill);
   }
 
-  const headerSubtitle = unitNumber
-    ? t("services.billingContact.unitLabel", { number: unitNumber })
-    : t("services.unitBillsSub");
+  const headerSubtitle = billingUnits.length > 1
+    ? t("myUnits.count", { count: billingUnits.length })
+    : unitNumber
+      ? t("services.billingContact.unitLabel", { number: unitNumber })
+      : t("services.unitBillsSub");
 
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
@@ -161,60 +246,94 @@ export default function UnitBillsScreen() {
             </Pressable>
           </View>
         </View>
-      ) : sorted.length === 0 ? (
-        <ScrollView
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
+      ) : (
+        <>
+          {sorted.length === 0 ? (
+            <ScrollView
+              contentContainerStyle={styles.list}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => { setRefreshing(true); void load({ silent: true }); }}
+                  tintColor={PropertyHubTheme.teal}
+                />
+              }
+            >
+              {showUnitFilter ? (
+                <UnitFilterMenu
+                  units={billingUnits}
+                  value={unitFilterId}
+                  onChange={(next) => {
+                    setUnitFilterId(next);
+                    setFilter(null);
+                  }}
+                  billCounts={unitBillCounts}
+                  t={t}
+                />
+              ) : null}
+              <View style={styles.emptyCard}>
+                <View style={styles.emptyIcon}>
+                  <Feather name="file-text" size={sf(22)} color={PropertyHubTheme.pendingText} />
+                </View>
+                <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+                <Text style={styles.emptyBody}>{emptyBody}</Text>
+              </View>
+            </ScrollView>
+          ) : (
+            <BillPayListLayout
+              summary={summary}
+              activeFilter={activeFilter}
+              onFilterChange={setFilter}
+              chromeExtra={
+                showUnitFilter ? (
+                  <UnitFilterMenu
+                    units={billingUnits}
+                    value={unitFilterId}
+                    onChange={(next) => {
+                      setUnitFilterId(next);
+                      setFilter(null);
+                    }}
+                    billCounts={unitBillCounts}
+                    t={t}
+                  />
+                ) : null
+              }
+              t={t}
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); void load({ silent: true }); }}
-              tintColor={PropertyHubTheme.teal}
+              data={visible}
+              keyExtractor={(bill) => String(bill.id)}
+              renderItem={({ item: bill }) => {
+                const fields = billListFields(bill, "unit");
+                return (
+                  <BillCard
+                    bill={bill}
+                    t={t}
+                    busy={busyId === bill.id}
+                    icon={<Feather name="home" size={sf(18)} color={PropertyHubTheme.deepTeal} />}
+                    title={fields.title}
+                    subtitle={
+                      billingUnits.length > 1 && bill.unit_number
+                        ? `${bill.unit_number} · ${fields.subtitle || ""}`.replace(/\s·\s$/, "")
+                        : fields.subtitle
+                    }
+                    payLabel={payActionLabel(bill, t)}
+                    onPay={() => pay(bill)}
+                    onPress={() => {
+                      const active = bill.online_payment?.active_payment;
+                      if (active?.status === "processing") {
+                        router.push({ pathname: PAYMENT_RESULT_ROUTE, params: { id: active.id } });
+                        return;
+                      }
+                      setDetailFor(bill);
+                    }}
+                  />
+                );
+              }}
             />
-          }
-        >
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIcon}>
-              <Feather name="file-text" size={sf(22)} color={PropertyHubTheme.pendingText} />
-            </View>
-            <Text style={styles.emptyTitle}>{t("services.unitBillsEmptyTitle")}</Text>
-            <Text style={styles.emptyBody}>{t("services.unitBillsEmptyBody")}</Text>
-          </View>
-        </ScrollView>
-      ) : (
-        <BillPayListLayout
-          summary={summary}
-          activeFilter={activeFilter}
-          onFilterChange={setFilter}
-          t={t}
-          refreshing={refreshing}
-          onRefresh={() => { setRefreshing(true); void load({ silent: true }); }}
-          data={visible}
-          keyExtractor={(bill) => String(bill.id)}
-          renderItem={({ item: bill }) => {
-            const fields = billListFields(bill, "unit");
-            return (
-              <BillCard
-                bill={bill}
-                t={t}
-                busy={busyId === bill.id}
-                icon={<Feather name="home" size={sf(18)} color={PropertyHubTheme.deepTeal} />}
-                title={fields.title}
-                subtitle={fields.subtitle}
-                payLabel={payActionLabel(bill, t)}
-                onPay={() => pay(bill)}
-                onPress={() => {
-                  const active = bill.online_payment?.active_payment;
-                  if (active?.status === "processing") {
-                    router.push({ pathname: PAYMENT_RESULT_ROUTE, params: { id: active.id } });
-                    return;
-                  }
-                  setDetailFor(bill);
-                }}
-              />
-            );
-          }}
-        />
+          )}
+        </>
       )}
 
       <BillDetailSheet
@@ -261,13 +380,63 @@ export default function UnitBillsScreen() {
   );
 }
 
-const styles = {
+const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyWrap: {
     flex: 1,
     paddingHorizontal: sw(16),
     paddingTop: sw(16),
     justifyContent: "center",
+  },
+  unitChips: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(8),
+    paddingVertical: sw(2),
+  },
+  unitChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(6),
+    paddingLeft: sw(14),
+    paddingRight: sw(8),
+    minHeight: sw(36),
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.border,
+    backgroundColor: "#FFFFFF",
+  },
+  unitChipOn: {
+    backgroundColor: "#1B4F8A",
+    borderColor: "#1B4F8A",
+  },
+  unitChipText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    color: PropertyHubTheme.text,
+  },
+  unitChipTextOn: {
+    color: "#FFFFFF",
+  },
+  unitChipCount: {
+    minWidth: sw(22),
+    height: sw(22),
+    borderRadius: 999,
+    paddingHorizontal: sw(6),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+  },
+  unitChipCountOn: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  unitChipCountText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(11),
+    color: PropertyHubTheme.textMuted,
+  },
+  unitChipCountTextOn: {
+    color: "#FFFFFF",
   },
   list: {
     paddingHorizontal: sw(16),
@@ -321,4 +490,4 @@ const styles = {
     fontSize: sf(14),
     color: "#FFFFFF",
   },
-};
+});

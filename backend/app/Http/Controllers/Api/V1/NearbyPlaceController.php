@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Services\OsmGeocodingService;
+use App\Services\UserActingContextService;
 use App\Services\OsmNearbyPlacesService;
 use App\Support\NearbyDiscovery;
 use App\Support\OsmPlaceCategories;
@@ -89,12 +90,17 @@ class NearbyPlaceController extends Controller
         }
 
         if ($user) {
+            $current = UserActingContextService::currentCommunityId($user);
+            if ($current) {
+                return $current;
+            }
+
             $membership = DB::table('community_memberships')
                 ->where('user_id', $user->id)
                 ->whereIn('status', ['approved', 'pending'])
                 ->orderByRaw("CASE WHEN status = 'approved' THEN 0 ELSE 1 END")
-                ->orderByDesc('updated_at')
-                ->orderByDesc('id')
+                ->orderBy('created_at')
+                ->orderBy('id')
                 ->first();
 
             if ($membership) {

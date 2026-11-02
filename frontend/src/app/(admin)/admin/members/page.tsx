@@ -39,7 +39,8 @@ import { adminTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading"
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
-import { UtilityBillPreview } from "@/components/admin/utility-bill-preview";
+import { MemberCommunitiesLabel, MemberUnitsLabel, ResidentDirectoryUnitsLabel } from "@/components/admin/member-units-label";
+import { MemberUnitsDetail } from "@/components/admin/member-units-detail";
 import { fetchAdminCommunities, type AdminCommunityOption } from "@/lib/api/communities";
 import { MemberInviteResultModal } from "@/components/admin/member-invite-result-modal";
 import { MemberBatchUploadModal } from "@/components/admin/member-batch-upload-modal";
@@ -48,13 +49,19 @@ import { formatDisplayEmail } from "@/lib/user/email-display";
 import type { MemberInviteResult } from "@/lib/api/members";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import {
+  collectInviteUnitNumbers,
   inviteMemberNameLiveError,
   inviteMemberUnitFieldError,
   inviteMemberUnitLiveError,
   validateSystemMemberInviteForm,
 } from "@/lib/admin/invite-member-validation";
 import { UnitPickerField } from "@/components/admin/unit-picker-field";
-import { createAdminUnit, fetchAdminUnits } from "@/lib/api/property-services";
+import {
+  approveUnitRegistrationPackage,
+  createAdminUnit,
+  fetchAdminUnits,
+  rejectUnitRegistrationPackage,
+} from "@/lib/api/property-services";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
 
@@ -62,6 +69,7 @@ const STATUS_META: Record<MembershipStatus, { tone: "green" | "amber" | "slate" 
   approved:         { tone: "green", label: "Active" },
   pending:          { tone: "amber", label: "Pending" },
   invitation_sent:  { tone: "slate", label: "Invitation Sent" },
+  invite_rejected:  { tone: "red", label: "Invite Rejected" },
   not_invited:      { tone: "amber", label: "Not Invited" },
   onboarding:       { tone: "blue",  label: "Onboarding" },
   banned:           { tone: "red",   label: "Suspended" },
@@ -126,7 +134,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", unit: "", communityId: "" });
+  const [form, setForm] = useState({ name: "", email: "", unit: "", units: [""] as string[], communityId: "" });
   const [invitePhone, setInvitePhone] = useState<PhoneFieldState>(emptyPhoneField());
   const [phoneResetKey, setPhoneResetKey] = useState(0);
   const { touch, clearError, showError, setErrors, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
@@ -136,6 +144,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const [activityMember, setActivityMember] = useState<Member | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [profileActionLoading, setProfileActionLoading] = useState(false);
+  const [busyUnitPackageId, setBusyUnitPackageId] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
   const [inviteResult, setInviteResult] = useState<MemberInviteResult | null>(null);
   const [inviting, setInviting] = useState(false);
@@ -164,7 +173,8 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   );
   const canInvite = !hasFieldErrors(inviteLiveErrors);
   const nameShownError = inviteMemberNameLiveError(form.name) || showError("name", inviteLiveErrors);
-  const unitShownError = inviteMemberUnitLiveError(form.unit) || showError("unit", inviteLiveErrors);
+  const primaryUnit = form.units[0] ?? form.unit;
+  const unitShownError = inviteMemberUnitLiveError(primaryUnit) || showError("unit", inviteLiveErrors);
 
   const load = useCallback(async (silent = false) => {
     if (!hasLoadedOnce.current) {
@@ -286,12 +296,13 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
         name: "",
         email: "",
         unit: "",
+        units: [""],
         communityId: match ? String(match.id) : res.data[0] ? String(res.data[0].id) : "",
       });
     } catch (err) {
       toastError(apiError(err));
       setCommunities([]);
-      setForm({ name: "", email: "", unit: "", communityId: "" });
+      setForm({ name: "", email: "", unit: "", units: [""], communityId: "" });
     } finally {
       setCommunitiesLoading(false);
     }
@@ -303,20 +314,76 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     resetTouched();
     setInvitePhone(emptyPhoneField());
     setPhoneResetKey((k) => k + 1);
-    setForm({ name: "", email: "", unit: "", communityId: "" });
+    setForm({ name: "", email: "", unit: "", units: [""], communityId: "" });
   };
 
   const openProfile = async (member: Member) => {
     setViewLoading(true);
+    setBusyUnitPackageId(null);
     setViewing(member);
     try {
-      const detail = await fetchMember(member.id, memberCommunityId(member));
+      const detail = await fetchMember(
+        member.id,
+        isSystemResidents ? "all" : memberCommunityId(member),
+      );
       setViewing(detail);
     } catch (err) {
       toastError(apiError(err));
       setViewing(null);
     } finally {
       setViewLoading(false);
+    }
+  };
+
+  const refreshViewingMember = async (member: Member) => {
+    const detail = await fetchMember(
+      member.id,
+      isSystemResidents ? "all" : memberCommunityId(member),
+    );
+    setViewing(detail);
+    await load(true);
+  };
+
+  const runApproveUnitPackage = async (packageId: number, unitNumber: string) => {
+    if (!viewing) return;
+    const confirmed = await confirmAction({
+      title: `Approve unit ${unitNumber}?`,
+      text: "This activates the requested unit for the resident. Other units are unchanged.",
+      confirmText: "Approve",
+      color: "blue",
+    });
+    if (!confirmed.isConfirmed) return;
+
+    setBusyUnitPackageId(packageId);
+    try {
+      await approveUnitRegistrationPackage(packageId);
+      toastSuccess(`Unit ${unitNumber} approved.`);
+      await refreshViewingMember(viewing);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setBusyUnitPackageId(null);
+    }
+  };
+
+  const runRejectUnitPackage = async (packageId: number, unitNumber: string) => {
+    if (!viewing) return;
+    const result = await confirmRejectWithReason({
+      title: `Reject unit ${unitNumber}?`,
+      text: "Only this unit request is rejected. The resident keeps access to their other approved units.",
+      confirmText: "Reject",
+    });
+    if (!result.isConfirmed || !result.value) return;
+
+    setBusyUnitPackageId(packageId);
+    try {
+      await rejectUnitRegistrationPackage(packageId, String(result.value));
+      toastSuccess(`Unit ${unitNumber} rejected.`);
+      await refreshViewingMember(viewing);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setBusyUnitPackageId(null);
     }
   };
 
@@ -433,7 +500,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
       await load(true);
       if (closeProfile) setViewing(null);
       else if (viewing?.id === member.id) {
-        const detail = await fetchMember(member.id, member.community_id ?? undefined);
+        const detail = await fetchMember(
+          member.id,
+          isSystemResidents ? "all" : memberCommunityId(member),
+        );
         setViewing(detail);
       }
     } catch (err) {
@@ -458,7 +528,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
       await load(true);
       if (closeProfile) setViewing(null);
       else if (viewing?.id === member.id) {
-        const detail = await fetchMember(member.id, member.community_id ?? undefined);
+        const detail = await fetchMember(
+          member.id,
+          isSystemResidents ? "all" : memberCommunityId(member),
+        );
         setViewing(detail);
       }
     } catch (err) {
@@ -681,7 +754,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
               const selected = selectable && selectedIds.includes(m.id);
               return (
                 <DtRow
-                  key={`${m.id}-${m.membership_id ?? "onboarding"}`}
+                  key={isSystemResidents ? String(m.id) : `${m.id}-${m.community_id ?? "none"}-${m.membership_id ?? m.status}`}
                   muted={m.status === "banned" || m.status === "inactive"}
                   className={selected ? "bg-blue-50/70" : undefined}
                 >
@@ -705,9 +778,28 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     </div>
                   </DtCell>
                   {viewingAllCommunities && (
-                    <DtCell nowrap muted>{m.community_name ?? "—"}</DtCell>
+                    <DtCell nowrap muted>
+                      {isSystemResidents ? (
+                        <MemberCommunitiesLabel
+                          communities={m.communities}
+                          fallbackName={m.community_name}
+                        />
+                      ) : (
+                        (m.community_name ?? "—")
+                      )}
+                    </DtCell>
                   )}
-                  <DtCell nowrap><span className="font-mono text-[12px]">{m.unit_number ?? "—"}</span></DtCell>
+                  <DtCell nowrap>
+                    {isSystemResidents ? (
+                      <ResidentDirectoryUnitsLabel
+                        communities={m.communities}
+                        units={m.units}
+                        unitNumber={m.unit_number}
+                      />
+                    ) : (
+                      <MemberUnitsLabel units={m.units} unitNumber={m.unit_number} />
+                    )}
+                  </DtCell>
                   <DtCell>
                     <span className={`rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${ROLE_STYLE[m.role] ?? ROLE_STYLE.member}`}>
                       {roleLabel(m.role)}
@@ -827,7 +919,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                                   label: isCancellableInvitation(m) ? "Cancel invitation" : "Remove member",
                                   icon: "delete",
                                   tone: "danger",
-                                  hidden: isSystemResidents || m.role === "admin" || m.status === "inactive",
+                                  hidden: isSystemResidents || m.role === "admin" || m.status === "inactive" || m.status === "invite_rejected",
                                   onClick: async () => {
                                     const canCancelInvite = isCancellableInvitation(m);
                                     const r = await confirmDelete({
@@ -916,7 +1008,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                 ) : null}
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div>
+                <div className="sm:col-span-2">
                   <label className="nl-label">
                     Full Name <span className="text-red-500">*</span>
                   </label>
@@ -934,15 +1026,16 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     <p className="mt-1 text-xs text-red-600">{nameShownError}</p>
                   ) : null}
                 </div>
-                <div>
+                <div className="sm:col-span-2">
                   <label className="nl-label">
-                    Unit / Apartment <span className="text-red-500">*</span>
+                    Units <span className="text-red-500">*</span>
                   </label>
                   <div className="mt-1.5">
                     <UnitPickerField
-                      dataField="unit"
-                      value={form.unit}
-                      placeholder="Select unit"
+                      multiple
+                      dataField="units"
+                      values={form.units.filter((u) => u.trim())}
+                      placeholder="Select one or more units"
                       unitMax={20}
                       error={unitShownError}
                       validateNewUnit={(unit) => inviteMemberUnitFieldError(unit)}
@@ -965,12 +1058,16 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                         };
                       }}
                       onBlur={() => touch("unit")}
-                      onChange={(unit) => {
+                      onChangeValues={(units) => {
                         clearError("unit");
-                        setForm((f) => ({ ...f, unit }));
+                        const next = units.length > 0 ? units : [""];
+                        setForm((f) => ({ ...f, units: next, unit: next[0] ?? "" }));
                       }}
                     />
                   </div>
+                  <p className="mt-1.5 text-[11.5px] text-slate-500">
+                    Click multiple units in the list (e.g. 910 and 911). One seat for this resident.
+                  </p>
                   {unitShownError ? (
                     <p className="mt-1 text-xs text-red-600">{unitShownError}</p>
                   ) : null}
@@ -1029,12 +1126,13 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   try {
                     const memberName = form.name;
                     const memberEmail = form.email;
+                    const unitNumbers = collectInviteUnitNumbers(form);
                     const res = await inviteMember({
                       name: memberName,
                       email: memberEmail,
                       phone: invitePhone.e164,
                       role: "Resident",
-                      unit_number: form.unit || undefined,
+                      units: unitNumbers,
                       community_id: Number(form.communityId),
                     });
                     setInviting(false);
@@ -1113,10 +1211,9 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
               ) : (
                 <>
                   <ProfileRow label="Email" value={formatDisplayEmail(viewing.email) ?? "—"} />
-                  <ProfileRow label="Unit" value={viewing.unit_number ?? "—"} />
                   <ProfileRow label="Role" value={roleLabel(viewing.role)} />
                   <ProfileRow label="Status" value={statusLabel(viewing.status)} />
-                  {viewing.status === "invitation_sent" && viewing.invite_code ? (
+                  {(viewing.status === "invitation_sent" || viewing.status === "invite_rejected") && viewing.invite_code ? (
                     <ProfileRow
                       label="Invite code"
                       value={
@@ -1156,11 +1253,56 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                       value={viewing.rejected_by === "system_admin" ? "System administrator" : "Community administrator"}
                     />
                   ) : null}
-                  <ProfileRow label="Residence" value={viewing.residence_type ?? "—"} />
                   <ProfileRow label="Phone" value={<PhoneDisplay value={viewing.phone} />} />
-                  <div className="pt-1">
-                    <UtilityBillPreview url={viewing.utility_bill_url} compact />
-                  </div>
+                  {isSystemResidents ? (
+                    <ProfileRow
+                      label="Communities"
+                      value={
+                        (viewing.community_count ?? viewing.communities?.length ?? 0) > 0 ? (
+                          <span>
+                            {(viewing.community_count ?? viewing.communities?.length ?? 0) === 1
+                              ? (viewing.communities?.[0]?.name ?? viewing.community_name ?? "1 community")
+                              : `${viewing.community_count ?? viewing.communities?.length} communities`}
+                            {(viewing.communities?.length ?? 0) > 1 ? (
+                              <span className="mt-1.5 block space-y-1">
+                                {viewing.communities?.map((community, index) => (
+                                  <span
+                                    key={`${community.id ?? community.name ?? "community"}-${index}`}
+                                    className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-slate-600"
+                                  >
+                                    <span className="font-medium text-slate-800">{community.name ?? "Community"}</span>
+                                    {community.status ? (
+                                      <span className="rounded-full bg-slate-100 px-1.5 py-px text-[10px] font-semibold text-slate-500">
+                                        {statusLabel(community.status)}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                ))}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          (viewing.community_name ?? "—")
+                        )
+                      }
+                    />
+                  ) : viewing.community_name ? (
+                    <ProfileRow label="Community" value={viewing.community_name} />
+                  ) : null}
+                  <MemberUnitsDetail
+                    units={viewing.units}
+                    communities={isSystemResidents ? viewing.communities : undefined}
+                    fallbackUnitNumber={viewing.unit_number}
+                    fallbackResidenceType={viewing.residence_type}
+                    fallbackUtilityBillUrl={viewing.utility_bill_url}
+                    busyPackageId={busyUnitPackageId}
+                    onApprovePackage={(packageId, unitNumber) => {
+                      void runApproveUnitPackage(packageId, unitNumber);
+                    }}
+                    onRejectPackage={(packageId, unitNumber) => {
+                      void runRejectUnitPackage(packageId, unitNumber);
+                    }}
+                  />
                   <ProfileRow label="Bio" value={viewing.bio?.trim() ? viewing.bio : "—"} />
                   <ProfileRow label="Joined" value={new Date(viewing.created_at).toLocaleString()} />
                 </>

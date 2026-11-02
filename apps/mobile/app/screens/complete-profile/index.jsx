@@ -12,8 +12,13 @@ import { FormPhoneInput } from "../../../components/ui/phone-input";
 import { Image } from "expo-image";
 import { pickImage } from "../../../utils/pickImage";
 import { updateProfile, joinCommunity, fetchMe } from "../../../services/auth-api";
-import { createCommunityUnit, fetchCommunityUnits } from "../../../services/property-services-api";
+import {
+  completeOnboardingUnits,
+  createCommunityUnit,
+  fetchCommunityUnits,
+} from "../../../services/property-services-api";
 import UnitPickerField from "../../../components/ui/unit-picker-field";
+import UnitEntriesSection from "../../../components/onboarding/unit-entries-section";
 import {
   checkFamilyNumberAvailability,
   ensureMyFamily,
@@ -40,6 +45,7 @@ import { applyCharacterLimit, hasFieldErrors, LIMITS, validateCompleteProfileFor
 import { extractNationalDigits, toE164 } from "../../../utils/phone";
 import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
 import { getProfileFields, isPlaceholderDisplayName, isPlaceholderResidenceType, isPlaceholderUnitNumber } from "../../../utils/profile-display";
+import { getPendingInvitedMembership } from "../../../services/community-access";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import KeyboardSafeScreen, { useScrollFieldRefIntoView } from "../../../components/layout/keyboard-safe-screen";
 import { HomeTheme as T } from "../../../constants/home-theme";
@@ -122,8 +128,14 @@ export default function CompleteProfile() {
     mode,
     familyMode: familyModeParam,
     invited: invitedParam,
+    returnTo,
   } = useLocalSearchParams();
   const isEditMode = mode === "edit";
+  const resolvedCommunityId = (() => {
+    const raw = Array.isArray(communityId) ? communityId[0] : communityId;
+    const numeric = Number(raw);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+  })();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -144,6 +156,17 @@ export default function CompleteProfile() {
   const [familyMode, setFamilyMode] = useState(() => (isEditMode ? "skip" : "create"));
   const [residenceType, setResidenceType] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
+  /** @type {[Array<{key: string, unit_number: string, locked: boolean, is_new_unit: boolean, residence_type: string, utilityFile: any}>, Function]} */
+  const [unitEntries, setUnitEntries] = useState(() => [
+    {
+      key: "unit-1",
+      unit_number: "",
+      locked: false,
+      is_new_unit: true,
+      residence_type: "",
+      utilityFile: null,
+    },
+  ]);
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
   const [existingUtilityBillUrl, setExistingUtilityBillUrl] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -203,7 +226,11 @@ export default function CompleteProfile() {
     invitedParam,
     isAdminClaim,
   });
-  const showFamilyNumberField = role !== "admin" && !isCommunityRequest;
+  const hasOtherApprovedMembership = (profileUser?.memberships ?? []).some(
+    (membership) =>
+      membership?.status === "approved" && String(membership.community_id) !== String(communityId),
+  );
+  const showFamilyNumberField = role !== "admin" && !isCommunityRequest && !hasOtherApprovedMembership;
   const showResidenceType = !isGuestProfile && !isCommunityAdminProfile;
   const showUnitNumber = !isCommunityAdminProfile;
   const invitedFromMembership = (profileUser?.memberships ?? []).some(
@@ -216,6 +243,11 @@ export default function CompleteProfile() {
     (invitedParam === "1" || invitedFromMembership);
   const assignedUnitNumber = (() => {
     if (!isInvitedProfile) return "";
+    const inviteUnits = Array.isArray(profileUser?.invite_units) ? profileUser.invite_units : [];
+    if (inviteUnits.length > 0) {
+      return String(inviteUnits[0]?.unit_number ?? "").trim();
+    }
+    if (hasOtherApprovedMembership) return "";
     const raw = profileUser?.profile?.unit_number ?? profileUser?.unit_number ?? "";
     return isPlaceholderUnitNumber(raw) ? "" : String(raw).trim();
   })();
@@ -223,6 +255,13 @@ export default function CompleteProfile() {
   const showOfficeAddress = isCommunityAdminProfile;
   // Utility bill is required for residents and community admins on every entry path.
   const showUtilityBill = (showResidenceType || showOfficeAddress) && !skipUtilityBill;
+  const useMultiUnitOnboarding =
+    !isEditMode &&
+    !isGuestProfile &&
+    !isCommunityAdminProfile &&
+    showUnitNumber &&
+    showResidenceType &&
+    showUtilityBill;
 
   const scrollRef = useRef(null);
   const contentRef = useRef(null);
@@ -526,8 +565,23 @@ export default function CompleteProfile() {
     (async () => {
       setProfileLoading(true);
       try {
-        const user = await fetchMe();
+        let user = await fetchMe(
+          !isEditMode && resolvedCommunityId
+            ? { inviteCommunityId: resolvedCommunityId }
+            : undefined,
+        );
         if (cancelled) return;
+        const pendingInvite = getPendingInvitedMembership(user);
+        const pendingInviteCommunityId = Number(pendingInvite?.community_id || 0);
+        if (
+          !isEditMode &&
+          pendingInviteCommunityId > 0 &&
+          pendingInviteCommunityId !== resolvedCommunityId &&
+          !(Array.isArray(user?.invite_units) && user.invite_units.length > 0)
+        ) {
+          user = await fetchMe({ inviteCommunityId: pendingInviteCommunityId });
+          if (cancelled) return;
+        }
         setProfileUser(user);
         setIsGuestProfile(isGuestUser(user));
         setSkipUtilityBill(shouldSkipUtilityBill(user, { role }));
@@ -551,6 +605,42 @@ export default function CompleteProfile() {
         const rawResidence = user.profile?.residence_type ?? user.residence_type ?? "";
         setResidenceType(isPlaceholderResidenceType(rawResidence) ? "" : rawResidence);
         setExistingUtilityBillUrl(fields.utilityBillUrl);
+
+        const inviteUnits = Array.isArray(user.invite_units) ? user.invite_units : [];
+        const otherApproved = (user.memberships ?? []).some(
+          (membership) =>
+            membership?.status === "approved" &&
+            String(membership.community_id) !== String(resolvedCommunityId || communityId),
+        );
+        if (inviteUnits.length > 0) {
+          setUnitEntries(
+            inviteUnits.map((row, index) => ({
+              key: `invite-${index}-${row.unit_number}`,
+              unit_number: String(row.unit_number ?? "").trim(),
+              locked: true,
+              is_new_unit: false,
+              residence_type: isPlaceholderResidenceType(rawResidence) ? "" : rawResidence,
+              utilityFile: null,
+            })),
+          );
+        } else {
+          const seedUnit =
+            otherApproved && invitedParam === "1"
+              ? ""
+              : isPlaceholderUnitNumber(fields.unitNumber)
+                ? ""
+                : (fields.unitNumber ?? "");
+          setUnitEntries([
+            {
+              key: "unit-1",
+              unit_number: seedUnit,
+              locked: false,
+              is_new_unit: !seedUnit,
+              residence_type: isPlaceholderResidenceType(rawResidence) ? "" : rawResidence,
+              utilityFile: null,
+            },
+          ]);
+        }
       } catch (err) {
         if (!cancelled && isEditMode) {
           await showApiFailure(dialog, t("onboarding.couldNotLoadProfile"), err);
@@ -563,7 +653,7 @@ export default function CompleteProfile() {
     return () => {
       cancelled = true;
     };
-  }, [isEditMode, router, dialog, role, invitedParam, isAdminClaim, isCommunityRequest]);
+  }, [isEditMode, router, dialog, role, invitedParam, isAdminClaim, isCommunityRequest, resolvedCommunityId, communityId]);
 
   useEffect(() => {
     if (name && isPlaceholderDisplayName(name)) {
@@ -571,27 +661,93 @@ export default function CompleteProfile() {
     }
   }, [name]);
 
-  const liveErrors = useMemo(
-    () =>
-      validateCompleteProfileForm({
-        name,
-        email,
-        phoneDigits,
-        phoneCountry,
-        bio,
-        unitNumber: unitLocked ? assignedUnitNumber : unitNumber,
-        residenceType,
-        officeAddress,
-        utilityFile: selectedFile ?? (existingUtilityBillUrl ? { uri: existingUtilityBillUrl } : null),
-        requireUtilityFile: showUtilityBill && !existingUtilityBillUrl,
-        requireResidenceType: showResidenceType,
-        requireUnitNumber: showUnitNumber,
-        requireOfficeAddress: showOfficeAddress,
-        guestMode: isGuestProfile,
-        communityAdmin: isCommunityAdminProfile,
-      }),
-    [name, email, phoneDigits, phoneCountry, bio, unitNumber, unitLocked, assignedUnitNumber, residenceType, officeAddress, selectedFile, existingUtilityBillUrl, isGuestProfile, showUtilityBill, showResidenceType, showUnitNumber, showOfficeAddress, isCommunityAdminProfile],
-  );
+  const multiUnitFieldErrors = useMemo(() => {
+    if (!useMultiUnitOnboarding) return {};
+    const errors = {};
+    const seen = new Set();
+    unitEntries.forEach((entry, index) => {
+      const prefix = `unit_${index}`;
+      const number = String(entry.unit_number ?? "").trim();
+      if (!number) {
+        errors[`${prefix}_number`] = t("validation.required", {
+          field: t("validation.fields.unitNumber"),
+        });
+      } else if (number.length > unitMax) {
+        errors[`${prefix}_number`] = t("validation.maxChars", {
+          field: t("validation.fields.unitNumber"),
+          max: unitMax,
+        });
+      } else {
+        const key = number.toLowerCase();
+        if (seen.has(key)) {
+          errors[`${prefix}_number`] = t("onboarding.duplicateUnit");
+        }
+        seen.add(key);
+      }
+      if (!entry.residence_type) {
+        errors[`${prefix}_residence`] = t("validation.required", {
+          field: t("onboarding.iAmA"),
+        });
+      }
+      if (!entry.utilityFile?.uri) {
+        errors[`${prefix}_utility`] = t("validation.utilityRequired");
+      }
+    });
+    return errors;
+  }, [useMultiUnitOnboarding, unitEntries, unitMax, t]);
+
+  const liveErrors = useMemo(() => {
+    const base = validateCompleteProfileForm({
+      name,
+      email,
+      phoneDigits,
+      phoneCountry,
+      bio,
+      unitNumber: useMultiUnitOnboarding
+        ? (unitEntries[0]?.unit_number || "")
+        : unitLocked
+          ? assignedUnitNumber
+          : unitNumber,
+      residenceType: useMultiUnitOnboarding
+        ? (unitEntries[0]?.residence_type || "")
+        : residenceType,
+      officeAddress,
+      utilityFile: useMultiUnitOnboarding
+        ? (unitEntries[0]?.utilityFile ?? null)
+        : selectedFile ?? (existingUtilityBillUrl ? { uri: existingUtilityBillUrl } : null),
+      requireUtilityFile: useMultiUnitOnboarding
+        ? false
+        : showUtilityBill && !existingUtilityBillUrl,
+      requireResidenceType: useMultiUnitOnboarding ? false : showResidenceType,
+      requireUnitNumber: useMultiUnitOnboarding ? false : showUnitNumber,
+      requireOfficeAddress: showOfficeAddress,
+      guestMode: isGuestProfile,
+      communityAdmin: isCommunityAdminProfile,
+    });
+    return { ...base, ...multiUnitFieldErrors };
+  }, [
+    name,
+    email,
+    phoneDigits,
+    phoneCountry,
+    bio,
+    unitNumber,
+    unitLocked,
+    assignedUnitNumber,
+    residenceType,
+    officeAddress,
+    selectedFile,
+    existingUtilityBillUrl,
+    isGuestProfile,
+    showUtilityBill,
+    showResidenceType,
+    showUnitNumber,
+    showOfficeAddress,
+    isCommunityAdminProfile,
+    useMultiUnitOnboarding,
+    unitEntries,
+    multiUnitFieldErrors,
+  ]);
 
   const isValid = useMemo(() => {
     if (hasFieldErrors(liveErrors)) return false;
@@ -660,13 +816,39 @@ export default function CompleteProfile() {
   const submitProfile = () =>
     run(async () => {
       try {
-        const isLocalUpload =
-          showUtilityBill &&
-          selectedFile?.uri &&
-          !/^https?:\/\//i.test(selectedFile.uri);
+        const primaryEntry = useMultiUnitOnboarding ? unitEntries[0] : null;
+        const primaryUnitNumber = useMultiUnitOnboarding
+          ? String(primaryEntry?.unit_number ?? "").trim()
+          : (unitLocked ? assignedUnitNumber : unitNumber).trim();
+        const primaryResidence = useMultiUnitOnboarding
+          ? String(primaryEntry?.residence_type ?? "").trim()
+          : residenceType;
 
-        if (isLocalUpload) {
-          await uploadUtilityBill(selectedFile.uri, selectedFile);
+        let uploadedEntries = unitEntries;
+        if (useMultiUnitOnboarding) {
+          // Upload proofs per unit first; reuse utility-bill endpoint for storage URLs.
+          uploadedEntries = [];
+          for (const entry of unitEntries) {
+            const next = { ...entry, utilityFile: entry.utilityFile };
+            if (next.utilityFile?.uri && !/^https?:\/\//i.test(next.utilityFile.uri)) {
+              const uploaded = await uploadUtilityBill(next.utilityFile.uri, next.utilityFile);
+              next.utilityFile = {
+                ...next.utilityFile,
+                uri: uploaded?.data?.utility_bill_url || next.utilityFile.uri,
+              };
+            }
+            uploadedEntries.push(next);
+          }
+          setUnitEntries(uploadedEntries);
+        } else {
+          const isLocalUpload =
+            showUtilityBill &&
+            selectedFile?.uri &&
+            !/^https?:\/\//i.test(selectedFile.uri);
+
+          if (isLocalUpload) {
+            await uploadUtilityBill(selectedFile.uri, selectedFile);
+          }
         }
 
         const profileResult = await updateProfile({
@@ -676,12 +858,12 @@ export default function CompleteProfile() {
           bio: bio.trim(),
           ...(showOfficeAddress
             ? { office_address: officeAddress.trim() }
-            : isEditMode
+            : isEditMode || hasOtherApprovedMembership
               ? {}
-              : { unit_number: (unitLocked ? assignedUnitNumber : unitNumber).trim() }),
-          ...(showResidenceType
+              : { unit_number: primaryUnitNumber }),
+          ...(showResidenceType || useMultiUnitOnboarding
             ? {
-                residence_type: residenceType,
+                residence_type: primaryResidence,
                 ...(regionId ? { region_id: Number(regionId) } : {}),
               }
             : {
@@ -772,6 +954,48 @@ export default function CompleteProfile() {
             user = await fetchMe();
           } catch {
             // Session already updated by joinCommunity when possible.
+          }
+        }
+
+        if (useMultiUnitOnboarding && communityId) {
+          let existingNormalized = new Set();
+          try {
+            const catalog = await fetchCommunityUnits(Number(communityId));
+            existingNormalized = new Set(
+              (catalog ?? []).map((row) =>
+                String(row.unit_number ?? "")
+                  .trim()
+                  .replace(/\s+/g, " ")
+                  .toLowerCase(),
+              ),
+            );
+          } catch {
+            existingNormalized = new Set();
+          }
+
+          const payloadUnits = uploadedEntries.map((entry) => {
+            const residence = entry.residence_type;
+            const utilityUrl = entry.utilityFile?.uri;
+            const number = String(entry.unit_number ?? "").trim();
+            const normalized = number.replace(/\s+/g, " ").toLowerCase();
+            const isNew = entry.locked
+              ? false
+              : !existingNormalized.has(normalized);
+            return {
+              unit_number: number,
+              is_new_unit: isNew,
+              residence_type: residence,
+              utility_bill_url: utilityUrl,
+            };
+          });
+          await completeOnboardingUnits({
+            communityId: resolvedCommunityId || Number(communityId),
+            units: payloadUnits,
+          });
+          try {
+            user = await fetchMe();
+          } catch {
+            // Keep prior user if refresh fails.
           }
         }
 
@@ -872,7 +1096,11 @@ export default function CompleteProfile() {
             goToPendingFamily(router, { role });
             return;
           }
-          finishOnboarding(router, { role, user: savedUser });
+          finishOnboarding(router, {
+            role,
+            user: savedUser,
+            returnTo: returnTo ? String(returnTo) : undefined,
+          });
         }}
       />
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]} importantForAutofill="no">
@@ -1153,7 +1381,54 @@ export default function CompleteProfile() {
             </View>
             ) : null}
 
-            {showUnitNumber ? (
+            {useMultiUnitOnboarding ? (
+            <View ref={unitFieldRef} collapsable={false} style={styles.fieldGroup}>
+              <UnitEntriesSection
+                entries={unitEntries}
+                onChange={(next) => {
+                  setUnitEntries(next);
+                  const first = next[0];
+                  if (first) {
+                    setUnitNumber(first.unit_number || "");
+                    setResidenceType(first.residence_type || "");
+                  }
+                  clearError("unitNumber");
+                  clearError("residenceType");
+                  clearError("utilityFile");
+                }}
+                canAdd
+                canRemove
+                hint={
+                  isInvitedProfile
+                    ? t("onboarding.yourUnitsInvitedHint")
+                    : t("onboarding.yourUnitsHint")
+                }
+                unitMax={unitMax}
+                errors={liveErrors}
+                dialog={dialog}
+                loadUnits={
+                  resolvedCommunityId
+                    ? async () => {
+                        const rows = await fetchCommunityUnits(resolvedCommunityId);
+                        return (rows ?? []).map((unit) => ({
+                          id: unit.id,
+                          unit_number: unit.unit_number,
+                          resident_count: unit.resident_count ?? 0,
+                        }));
+                      }
+                    : async () => []
+                }
+                createUnit={
+                  // Defer DB create to onboarding submit so new units still claim billing contact.
+                  async (num) => ({
+                    id: `local-${Date.now()}`,
+                    unit_number: num,
+                    resident_count: 0,
+                  })
+                }
+              />
+            </View>
+            ) : showUnitNumber ? (
             <View ref={unitFieldRef} collapsable={false} style={styles.fieldGroup}>
               <UnitPickerField
                 label={
@@ -1413,7 +1688,7 @@ export default function CompleteProfile() {
               </View>
             ) : null}
 
-          {showResidenceType ? (
+          {!useMultiUnitOnboarding && showResidenceType ? (
           <View style={styles.fieldGroup}>
             <Text style={styles.inputText}>
               {t("onboarding.iAmA")} <Text style={styles.requiredMark}>*</Text>
@@ -1470,7 +1745,7 @@ export default function CompleteProfile() {
           </View>
           ) : null}
 
-          {showUtilityBill ? (
+          {!useMultiUnitOnboarding && showUtilityBill ? (
           <View style={styles.fieldGroup}>
             <Text style={utilityUploadLabelStyle}>
               {utilityUploadLabel(t, i18n.language)}{" "}

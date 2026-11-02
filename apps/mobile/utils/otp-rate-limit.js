@@ -11,13 +11,23 @@ export function normalizeOtpRateLimit(raw) {
     };
   }
 
+  const lockTypeRaw = raw.lock_type ?? raw.lockType;
   const lockType =
-    raw.lock_type === "security" || raw.lock_type === "resend_limit" ? raw.lock_type : null;
+    lockTypeRaw === "security" || lockTypeRaw === "resend_limit" ? lockTypeRaw : null;
 
   return {
     locked: Boolean(raw.locked),
     lockType,
-    retryAfterSeconds: Math.max(0, Number(raw.retry_after_seconds ?? raw.resend_cooldown_seconds ?? 0)),
+    retryAfterSeconds: Math.max(
+      0,
+      Number(
+        raw.retry_after_seconds ??
+          raw.retryAfterSeconds ??
+          raw.resend_cooldown_seconds ??
+          raw.resendCooldownSeconds ??
+          0,
+      ),
+    ),
     resendsRemaining:
       raw.resends_remaining === undefined || raw.resends_remaining === null
         ? null

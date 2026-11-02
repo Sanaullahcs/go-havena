@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\BlocksGuestWrites;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
 use App\Services\NotificationService;
+use App\Services\UserActingContextService;
 use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use Illuminate\Http\Request;
@@ -75,9 +76,25 @@ class ListingController extends Controller
             $savedIds = DB::table('listing_saves')->where('user_id', $user->id)->pluck('listing_id')->toArray();
         }
 
-        $items = collect($listings->items())->map(function ($l) use ($savedIds, $request) {
+        $rawItems = collect($listings->items());
+        $sellerUnitsMap = app(\App\Services\UnitAssignmentService::class)->unitsBriefMapForUsers(
+            (int) $communityId,
+            $rawItems->pluck('user_id')->map(fn ($id) => (int) $id)->all(),
+        );
+
+        $items = $rawItems->map(function ($l) use ($savedIds, $request, $sellerUnitsMap) {
             $l->is_saved = in_array($l->id, $savedIds);
             $l->images   = $this->formatImages($l->images, $request);
+            $unitNumbers = array_values(array_map(
+                static fn (array $u) => (string) $u['unit_number'],
+                $sellerUnitsMap[(int) $l->user_id] ?? [],
+            ));
+            if ($unitNumbers === [] && ! empty($l->seller_unit)) {
+                $unitNumbers = [(string) $l->seller_unit];
+            }
+            $l->seller_unit = $unitNumbers[0] ?? $l->seller_unit;
+            $l->seller_units = $unitNumbers;
+
             return $l;
         });
 
@@ -169,6 +186,19 @@ class ListingController extends Controller
         $listing->can_report = $user && ! $isOwner
             ? UserBlockService::canBlock((int) $user->id, (int) $listing->user_id, (int) $listing->community_id)
             : false;
+
+        $sellerUnitNumbers = array_values(array_map(
+            static fn (array $u) => (string) $u['unit_number'],
+            app(\App\Services\UnitAssignmentService::class)->unitsBriefMapForUsers(
+                (int) $listing->community_id,
+                [(int) $listing->user_id],
+            )[(int) $listing->user_id] ?? [],
+        ));
+        if ($sellerUnitNumbers === [] && ! empty($listing->seller_unit)) {
+            $sellerUnitNumbers = [(string) $listing->seller_unit];
+        }
+        $listing->seller_unit = $sellerUnitNumbers[0] ?? $listing->seller_unit;
+        $listing->seller_units = $sellerUnitNumbers;
 
         return response()->json(['data' => $listing]);
     }
@@ -651,15 +681,10 @@ class ListingController extends Controller
         }
 
         if ($user) {
-            $membership = DB::table('community_memberships')
-                ->where('user_id', $user->id)
-                ->where('status', 'approved')
-                ->orderBy('id')
-                ->first();
-
-            if ($membership) {
-                return (int) $membership->community_id;
-            }
+            return UserActingContextService::requireCurrentCommunityId(
+                $user,
+                'No community is assigned to your account.',
+            );
         }
 
         abort(422, 'No community is assigned to your account.');

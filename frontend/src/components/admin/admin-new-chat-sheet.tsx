@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { UserAvatar } from "@/components/admin/user-avatar";
+import { MemberUnitsLabel } from "@/components/admin/member-units-label";
 import { fetchMessageableMembers, type CommunityMember } from "@/lib/api/messages";
 import { apiError } from "@/lib/api/client";
 
@@ -114,9 +115,13 @@ export function AdminNewChatSheet({ open, onClose, onSelect }: Props) {
                 <UserAvatar name={member.name} src={member.avatar_url} size={36} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-slate-900">{member.name}</span>
-                  {member.unit ? (
-                    <span className="block truncate text-xs text-slate-500">Unit {member.unit}</span>
-                  ) : null}
+                  <MemberUnitsLabel
+                    units={member.units}
+                    unit={member.unit}
+                    variant="inline"
+                    empty={null}
+                    className="block truncate text-xs text-slate-500"
+                  />
                 </span>
               </button>
             ))

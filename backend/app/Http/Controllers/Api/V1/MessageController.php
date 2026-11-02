@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AdminRoleService;
 use App\Services\NotificationService;
+use App\Services\UserActingContextService;
 use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
@@ -426,23 +427,49 @@ class MessageController extends Controller
 
         if ($request->filled('search')) {
             $term = '%'.$request->search.'%';
-            $query->where(function ($q) use ($term) {
+            $query->where(function ($q) use ($term, $communityId) {
                 $q->where('u.name', 'like', $term)
                     ->orWhere('p.display_name', 'like', $term)
-                    ->orWhere('p.unit_number', 'like', $term);
+                    ->orWhere('p.unit_number', 'like', $term)
+                    ->orWhereExists(function ($sub) use ($term, $communityId) {
+                        $sub->select(DB::raw(1))
+                            ->from('unit_residents as ur')
+                            ->join('units', 'units.id', '=', 'ur.unit_id')
+                            ->whereColumn('ur.user_id', 'u.id')
+                            ->where('ur.community_id', $communityId)
+                            ->whereIn('ur.status', ['active', 'pending'])
+                            ->where('units.unit_number', 'like', $term);
+                    });
             });
         }
 
-        $members = $query
+        $rows = $query
             ->limit(min((int) ($request->limit ?? 50), 100))
-            ->get()
-            ->map(fn ($row) => [
-                'id'         => (int) $row->id,
+            ->get();
+
+        $unitsMap = app(\App\Services\UnitAssignmentService::class)
+            ->unitsBriefMapForUsers(
+                (int) $communityId,
+                $rows->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            );
+
+        $members = $rows->map(function ($row) use ($request, $unitsMap) {
+            $uid = (int) $row->id;
+            $units = $unitsMap[$uid] ?? [];
+            $unitNumbers = array_values(array_map(
+                static fn (array $u) => (string) $u['unit_number'],
+                $units,
+            ));
+
+            return [
+                'id'         => $uid,
                 'name'       => $row->display_name ?: $row->name,
                 'avatar_url' => MediaUrl::toPublic($row->avatar_url, $request),
-                'unit'       => $row->unit_number,
+                'unit'       => $unitNumbers[0] ?? $row->unit_number,
+                'units'      => $unitNumbers,
                 'role'       => $row->role,
-            ]);
+            ];
+        });
 
         return response()->json(['data' => $members]);
     }
@@ -755,17 +782,12 @@ class MessageController extends Controller
             }
         }
 
-        return $user->memberships()
-            ->where('status', 'approved')
-            ->whereIn('role', ['admin', 'moderator'])
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->value('community_id')
-            ?? $user->memberships()
-                ->where('status', 'approved')
-                ->orderByDesc('updated_at')
-                ->orderByDesc('id')
-                ->value('community_id');
+        $current = UserActingContextService::currentCommunityId($user);
+        if ($current && in_array($current, $approvedIds, true)) {
+            return $current;
+        }
+
+        return $approvedIds[0] ?? null;
     }
 
     /** @return list<int> */

@@ -21,6 +21,7 @@ import {
 import { useLocationScope } from "../providers/location-scope-provider";
 import { fetchMe } from "../services/auth-api";
 import { getCachedUser, subscribeSessionUser } from "../services/auth-session";
+import { currentCommunityId } from "../services/community-access";
 
 export function useHomeScreen() {
   const { revision } = useLocationScope();
@@ -134,13 +135,23 @@ export function useHomeScreen() {
 
   useEffect(() => {
     let signature = JSON.stringify(getCachedUser()?.resident_features?.features ?? null);
+    let communityId = Number(currentCommunityId(getCachedUser()) || 0);
     return subscribeSessionUser((user) => {
+      const nextCommunityId = Number(currentCommunityId(user) || 0);
       const next = JSON.stringify(user?.resident_features?.features ?? null);
-      if (signature === next) return;
+      const communityChanged = communityId !== nextCommunityId;
+      const featuresChanged = signature !== next;
+      if (!communityChanged && !featuresChanged) return;
+      communityId = nextCommunityId;
       signature = next;
+      if (communityChanged) {
+        clearHomeData();
+        load();
+        return;
+      }
       load({ silent: true });
     });
-  }, [load]);
+  }, [clearHomeData, load]);
 
   useEffect(() => {
     return subscribeWellnessHub((hub) => {

@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\BlocksGuestReads;
 use App\Http\Controllers\Controller;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
+use App\Services\UserActingContextService;
 use App\Support\DealMenu;
 use App\Support\MediaUrl;
 use App\Support\NearbyDiscovery;
@@ -762,15 +763,10 @@ class DealController extends Controller
         }
 
         if ($user) {
-            $membership = DB::table('community_memberships')
-                ->where('user_id', $user->id)
-                ->where('status', 'approved')
-                ->orderBy('id')
-                ->first();
-
-            if ($membership) {
-                return (int) $membership->community_id;
-            }
+            return UserActingContextService::requireCurrentCommunityId(
+                $user,
+                'No community is assigned to your account.',
+            );
         }
 
         abort(422, 'No community is assigned to your account.');

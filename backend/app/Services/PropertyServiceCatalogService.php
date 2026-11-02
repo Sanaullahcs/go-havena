@@ -113,7 +113,7 @@ class PropertyServiceCatalogService
         })->all();
     }
 
-    public function listResidentCatalog(int $communityId, ?object $viewerUnit): array
+    public function listResidentCatalog(int $communityId, ?object $viewerUnit, array $billingUnits = []): array
     {
         $rows = DB::table('property_services')
             ->where('community_id', $communityId)
@@ -121,7 +121,97 @@ class PropertyServiceCatalogService
             ->orderBy('name')
             ->get();
 
-        return $rows->map(fn ($row) => $this->format($row, false, $viewerUnit))->all();
+        $units = ! empty($billingUnits)
+            ? $billingUnits
+            : ($viewerUnit ? [$viewerUnit] : []);
+
+        return $rows->map(function ($row) use ($viewerUnit, $units) {
+            $payload = $this->format($row, false, $viewerUnit);
+            if (count($units) > 0) {
+                $payload = $this->attachBillingUnitOptions($payload, $row, $units);
+            }
+
+            return $payload;
+        })->all();
+    }
+
+    /**
+     * Per billing-contact unit options so residents can subscribe/unsubscribe
+     * for one or many of their units from the available-services screen.
+     */
+    private function attachBillingUnitOptions(array $payload, object $service, array $units): array
+    {
+        $options = [];
+        $anyActive = false;
+        $anyPending = false;
+        $canSubscribe = false;
+        $canUnsubscribe = false;
+
+        foreach ($units as $unit) {
+            $subscription = DB::table('unit_service_subscriptions')
+                ->where('service_id', $service->id)
+                ->where('unit_id', $unit->id)
+                ->first();
+            $status = $subscription && in_array($subscription->status, ['active', 'pending'], true)
+                ? (string) $subscription->status
+                : null;
+            $unitCanSubscribe = $service->application_type === self::TYPE_OPTIONAL
+                && $service->status === self::STATUS_ACTIVE
+                && (int) ($unit->billing_contact_user_id ?? 0) > 0
+                && (! $subscription || in_array($subscription->status, ['rejected', 'cancelled'], true));
+            $unitCanUnsubscribe = $service->application_type === self::TYPE_OPTIONAL
+                && (int) ($unit->billing_contact_user_id ?? 0) > 0
+                && ($subscription->status ?? null) === 'active';
+
+            if ($status === 'active') {
+                $anyActive = true;
+            }
+            if ($status === 'pending') {
+                $anyPending = true;
+            }
+            if ($unitCanSubscribe) {
+                $canSubscribe = true;
+            }
+            if ($unitCanUnsubscribe) {
+                $canUnsubscribe = true;
+            }
+
+            $options[] = [
+                'unit_id' => (int) $unit->id,
+                'unit_number' => (string) ($unit->unit_number ?? ''),
+                'status' => $status,
+                'can_subscribe' => $unitCanSubscribe,
+                'can_unsubscribe' => $unitCanUnsubscribe,
+            ];
+        }
+
+        $payload['unit_options'] = $options;
+        $payload['can_subscribe'] = $canSubscribe;
+        $payload['can_unsubscribe'] = $canUnsubscribe;
+
+        if ($anyPending) {
+            $payload['unit_subscription'] = [
+                'id' => null,
+                'status' => 'pending',
+                'starts_at' => null,
+                'ends_at' => null,
+                'note' => null,
+                'rejection_reason' => null,
+            ];
+        } elseif ($anyActive) {
+            $payload['unit_subscription'] = [
+                'id' => null,
+                'status' => 'active',
+                'starts_at' => null,
+                'ends_at' => null,
+                'note' => null,
+                'rejection_reason' => null,
+            ];
+        } elseif (count($options) > 1) {
+            $payload['unit_subscription'] = null;
+        }
+
+        return $payload;
     }
 
     public function findInCommunity(int $communityId, int $id): ?object

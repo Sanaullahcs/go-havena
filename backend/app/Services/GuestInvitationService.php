@@ -570,12 +570,9 @@ class GuestInvitationService
                 'name'         => $invitation->invitedBy->name,
                 'display_name' => $invitation->invitedBy->profile?->display_name,
             ] : null,
-            'resident'         => $invitation->invitation_type === 'resident' && $invitation->invitedBy ? [
-                'id'           => $invitation->invitedBy->id,
-                'name'         => $invitation->invitedBy->name,
-                'display_name' => $invitation->invitedBy->profile?->display_name,
-                'unit_number'  => $invitation->invitedBy->profile?->unit_number,
-            ] : null,
+            'resident'         => $invitation->invitation_type === 'resident' && $invitation->invitedBy
+                ? self::formatResidentIdentity($invitation->invitedBy, (int) $invitation->community_id)
+                : null,
             'guest_avatar_url' => self::resolveMediaUrl($invitation->guestUser?->profile?->avatar_url),
         ];
 
@@ -584,6 +581,35 @@ class GuestInvitationService
         }
 
         return $data;
+    }
+
+    /**
+     * @return array{id: int, name: string, display_name: ?string, unit_number: ?string, units: list<string>}
+     */
+    private static function formatResidentIdentity(\App\Models\User $user, int $communityId): array
+    {
+        $units = [];
+        if ($communityId > 0) {
+            $units = array_values(array_map(
+                static fn (array $row) => (string) $row['unit_number'],
+                app(\App\Services\UnitAssignmentService::class)->unitsBriefMapForUsers(
+                    $communityId,
+                    [(int) $user->id],
+                )[(int) $user->id] ?? [],
+            ));
+        }
+
+        if ($units === [] && $user->profile?->unit_number) {
+            $units = [(string) $user->profile->unit_number];
+        }
+
+        return [
+            'id' => (int) $user->id,
+            'name' => (string) $user->name,
+            'display_name' => $user->profile?->display_name,
+            'unit_number' => $units[0] ?? null,
+            'units' => $units,
+        ];
     }
 
     private static function resolveMediaUrl(?string $url): ?string

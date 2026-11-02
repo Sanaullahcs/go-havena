@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { CalendarCheck2, Check, Clock3, Receipt, X } from "lucide-react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { BookingInfoModal } from "@/components/admin/booking-info-modal";
+import { MemberUnitsLabel } from "@/components/admin/member-units-label";
 import {
   AdminBadge,
   DataTable,
@@ -428,7 +429,13 @@ export default function AdminBookingsPage() {
                     </DtCell>
                     <DtCell>
                       <p className="font-medium text-slate-900">{booking.user_name || "Resident"}</p>
-                      <p className="text-xs text-slate-500">{booking.user_unit || "—"}</p>
+                      <p className="text-xs text-slate-500">
+                        <MemberUnitsLabel
+                          userUnits={booking.user_units}
+                          userUnit={booking.user_unit}
+                          empty="—"
+                        />
+                      </p>
                     </DtCell>
                     <DtCell>{booking.date}</DtCell>
                     <DtCell>{booking.time_slot || "Open access"}</DtCell>

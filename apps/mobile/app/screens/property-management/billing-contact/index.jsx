@@ -20,27 +20,47 @@ import { showApiFailure } from "../../../../utils/auth-errors";
 import {
   acceptBillingContactTransfer,
   cancelBillingContactTransfer,
-  fetchMyUnit,
+  fetchMyUnits,
   rejectBillingContactTransfer,
   requestBillingContactTransfer,
+  viewerIsBillingContact,
 } from "../../../../services/property-services-api";
+import { getUser } from "../../../../services/auth-session";
 
 export default function BillingContactScreen() {
   const { t } = useTranslation();
   const { runAction } = useApiAction();
-  const [unit, setUnit] = useState(null);
+  const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedByUnit, setSelectedByUnit] = useState({});
   const [busy, setBusy] = useState("");
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const next = await fetchMyUnit();
-      setUnit(next);
-      const outgoingNominee = next?.outgoing_transfer?.nominee?.id;
-      setSelectedId((current) => current ?? outgoingNominee ?? null);
+      const [payload, user] = await Promise.all([
+        fetchMyUnits(),
+        getUser(),
+      ]);
+      const active = (payload.units || []).filter(
+        (row) => (row.association_status || "active") === "active",
+      );
+      setUnits(active);
+      setSelectedByUnit((current) => {
+        const next = { ...current };
+        for (const unit of active) {
+          const key = String(unit.id);
+          if (next[key] == null && unit.outgoing_transfer?.nominee?.id) {
+            next[key] = unit.outgoing_transfer.nominee.id;
+          }
+          if (next[key] == null && viewerIsBillingContact(unit, user?.id)) {
+            const firstNominee = (unit.residents || []).find((r) => !r.is_billing_contact);
+            if (firstNominee?.id) next[key] = firstNominee.id;
+          }
+        }
+        return next;
+      });
     } catch (error) {
       showApiFailure(error, { title: t("services.billingContact.loadFailed") });
     } finally {
@@ -50,16 +70,6 @@ export default function BillingContactScreen() {
   }, [t]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
-
-  const residents = unit?.residents ?? [];
-  const nominees = useMemo(
-    () => residents.filter((resident) => !resident.is_billing_contact),
-    [residents],
-  );
-  const incoming = unit?.incoming_transfer;
-  const outgoing = unit?.outgoing_transfer;
-  const isContact = Boolean(unit?.is_billing_contact);
-  const contactName = unit?.billing_contact?.name || t("services.billingContact.noContact");
 
   async function withBusy(key, action) {
     setBusy(key);
@@ -71,9 +81,16 @@ export default function BillingContactScreen() {
     }
   }
 
-  const headerSubtitle = unit?.unit_number
-    ? t("services.billingContact.unitLabel", { number: unit.unit_number })
-    : undefined;
+  const headerSubtitle = useMemo(() => {
+    if (units.length === 0) return undefined;
+    if (units.length === 1) {
+      return t("services.billingContact.unitLabel", { number: units[0].unit_number });
+    }
+    return t("services.billingContact.unitsCount", {
+      count: units.length,
+      defaultValue: "{{count}} units",
+    });
+  }, [t, units]);
 
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
@@ -81,7 +98,7 @@ export default function BillingContactScreen() {
         title={t("services.billingContactTitle")}
         subtitle={headerSubtitle}
       />
-      {loading && !unit ? (
+      {loading && units.length === 0 ? (
         <View style={styles.centered}>
           <ActivityIndicator color="#0F766E" />
         </View>
@@ -97,168 +114,223 @@ export default function BillingContactScreen() {
             />
           }
         >
-          {!unit ? (
+          {units.length === 0 ? (
             <Text style={styles.hint}>{t("services.billingContact.emptyUnit")}</Text>
           ) : (
-            <>
-              <View style={styles.heroCard}>
-                <View style={styles.heroIcon}>
-                  <Feather name="user-check" size={sf(20)} color="#0F766E" />
-                </View>
-                <View style={styles.heroBody}>
-                  <Text style={styles.eyebrow}>{t("services.billingContact.currentTitle")}</Text>
-                  <Text style={styles.heroName}>{contactName}</Text>
-                  <Text style={styles.body}>
-                    {isContact
-                      ? t("services.billingContact.youAreContact")
-                      : unit.billing_contact
-                        ? t("services.billingContact.someoneElseContact", { name: contactName })
-                        : t("services.billingContact.noContact")}
-                  </Text>
-                </View>
-              </View>
-
-              {incoming ? (
-                <View style={[styles.card, styles.incomingCard]}>
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{t("services.billingContact.pending")}</Text>
-                  </View>
-                  <Text style={styles.title}>{t("services.billingContact.incomingTitle")}</Text>
-                  <Text style={styles.body}>
-                    {t("services.billingContact.incomingBody", {
-                      name: incoming.requested_by?.name || contactName,
-                      unit: incoming.unit_number || unit.unit_number,
-                    })}
-                  </Text>
-                  <View style={styles.actions}>
-                    <Pressable
-                      style={[styles.declineBtn, busy && styles.disabled]}
-                      disabled={Boolean(busy)}
-                      onPress={() => void withBusy("reject", () => runAction({
-                        action: () => rejectBillingContactTransfer(incoming.id),
-                        successTitle: t("services.billingContact.declinedTitle"),
-                        successMessage: t("services.billingContact.declinedMessage"),
-                      }))}
-                    >
-                      {busy === "reject" ? (
-                        <ActivityIndicator size="small" color="#B91C1C" />
-                      ) : (
-                        <>
-                          <Feather name="x" size={sf(15)} color="#B91C1C" />
-                          <Text style={styles.declineText}>{t("services.billingContact.decline")}</Text>
-                        </>
-                      )}
-                    </Pressable>
-                    <Pressable
-                      style={[styles.acceptBtn, busy && styles.disabled]}
-                      disabled={Boolean(busy)}
-                      onPress={() => void withBusy("accept", () => runAction({
-                        action: () => acceptBillingContactTransfer(incoming.id),
-                        successTitle: t("services.billingContact.acceptedTitle"),
-                        successMessage: t("services.billingContact.acceptedMessage"),
-                      }))}
-                    >
-                      {busy === "accept" ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <>
-                          <Feather name="check" size={sf(15)} color="#FFFFFF" />
-                          <Text style={styles.acceptText}>{t("services.billingContact.accept")}</Text>
-                        </>
-                      )}
-                    </Pressable>
-                  </View>
-                </View>
-              ) : null}
-
-              {isContact && outgoing ? (
-                <View style={styles.card}>
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{t("services.billingContact.pending")}</Text>
-                  </View>
-                  <Text style={styles.title}>{t("services.billingContact.outgoingTitle")}</Text>
-                  <Text style={styles.body}>
-                    {t("services.billingContact.outgoingBody", { name: outgoing.nominee?.name || "" })}
-                  </Text>
-                  <Pressable
-                    style={[styles.withdrawBtn, busy && styles.disabled]}
-                    disabled={Boolean(busy)}
-                    onPress={() => void withBusy("cancel", () => runAction({
-                      action: () => cancelBillingContactTransfer(outgoing.id),
-                      successTitle: t("services.billingContact.withdrawnTitle"),
-                      successMessage: t("services.billingContact.withdrawnMessage"),
-                    }))}
-                  >
-                    {busy === "cancel" ? (
-                      <ActivityIndicator size="small" color="#0F766E" />
-                    ) : (
-                      <Text style={styles.withdrawText}>{t("services.billingContact.withdraw")}</Text>
-                    )}
-                  </Pressable>
-                </View>
-              ) : null}
-
-              {isContact && !outgoing ? (
-                <View style={styles.card}>
-                  <Text style={styles.title}>{t("services.billingContact.chooseTitle")}</Text>
-                  <Text style={styles.body}>{t("services.billingContact.chooseHint")}</Text>
-                  {nominees.length === 0 ? (
-                    <Text style={styles.hint}>{t("services.billingContact.noOtherResidents")}</Text>
-                  ) : (
-                    nominees.map((resident) => {
-                      const selected = selectedId === resident.id;
-                      return (
-                        <Pressable
-                          key={resident.id}
-                          onPress={() => setSelectedId(resident.id)}
-                          style={[styles.residentRow, selected && styles.residentRowSelected]}
-                        >
-                          <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>{initials(resident.name)}</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.residentName}>{resident.name}</Text>
-                            {resident.email ? <Text style={styles.residentMeta}>{resident.email}</Text> : null}
-                          </View>
-                          {selected ? <Text style={styles.selectedLabel}>{t("services.billingContact.selected")}</Text> : null}
-                        </Pressable>
-                      );
-                    })
-                  )}
-                  {nominees.length > 0 ? (
-                    <Pressable
-                      style={[styles.sendBtn, (!selectedId || busy) && styles.disabled]}
-                      disabled={!selectedId || Boolean(busy)}
-                      onPress={() => {
-                        const nominee = nominees.find((item) => item.id === selectedId);
-                        return withBusy("send", () => runAction({
-                          action: () => requestBillingContactTransfer(selectedId),
-                          successTitle: t("services.billingContact.sentTitle"),
-                          successMessage: t("services.billingContact.sentMessage", { name: nominee?.name || "" }),
-                        }));
-                      }}
-                    >
-                      {busy === "send" ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text style={styles.sendText}>{t("services.billingContact.sendRequest")}</Text>
-                      )}
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : null}
-
-              {!isContact && !incoming ? (
-                <View style={styles.noteCard}>
-                  <Feather name="info" size={sf(14)} color="#0F766E" />
-                  <Text style={styles.noteText}>{t("services.billingContact.notContactHint")}</Text>
-                </View>
-              ) : null}
-            </>
+            units.map((unit) => (
+              <UnitBillingSection
+                key={unit.id}
+                unit={unit}
+                selectedId={selectedByUnit[String(unit.id)] ?? null}
+                onSelectNominee={(nomineeId) => {
+                  setSelectedByUnit((current) => ({
+                    ...current,
+                    [String(unit.id)]: nomineeId,
+                  }));
+                }}
+                busy={busy}
+                withBusy={withBusy}
+                runAction={runAction}
+                t={t}
+              />
+            ))
           )}
         </ScrollView>
       )}
     </SafeAreaView>
+  );
+}
+
+function UnitBillingSection({
+  unit,
+  selectedId,
+  onSelectNominee,
+  busy,
+  withBusy,
+  runAction,
+  t,
+}) {
+  const residents = unit?.residents ?? [];
+  const nominees = useMemo(
+    () => residents.filter((resident) => !resident.is_billing_contact),
+    [residents],
+  );
+  const incoming = unit?.incoming_transfer;
+  const outgoing = unit?.outgoing_transfer;
+  const isContact = Boolean(unit?.is_billing_contact);
+  const contactName = unit?.billing_contact?.name || t("services.billingContact.noContact");
+  const unitKey = String(unit.id);
+
+  return (
+    <View style={styles.unitBlock}>
+      <View style={styles.unitHeader}>
+        <View style={styles.unitIcon}>
+          <Feather name="home" size={sf(16)} color="#0F766E" />
+        </View>
+        <Text style={styles.unitTitle}>
+          {t("services.billingContact.unitLabel", { number: unit.unit_number })}
+        </Text>
+        {isContact ? (
+          <View style={styles.youBadge}>
+            <Text style={styles.youBadgeText}>{t("services.billingContact.youBadge", { defaultValue: "You" })}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.heroCard}>
+        <View style={styles.heroIcon}>
+          <Feather name="user-check" size={sf(20)} color="#0F766E" />
+        </View>
+        <View style={styles.heroBody}>
+          <Text style={styles.eyebrow}>{t("services.billingContact.currentTitle")}</Text>
+          <Text style={styles.heroName}>{contactName}</Text>
+          <Text style={styles.body}>
+            {isContact
+              ? t("services.billingContact.youAreContact")
+              : unit.billing_contact
+                ? t("services.billingContact.someoneElseContact", { name: contactName })
+                : t("services.billingContact.noContact")}
+          </Text>
+        </View>
+      </View>
+
+      {incoming ? (
+        <View style={[styles.card, styles.incomingCard]}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{t("services.billingContact.pending")}</Text>
+          </View>
+          <Text style={styles.title}>{t("services.billingContact.incomingTitle")}</Text>
+          <Text style={styles.body}>
+            {t("services.billingContact.incomingBody", {
+              name: incoming.requested_by?.name || contactName,
+              unit: incoming.unit_number || unit.unit_number,
+            })}
+          </Text>
+          <View style={styles.actions}>
+            <Pressable
+              style={[styles.declineBtn, busy && styles.disabled]}
+              disabled={Boolean(busy)}
+              onPress={() => void withBusy(`reject-${unitKey}`, () => runAction({
+                action: () => rejectBillingContactTransfer(incoming.id),
+                successTitle: t("services.billingContact.declinedTitle"),
+                successMessage: t("services.billingContact.declinedMessage"),
+              }))}
+            >
+              {busy === `reject-${unitKey}` ? (
+                <ActivityIndicator size="small" color="#B91C1C" />
+              ) : (
+                <>
+                  <Feather name="x" size={sf(15)} color="#B91C1C" />
+                  <Text style={styles.declineText}>{t("services.billingContact.decline")}</Text>
+                </>
+              )}
+            </Pressable>
+            <Pressable
+              style={[styles.acceptBtn, busy && styles.disabled]}
+              disabled={Boolean(busy)}
+              onPress={() => void withBusy(`accept-${unitKey}`, () => runAction({
+                action: () => acceptBillingContactTransfer(incoming.id),
+                successTitle: t("services.billingContact.acceptedTitle"),
+                successMessage: t("services.billingContact.acceptedMessage"),
+              }))}
+            >
+              {busy === `accept-${unitKey}` ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Feather name="check" size={sf(15)} color="#FFFFFF" />
+                  <Text style={styles.acceptText}>{t("services.billingContact.accept")}</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
+      {isContact && outgoing ? (
+        <View style={styles.card}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{t("services.billingContact.pending")}</Text>
+          </View>
+          <Text style={styles.title}>{t("services.billingContact.outgoingTitle")}</Text>
+          <Text style={styles.body}>
+            {t("services.billingContact.outgoingBody", { name: outgoing.nominee?.name || "" })}
+          </Text>
+          <Pressable
+            style={[styles.withdrawBtn, busy && styles.disabled]}
+            disabled={Boolean(busy)}
+            onPress={() => void withBusy(`cancel-${unitKey}`, () => runAction({
+              action: () => cancelBillingContactTransfer(outgoing.id),
+              successTitle: t("services.billingContact.withdrawnTitle"),
+              successMessage: t("services.billingContact.withdrawnMessage"),
+            }))}
+          >
+            {busy === `cancel-${unitKey}` ? (
+              <ActivityIndicator size="small" color="#0F766E" />
+            ) : (
+              <Text style={styles.withdrawText}>{t("services.billingContact.withdraw")}</Text>
+            )}
+          </Pressable>
+        </View>
+      ) : null}
+
+      {isContact && !outgoing ? (
+        <View style={styles.card}>
+          <Text style={styles.title}>{t("services.billingContact.chooseTitle")}</Text>
+          <Text style={styles.body}>{t("services.billingContact.chooseHint")}</Text>
+          {nominees.length === 0 ? (
+            <Text style={styles.hint}>{t("services.billingContact.noOtherResidents")}</Text>
+          ) : (
+            nominees.map((resident) => {
+              const selected = selectedId === resident.id;
+              return (
+                <Pressable
+                  key={resident.id}
+                  onPress={() => onSelectNominee(resident.id)}
+                  style={[styles.residentRow, selected && styles.residentRowSelected]}
+                >
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{initials(resident.name)}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.residentName}>{resident.name}</Text>
+                    {resident.email ? <Text style={styles.residentMeta}>{resident.email}</Text> : null}
+                  </View>
+                  {selected ? <Text style={styles.selectedLabel}>{t("services.billingContact.selected")}</Text> : null}
+                </Pressable>
+              );
+            })
+          )}
+          {nominees.length > 0 ? (
+            <Pressable
+              style={[styles.sendBtn, (!selectedId || busy) && styles.disabled]}
+              disabled={!selectedId || Boolean(busy)}
+              onPress={() => {
+                const nominee = nominees.find((item) => item.id === selectedId);
+                return withBusy(`send-${unitKey}`, () => runAction({
+                  action: () => requestBillingContactTransfer(selectedId, null, unit.id),
+                  successTitle: t("services.billingContact.sentTitle"),
+                  successMessage: t("services.billingContact.sentMessage", { name: nominee?.name || "" }),
+                }));
+              }}
+            >
+              {busy === `send-${unitKey}` ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.sendText}>{t("services.billingContact.sendRequest")}</Text>
+              )}
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {!isContact && !incoming ? (
+        <View style={styles.noteCard}>
+          <Feather name="info" size={sf(14)} color="#0F766E" />
+          <Text style={styles.noteText}>{t("services.billingContact.notContactHint")}</Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -278,7 +350,42 @@ const styles = {
     paddingHorizontal: sw(16),
     paddingTop: sw(8),
     paddingBottom: sw(32),
-    gap: sw(14),
+    gap: sw(18),
+  },
+  unitBlock: {
+    gap: sw(10),
+  },
+  unitHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(8),
+  },
+  unitIcon: {
+    width: sw(28),
+    height: sw(28),
+    borderRadius: sw(8),
+    backgroundColor: "#F0FDFA",
+    borderWidth: 1,
+    borderColor: "#99F6E4",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unitTitle: {
+    flex: 1,
+    fontFamily: Fonts.bold,
+    fontSize: sf(15),
+    color: "#0F172A",
+  },
+  youBadge: {
+    borderRadius: 999,
+    backgroundColor: "#CCFBF1",
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(3),
+  },
+  youBadgeText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(11),
+    color: "#0F766E",
   },
   heroCard: {
     flexDirection: "row",
@@ -476,7 +583,7 @@ const styles = {
     marginTop: sw(4),
     minHeight: sw(46),
     borderRadius: sw(12),
-    backgroundColor: "#0F172A",
+    backgroundColor: "#14B8A6",
     alignItems: "center",
     justifyContent: "center",
   },

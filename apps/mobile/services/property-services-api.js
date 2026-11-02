@@ -67,6 +67,37 @@ export async function fetchMyUnit() {
   return res.data ?? null;
 }
 
+/** Full multi-unit payload from GET /units/mine. */
+export async function fetchMyUnits() {
+  const res = await apiRequest("/units/mine");
+  const units = Array.isArray(res.units) ? res.units : res.data ? [res.data] : [];
+  return {
+    unit: res.data ?? units[0] ?? null,
+    units,
+    meta: res.meta ?? {},
+  };
+}
+
+export async function submitUnitRegistrationPackage({ kind, units }) {
+  const res = await apiRequest("/units/mine/registration-packages", {
+    method: "POST",
+    body: { kind, units },
+  });
+  return { data: res.data, message: res.message };
+}
+
+/** Complete-profile multi-unit + per-unit proofs (invite assign or initial package). */
+export async function completeOnboardingUnits({ units, communityId }) {
+  const res = await apiRequest("/units/mine/onboarding-units", {
+    method: "POST",
+    body: {
+      units,
+      ...(communityId ? { community_id: Number(communityId) } : {}),
+    },
+  });
+  return { data: res.data, message: res.message };
+}
+
 /** True when the signed-in resident is the unit's billing contact. */
 export function viewerIsBillingContact(unit, userId) {
   if (!unit) return false;
@@ -82,32 +113,83 @@ export function viewerIsBillingContact(unit, userId) {
   return contactId != null && Number(contactId) === viewerId;
 }
 
-export async function resolveViewerBillingAccess() {
-  const [unit, user] = await Promise.all([
-    fetchMyUnit().catch(() => null),
-    getUser(),
-  ]);
+const BILLING_ACCESS_TTL_MS = 60_000;
+let billingAccessCache = { value: null, at: 0, inflight: null };
 
-  return {
-    unit,
-    isBillingContact: viewerIsBillingContact(unit, user?.id),
-    contactName: unit?.billing_contact?.name || "",
-  };
+export function getCachedViewerBillingAccess() {
+  if (!billingAccessCache.value) return null;
+  if (Date.now() - billingAccessCache.at > BILLING_ACCESS_TTL_MS) return null;
+  return billingAccessCache.value;
 }
 
-export async function requestBillingContactTransfer(nomineeUserId, message) {
+export function invalidateViewerBillingAccessCache() {
+  billingAccessCache = { value: null, at: 0, inflight: null };
+}
+
+function rememberViewerBillingAccess(value) {
+  billingAccessCache = { value, at: Date.now(), inflight: null };
+  return value;
+}
+
+export async function resolveViewerBillingAccess({ force = false } = {}) {
+  if (!force) {
+    const cached = getCachedViewerBillingAccess();
+    if (cached) return cached;
+    if (billingAccessCache.inflight) return billingAccessCache.inflight;
+  }
+
+  const request = (async () => {
+    const [payload, user] = await Promise.all([
+      fetchMyUnits().catch(() => ({ unit: null, units: [], meta: {} })),
+      getUser(),
+    ]);
+
+    const active = (payload.units || []).filter(
+      (row) => (row.association_status || "active") === "active",
+    );
+    const billingUnits = active.filter((row) => viewerIsBillingContact(row, user?.id));
+    const unit = billingUnits[0] || payload.unit || active[0] || null;
+
+    return rememberViewerBillingAccess({
+      unit,
+      units: active,
+      billingUnits,
+      isBillingContact: billingUnits.length > 0,
+      contactName: unit?.billing_contact?.name || "",
+      meta: payload.meta || {},
+    });
+  })();
+
+  if (!force) {
+    billingAccessCache.inflight = request;
+    try {
+      return await request;
+    } finally {
+      if (billingAccessCache.inflight === request) {
+        billingAccessCache.inflight = null;
+      }
+    }
+  }
+
+  return request;
+}
+
+export async function requestBillingContactTransfer(nomineeUserId, message, unitId) {
   const res = await apiRequest("/units/mine/billing-contact-transfers", {
     method: "POST",
     body: {
       nominee_user_id: nomineeUserId,
+      ...(unitId ? { unit_id: unitId } : {}),
       ...(message ? { message } : {}),
     },
   });
+  invalidateViewerBillingAccessCache();
   return { data: res.data, message: res.message };
 }
 
 export async function acceptBillingContactTransfer(id) {
   const res = await apiRequest(`/billing-contact-transfers/${id}/accept`, { method: "PATCH" });
+  invalidateViewerBillingAccessCache();
   return { data: res.data, message: res.message };
 }
 
@@ -116,29 +198,41 @@ export async function rejectBillingContactTransfer(id, rejectionReason) {
     method: "PATCH",
     body: rejectionReason ? { rejection_reason: rejectionReason } : {},
   });
+  invalidateViewerBillingAccessCache();
   return { data: res.data, message: res.message };
 }
 
 export async function cancelBillingContactTransfer(id) {
   const res = await apiRequest(`/billing-contact-transfers/${id}/cancel`, { method: "PATCH" });
+  invalidateViewerBillingAccessCache();
   return { data: res.data, message: res.message };
 }
 
 export async function fetchPropertyServices() {
   const res = await apiRequest("/property-services");
-  return { services: res.data ?? [], unit: res.unit ?? null };
+  return {
+    services: res.data ?? [],
+    unit: res.unit ?? null,
+    units: Array.isArray(res.units) ? res.units : res.unit ? [res.unit] : [],
+  };
 }
 
-export async function subscribeToPropertyService(id, note) {
+export async function subscribeToPropertyService(id, note, unitId) {
   const res = await apiRequest(`/property-services/${id}/subscribe`, {
     method: "POST",
-    body: note ? { note } : {},
+    body: {
+      ...(note ? { note } : {}),
+      ...(unitId ? { unit_id: unitId } : {}),
+    },
   });
   return { data: res.data, message: res.message };
 }
 
-export async function unsubscribeFromPropertyService(id) {
-  const res = await apiRequest(`/property-services/${id}/unsubscribe`, { method: "POST" });
+export async function unsubscribeFromPropertyService(id, unitId) {
+  const res = await apiRequest(`/property-services/${id}/unsubscribe`, {
+    method: "POST",
+    body: unitId ? { unit_id: unitId } : {},
+  });
   return res.data;
 }
 

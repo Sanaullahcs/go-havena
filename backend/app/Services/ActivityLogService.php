@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ActivityLogService
@@ -540,6 +541,10 @@ class ActivityLogService
             return $entityId;
         }
 
+        if (! empty($meta['active_context_community_id'])) {
+            return (int) $meta['active_context_community_id'];
+        }
+
         if ($actor) {
             $scoped = AdminRoleService::resolveCommunityId($actor);
             if ($scoped) {
@@ -554,11 +559,25 @@ class ActivityLogService
 
         $membership = DB::table('community_memberships')
             ->where('user_id', $userId)
-            ->where('status', 'approved')
-            ->orderBy('id')
+            ->whereIn('status', ['approved', 'pending'])
+            ->orderByRaw("CASE WHEN status = 'approved' THEN 0 ELSE 1 END")
+            ->orderByDesc('id')
             ->first();
 
-        return $membership ? (int) $membership->community_id : null;
+        if ($membership) {
+            return (int) $membership->community_id;
+        }
+
+        $inviteCommunityId = DB::table('invite_codes')
+            ->where('invited_user_id', $userId)
+            ->when(
+                Schema::hasColumn('invite_codes', 'rejected_at'),
+                fn ($query) => $query->whereNull('rejected_at'),
+            )
+            ->orderByDesc('id')
+            ->value('community_id');
+
+        return $inviteCommunityId ? (int) $inviteCommunityId : null;
     }
 
     /**

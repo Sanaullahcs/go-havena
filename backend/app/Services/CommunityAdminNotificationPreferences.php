@@ -110,12 +110,16 @@ class CommunityAdminNotificationPreferences
                 'family_add_member_pending_admin',
                 'membership_request',
                 'new_member',
+                'unit_registration_request',
             ], true)
             || str_contains($url, '/admin/members')
             || str_contains($url, '/admin/residents')
+            || str_contains($url, '/admin/unit-requests')
             || str_contains($title, 'membership approval')
             || str_contains($title, 'family member approval')
             || str_contains($title, 'new member')
+            || str_contains($title, 'additional unit request')
+            || str_contains($title, 'unit registration pending')
         ) {
             return self::NEW_MEMBER;
         }

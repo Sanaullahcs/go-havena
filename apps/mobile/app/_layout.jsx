@@ -180,6 +180,14 @@ export default function RootLayout() {
           options={{ headerShown: false, contentStyle: styles.screen }}
         />
         <Stack.Screen
+          name="screens/my-units/index"
+          options={{ headerShown: false, contentStyle: styles.screen }}
+        />
+        <Stack.Screen
+          name="screens/my-community/index"
+          options={{ headerShown: false, contentStyle: styles.screen }}
+        />
+        <Stack.Screen
           name="screens/my-family/index"
           options={{ headerShown: false, contentStyle: styles.screen }}
         />
@@ -235,6 +243,13 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="screens/region/communities/index"
+          options={{
+            headerShown: false,
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
+          }}
+        />
+        <Stack.Screen
+          name="screens/join-community-units/index"
           options={{
             headerShown: false,
             contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },

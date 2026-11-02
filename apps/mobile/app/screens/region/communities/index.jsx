@@ -10,11 +10,16 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import BackButton from "../../../../components/ui/back-button";
 import { getCurrentRole } from "../../../../constants/role-session";
 import { saveRegionSelection, joinCommunity } from "../../../../services/auth-api";
+import { getUser } from "../../../../services/auth-session";
+import { canAccessDashboard, membershipForCommunity } from "../../../../services/community-access";
+import { fetchMe, switchActiveCommunity } from "../../../../services/profile-api";
+import { navigateAfterAuth } from "../../../../constants/onboarding-routes";
 import { ionChevronForward } from "../../../../utils/rtl";
 import { fetchCommunitiesInRegion } from "../../../../services/regions-api";
 import { getApiErrorMessage } from "../../../../utils/auth-errors";
-import { goToCompleteProfile } from "../../../../constants/onboarding-routes";
+import { goToCompleteProfile, goToJoinCommunityUnits } from "../../../../constants/onboarding-routes";
 import { useApiAction } from "../../../../hooks/use-api-action";
+import { useSessionUser } from "../../../../hooks/use-session-user";
 import ScreenStatusBar from "../../../../components/layout/screen-status-bar";
 import { HomeTheme as T } from "../../../../constants/home-theme";
 
@@ -42,6 +47,8 @@ export default function RegionCommunitiesScreen() {
     regionArea = "",
     regionState = "",
     role: roleParam,
+    joinAnother,
+    returnTo,
   } = useLocalSearchParams();
 
   const activeRole =
@@ -60,16 +67,26 @@ export default function RegionCommunitiesScreen() {
   const [error, setError] = useState(null);
   const [selectingId, setSelectingId] = useState(null);
   const hasLoadedOnce = useRef(false);
-  const { showFailure } = useApiAction();
+  const { showFailure, showSuccess } = useApiAction();
+  const sessionUser = useSessionUser();
+  const isJoinAnother = joinAnother === "1" || joinAnother === true;
 
   const handleBack = () => {
     if (router.canGoBack?.()) {
       router.back();
       return;
     }
+    if (isJoinAnother) {
+      router.replace(returnTo === "my-community" ? "/screens/my-community" : "/(tabs)/home");
+      return;
+    }
     router.replace({
       pathname: "/screens/region",
-      params: { role: activeRole },
+      params: {
+        role: activeRole,
+        ...(isJoinAnother ? { joinAnother: "1" } : {}),
+        ...(returnTo ? { returnTo: String(returnTo) } : {}),
+      },
     });
   };
 
@@ -122,26 +139,84 @@ export default function RegionCommunitiesScreen() {
 
     setSelectingId(community.id);
     try {
-      if (numericRegionId) {
+      if (numericRegionId && !isJoinAnother) {
         await saveRegionSelection(numericRegionId);
       }
-      if (!isAdminOnboarding) {
-        try {
-          await joinCommunity(Number(community.id));
-        } catch (err) {
-          await showFailure(t("region.couldNotJoinCommunity"), err);
+      if (isAdminOnboarding) {
+        goToCompleteProfile(router, {
+          regionId: String(numericRegionId),
+          role: activeRole,
+          communityId: String(community.id),
+          communityName: community.title,
+        });
+        return;
+      }
+
+      const sessionUser = await getUser();
+      const existing = membershipForCommunity(sessionUser, community.id);
+
+      if (existing?.status === "approved") {
+        if (isJoinAnother) {
+          const next = await switchActiveCommunity(Number(community.id));
+          navigateAfterAuth(router, next, { mode: "login" });
+          return;
         }
       }
+
+      if (isJoinAnother) {
+        goToJoinCommunityUnits(router, {
+          communityId: community.id,
+          communityName: community.title,
+          regionId: numericRegionId,
+          ...(returnTo ? { returnTo: String(returnTo) } : {}),
+        });
+        return;
+      }
+
+      if (existing?.status === "pending") {
+        if (canAccessDashboard(sessionUser)) {
+          await showSuccess(
+            t("region.joinRequestPendingTitle"),
+            t("region.joinRequestPendingBody", { name: community.title }),
+          );
+          navigateAfterAuth(router, sessionUser, { mode: "login" });
+          return;
+        }
+        goToCompleteProfile(router, {
+          regionId: String(numericRegionId),
+          role: activeRole,
+          communityId: String(community.id),
+          communityName: community.title,
+        });
+        return;
+      }
+
+      try {
+        const joined = await joinCommunity(Number(community.id));
+        const latest = await fetchMe().catch(() => getUser());
+        const status = joined?.membership?.status;
+        if (status === "pending" && canAccessDashboard(latest)) {
+          await showSuccess(
+            t("region.joinRequestSentTitle"),
+            t("region.joinRequestSentBody", { name: community.title }),
+          );
+          navigateAfterAuth(router, latest, { mode: "login" });
+          return;
+        }
+      } catch (err) {
+        await showFailure(t("region.couldNotJoinCommunity"), err);
+        return;
+      }
+
+      goToCompleteProfile(router, {
+        regionId: String(numericRegionId),
+        role: activeRole,
+        communityId: String(community.id),
+        communityName: community.title,
+      });
     } finally {
       setSelectingId(null);
     }
-
-    goToCompleteProfile(router, {
-      regionId: String(numericRegionId),
-      role: activeRole,
-      communityId: String(community.id),
-      communityName: community.title,
-    });
   };
 
   const goRequestCommunity = () => {
@@ -281,6 +356,8 @@ export default function RegionCommunitiesScreen() {
               {communities.map((community) => {
                 const busy = selectingId === community.id;
                 const isDisabled = isAdminOnboarding && community.hasAdmin;
+                const membership = membershipForCommunity(sessionUser, community.id);
+                const membershipStatus = membership?.status;
 
                 return (
                   <TouchableOpacity
@@ -311,6 +388,10 @@ export default function RegionCommunitiesScreen() {
                       ) : null}
                       {isDisabled ? (
                         <Text style={styles.cardBadge}>{t("region.communityAdminAssigned")}</Text>
+                      ) : membershipStatus === "approved" ? (
+                        <Text style={styles.cardBadgeJoined}>{t("region.alreadyJoined")}</Text>
+                      ) : membershipStatus === "pending" ? (
+                        <Text style={styles.cardBadgePending}>{t("region.joinPendingBadge")}</Text>
                       ) : null}
                     </View>
 
@@ -546,6 +627,20 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     color: T.gray,
+  },
+  cardBadgeJoined: {
+    marginTop: 6,
+    fontFamily: Fonts.semiBold,
+    fontSize: 10,
+    lineHeight: 14,
+    color: T.deepTeal,
+  },
+  cardBadgePending: {
+    marginTop: 6,
+    fontFamily: Fonts.semiBold,
+    fontSize: 10,
+    lineHeight: 14,
+    color: "#B45309",
   },
   cardDisabled: {
     opacity: 0.55,

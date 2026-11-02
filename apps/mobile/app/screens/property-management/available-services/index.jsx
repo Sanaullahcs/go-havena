@@ -1,5 +1,13 @@
-import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -144,6 +152,10 @@ function ServiceCard({ service, isContact, busy, onSubscribe, onUnsubscribe, t }
   const amount = formatAmount(service.amount);
   const frequency = frequencyLabel(service.billing_frequency, t);
   const status = statusMeta(service.unit_subscription?.status, t);
+  const canSubscribe = Boolean(isContact && (service.can_subscribe || service.unit_options?.some((row) => row.can_subscribe)));
+  const canUnsubscribe = Boolean(
+    isContact && (service.can_unsubscribe || service.unit_options?.some((row) => row.can_unsubscribe)),
+  );
 
   return (
     <View style={styles.card}>
@@ -177,7 +189,7 @@ function ServiceCard({ service, isContact, busy, onSubscribe, onUnsubscribe, t }
         </View>
       ) : null}
 
-      {isContact && service.can_subscribe ? (
+      {canSubscribe ? (
         <Pressable
           style={[styles.primaryBtn, busy && styles.disabled]}
           disabled={busy}
@@ -191,7 +203,7 @@ function ServiceCard({ service, isContact, busy, onSubscribe, onUnsubscribe, t }
         </Pressable>
       ) : null}
 
-      {isContact && service.unit_subscription?.status === "active" ? (
+      {canUnsubscribe ? (
         <Pressable
           style={[styles.secondaryBtn, busy && styles.disabled]}
           disabled={busy}
@@ -208,24 +220,172 @@ function ServiceCard({ service, isContact, busy, onSubscribe, onUnsubscribe, t }
   );
 }
 
+function UnitPickerModal({
+  visible,
+  mode,
+  serviceName,
+  options,
+  selectedIds,
+  onToggle,
+  onClose,
+  onConfirm,
+  busy,
+  t,
+}) {
+  const selectable = options.filter((row) => (mode === "subscribe" ? row.can_subscribe : row.can_unsubscribe));
+  const allSelected = selectable.length > 0 && selectable.every((row) => selectedIds.includes(row.unit_id));
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.modalTitle}>
+                {mode === "subscribe"
+                  ? t("services.availableServicesPickUnitsSubscribe", { defaultValue: "Choose units to subscribe" })
+                  : t("services.availableServicesPickUnitsUnsubscribe", { defaultValue: "Choose units to unsubscribe" })}
+              </Text>
+              {serviceName ? (
+                <Text style={styles.modalSub} numberOfLines={2}>{serviceName}</Text>
+              ) : null}
+            </View>
+            <Pressable onPress={onClose} hitSlop={12} disabled={busy}>
+              <Feather name="x" size={20} color="#64748B" />
+            </Pressable>
+          </View>
+
+          <Text style={styles.modalBody}>
+            {mode === "subscribe"
+              ? t("services.availableServicesPickUnitsSubscribeBody", {
+                  defaultValue: "Select one or more units. The service request is sent for each selected unit.",
+                })
+              : t("services.availableServicesPickUnitsUnsubscribeBody", {
+                  defaultValue: "Select the units you want to remove from this service.",
+                })}
+          </Text>
+
+          {selectable.length > 1 ? (
+            <Pressable
+              style={styles.selectAllRow}
+              onPress={() => {
+                if (allSelected) {
+                  onToggle(null, []);
+                } else {
+                  onToggle(null, selectable.map((row) => row.unit_id));
+                }
+              }}
+              disabled={busy}
+            >
+              <Text style={styles.selectAllText}>
+                {allSelected
+                  ? t("services.availableServicesClearSelection", { defaultValue: "Clear selection" })
+                  : t("services.availableServicesSelectAll", { defaultValue: "Select all units" })}
+              </Text>
+            </Pressable>
+          ) : null}
+
+          <ScrollView style={{ maxHeight: sw(280) }} nestedScrollEnabled>
+            {options.map((row) => {
+              const enabled = mode === "subscribe" ? row.can_subscribe : row.can_unsubscribe;
+              const selected = selectedIds.includes(row.unit_id);
+              const status = statusMeta(row.status, t);
+              return (
+                <Pressable
+                  key={row.unit_id}
+                  disabled={!enabled || busy}
+                  onPress={() => {
+                    if (!enabled) return;
+                    if (selected) {
+                      onToggle(row.unit_id, selectedIds.filter((id) => id !== row.unit_id));
+                    } else {
+                      onToggle(row.unit_id, [...selectedIds, row.unit_id]);
+                    }
+                  }}
+                  style={[
+                    styles.unitRow,
+                    selected && styles.unitRowOn,
+                    !enabled && styles.unitRowDisabled,
+                  ]}
+                >
+                  <View style={[styles.unitCheck, selected && styles.unitCheckOn]}>
+                    {selected ? <Feather name="check" size={14} color="#FFFFFF" /> : null}
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.unitNumber, !enabled && styles.unitNumberMuted]}>
+                      {t("services.billingContact.unitLabel", { number: row.unit_number })}
+                    </Text>
+                    {!enabled && status ? (
+                      <Text style={styles.unitMeta}>{status.label}</Text>
+                    ) : !enabled ? (
+                      <Text style={styles.unitMeta}>
+                        {t("services.availableServicesUnitUnavailable", { defaultValue: "Not available for this action" })}
+                      </Text>
+                    ) : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <Pressable
+            style={[styles.primaryBtn, (busy || selectedIds.length === 0) && styles.disabled]}
+            disabled={busy || selectedIds.length === 0}
+            onPress={onConfirm}
+          >
+            {busy ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryText}>
+                {mode === "subscribe"
+                  ? t("services.availableServicesConfirmSubscribe", {
+                      count: selectedIds.length,
+                      defaultValue: "Subscribe for {{count}} units",
+                    })
+                  : t("services.availableServicesConfirmUnsubscribe", {
+                      count: selectedIds.length,
+                      defaultValue: "Unsubscribe {{count}} units",
+                    })}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function AvailableServicesScreen() {
   const { t } = useTranslation();
   const [services, setServices] = useState([]);
+  const [billingUnits, setBillingUnits] = useState([]);
   const [isContact, setIsContact] = useState(false);
   const [contactName, setContactName] = useState("");
-  const [unitNumber, setUnitNumber] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  const [picker, setPicker] = useState(null);
+  const [selectedUnitIds, setSelectedUnitIds] = useState([]);
+
+  const headerSubtitle = useMemo(() => {
+    if (billingUnits.length > 1) {
+      return t("nav.multipleUnits", { defaultValue: "Multiple units" });
+    }
+    if (billingUnits.length === 1) {
+      return t("services.billingContact.unitLabel", { number: billingUnits[0].unit_number });
+    }
+    return t("services.availableServicesSub");
+  }, [billingUnits, t]);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
       const result = await fetchPropertyServices();
+      const units = Array.isArray(result.units) ? result.units : result.unit ? [result.unit] : [];
       setServices((result.services ?? []).filter((service) => service.application_type === "optional"));
-      setIsContact(Boolean(result.unit?.is_billing_contact));
+      setBillingUnits(units);
+      setIsContact(units.length > 0 || Boolean(result.unit?.is_billing_contact));
       setContactName(result.unit?.billing_contact?.name || "");
-      setUnitNumber(result.unit?.unit_number || "");
     } catch (error) {
       showApiFailure(error, { title: t("services.availableServicesTitle") });
     } finally {
@@ -236,22 +396,54 @@ export default function AvailableServicesScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  async function handleSubscribe(id) {
-    setBusyId(id);
-    try {
-      await subscribeToPropertyService(id);
-      await load({ silent: true });
-    } catch (error) {
-      showApiFailure(error, { title: t("services.availableServicesTitle") });
-    } finally {
-      setBusyId(null);
+  function unitOptionsFor(service, mode) {
+    if (Array.isArray(service.unit_options) && service.unit_options.length > 0) {
+      return service.unit_options;
     }
+    return billingUnits.map((unit) => ({
+      unit_id: unit.id,
+      unit_number: unit.unit_number,
+      status: service.unit_subscription?.status ?? null,
+      can_subscribe: Boolean(service.can_subscribe),
+      can_unsubscribe: Boolean(service.can_unsubscribe || service.unit_subscription?.status === "active"),
+    })).filter((row) => (mode === "subscribe" ? row.can_subscribe : row.can_unsubscribe) || billingUnits.length <= 1);
   }
 
-  async function handleUnsubscribe(id) {
-    setBusyId(id);
+  function openPicker(service, mode) {
+    const options = unitOptionsFor(service, mode);
+    const eligible = options.filter((row) => (mode === "subscribe" ? row.can_subscribe : row.can_unsubscribe));
+    const hasMultipleBillingUnits = billingUnits.length > 1 || options.length > 1;
+
+    if (!hasMultipleBillingUnits) {
+      const onlyId = eligible[0]?.unit_id ?? billingUnits[0]?.id ?? null;
+      void runAction(service.id, mode, onlyId ? [onlyId] : []);
+      return;
+    }
+
+    setSelectedUnitIds(mode === "unsubscribe" ? [] : eligible.map((row) => row.unit_id));
+    setPicker({ service, mode, options });
+  }
+
+  async function runAction(serviceId, mode, unitIds) {
+    const ids = (unitIds || []).filter(Boolean);
+    if (ids.length === 0) {
+      showApiFailure(new Error(t("services.availableServicesPickUnitsRequired", {
+        defaultValue: "Select at least one unit.",
+      })), { title: t("services.availableServicesTitle") });
+      return;
+    }
+
+    setBusyId(serviceId);
     try {
-      await unsubscribeFromPropertyService(id);
+      for (const unitId of ids) {
+        if (mode === "subscribe") {
+          await subscribeToPropertyService(serviceId, null, unitId);
+        } else {
+          await unsubscribeFromPropertyService(serviceId, unitId);
+        }
+      }
+      setPicker(null);
+      setSelectedUnitIds([]);
       await load({ silent: true });
     } catch (error) {
       showApiFailure(error, { title: t("services.availableServicesTitle") });
@@ -264,7 +456,7 @@ export default function AvailableServicesScreen() {
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
       <InternalScreenHeader
         title={t("services.availableServicesTitle")}
-        subtitle={unitNumber ? t("services.billingContact.unitLabel", { number: unitNumber }) : t("services.availableServicesSub")}
+        subtitle={headerSubtitle}
       />
       {loading && services.length === 0 ? (
         <View style={styles.centered}>
@@ -308,14 +500,34 @@ export default function AvailableServicesScreen() {
                 service={service}
                 isContact={isContact}
                 busy={busyId === service.id}
-                onSubscribe={() => void handleSubscribe(service.id)}
-                onUnsubscribe={() => void handleUnsubscribe(service.id)}
+                onSubscribe={() => openPicker(service, "subscribe")}
+                onUnsubscribe={() => openPicker(service, "unsubscribe")}
                 t={t}
               />
             ))
           )}
         </ScrollView>
       )}
+
+      <UnitPickerModal
+        visible={Boolean(picker)}
+        mode={picker?.mode || "subscribe"}
+        serviceName={picker?.service?.name}
+        options={picker?.options || []}
+        selectedIds={selectedUnitIds}
+        onToggle={(_id, next) => setSelectedUnitIds(next)}
+        onClose={() => {
+          if (busyId) return;
+          setPicker(null);
+          setSelectedUnitIds([]);
+        }}
+        onConfirm={() => {
+          if (!picker) return;
+          void runAction(picker.service.id, picker.mode, selectedUnitIds);
+        }}
+        busy={busyId === picker?.service?.id}
+        t={t}
+      />
     </SafeAreaView>
   );
 }
@@ -505,4 +717,97 @@ const styles = {
     color: PropertyHubTheme.dangerText,
   },
   disabled: { opacity: 0.55 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: sw(20),
+    borderTopRightRadius: sw(20),
+    paddingHorizontal: sw(16),
+    paddingTop: sw(16),
+    paddingBottom: sw(28),
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: sw(12),
+  },
+  modalTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(17),
+    color: PropertyHubTheme.text,
+  },
+  modalSub: {
+    marginTop: sw(4),
+    fontFamily: Fonts.medium,
+    fontSize: sf(13),
+    color: PropertyHubTheme.textMuted,
+  },
+  modalBody: {
+    marginTop: sw(10),
+    marginBottom: sw(12),
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    lineHeight: sf(19),
+    color: PropertyHubTheme.textMuted,
+  },
+  selectAllRow: {
+    alignSelf: "flex-start",
+    marginBottom: sw(8),
+  },
+  selectAllText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    color: PropertyHubTheme.deepTeal,
+  },
+  unitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(12),
+    paddingVertical: sw(12),
+    paddingHorizontal: sw(12),
+    borderRadius: sw(12),
+    marginBottom: sw(8),
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.border,
+  },
+  unitRowOn: {
+    backgroundColor: PropertyHubTheme.mint,
+    borderColor: "rgba(20, 184, 166, 0.45)",
+  },
+  unitRowDisabled: {
+    opacity: 0.55,
+  },
+  unitCheck: {
+    width: sw(22),
+    height: sw(22),
+    borderRadius: sw(6),
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unitCheckOn: {
+    backgroundColor: PropertyHubTheme.teal,
+    borderColor: PropertyHubTheme.teal,
+  },
+  unitNumber: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(14),
+    color: PropertyHubTheme.text,
+  },
+  unitNumberMuted: {
+    color: PropertyHubTheme.textMuted,
+  },
+  unitMeta: {
+    marginTop: 2,
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    color: PropertyHubTheme.textMuted,
+  },
 };

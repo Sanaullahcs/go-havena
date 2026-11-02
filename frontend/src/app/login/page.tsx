@@ -60,7 +60,9 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpRateLimit, setOtpRateLimit] = useState<unknown>(null);
+  const [extendOtpResendCooldown, setExtendOtpResendCooldown] = useState(false);
   const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
+  const [otpExpiresInSeconds, setOtpExpiresInSeconds] = useState<number | null>(null);
   const verifyLock = useRef(false);
 
   const emailFieldError = validateEmailField(email);
@@ -126,10 +128,15 @@ function LoginPageInner() {
     setOtp("");
     setOtpSending(true);
     try {
-      const { intent, rate_limit, expires_at } = await requestCommunityAdminOtp(email.trim(), "login");
+      const { intent, rate_limit, expires_at, expires_in_seconds } = await requestCommunityAdminOtp(
+        email.trim(),
+        "login",
+      );
       setOtpIntent(intent);
       setOtpRateLimit(rate_limit);
+      setExtendOtpResendCooldown(false);
       setOtpExpiresAt(expires_at);
+      setOtpExpiresInSeconds(expires_in_seconds);
       setOtpStep("code");
     } catch (err) {
       await handleLoginError(err, setError);
@@ -157,6 +164,9 @@ function LoginPageInner() {
       setLoading(false);
       if (err instanceof ApiError && err.rateLimit) {
         setOtpRateLimit(err.rateLimit);
+        if (err.code === "INVALID_OTP" || err.code === "OTP_VERIFY_LOCKED") {
+          setExtendOtpResendCooldown(true);
+        }
         setError(err.code === "OTP_RESEND_LOCKED" ? otpResendLockUserMessage() : err.message);
       } else {
         await handleLoginError(err, setError);
@@ -169,10 +179,15 @@ function LoginPageInner() {
     setError(null);
     setOtpSending(true);
     try {
-      const { intent, rate_limit, expires_at } = await requestCommunityAdminOtp(email.trim(), "login");
+      const { intent, rate_limit, expires_at, expires_in_seconds } = await requestCommunityAdminOtp(
+        email.trim(),
+        "login",
+      );
       setOtpIntent(intent);
+      setExtendOtpResendCooldown(false);
       setOtpExpiresAt(expires_at);
-      return { rate_limit, expires_at };
+      setOtpExpiresInSeconds(expires_in_seconds);
+      return { rate_limit, expires_at, expires_in_seconds };
     } catch (err) {
       if (err instanceof ApiError && (err.code?.startsWith("OTP_") ?? false)) {
         if (err.rateLimit) setOtpRateLimit(err.rateLimit);
@@ -189,6 +204,7 @@ function LoginPageInner() {
     setOtpStep("email");
     setOtp("");
     setOtpExpiresAt(null);
+    setOtpExpiresInSeconds(null);
     setError(null);
   };
 
@@ -287,7 +303,9 @@ function LoginPageInner() {
                 verifying={loading}
                 error={Boolean(error)}
                 initialRateLimit={otpRateLimit}
+                extendResendCooldown={extendOtpResendCooldown}
                 expiresAt={otpExpiresAt}
+                expiresInSeconds={otpExpiresInSeconds}
                 onExpired={() => setError("This code has expired. Tap Resend code to get a new one.")}
               />
             )}

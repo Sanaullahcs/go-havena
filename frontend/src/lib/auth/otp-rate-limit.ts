@@ -20,16 +20,22 @@ export function normalizeOtpRateLimit(raw: unknown): OtpRateLimitState {
   }
 
   const record = raw as Record<string, unknown>;
+  const lockTypeRaw = record.lock_type ?? record.lockType;
+  const lockType =
+    lockTypeRaw === "security" || lockTypeRaw === "resend_limit" ? lockTypeRaw : null;
 
   return {
     locked: Boolean(record.locked),
-    lockType:
-      record.lock_type === "security" || record.lock_type === "resend_limit"
-        ? record.lock_type
-        : null,
+    lockType,
     retryAfterSeconds: Math.max(
       0,
-      Number(record.retry_after_seconds ?? record.resend_cooldown_seconds ?? 0),
+      Number(
+        record.retry_after_seconds ??
+          record.retryAfterSeconds ??
+          record.resend_cooldown_seconds ??
+          record.resendCooldownSeconds ??
+          0,
+      ),
     ),
     resendsRemaining:
       record.resends_remaining === undefined || record.resends_remaining === null

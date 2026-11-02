@@ -167,6 +167,9 @@ class CommunityController extends Controller
 
                 $this->syncUnitAssignment($user, (int) $community->id);
                 MemberWelcomeNotification::sendIfReady($user, $existing);
+                if (($existing->status ?? '') === 'approved') {
+                    \App\Services\UserActingContextService::rememberCommunityIfUnset($user, (int) $community->id);
+                }
 
                 return response()->json([
                     'data' => [
@@ -292,6 +295,11 @@ class CommunityController extends Controller
         $this->syncUnitAssignment($user, (int) $community->id);
         if ($membership) {
             MemberWelcomeNotification::sendIfReady($user, $membership);
+        }
+
+        $user->refresh();
+        if (($membership->status ?? '') === 'approved') {
+            \App\Services\UserActingContextService::rememberCommunityIfUnset($user, (int) $community->id);
         }
 
         return response()->json([

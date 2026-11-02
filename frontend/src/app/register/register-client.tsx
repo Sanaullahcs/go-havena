@@ -85,16 +85,21 @@ export function RegisterPageClient({
   const [otpRateLimit, setOtpRateLimit] = useState<unknown>(() =>
     restored ? rateLimitFromPersistedChallenge(restored) : null,
   );
+  const [extendOtpResendCooldown, setExtendOtpResendCooldown] = useState(false);
   const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(restored?.expiresAt ?? null);
+  const [otpExpiresInSeconds, setOtpExpiresInSeconds] = useState<number | null>(null);
   const verifyLock = useRef(false);
 
   const rememberChallenge = (
     nextEmail: string,
     rateLimit: unknown,
     expiresAt?: string | null,
+    expiresInSeconds?: number | null,
   ) => {
     setOtpRateLimit(rateLimit);
+    setExtendOtpResendCooldown(false);
     if (expiresAt) setOtpExpiresAt(expiresAt);
+    if (expiresInSeconds != null) setOtpExpiresInSeconds(expiresInSeconds);
     persistRegisterOtpChallenge({
       email: nextEmail,
       intent: "signup",
@@ -106,6 +111,7 @@ export function RegisterPageClient({
   const forgetChallenge = () => {
     clearRegisterOtpChallenge();
     setOtpExpiresAt(null);
+    setOtpExpiresInSeconds(null);
     setOtpRateLimit(null);
     setOtp("");
     setOtpStep("email");
@@ -182,6 +188,7 @@ export function RegisterPageClient({
           challenge.email ?? pending.email,
           challenge.rate_limit,
           challenge.expires_at ?? pending.expiresAt,
+          challenge.expires_in_seconds,
         );
       } catch {
         // Keep the already-visible verification step.
@@ -232,8 +239,11 @@ export function RegisterPageClient({
     setOtp("");
     setOtpSending(true);
     try {
-      const { rate_limit, expires_at } = await requestCommunityAdminOtp(email.trim(), "signup");
-      rememberChallenge(email.trim(), rate_limit, expires_at);
+      const { rate_limit, expires_at, expires_in_seconds } = await requestCommunityAdminOtp(
+        email.trim(),
+        "signup",
+      );
+      rememberChallenge(email.trim(), rate_limit, expires_at, expires_in_seconds);
       setOtpStep("code");
     } catch (err) {
       if (err instanceof ApiError && err.code === "ACCOUNT_EXISTS_USE_LOGIN") {
@@ -296,6 +306,9 @@ export function RegisterPageClient({
       verifyLock.current = false;
       if (err instanceof ApiError && err.rateLimit) {
         setOtpRateLimit(err.rateLimit);
+        if (err.code === "INVALID_OTP" || err.code === "OTP_VERIFY_LOCKED") {
+          setExtendOtpResendCooldown(true);
+        }
         setError(err.message);
       } else {
         await handleLoginError(err, setError);
@@ -309,9 +322,12 @@ export function RegisterPageClient({
     setError(null);
     setOtpSending(true);
     try {
-      const { rate_limit, expires_at } = await requestCommunityAdminOtp(email.trim(), "signup");
-      rememberChallenge(email.trim(), rate_limit, expires_at);
-      return { rate_limit, expires_at };
+      const { rate_limit, expires_at, expires_in_seconds } = await requestCommunityAdminOtp(
+        email.trim(),
+        "signup",
+      );
+      rememberChallenge(email.trim(), rate_limit, expires_at, expires_in_seconds);
+      return { rate_limit, expires_at, expires_in_seconds };
     } catch (err) {
       if (err instanceof ApiError && (err.code?.startsWith("OTP_") ?? false)) {
         if (err.rateLimit) setOtpRateLimit(err.rateLimit);
@@ -430,7 +446,9 @@ export function RegisterPageClient({
                 verifying={loading}
                 error={Boolean(error)}
                 initialRateLimit={otpRateLimit}
+                extendResendCooldown={extendOtpResendCooldown}
                 expiresAt={otpExpiresAt}
+                expiresInSeconds={otpExpiresInSeconds}
                 onExpired={forgetChallenge}
               />
             )}
