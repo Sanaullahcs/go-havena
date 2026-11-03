@@ -186,7 +186,7 @@ export default function UnitRequestsPage() {
 
     setBusyId(row.id);
     try {
-      await approveUnitRegistrationPackage(row.id);
+      await approveUnitRegistrationPackage(row.id, row.community_id);
       toastSuccess("Unit registration approved.");
       setViewing(null);
       await load();
@@ -209,7 +209,7 @@ export default function UnitRequestsPage() {
 
     setBusyId(row.id);
     try {
-      await rejectUnitRegistrationPackage(row.id, String(result.value));
+      await rejectUnitRegistrationPackage(row.id, String(result.value), row.community_id);
       toastSuccess("Unit registration rejected.");
       setViewing(null);
       await load();

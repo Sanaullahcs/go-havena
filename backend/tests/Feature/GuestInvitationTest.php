@@ -646,7 +646,7 @@ class GuestInvitationTest extends TestCase
             'guest_phone' => '+15554443334',
             'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
-        ])->assertOk();
+        ])->assertStatus(201);
 
         app(OtpService::class)->send('guest.ratelimit@example.com');
 

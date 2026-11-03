@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Image, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -53,6 +53,15 @@ function ProofUploadBox({ label, file, error, onPick, required = true }) {
 /**
  * Multi-unit onboarding block: each unit has number, residence type, and two proofs.
  */
+function isBlankUnit(entry) {
+  return (
+    !entry?.locked &&
+    !String(entry?.unit_number ?? "").trim() &&
+    !entry?.residence_type &&
+    !entry?.utilityFile?.uri
+  );
+}
+
 export default function UnitEntriesSection({
   entries,
   onChange,
@@ -65,8 +74,46 @@ export default function UnitEntriesSection({
   errors = {},
   dialog,
   hint,
+  scrollRef,
 }) {
   const { t } = useTranslation();
+  const cardRefs = useRef({});
+  const pendingScrollKey = useRef(null);
+  const addingRef = useRef(false);
+
+  function scrollToEntry(key) {
+    const card = cardRefs.current[key];
+    const scroller = scrollRef?.current;
+    if (!card || !scroller?.scrollTo) {
+      scroller?.scrollToEnd?.({ animated: true });
+      return;
+    }
+
+    const scrollNode =
+      scroller.getNativeScrollRef?.() ??
+      scroller.getScrollableNode?.() ??
+      scroller;
+
+    card.measureLayout(
+      scrollNode,
+      (_x, y) => {
+        scroller.scrollTo({ y: Math.max(0, y - 12), animated: true });
+      },
+      () => {
+        scroller.scrollToEnd?.({ animated: true });
+      },
+    );
+  }
+
+  useEffect(() => {
+    const key = pendingScrollKey.current;
+    if (!key) return undefined;
+    const timer = setTimeout(() => {
+      scrollToEntry(key);
+      pendingScrollKey.current = null;
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [entries]);
 
   function updateEntry(index, patch) {
     const next = entries.map((row, i) => (i === index ? { ...row, ...patch } : row));
@@ -74,11 +121,21 @@ export default function UnitEntriesSection({
   }
 
   function addEntry() {
-    if (entries.length >= maxUnits) return;
+    if (addingRef.current || entries.length >= maxUnits) return;
+
+    const last = entries[entries.length - 1];
+    if (last && isBlankUnit(last)) {
+      scrollToEntry(last.key);
+      return;
+    }
+
+    addingRef.current = true;
+    const key = `unit-${Date.now()}`;
+    pendingScrollKey.current = key;
     onChange([
       ...entries,
       {
-        key: `unit-${Date.now()}`,
+        key,
         unit_number: "",
         locked: false,
         is_new_unit: true,
@@ -86,6 +143,9 @@ export default function UnitEntriesSection({
         utilityFile: null,
       },
     ]);
+    setTimeout(() => {
+      addingRef.current = false;
+    }, 450);
   }
 
   function removeEntry(index) {
@@ -126,7 +186,14 @@ export default function UnitEntriesSection({
       {entries.map((entry, index) => {
         const prefix = `unit_${index}`;
         return (
-          <View key={entry.key || `${entry.unit_number}-${index}`} style={styles.card}>
+          <View
+            key={entry.key || `${entry.unit_number}-${index}`}
+            ref={(node) => {
+              if (entry.key) cardRefs.current[entry.key] = node;
+            }}
+            collapsable={false}
+            style={styles.card}
+          >
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>
                 {t("onboarding.unitCardTitle", { n: index + 1 })}

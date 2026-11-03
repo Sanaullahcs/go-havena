@@ -31,6 +31,9 @@ import { Colors } from "../../../constants/tokens";
 import { ScreenBrand } from "../../../constants/screen-brand";
 import { Fonts } from "../../../constants/font";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
+import OtpRateLimitBanner from "../../../components/auth/otp-rate-limit-banner";
+import OtpResendLimitDialog from "../../../components/auth/otp-resend-limit-dialog";
+import { useOtpResendLimit } from "../../../hooks/use-otp-resend-limit";
 
 export default function LoginScreen() {
   const { t } = useTranslation();
@@ -48,6 +51,17 @@ export default function LoginScreen() {
   const [isReturningUser, setIsReturningUser] = useState(false);
   const [welcomeReady, setWelcomeReady] = useState(false);
   const { submitting, run } = useSubmitLock();
+  const {
+    canResend: canRequestOtp,
+    secondsLeft: otpWaitSeconds,
+    countdownLabel: otpCountdownLabel,
+    lockType: otpLockType,
+    showRateLimitBanner,
+    lastOtpErrorCode,
+    applyRateLimitFromError,
+    resendLimitDialogVisible,
+    dismissResendLimitDialog,
+  } = useOtpResendLimit(null, { startAtZero: true, showResendLimitDialog: true });
   const formatError = validateUserEmail(email);
   const isValid = !formatError;
   const emailError = email.trim().length > 0 ? formatError : null;
@@ -123,7 +137,7 @@ export default function LoginScreen() {
   };
 
   const handleSendCode = () => {
-    if (!isValid || submitting) return;
+    if (!isValid || submitting || !canRequestOtp) return;
     if (!agreedToTerms) {
       setTermsError(true);
       return;
@@ -139,7 +153,9 @@ export default function LoginScreen() {
           params: { email: encodeRouteEmail(normalizedEmail) },
         });
       } catch (err) {
-        // Do not await the dialog here — waiting keeps the "Sending..." lock until OK.
+        if (applyRateLimitFromError(err)) {
+          return;
+        }
         void handleAuthApiError(err, dialog, router, { email: normalizedEmail });
       }
     });
@@ -156,6 +172,11 @@ export default function LoginScreen() {
 
   return (
     <>
+      <OtpResendLimitDialog
+        visible={resendLimitDialogVisible}
+        countdownLabel={otpCountdownLabel}
+        onClose={dismissResendLimitDialog}
+      />
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={ScreenBrand.canvas} />
       <SafeAreaView style={layout.container} edges={["top", "left", "right", "bottom"]}>
         <AuthFlowTopBar current={1} total={2} />
@@ -181,7 +202,7 @@ export default function LoginScreen() {
               <AuthSubmitButton
                 label={t("auth.sendCode")}
                 loadingLabel={t("auth.sending")}
-                enabled={isValid && agreedToTerms && !submitting}
+                enabled={isValid && agreedToTerms && !submitting && canRequestOtp}
                 loading={submitting}
                 onPress={handleSendCode}
                 solidColor={ScreenBrand.cta}
@@ -211,6 +232,13 @@ export default function LoginScreen() {
               eyebrow={t("auth.signIn")}
               title={welcomeReady && isReturningUser ? t("auth.welcomeBack") : t("auth.signIn")}
               subtitle={t("auth.enterEmail")}
+            />
+
+            <OtpRateLimitBanner
+              visible={showRateLimitBanner}
+              secondsLeft={otpWaitSeconds}
+              lockType={otpLockType}
+              code={lastOtpErrorCode}
             />
 
             <View style={layout.fieldBlock}>

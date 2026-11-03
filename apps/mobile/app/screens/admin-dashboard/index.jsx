@@ -48,6 +48,7 @@ const CREATE_CARD_GAP = sw(16);
 
 const ACTION_TYPE_META = {
   membership: { label: "admin.actionTypeMember", icon: "user", color: "#14B8A6" },
+  unit_registration: { label: "admin.actionTypeUnitRequest", icon: "home", color: "#0D9488" },
   listing: { label: "admin.actionTypeListing", icon: "shopping-bag", color: "#059669" },
   post: { label: "admin.actionTypePost", icon: "message-square", color: "#7C3AED" },
   business: { label: "admin.actionTypeBusiness", icon: "briefcase", color: "#D97706" },
@@ -461,7 +462,7 @@ export default function AdminDashboardScreen() {
 
   const routeFor = (action) => {
     if (action.type === "post") return "/screens/community-feed";
-    if (action.type === "membership") return "/screens/admin-members";
+    if (action.type === "membership" || action.type === "unit_registration") return "/screens/admin-members";
     if (action.type === "event") {
       return { pathname: "/screens/admin-content-review", params: { kind: "event" } };
     }

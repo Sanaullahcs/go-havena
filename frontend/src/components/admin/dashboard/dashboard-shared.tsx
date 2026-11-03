@@ -202,7 +202,7 @@ export function DashboardEmptyState({
 export function actionTypeLabel(type: AdminDashboardPendingAction["type"]) {
   switch (type) {
     case "membership":
-      return "Member";
+      return "Resident approval";
     case "family_add_member":
       return "Family member";
     case "community_admin":
@@ -263,6 +263,66 @@ export function actionTypeStyle(type: AdminDashboardPendingAction["type"]) {
   }
 }
 
+function pendingDocumentLabel(kind: string) {
+  if (kind === "utility_bill") return "Utility bill";
+  if (kind === "ownership_proof") return "Ownership proof";
+  if (kind === "tenancy_proof") return "Tenancy proof";
+  return "Document";
+}
+
+function pendingResidenceLabel(type?: string | null) {
+  if (type === "homeowner") return "Homeowner";
+  if (type === "tenant") return "Tenant";
+  return null;
+}
+
+export function PendingActionUnits({ action }: { action: AdminDashboardPendingAction }) {
+  const units = action.units ?? [];
+  if (units.length === 0) {
+    if (!action.utility_bill_url) return null;
+    return (
+      <a
+        href={action.utility_bill_url}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-1 inline-flex text-[11px] font-semibold text-[#1B4F8A] underline"
+      >
+        Utility bill
+      </a>
+    );
+  }
+
+  return (
+    <div className="mt-1.5 flex flex-col gap-1">
+      {units.map((unit, index) => {
+        const residence = pendingResidenceLabel(unit.residence_type);
+        return (
+          <div
+            key={`${unit.unit_number}-${index}`}
+            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-600"
+          >
+            <span className="font-semibold text-slate-700">
+              Unit {unit.unit_number}
+              {residence ? ` · ${residence}` : ""}
+            </span>
+            {(unit.documents ?? []).map((document) => (
+              <a
+                key={`${document.kind}-${document.file_url}`}
+                href={document.file_url}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-[#1B4F8A] underline"
+              >
+                {pendingDocumentLabel(document.kind)}
+              </a>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function PendingQueueItem({
   action,
   relTime,
@@ -283,6 +343,7 @@ export function PendingQueueItem({
         {action.detail ? (
           <p className="mt-0.5 truncate text-[11px] text-slate-400">{action.detail}</p>
         ) : null}
+        <PendingActionUnits action={action} />
       </div>
       <span className="hidden shrink-0 text-[11px] font-medium text-slate-400 sm:block">{relTime}</span>
       {children}

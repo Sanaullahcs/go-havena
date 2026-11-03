@@ -89,7 +89,8 @@ function SearchableField({
   disabled,
   disabledHint,
   emptyText,
-  allowCustom = false,
+  /** City: confirm only a name that exists in the loaded list. */
+  listedOnly = false,
   onSelect,
   scrollRef,
   scrollOffsetRef,
@@ -110,10 +111,12 @@ function SearchableField({
     [options, query],
   );
   const customName = query.trim();
-  const showCustom =
-    allowCustom &&
-    customName.length >= 2 &&
-    !filtered.some((item) => String(item.name).toLowerCase() === customName.toLowerCase());
+  const exactMatch = customName
+    ? options.find((item) => String(item?.name ?? "").trim().toLowerCase() === customName.toLowerCase())
+    : null;
+  const showUseListed = listedOnly && Boolean(exactMatch);
+  const invalidListedQuery =
+    listedOnly && customName.length >= 2 && !loading && filtered.length === 0 && !exactMatch;
 
   const close = () => {
     setQuery("");
@@ -307,22 +310,26 @@ function SearchableField({
               removeClippedSubviews={Platform.OS === "android"}
               keyExtractor={(item, index) => `${item.id ?? item.name}-${index}`}
               ListHeaderComponent={
-                showCustom ? (
+                showUseListed ? (
                   <TouchableOpacity
                     style={styles.option}
                     activeOpacity={0.85}
                     delayPressIn={0}
                     onPress={() => {
-                      onSelect({ id: `custom:${customName}`, name: customName });
+                      onSelect(exactMatch);
                       close();
                     }}
                   >
-                    <Text style={styles.optionText}>{t("region.useTypedCity", { city: customName })}</Text>
+                    <Text style={styles.optionText}>{t("region.useTypedCity", { city: exactMatch.name })}</Text>
                   </TouchableOpacity>
                 ) : null
               }
               ListEmptyComponent={
-                !showCustom ? <Text style={styles.dropdownEmpty}>{emptyText}</Text> : null
+                invalidListedQuery ? (
+                  <Text style={styles.dropdownInvalid}>{t("region.invalidCity")}</Text>
+                ) : (
+                  <Text style={styles.dropdownEmpty}>{emptyText}</Text>
+                )
               }
               renderItem={({ item }) => {
                 const selected = value?.id != null && String(value.id) === String(item.id);
@@ -535,7 +542,7 @@ export default function RegionFilterSheet({
         disabled={!draftState}
         disabledHint={t("region.pickStateFirst")}
         emptyText={t("region.noCitiesMatch")}
-        allowCustom
+        listedOnly
         scrollRef={activeScrollRef}
         scrollOffsetRef={activeOffsetRef}
         onSelect={(next) => {
@@ -711,6 +718,14 @@ const styles = StyleSheet.create({
   dropdownState: {
     paddingVertical: 20,
     alignItems: "center",
+  },
+  dropdownInvalid: {
+    paddingVertical: 18,
+    paddingHorizontal: 14,
+    fontFamily: Fonts.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#B91C1C",
   },
   dropdownEmpty: {
     paddingVertical: 18,

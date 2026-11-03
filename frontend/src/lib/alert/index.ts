@@ -385,6 +385,51 @@ export async function alertError(title: string, message: string) {
   });
 }
 
+/** Live countdown dialog after OTP resend limit (aligned with mobile). */
+export async function showOtpResendLockAlert(initialSeconds: number) {
+  const { formatOtpCountdown, OTP_RESEND_LOCK_SECONDS } = await import("@/lib/auth/otp-config");
+  let remaining = Math.max(0, Math.ceil(Number(initialSeconds) || OTP_RESEND_LOCK_SECONDS));
+  let timerId: ReturnType<typeof setInterval> | null = null;
+
+  const htmlFor = (seconds: number) =>
+    `<p>You have reached the resend limit. Please try again in <strong id="otp-resend-lock-timer">${formatOtpCountdown(seconds)}</strong>.</p>
+     <p class="nl-swal-input-hint" style="margin-top:8px">Resend will be available when this timer ends.</p>`;
+
+  return nl.fire({
+    icon: "warning",
+    title: "Too many code requests",
+    html: htmlFor(remaining),
+    confirmButtonText: labeledButton(ICO_CHECK, "OK"),
+    allowOutsideClick: true,
+    customClass: {
+      popup: "nl-swal-popup",
+      title: "nl-swal-title",
+      htmlContainer: "nl-swal-body",
+      confirmButton: "nl-swal-confirm nl-swal-confirm--blue",
+      actions: "nl-swal-actions",
+      icon: "nl-swal-icon",
+    },
+    didOpen: () => {
+      timerId = setInterval(() => {
+        remaining = Math.max(0, remaining - 1);
+        const el = document.getElementById("otp-resend-lock-timer");
+        if (el) el.textContent = formatOtpCountdown(remaining);
+        if (remaining <= 0 && timerId) {
+          clearInterval(timerId);
+          timerId = null;
+          void Swal.close();
+        }
+      }, 1000);
+    },
+    willClose: () => {
+      if (timerId) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+    },
+  });
+}
+
 export async function showAccountBlockedAlert(message: string, block: import("@/lib/auth/account-block").AccountBlockDetails) {
   const { accountBlockHtml, accountBlockTitle } = await import("@/lib/auth/account-block");
 

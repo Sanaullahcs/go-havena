@@ -26,6 +26,8 @@ import { setSession } from "../../../services/auth-session";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useOtpResendLimit } from "../../../hooks/use-otp-resend-limit";
 import OtpResendFooter from "../../../components/auth/otp-resend-footer";
+import OtpRateLimitBanner from "../../../components/auth/otp-rate-limit-banner";
+import OtpResendLimitDialog from "../../../components/auth/otp-resend-limit-dialog";
 import { extractOtpRateLimitFromResponse } from "../../../utils/otp-rate-limit";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { handleAuthApiError } from "../../../utils/auth-errors";
@@ -90,11 +92,16 @@ export default function GuestLoginScreen() {
   const meta = STEP_META[step] ?? STEP_META.email;
   const {
     canResend,
+    secondsLeft,
     countdownLabel,
     lockType,
+    showRateLimitBanner,
+    lastOtpErrorCode,
     applyRateLimit,
     applyRateLimitFromError,
-  } = useOtpResendLimit(null, { dialog });
+    resendLimitDialogVisible,
+    dismissResendLimitDialog,
+  } = useOtpResendLimit(null, { startAtZero: true, showResendLimitDialog: true });
   const verifyLockRef = useRef(false);
 
   const emailFormatError = validateUserEmail(email);
@@ -110,10 +117,10 @@ export default function GuestLoginScreen() {
   const inviteFieldError = showError("inviteCode", inviteLiveErrors);
 
   const canSubmit = useMemo(() => {
-    if (step === "email") return emailValid;
+    if (step === "email") return emailValid && canResend;
     if (step === "otp") return otpDigits.length === 6 && lockType !== "security";
     return inviteValid;
-  }, [step, emailValid, otpDigits, inviteValid, lockType]);
+  }, [step, emailValid, otpDigits, inviteValid, lockType, canResend]);
 
   const busy = submitting || otpSending;
 
@@ -189,7 +196,7 @@ export default function GuestLoginScreen() {
   };
 
   const sendOtp = () => {
-    if (!emailValid || submitting) return;
+    if (!emailValid || submitting || !canResend) return;
 
     run(async () => {
       setOtpSending(true);
@@ -344,6 +351,11 @@ export default function GuestLoginScreen() {
 
   return (
     <>
+      <OtpResendLimitDialog
+        visible={resendLimitDialogVisible}
+        countdownLabel={countdownLabel}
+        onClose={dismissResendLimitDialog}
+      />
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={ScreenBrand.canvas} />
       <SafeAreaView style={layout.container} edges={["top", "left", "right"]}>
         <AuthFlowTopBar
@@ -381,6 +393,15 @@ export default function GuestLoginScreen() {
               title={meta.title}
               subtitle={step === "otp" ? otpSubtitle : meta.subtitle}
             />
+
+            {step === "email" ? (
+              <OtpRateLimitBanner
+                visible={showRateLimitBanner}
+                secondsLeft={secondsLeft}
+                lockType={lockType}
+                code={lastOtpErrorCode}
+              />
+            ) : null}
 
             {step === "email" ? (
               <View style={layout.fieldBlock}>

@@ -49,10 +49,12 @@ const FILTERS = [
 ];
 
 function isCurrentMembership(row, activeCommunityId) {
-  return (
-    Boolean(row?.is_active) ||
-    Number(row?.community_id) === Number(activeCommunityId)
-  );
+  // Prefer the explicit active id so a just-switched community cannot stay
+  // marked current via a stale `is_active` flag on another row.
+  if (activeCommunityId != null && Number(activeCommunityId) > 0) {
+    return Number(row?.community_id) === Number(activeCommunityId);
+  }
+  return Boolean(row?.is_active);
 }
 
 function membershipTone(status) {
@@ -519,6 +521,7 @@ export default function MyCommunityScreen() {
 
   const confirmSwitch = async (row) => {
     const name = row.community?.name || t("community.myCommunity");
+    setSwitchOpen(false);
     const choice = await dialog.showConfirm(
       t("nav.switchCommunityTitle"),
       t("nav.switchCommunityBody", { name }),
@@ -527,16 +530,28 @@ export default function MyCommunityScreen() {
         cancelLabel: t("common.cancel"),
       },
     );
-    if (choice !== "confirm") return;
+    if (choice !== "confirm") {
+      setSwitchOpen(true);
+      return;
+    }
 
     setSwitching(true);
+    const previousActiveId = activeCommunityId;
+    const previousCommunities = communities;
+    setActiveCommunityId(row.community_id);
+    setCommunities((prev) =>
+      prev.map((item) => ({
+        ...item,
+        is_active: Number(item.community_id) === Number(row.community_id),
+      })),
+    );
     try {
       const next = await switchActiveCommunity(row.community_id);
-      setSwitchOpen(false);
-      setActiveCommunityId(row.community_id);
       await load({ silent: true });
       navigateAfterAuth(router, next, { mode: "login" });
     } catch (err) {
+      setActiveCommunityId(previousActiveId);
+      setCommunities(previousCommunities);
       await showFailure(t("nav.couldNotSwitchCommunity"), err);
     } finally {
       setSwitching(false);
@@ -601,7 +616,7 @@ export default function MyCommunityScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+    <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
         title={t("myCommunity.title")}
         onBack={() => router.back()}

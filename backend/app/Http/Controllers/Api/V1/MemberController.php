@@ -846,7 +846,6 @@ class MemberController extends Controller
             'role'         => 'in:member,moderator,admin',
             // Legacy single unit — still accepted. Prefer `units` for multi-unit invites.
             'unit_number'  => [
-                'required_without:units',
                 'nullable',
                 'string',
                 'max:20',
@@ -863,7 +862,7 @@ class MemberController extends Controller
                     }
                 },
             ],
-            'units' => 'required_without:unit_number|nullable|array|min:1|max:20',
+            'units' => 'nullable|array|max:20',
             'units.*' => [
                 'string',
                 'max:20',
@@ -877,9 +876,8 @@ class MemberController extends Controller
         ], [
             'name.max' => 'Full Name can only contain letters, spaces, and full stops, with a maximum of 25 characters.',
             'name.regex' => 'Full Name can only contain letters, spaces, and full stops, with a maximum of 25 characters.',
-            'unit_number.required_without' => 'Unit / Apartment is required.',
             'unit_number.max' => 'Please enter a valid Unit / Apartment number.',
-            'units.required_without' => 'At least one unit is required.',
+            'units.max' => 'You can assign up to 20 units.',
         ]);
 
         $unitNumbers = [];
@@ -896,7 +894,7 @@ class MemberController extends Controller
         }
         if ($unitNumbers === []) {
             throw ValidationException::withMessages([
-                'units' => ['At least one unit is required.'],
+                'units' => ['Select at least one unit.'],
             ]);
         }
         $primaryUnitNumber = $unitNumbers[0];
@@ -1597,6 +1595,17 @@ class MemberController extends Controller
                 'rejected_by'       => $rejectedBy,
                 'updated_at'        => now(),
             ]);
+
+        try {
+            app(\App\Services\UnitRegistrationPackageService::class)
+                ->rejectPendingInitialPackagesForUser(
+                    (int) $id,
+                    (int) $communityId,
+                    (int) $request->user()->id,
+                    $reason,
+                );
+        } catch (\Throwable) {
+        }
 
         $communityName = Community::query()->where('id', $communityId)->value('name') ?? 'your community';
 
@@ -2313,11 +2322,13 @@ class MemberController extends Controller
         object $member,
         bool $detailed,
     ): array {
+        $communityIdOnRow = isset($member->community_id) ? (int) $member->community_id : 0;
         $row = [
             'id' => $unitId,
             'unit_number' => $unitNumber,
             'association_status' => $status,
             'is_billing_contact' => $isBillingContact,
+            'community_id' => $communityIdOnRow > 0 ? $communityIdOnRow : null,
         ];
 
         if (! $detailed) {

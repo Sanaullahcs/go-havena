@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   Modal,
   Pressable,
   RefreshControl,
@@ -9,7 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardEvents } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -53,6 +54,27 @@ export default function MyUnitsScreen() {
   const [utilityFile, setUtilityFile] = useState(null);
   const [catalog, setCatalog] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    if (!requestOpen) {
+      setKeyboardHeight(0);
+      return undefined;
+    }
+
+    const show = KeyboardEvents.addListener("keyboardWillShow", (event) => {
+      setKeyboardHeight(Math.max(0, Number(event?.height) || 0));
+    });
+    const hide = KeyboardEvents.addListener("keyboardWillHide", () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      show.remove();
+      hide.remove();
+      setKeyboardHeight(0);
+    };
+  }, [requestOpen]);
 
   const activeCount = useMemo(
     () => units.filter((u) => (u.association_status || "active") === "active").length,
@@ -167,6 +189,8 @@ export default function MyUnitsScreen() {
   }
 
   function pickProof(setter, baseName) {
+    Keyboard.dismiss();
+    setKeyboardHeight(0);
     pickImage(
       (file) => setter(file),
       {
@@ -181,8 +205,14 @@ export default function MyUnitsScreen() {
     );
   }
 
+  const canSubmitRequest =
+    Boolean(unitNumber.trim()) &&
+    Boolean(residenceType) &&
+    Boolean(utilityFile?.uri) &&
+    !submitting;
+
   return (
-    <SafeAreaView style={propertyStyles.safe} edges={["top", "left", "right"]}>
+    <SafeAreaView style={propertyStyles.safe} edges={["left", "right"]}>
       <InternalScreenHeader title={t("myUnits.title")} onBack={() => router.back()} />
       <ScrollView
         contentContainerStyle={{ padding: sw(16), paddingBottom: sw(40) }}
@@ -286,8 +316,15 @@ export default function MyUnitsScreen() {
       <Modal visible={requestOpen} animationType="slide" transparent onRequestClose={() => setRequestOpen(false)}>
         <View style={styles.modalBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setRequestOpen(false)} />
-          <KeyboardAvoidingView behavior="padding" style={styles.modalKeyboard}>
-            <View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, sw(16)) }]}>
+          <View
+            style={[
+              styles.modalCard,
+              {
+                marginBottom: keyboardHeight,
+                paddingBottom: keyboardHeight > 0 ? sw(12) : Math.max(insets.bottom, sw(16)),
+              },
+            ]}
+          >
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{t("myUnits.requestTitle")}</Text>
                 <Pressable onPress={() => setRequestOpen(false)} hitSlop={12}>
@@ -378,9 +415,16 @@ export default function MyUnitsScreen() {
                   </Pressable>
                 </View>
 
-                <Pressable style={styles.uploadRow} onPress={() => pickProof(setUtilityFile, "utility-bill")}>
-                  <Feather name="paperclip" size={16} color="#0F766E" />
-                  <Text style={styles.uploadText}>
+                <Pressable
+                  style={[styles.uploadRow, utilityFile?.uri ? styles.uploadRowAttached : null]}
+                  onPress={() => pickProof(setUtilityFile, "utility-bill")}
+                >
+                  <Feather
+                    name={utilityFile?.uri ? "check-circle" : "paperclip"}
+                    size={16}
+                    color="#0F766E"
+                  />
+                  <Text style={styles.uploadText} numberOfLines={1}>
                     {utilityFile?.fileName || utilityFile?.uri
                       ? t("myUnits.utilityAttached")
                       : t("myUnits.attachUtility")}
@@ -388,8 +432,8 @@ export default function MyUnitsScreen() {
                 </Pressable>
 
                 <Pressable
-                  style={[styles.cta, submitting && { opacity: 0.6 }]}
-                  disabled={submitting}
+                  style={[styles.cta, !canSubmitRequest && styles.ctaDisabled]}
+                  disabled={!canSubmitRequest}
                   onPress={() => void submitRequest()}
                 >
                   {submitting ? (
@@ -400,7 +444,6 @@ export default function MyUnitsScreen() {
                 </Pressable>
               </ScrollView>
             </View>
-          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -538,6 +581,10 @@ const styles = {
     flexDirection: "row",
     gap: sw(8),
   },
+  ctaDisabled: {
+    backgroundColor: "#94A3B8",
+    opacity: 0.7,
+  },
   ctaText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(14),
@@ -548,17 +595,14 @@ const styles = {
     backgroundColor: "rgba(15,23,42,0.45)",
     justifyContent: "flex-end",
   },
-  modalKeyboard: {
-    width: "100%",
-    maxHeight: "92%",
-  },
   modalCard: {
     backgroundColor: "#FFF",
     borderTopLeftRadius: sw(22),
     borderTopRightRadius: sw(22),
     paddingHorizontal: sw(18),
     paddingTop: sw(18),
-    maxHeight: "100%",
+    maxHeight: "92%",
+    width: "100%",
   },
   modalScrollContent: {
     paddingBottom: sw(8),
@@ -657,6 +701,10 @@ const styles = {
     borderRadius: sw(12),
     paddingHorizontal: sw(12),
     paddingVertical: sw(12),
+  },
+  uploadRowAttached: {
+    borderColor: "#5EEAD4",
+    backgroundColor: "#ECFDF5",
   },
   uploadText: {
     flex: 1,

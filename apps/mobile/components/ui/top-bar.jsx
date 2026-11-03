@@ -118,6 +118,7 @@ export default function TopBar({ onMenuPress }) {
   const confirmSwitch = useCallback(
     async (row) => {
       const name = row.community?.name || t("community.myCommunity");
+      setSwitchOpen(false);
       const choice = await dialog.showConfirm(
         t("nav.switchCommunityTitle"),
         t("nav.switchCommunityBody", { name }),
@@ -126,12 +127,14 @@ export default function TopBar({ onMenuPress }) {
           cancelLabel: t("common.cancel"),
         },
       );
-      if (choice !== "confirm") return;
+      if (choice !== "confirm") {
+        setSwitchOpen(true);
+        return;
+      }
 
       setSwitching(true);
       try {
         const next = await switchActiveCommunity(row.community_id);
-        setSwitchOpen(false);
         setActiveCommunityId(row.community_id);
         navigateAfterAuth(router, next, { mode: "login" });
       } catch (err) {

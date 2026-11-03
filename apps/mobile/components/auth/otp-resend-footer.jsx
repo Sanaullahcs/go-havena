@@ -3,6 +3,11 @@ import { Text, TouchableOpacity } from "react-native";
 import { useTranslation } from "react-i18next";
 import { authLayoutStyles as layout } from "../../constants/auth-layout";
 
+/**
+ * Matches web OTP verify footer:
+ * - cooldown / resend lock → "Resend available in MM:SS"
+ * - security lock → failed-attempts copy with MM:SS
+ */
 export default function OtpResendFooter({
   canResend,
   countdownLabel,

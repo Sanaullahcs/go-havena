@@ -344,7 +344,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     await load(true);
   };
 
-  const runApproveUnitPackage = async (packageId: number, unitNumber: string) => {
+  const runApproveUnitPackage = async (packageId: number, unitNumber: string, communityId?: number | null) => {
     if (!viewing) return;
     const confirmed = await confirmAction({
       title: `Approve unit ${unitNumber}?`,
@@ -356,7 +356,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
 
     setBusyUnitPackageId(packageId);
     try {
-      await approveUnitRegistrationPackage(packageId);
+      await approveUnitRegistrationPackage(packageId, communityId);
       toastSuccess(`Unit ${unitNumber} approved.`);
       await refreshViewingMember(viewing);
     } catch (err) {
@@ -366,7 +366,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     }
   };
 
-  const runRejectUnitPackage = async (packageId: number, unitNumber: string) => {
+  const runRejectUnitPackage = async (packageId: number, unitNumber: string, communityId?: number | null) => {
     if (!viewing) return;
     const result = await confirmRejectWithReason({
       title: `Reject unit ${unitNumber}?`,
@@ -377,7 +377,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
 
     setBusyUnitPackageId(packageId);
     try {
-      await rejectUnitRegistrationPackage(packageId, String(result.value));
+      await rejectUnitRegistrationPackage(packageId, String(result.value), communityId);
       toastSuccess(`Unit ${unitNumber} rejected.`);
       await refreshViewingMember(viewing);
     } catch (err) {
@@ -1296,11 +1296,11 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     fallbackResidenceType={viewing.residence_type}
                     fallbackUtilityBillUrl={viewing.utility_bill_url}
                     busyPackageId={busyUnitPackageId}
-                    onApprovePackage={(packageId, unitNumber) => {
-                      void runApproveUnitPackage(packageId, unitNumber);
+                    onApprovePackage={(packageId, unitNumber, communityId) => {
+                      void runApproveUnitPackage(packageId, unitNumber, communityId);
                     }}
-                    onRejectPackage={(packageId, unitNumber) => {
-                      void runRejectUnitPackage(packageId, unitNumber);
+                    onRejectPackage={(packageId, unitNumber, communityId) => {
+                      void runRejectUnitPackage(packageId, unitNumber, communityId);
                     }}
                   />
                   <ProfileRow label="Bio" value={viewing.bio?.trim() ? viewing.bio : "—"} />
