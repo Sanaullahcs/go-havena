@@ -1385,6 +1385,7 @@ export default function CompleteProfile() {
             <View ref={unitFieldRef} collapsable={false} style={styles.fieldGroup}>
               <UnitEntriesSection
                 entries={unitEntries}
+                scrollRef={scrollRef}
                 onChange={(next) => {
                   setUnitEntries(next);
                   const first = next[0];

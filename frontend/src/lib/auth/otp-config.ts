@@ -12,14 +12,17 @@ export function clampOtpExpirySeconds(seconds: number | null | undefined): numbe
   return Math.max(0, Math.min(OTP_EXPIRE_SECONDS, Math.ceil(seconds)));
 }
 
-export function otpResendLockUserMessage(): string {
-  return `Too many code requests. Please try again in ${OTP_RESEND_LOCK_MINUTES} minutes.`;
-}
-
 export function formatOtpCountdown(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+export function otpResendLockUserMessage(seconds?: number | null): string {
+  if (seconds != null && Number.isFinite(seconds) && seconds > 0) {
+    return `Too many code requests. Please try again in ${formatOtpCountdown(Math.ceil(seconds))}.`;
+  }
+  return `Too many code requests. Please try again in ${OTP_RESEND_LOCK_MINUTES} minutes.`;
 }
 
 export function formatOtpLockCountdown(totalSeconds: number): string {

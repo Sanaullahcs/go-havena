@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Keyboard,
   Modal,
   Platform,
@@ -12,6 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { KeyboardEvents } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -22,19 +22,6 @@ import { HomeTheme as T } from "../../constants/home-theme";
 import { sf, sw } from "../../utils/responsive";
 import { showApiFailure } from "../../utils/auth-errors";
 
-function keyboardCoverFromEvent(event) {
-  const height = event?.endCoordinates?.height ?? 0;
-  const screenY = event?.endCoordinates?.screenY;
-  const windowHeight = Dimensions.get("window").height;
-  if (!Number.isFinite(screenY) || screenY <= 0) {
-    return Math.max(0, height);
-  }
-  if (screenY >= windowHeight - 1) {
-    return 0;
-  }
-  return Math.max(0, Math.min(height, windowHeight - screenY));
-}
-
 function normalizeUnitNumber(value) {
   return String(value ?? "")
     .trim()
@@ -42,15 +29,33 @@ function normalizeUnitNumber(value) {
     .toLowerCase();
 }
 
+function dedupeUnitNumbers(units) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of units) {
+    const trimmed = String(raw ?? "").trim();
+    const key = normalizeUnitNumber(trimmed);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out;
+}
+
 export default function UnitPickerField({
   label,
   value = "",
   onChange,
+  multiple = false,
+  values,
+  onChangeValues,
+  maxSelected = 20,
   onBlur,
   error,
   disabled = false,
   locked = false,
   placeholder,
+  required = false,
   loadUnits,
   createUnit,
   unitMax = 50,
@@ -109,20 +114,14 @@ export default function UnitPickerField({
   useEffect(() => {
     if (!open) return undefined;
 
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const onShow = (event) => setKeyboardCover(keyboardCoverFromEvent(event));
-    const onHide = () => setKeyboardCover(0);
-    const subs = [
-      Keyboard.addListener(showEvent, onShow),
-      Keyboard.addListener(hideEvent, onHide),
-    ];
-    if (Platform.OS === "ios") {
-      subs.push(Keyboard.addListener("keyboardDidShow", onShow));
-    }
+    const show = KeyboardEvents.addListener("keyboardWillShow", (event) => {
+      setKeyboardCover(Math.max(0, event?.height ?? 0));
+    });
+    const hide = KeyboardEvents.addListener("keyboardWillHide", () => setKeyboardCover(0));
 
     return () => {
-      subs.forEach((sub) => sub.remove());
+      show.remove();
+      hide.remove();
     };
   }, [open]);
 
@@ -160,9 +159,35 @@ export default function UnitPickerField({
     onBlur?.();
   };
 
+  const selectedValues = multiple
+    ? dedupeUnitNumbers(Array.isArray(values) ? values : [])
+    : String(value ?? "").trim()
+      ? [String(value).trim()]
+      : [];
+
+  const commitSelection = (next) => {
+    const clean = dedupeUnitNumbers(next).slice(0, maxSelected);
+    if (multiple) onChangeValues?.(clean);
+    else onChange?.(clean[0] ?? "");
+  };
+
   const selectUnit = (unitNumber) => {
-    onChange?.(unitNumber);
-    close();
+    if (!multiple) {
+      onChange?.(unitNumber);
+      close();
+      return;
+    }
+    const key = normalizeUnitNumber(unitNumber);
+    const already = selectedValues.some((row) => normalizeUnitNumber(row) === key);
+    if (already) {
+      commitSelection(selectedValues.filter((row) => normalizeUnitNumber(row) !== key));
+      return;
+    }
+    if (selectedValues.length >= maxSelected) {
+      showApiFailure(new Error(t("validation.maxUnits", { max: maxSelected })), { title: t("unitPicker.title") });
+      return;
+    }
+    commitSelection([...selectedValues, unitNumber]);
   };
 
   const handleCreate = async () => {
@@ -191,7 +216,6 @@ export default function UnitPickerField({
     }
   };
 
-  const displayValue = String(value ?? "").trim();
   const hasUnits = units.length > 0;
   const sheetMax = Math.max(0, windowHeight - keyboardCover - insets.top - sw(8));
   const listMax = topChrome > 0 && footerChrome > 0
@@ -203,7 +227,12 @@ export default function UnitPickerField({
 
   return (
     <>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? (
+        <Text style={styles.label}>
+          {label}
+          {required ? <Text style={styles.requiredMark}> *</Text> : null}
+        </Text>
+      ) : null}
       <View
         style={[
           styles.trigger,
@@ -223,16 +252,28 @@ export default function UnitPickerField({
           accessibilityRole="button"
           accessibilityState={{ disabled: disabled || locked, expanded: open }}
         >
-          <Text
-            style={[
-              styles.triggerText,
-              locked && styles.triggerTextLocked,
-              !displayValue && !locked && styles.placeholder,
-            ]}
-            numberOfLines={1}
-          >
-            {displayValue || (locked ? "" : placeholder || t("unitPicker.selectUnit"))}
-          </Text>
+          {selectedValues.length > 0 ? (
+            <View style={styles.chips}>
+              {selectedValues.map((unitNumber) => (
+                <View key={normalizeUnitNumber(unitNumber)} style={styles.chip}>
+                  <Text style={styles.chipText} numberOfLines={1}>
+                    {unitNumber}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.triggerText,
+                locked && styles.triggerTextLocked,
+                styles.placeholder,
+              ]}
+              numberOfLines={1}
+            >
+              {locked ? "" : placeholder || (multiple ? t("unitPicker.selectUnits") : t("unitPicker.selectUnit"))}
+            </Text>
+          )}
           {locked ? null : <Feather name="chevron-down" size={sf(18)} color={T.gray} />}
         </Pressable>
       </View>
@@ -366,7 +407,9 @@ export default function UnitPickerField({
                   <Text style={styles.empty}>{search.trim() ? t("unitPicker.noSearch") : t("unitPicker.empty")}</Text>
                 ) : (
                   filtered.map((unit) => {
-                    const active = normalizeUnitNumber(unit.unit_number) === normalizeUnitNumber(displayValue);
+                    const active = selectedValues.some(
+                      (row) => normalizeUnitNumber(row) === normalizeUnitNumber(unit.unit_number),
+                    );
                     const count = unit.resident_count ?? 0;
                     return (
                       <TouchableOpacity
@@ -395,8 +438,10 @@ export default function UnitPickerField({
                 setFooterChrome((current) => (Math.abs(current - next) < 1 ? current : next));
               }}
             >
-              <TouchableOpacity style={styles.closeBtn} onPress={close}>
-                <Text style={styles.closeBtnText}>{t("common.cancel")}</Text>
+              <TouchableOpacity style={multiple ? styles.doneBtn : styles.closeBtn} onPress={close}>
+                <Text style={multiple ? styles.doneBtnText : styles.closeBtnText}>
+                  {multiple ? t("common.done") : t("common.cancel")}
+                </Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -413,13 +458,40 @@ const styles = {
     color: T.navy,
     marginBottom: sw(6),
   },
+  requiredMark: {
+    color: "#DC2626",
+  },
+  chips: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    alignContent: "center",
+    gap: sw(8),
+    marginRight: sw(8),
+  },
+  chip: {
+    maxWidth: "100%",
+    justifyContent: "center",
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(5),
+    borderRadius: 999,
+    backgroundColor: "#F0FDFA",
+  },
+  chipText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    lineHeight: sf(16),
+    color: "#0F766E",
+    ...(Platform.OS === "android" ? { includeFontPadding: false, textAlignVertical: "center" } : null),
+  },
   trigger: {
     minHeight: sw(48),
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: T.border,
     borderRadius: sw(12),
     backgroundColor: "#fff",
-    overflow: "hidden",
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : null),
   },
   triggerOpen: {
@@ -430,7 +502,8 @@ const styles = {
     alignItems: "center",
     justifyContent: "space-between",
     minHeight: sw(48),
-    paddingHorizontal: sw(14),
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(8),
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : null),
   },
   triggerError: {
@@ -554,6 +627,7 @@ const styles = {
     fontFamily: Fonts.regular,
     fontSize: sf(14),
     color: T.navy,
+    backgroundColor: "#fff",
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : null),
   },
   createInputFocused: {
@@ -639,5 +713,17 @@ const styles = {
     fontFamily: Fonts.semiBold,
     fontSize: sf(14),
     color: T.navy,
+  },
+  doneBtn: {
+    marginTop: sw(12),
+    paddingVertical: sw(14),
+    alignItems: "center",
+    borderRadius: sw(12),
+    backgroundColor: T.teal,
+  },
+  doneBtnText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(14),
+    color: "#fff",
   },
 };

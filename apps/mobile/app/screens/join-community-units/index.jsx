@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -48,6 +48,7 @@ export default function JoinCommunityUnitsScreen() {
   const name = String(communityName || t("community.myCommunity"));
 
   const [unitEntries, setUnitEntries] = useState(() => [emptyEntry()]);
+  const scrollRef = useRef(null);
 
   const errors = useMemo(() => {
     const next = {};
@@ -176,6 +177,7 @@ export default function JoinCommunityUnitsScreen() {
       </View>
 
       <KeyboardSafeScreen
+        scrollRef={scrollRef}
         contentContainerStyle={styles.scroll}
         footer={
           <TouchableOpacity
@@ -202,6 +204,7 @@ export default function JoinCommunityUnitsScreen() {
         <UnitEntriesSection
           entries={unitEntries}
           onChange={setUnitEntries}
+          scrollRef={scrollRef}
           canAdd
           canRemove
           unitMax={LIMITS.profileUnit}

@@ -7,8 +7,10 @@ use App\Models\CommunityMembership;
 use App\Models\InviteCode;
 use App\Models\Region;
 use App\Models\User;
+use App\Services\UnitRegistrationPackageService;
 use Database\Seeders\SystemAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -626,5 +628,163 @@ class AdminDashboardStatsTest extends TestCase
         $response->assertOk();
         $this->assertSame(1, $response->json('data.stats.upcoming_events'));
         $this->assertSame(1, $response->json('data.stats.published_notices'));
+    }
+
+    public function test_first_signup_is_one_resident_review_and_addon_stays_separate(): void
+    {
+        config(['billing.enabled' => false, 'billing.enforce' => false]);
+
+        $region = Region::query()->create([
+            'title'       => 'Signup Metro',
+            'area'        => 'Area',
+            'state'       => 'EG',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $community = Community::query()->create([
+            'name'          => 'First Signup Towers',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $admin = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status'                 => 'active',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $admin->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        $newResident = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'name'   => 'New Resident',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $newResident->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'pending',
+        ]);
+
+        $initialId = DB::table('unit_registration_packages')->insertGetId([
+            'community_id' => $community->id,
+            'user_id'      => $newResident->id,
+            'kind'         => UnitRegistrationPackageService::KIND_INITIAL,
+            'status'       => UnitRegistrationPackageService::STATUS_PENDING,
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
+        $initialItemId = DB::table('unit_registration_package_items')->insertGetId([
+            'package_id'             => $initialId,
+            'unit_number'            => '101',
+            'unit_number_normalized' => '101',
+            'is_new_unit'            => true,
+            'residence_type'         => 'homeowner',
+            'status'                 => UnitRegistrationPackageService::STATUS_PENDING,
+            'created_at'             => now(),
+            'updated_at'             => now(),
+        ]);
+        DB::table('unit_proof_documents')->insert([
+            'community_id'    => $community->id,
+            'user_id'         => $newResident->id,
+            'package_item_id' => $initialItemId,
+            'kind'            => 'utility_bill',
+            'file_url'        => '/storage/utility-bills/signup.png',
+            'review_status'   => 'pending',
+            'created_at'      => now(),
+            'updated_at'      => now(),
+        ]);
+
+        $approvedResident = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'name'   => 'Approved Resident',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $approvedResident->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+        $addonId = DB::table('unit_registration_packages')->insertGetId([
+            'community_id' => $community->id,
+            'user_id'      => $approvedResident->id,
+            'kind'         => UnitRegistrationPackageService::KIND_ADDON,
+            'status'       => UnitRegistrationPackageService::STATUS_PENDING,
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
+        DB::table('unit_registration_package_items')->insert([
+            'package_id'             => $addonId,
+            'unit_number'            => '202',
+            'unit_number_normalized' => '202',
+            'is_new_unit'            => true,
+            'residence_type'         => 'tenant',
+            'status'                 => UnitRegistrationPackageService::STATUS_PENDING,
+            'created_at'             => now(),
+            'updated_at'             => now(),
+        ]);
+
+        Sanctum::actingAs($admin);
+        $response = $this->getJson('/api/v1/admin/dashboard/stats');
+        $response->assertOk();
+
+        $actions = collect($response->json('data.pending_actions'));
+        $residentReviews = $actions
+            ->where('type', 'membership')
+            ->where('user_id', $newResident->id)
+            ->values();
+        $this->assertCount(1, $residentReviews);
+        $this->assertSame('101', $residentReviews[0]['units'][0]['unit_number']);
+        $this->assertSame('homeowner', $residentReviews[0]['units'][0]['residence_type']);
+        $this->assertStringContainsString(
+            '/storage/utility-bills/signup.png',
+            $residentReviews[0]['units'][0]['documents'][0]['file_url'],
+        );
+        $this->assertStringContainsString('101', (string) $residentReviews[0]['detail']);
+        $this->assertCount(
+            0,
+            $actions->where('type', 'unit_registration')->where('user_id', $newResident->id),
+        );
+
+        $addonReviews = $actions->where('type', 'unit_registration')->where('id', $addonId)->values();
+        $this->assertCount(1, $addonReviews);
+        $this->assertStringContainsString('Additional unit', (string) $addonReviews[0]['detail']);
+        $this->assertStringContainsString('202', (string) $addonReviews[0]['detail']);
+
+        $this->assertSame(1, $response->json('data.stats.pending_members'));
+        $this->assertSame(1, $response->json('data.stats.pending_unit_requests'));
+        $this->assertSame(2, $response->json('data.stats.pending_approval_total'));
+
+        $packages = $this->getJson('/api/v1/admin/unit-registration-packages?status=pending');
+        $packages->assertOk();
+        $packageIds = collect($packages->json('data'))->pluck('id')->all();
+        $this->assertNotContains($initialId, $packageIds);
+        $this->assertContains($addonId, $packageIds);
+
+        $this->patchJson("/api/v1/admin/members/{$newResident->id}/reject", [
+            'reason' => 'Documents are incomplete',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('unit_registration_packages', [
+            'id'     => $initialId,
+            'status' => UnitRegistrationPackageService::STATUS_REJECTED,
+        ]);
+
+        $afterReject = collect($this->getJson('/api/v1/admin/dashboard/stats')->json('data.pending_actions'));
+        $this->assertCount(
+            0,
+            $afterReject->where('user_id', $newResident->id),
+        );
+        $this->assertCount(1, $afterReject->where('type', 'unit_registration')->where('id', $addonId));
     }
 }

@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import type { AdminDashboardPendingAction } from "@/lib/api/dashboard";
-import { actionTypeLabel } from "@/components/admin/dashboard/dashboard-shared";
+import { actionTypeLabel, PendingActionUnits } from "@/components/admin/dashboard/dashboard-shared";
 import type { DashboardTone } from "@/components/admin/dashboard/dashboard-shared";
 import { formatPhonesInText } from "@/lib/phone/format";
 
@@ -65,7 +65,7 @@ function ReviewQueueRow({
   const Icon = meta.icon;
 
   return (
-    <article className="group relative grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-t border-slate-100 px-5 py-3.5 transition first:border-t-0 hover:bg-slate-50/80">
+    <article className="group relative grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-start gap-3 border-t border-slate-100 px-5 py-3.5 transition first:border-t-0 hover:bg-slate-50/80">
       <span
         className="absolute bottom-3 left-0 top-3 w-[3px] rounded-r-full opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
         style={{ background: meta.accent }}
@@ -91,6 +91,7 @@ function ReviewQueueRow({
         <p className="mt-0.5 truncate text-[12px] text-slate-500">
           {formatPhonesInText([action.subtitle, action.detail].filter(Boolean).join(" · "))}
         </p>
+        <PendingActionUnits action={action} />
       </div>
 
       <span className="shrink-0 text-[11px] font-medium tabular-nums text-slate-400">{relTime}</span>

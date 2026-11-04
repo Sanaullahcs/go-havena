@@ -11,7 +11,7 @@ import BackButton from "../../../../components/ui/back-button";
 import { getCurrentRole } from "../../../../constants/role-session";
 import { saveRegionSelection, joinCommunity } from "../../../../services/auth-api";
 import { getUser } from "../../../../services/auth-session";
-import { canAccessDashboard, membershipForCommunity } from "../../../../services/community-access";
+import { approvedResidentMemberships, canAccessDashboard, membershipForCommunity } from "../../../../services/community-access";
 import { fetchMe, switchActiveCommunity } from "../../../../services/profile-api";
 import { navigateAfterAuth } from "../../../../constants/onboarding-routes";
 import { ionChevronForward } from "../../../../utils/rtl";
@@ -358,6 +358,11 @@ export default function RegionCommunitiesScreen() {
                 const isDisabled = isAdminOnboarding && community.hasAdmin;
                 const membership = membershipForCommunity(sessionUser, community.id);
                 const membershipStatus = membership?.status;
+                // First signup creates a pending membership as soon as the card is tapped.
+                // That is not an approval wait yet — only a later community request should say so.
+                const showPendingApproval =
+                  membershipStatus === "pending" &&
+                  (isJoinAnother || approvedResidentMemberships(sessionUser).length > 0);
 
                 return (
                   <TouchableOpacity
@@ -390,7 +395,7 @@ export default function RegionCommunitiesScreen() {
                         <Text style={styles.cardBadge}>{t("region.communityAdminAssigned")}</Text>
                       ) : membershipStatus === "approved" ? (
                         <Text style={styles.cardBadgeJoined}>{t("region.alreadyJoined")}</Text>
-                      ) : membershipStatus === "pending" ? (
+                      ) : showPendingApproval ? (
                         <Text style={styles.cardBadgePending}>{t("region.joinPendingBadge")}</Text>
                       ) : null}
                     </View>

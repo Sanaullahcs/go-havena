@@ -33,10 +33,19 @@ export async function deleteMember(userId) {
   return apiRequest(`/admin/members/${userId}`, { method: "DELETE" });
 }
 
-export async function inviteMember({ name, email, phone, unit_number, role = "member" }) {
+export async function inviteMember({ name, email, phone, unit_number, units, role = "member" }) {
+  const unitList = (Array.isArray(units) ? units : [])
+    .map((unit) => String(unit ?? "").trim())
+    .filter(Boolean);
+  const body = { name, email, phone, role };
+  if (unitList.length > 0) {
+    body.units = unitList;
+  } else if (String(unit_number ?? "").trim()) {
+    body.unit_number = String(unit_number).trim();
+  }
   return apiRequest("/admin/members/invite", {
     method: "POST",
-    body: { name, email, phone, unit_number, role },
+    body,
   });
 }
 

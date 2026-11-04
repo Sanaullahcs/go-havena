@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  OTP_RESEND_LOCK_MINUTES,
   OTP_RESEND_LOCK_SECONDS,
   OTP_RESEND_SECONDS,
 } from "../constants/otp-config";
-import i18n from "../i18n";
 import {
   extractOtpRateLimitFromError,
   normalizeOtpRateLimit,
@@ -17,32 +15,25 @@ function isResendLimitLock(normalized) {
   return Boolean(normalized?.locked && normalized?.lockType === "resend_limit");
 }
 
-export function useOtpResendLimit(initialRateLimit = null, { dialog } = {}) {
+function initialSecondsLeft(initialRateLimit, { startAtZero = false } = {}) {
+  const normalized = normalizeOtpRateLimit(initialRateLimit);
+  if (normalized.retryAfterSeconds > 0) {
+    return normalized.retryAfterSeconds;
+  }
+  return startAtZero ? 0 : OTP_RESEND_SECONDS;
+}
+
+export function useOtpResendLimit(
+  initialRateLimit = null,
+  { startAtZero = false, showResendLimitDialog = true } = {},
+) {
   const [limits, setLimits] = useState(() => normalizeOtpRateLimit(initialRateLimit));
-  const [secondsLeft, setSecondsLeft] = useState(() => {
-    const normalized = normalizeOtpRateLimit(initialRateLimit);
-    return normalized.retryAfterSeconds > 0 ? normalized.retryAfterSeconds : OTP_RESEND_SECONDS;
-  });
-  const resendLimitDialogShownRef = useRef(false);
-
-  const maybeShowResendLimitDialog = useCallback(
-    (normalized) => {
-      if (
-        !dialog ||
-        resendLimitDialogShownRef.current ||
-        !isResendLimitLock(normalized)
-      ) {
-        return;
-      }
-
-      resendLimitDialogShownRef.current = true;
-      void dialog.showError(
-        i18n.t("auth.tooManyCodeRequests"),
-        i18n.t("auth.otpResendLockMessage", { minutes: OTP_RESEND_LOCK_MINUTES }),
-      );
-    },
-    [dialog],
+  const [secondsLeft, setSecondsLeft] = useState(() =>
+    initialSecondsLeft(initialRateLimit, { startAtZero }),
   );
+  const [lastOtpErrorCode, setLastOtpErrorCode] = useState(null);
+  const [resendLimitDialogVisible, setResendLimitDialogVisible] = useState(false);
+  const resendLimitDialogShownRef = useRef(false);
 
   const applyRateLimit = useCallback(
     (raw, options = {}) => {
@@ -67,10 +58,18 @@ export function useOtpResendLimit(initialRateLimit = null, { dialog } = {}) {
         );
       }
 
-      maybeShowResendLimitDialog(normalized);
+      if (
+        showResendLimitDialog &&
+        isResendLimitLock(normalized) &&
+        !resendLimitDialogShownRef.current
+      ) {
+        resendLimitDialogShownRef.current = true;
+        setResendLimitDialogVisible(true);
+      }
+
       return normalized;
     },
-    [maybeShowResendLimitDialog],
+    [showResendLimitDialog],
   );
 
   const applyRateLimitFromError = useCallback(
@@ -78,6 +77,9 @@ export function useOtpResendLimit(initialRateLimit = null, { dialog } = {}) {
       const extracted = extractOtpRateLimitFromError(error);
       if (!extracted) return false;
       const code = error?.code;
+      if (code === "OTP_COOLDOWN" || code === "OTP_RESEND_LOCKED" || code === "OTP_VERIFY_LOCKED") {
+        setLastOtpErrorCode(code);
+      }
       const extendCooldown = code === "INVALID_OTP" || code === "OTP_VERIFY_LOCKED";
       applyRateLimit(extracted, { extendCooldown });
       return true;
@@ -95,6 +97,10 @@ export function useOtpResendLimit(initialRateLimit = null, { dialog } = {}) {
     });
   }, [applyRateLimit, limits.resendLimit, limits.resendsRemaining]);
 
+  const dismissResendLimitDialog = useCallback(() => {
+    setResendLimitDialogVisible(false);
+  }, []);
+
   useEffect(() => {
     if (secondsLeft <= 0) {
       if (limits.locked && (limits.lockType === "resend_limit" || limits.lockType === "security")) {
@@ -105,6 +111,7 @@ export function useOtpResendLimit(initialRateLimit = null, { dialog } = {}) {
           retryAfterSeconds: 0,
         }));
         resendLimitDialogShownRef.current = false;
+        setResendLimitDialogVisible(false);
       }
       return undefined;
     }
@@ -118,6 +125,7 @@ export function useOtpResendLimit(initialRateLimit = null, { dialog } = {}) {
 
   const isResendLimitLockActive = isResendLimitLock(limits);
   const canResend = !limits.locked && secondsLeft <= 0;
+  const showRateLimitBanner = secondsLeft > 0 && (!canResend || limits.locked);
   const countdownLabel = otpRateLimitCountdownLabel(secondsLeft, {
     locked: limits.locked,
     lockType: limits.lockType,
@@ -135,5 +143,10 @@ export function useOtpResendLimit(initialRateLimit = null, { dialog } = {}) {
     applyRateLimit,
     applyRateLimitFromError,
     resetCountdown,
+    showRateLimitBanner,
+    lastOtpErrorCode,
+    clearOtpErrorCode: () => setLastOtpErrorCode(null),
+    resendLimitDialogVisible,
+    dismissResendLimitDialog,
   };
 }

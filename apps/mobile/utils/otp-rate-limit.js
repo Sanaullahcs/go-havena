@@ -78,6 +78,33 @@ export function isOtpRateLimitError(code) {
   return code === "OTP_COOLDOWN" || code === "OTP_RESEND_LOCKED" || code === "OTP_VERIFY_LOCKED";
 }
 
+/** Matches Laravel `OtpRateLimitService::formatDuration` for consistent web/mobile copy. */
+export function formatOtpWaitDuration(totalSeconds) {
+  const safe = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  if (safe >= 3600) {
+    const hours = Math.floor(safe / 3600);
+    const minutes = Math.floor((safe % 3600) / 60);
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+  if (safe >= 60) {
+    const minutes = Math.floor(safe / 60);
+    const remain = safe % 60;
+    return remain > 0 ? `${minutes}m ${remain}s` : `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+  return `${safe}s`;
+}
+
+export function resolveOtpRateLimitMessage(t, { lockType = null, secondsLeft = 0, code = null } = {}) {
+  const time = formatOtpWaitDuration(secondsLeft);
+  if (lockType === "security" || code === "OTP_VERIFY_LOCKED") {
+    return t("auth.otpVerifyLockedCountdown", { time });
+  }
+  if (lockType === "resend_limit" || code === "OTP_RESEND_LOCKED") {
+    return t("auth.otpResendLockedCountdown", { time });
+  }
+  return t("auth.otpCooldownCountdown", { time });
+}
+
 export function otpRateLimitCountdownLabel(seconds, { locked = false, lockType = null } = {}) {
   if (lockType === "resend_limit") {
     return formatOtpCountdown(seconds);

@@ -50,6 +50,7 @@ const LocaleTextInput = forwardRef(function LocaleTextInput(
       {...(textInputProps.lang ? { lang: textInputProps.lang } : null)}
       {...rest}
       keyboardType={keyboardType}
+      underlineColorAndroid="transparent"
       onFocus={handleFocus}
       textAlign={resolvedTextAlign}
       textAlignVertical={

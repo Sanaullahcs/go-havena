@@ -239,9 +239,9 @@ export type PropertyServiceForm = {
   unsubscribe_mode?: "end_of_period" | "immediate";
 };
 
-function communityParams() {
-  const communityId = getAdminCommunityId();
-  return communityId ? { community_id: communityId } : undefined;
+function communityParams(communityId?: number | null) {
+  const id = communityId && communityId > 0 ? communityId : getAdminCommunityId();
+  return id ? { community_id: id } : undefined;
 }
 
 export async function fetchCommunityUnits(communityId: number) {
@@ -289,16 +289,20 @@ export async function fetchUnitRegistrationPackages(params?: { status?: string; 
   return (data.data ?? []) as UnitRegistrationPackage[];
 }
 
-export async function approveUnitRegistrationPackage(id: number) {
-  const { data } = await api.post(`/v1/admin/unit-registration-packages/${id}/approve`, {}, { params: communityParams() });
+export async function approveUnitRegistrationPackage(id: number, communityId?: number | null) {
+  const { data } = await api.post(
+    `/v1/admin/unit-registration-packages/${id}/approve`,
+    {},
+    { params: communityParams(communityId) },
+  );
   return data.data as UnitRegistrationPackage;
 }
 
-export async function rejectUnitRegistrationPackage(id: number, reason: string) {
+export async function rejectUnitRegistrationPackage(id: number, reason: string, communityId?: number | null) {
   const { data } = await api.post(
     `/v1/admin/unit-registration-packages/${id}/reject`,
     { reason },
-    { params: communityParams() },
+    { params: communityParams(communityId) },
   );
   return data.data as UnitRegistrationPackage;
 }

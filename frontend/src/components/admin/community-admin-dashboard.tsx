@@ -10,6 +10,7 @@ import {
   formatDashboardGeneratedAt,
   LiveBadge,
   ManageLinkCard,
+  PendingAlertBanner,
 } from "@/components/admin/dashboard/dashboard-shared";
 import ReviewQueueSection, {
   ADMIN_REVIEW_QUEUE_ID,
@@ -68,6 +69,19 @@ import { getAdminCache, setAdminCache } from "@/lib/admin/navigation-cache";
 import { getUser } from "@/lib/auth/session";
 import { FEATURES_UPDATED_EVENT } from "@/components/auth/feature-settings-sync";
 import { adminFeatureForPath, isResidentFeatureEnabled } from "@/lib/resident-features";
+import { communityPendingReviewCategories } from "@/lib/admin/pending-review-breakdown";
+
+const PENDING_REVIEW_LINKS: Record<string, { href: string; singular: string; plural: string }> = {
+  members: { href: "/admin/members?status=pending", singular: "resident approval", plural: "resident approvals" },
+  unit_requests: { href: "/admin/unit-requests", singular: "unit request", plural: "unit requests" },
+  listings: { href: "/admin/marketplace?status=pending", singular: "listing", plural: "listings" },
+  posts: { href: "/admin/feed?status=pending", singular: "post", plural: "posts" },
+  bookings: { href: "/admin/bookings?status=pending", singular: "booking request", plural: "booking requests" },
+  amenities: { href: "/admin/amenities", singular: "amenity review", plural: "amenity reviews" },
+  amenity_bills: { href: "/admin/amenity-bills", singular: "amenity bill", plural: "amenity bills" },
+  service_bills: { href: "/admin/service-bills", singular: "service bill", plural: "service bills" },
+  businesses: { href: "/admin/businesses?status=pending", singular: "business", plural: "businesses" },
+};
 
 function communityFeatureVisible(href?: string) {
   if (!href) return true;
@@ -284,10 +298,10 @@ export default function CommunityAdminDashboard() {
           }
         } else if (action.type === "unit_registration") {
           if (verb === "approve") {
-            await approveUnitRegistrationPackage(action.id);
+            await approveUnitRegistrationPackage(action.id, action.community_id);
             toastSuccess("Unit request approved");
           } else {
-            await rejectUnitRegistrationPackage(action.id, String(result.value ?? "").trim());
+            await rejectUnitRegistrationPackage(action.id, String(result.value ?? "").trim(), action.community_id);
             toastSuccess("Unit request rejected");
           }
         }
@@ -600,6 +614,50 @@ export default function CommunityAdminDashboard() {
         }
         composeActions={<ComposeRail actions={quickActions} />}
       />
+
+      {(() => {
+        const bookingsOnOwnCard = communityFeatureVisible("/admin/bookings");
+        const bookingCount = stats.pending_bookings ?? 0;
+        const approvalCount = bookingsOnOwnCard
+          ? Math.max(0, stats.pending_approval_total - bookingCount)
+          : stats.pending_approval_total;
+        const parts = communityPendingReviewCategories(stats).flatMap((row) => {
+          if (row.count <= 0) return [];
+          if (bookingsOnOwnCard && row.key === "bookings") return [];
+          const link = PENDING_REVIEW_LINKS[row.key];
+          if (!link || !communityFeatureVisible(link.href)) return [];
+          return [{ ...row, ...link }];
+        });
+        if (approvalCount <= 0) return null;
+        return (
+          <PendingAlertBanner href={`#${ADMIN_REVIEW_QUEUE_ID}`}>
+            <span className="font-semibold">
+              {approvalCount} item{approvalCount === 1 ? "" : "s"} need your review
+            </span>
+            {parts.length > 0 ? (
+              <>
+                {" — "}
+                {parts.map((row, index) => {
+                  const separator = index === 0 ? "" : index === parts.length - 1 ? " and " : ", ";
+                  const label = `${row.count} ${row.count === 1 ? row.singular : row.plural}`;
+                  return (
+                    <span key={row.key}>
+                      {separator}
+                      <Link
+                        href={row.href}
+                        className="font-semibold underline decoration-amber-400/70 underline-offset-2 hover:text-amber-950"
+                      >
+                        {label}
+                      </Link>
+                    </span>
+                  );
+                })}
+              </>
+            ) : null}
+            .
+          </PendingAlertBanner>
+        );
+      })()}
 
       <div className="space-y-4">
       {error ? (

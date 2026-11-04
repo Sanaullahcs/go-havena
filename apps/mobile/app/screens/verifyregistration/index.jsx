@@ -31,6 +31,7 @@ import {
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { useOtpResendLimit } from "../../../hooks/use-otp-resend-limit";
 import OtpResendFooter from "../../../components/auth/otp-resend-footer";
+import OtpResendLimitDialog from "../../../components/auth/otp-resend-limit-dialog";
 import { extractOtpRateLimitFromResponse } from "../../../utils/otp-rate-limit";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import AuthSuccessOverlay from "../../../components/ui/auth-success-overlay";
@@ -61,7 +62,9 @@ export default function VerifyRegistrationScreen() {
     lockType,
     applyRateLimit,
     applyRateLimitFromError,
-  } = useOtpResendLimit(null, { dialog });
+    resendLimitDialogVisible,
+    dismissResendLimitDialog,
+  } = useOtpResendLimit(null, { showResendLimitDialog: true });
   const isValid = otp.length === 6;
   const emailDisplay = email || t("auth.yourEmail");
   const signupOptions = {
@@ -152,6 +155,11 @@ export default function VerifyRegistrationScreen() {
 
   return (
     <>
+      <OtpResendLimitDialog
+        visible={resendLimitDialogVisible}
+        countdownLabel={countdownLabel}
+        onClose={dismissResendLimitDialog}
+      />
       <ScreenStatusBar style="dark" opaque />
       <AuthSuccessOverlay
         visible={showSuccess}
