@@ -209,9 +209,16 @@ export type WebUser = {
       name: string;
       review_status?: string | null;
       currency?: string | null;
+      region?: string | null;
+      payment_provider?: string | null;
     };
   }>;
-  profile?: { display_name?: string; avatar?: string; avatar_url?: string };
+  profile?: {
+    display_name?: string;
+    avatar?: string;
+    avatar_url?: string;
+    region?: { title?: string | null; area?: string | null; state?: string | null } | null;
+  };
   access?: CommunityAdminAccess | null;
   resident_features?: {
     configured?: boolean;
@@ -461,9 +468,29 @@ export function getManagedCommunityId(user?: WebUser | null): number | undefined
   return pending?.community_id ?? u.community_id;
 }
 
+function textLooksLikePakistan(value: unknown): boolean {
+  return String(value ?? "").trim().toLowerCase().includes("pakistan");
+}
+
 /** True when the managed community's region country is Pakistan. */
 export function isPakistanCommunityRegion(user?: WebUser | null): boolean {
   const u = user ?? getUser();
   const code = String(u?.access?.country_code ?? "").trim().toUpperCase();
-  return code === "PK";
+  if (code === "PK") return true;
+  if (code !== "") return false;
+
+  if (u?.access?.billing_exempt === true) return true;
+  if (String(u?.currency ?? u?.access?.currency ?? "").trim().toUpperCase() === "PKR") return true;
+
+  const regions = [
+    ...(u?.memberships ?? []).map((membership) => membership.community?.region),
+    u?.profile?.region?.title,
+    u?.profile?.region?.area,
+    u?.profile?.region?.state,
+  ];
+  if (regions.some((region) => textLooksLikePakistan(region))) return true;
+
+  return (u?.memberships ?? []).some(
+    (membership) => membership.community?.payment_provider === "kuickpay",
+  );
 }

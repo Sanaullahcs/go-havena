@@ -266,8 +266,7 @@ class CommunityAdminAccessService
         }
 
         $billingExempt = $this->regionBilling->isBillingExempt($communityId);
-        $community?->loadMissing('regionRecord.stateRecord.country');
-        $countryCode = $this->regionBilling->countryCodeForRegion($community?->regionRecord);
+        $countryCode = $this->regionBilling->countryCodeForCommunity($communityId);
         $billingComplete = $this->isBillingComplete($communityId);
         $profileComplete = $this->isProfileComplete($user);
         $hasCommunity = $communityId !== null;

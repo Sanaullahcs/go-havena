@@ -112,6 +112,9 @@ export function resolveAdminPortalRedirect(pathname: string, user: WebUser | nul
     if (matchesPrefix(pathname, "/admin/kuickpay") && !isPakistanCommunityRegion(user)) {
       return "/admin";
     }
+    if (matchesPrefix(pathname, "/admin/refer-and-earn") && isPakistanCommunityRegion(user)) {
+      return "/admin";
+    }
     if (!isSystemAdminRoute(pathname)) return null;
     return "/admin";
   }
