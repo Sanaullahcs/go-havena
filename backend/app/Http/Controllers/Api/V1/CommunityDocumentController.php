@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Services\ActivityLogService;
+use App\Services\AgreementService;
 use App\Services\UserActingContextService;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
@@ -70,6 +71,18 @@ class CommunityDocumentController extends Controller
             'mime_type'        => $doc->mime_type,
             'download_count'   => (int) $doc->download_count,
             'status'           => $doc->status,
+            'kind'             => $doc->kind ?? 'document',
+            'publication_status' => $doc->publication_status ?? 'published',
+            'signature_required' => (bool) ($doc->signature_required ?? false),
+            'allow_late_signing' => (bool) ($doc->allow_late_signing ?? false),
+            'due_at'           => $doc->due_at ?? null,
+            'effective_at'     => $doc->effective_at ?? null,
+            'expires_at'       => $doc->expires_at ?? null,
+            'version'          => (int) ($doc->version ?? 1),
+            'supersedes_id'    => isset($doc->supersedes_id) && $doc->supersedes_id ? (int) $doc->supersedes_id : null,
+            'published_at'     => $doc->published_at ?? null,
+            'assignment_scope' => $doc->assignment_scope ?? null,
+            'page_count'       => isset($doc->page_count) && $doc->page_count ? (int) $doc->page_count : null,
             'created_by'       => (int) $doc->created_by,
             'created_at'       => $doc->created_at,
             'updated_at'       => $doc->updated_at,
@@ -105,7 +118,10 @@ class CommunityDocumentController extends Controller
     {
         $countsQuery = DB::table('community_documents')
             ->where('community_id', $communityId)
-            ->whereNull('deleted_at');
+            ->whereNull('deleted_at')
+            ->where(function ($query) {
+                $query->where('kind', 'document')->orWhereNull('kind');
+            });
 
         if ($activeOnly) {
             $countsQuery->where('status', 'active');
@@ -169,10 +185,26 @@ class CommunityDocumentController extends Controller
         $user        = $request->user();
         $communityId = $this->resolveCommunityId($request, $user);
 
+        $userId = (int) $user->id;
         $query = DB::table('community_documents')
             ->where('community_id', $communityId)
-            ->where('status', 'active')
             ->whereNull('deleted_at')
+            ->where(function ($outer) use ($userId) {
+                $outer->where(function ($docs) {
+                    $docs->where('status', 'active')
+                        ->where(function ($kind) {
+                            $kind->where('kind', 'document')->orWhereNull('kind');
+                        });
+                })->orWhere(function ($agreements) use ($userId) {
+                    $agreements->where('kind', 'agreement')
+                        ->whereIn('id', function ($sub) use ($userId) {
+                            $sub->select('document_id')
+                                ->from('community_document_assignments')
+                                ->where('user_id', $userId)
+                                ->where('status', '!=', 'revoked');
+                        });
+                });
+            })
             ->orderByDesc('updated_at');
 
         if ($request->filled('category')) {
@@ -187,14 +219,15 @@ class CommunityDocumentController extends Controller
         }
 
         $docs = $query->get();
-        $data = $docs->map(fn($d) => $this->formatDocument($d, $request))->values();
-        $recent = $data->take(3)->values();
+        $formatted = $docs->map(fn ($d) => $this->formatDocument($d, $request))->all();
+        $data = collect(app(AgreementService::class)->expandForResident($formatted, $userId))->values();
+        $recent = $data->where('kind', '!=', 'agreement')->take(3)->values();
 
         return response()->json([
             'data'       => $data,
             'recent'     => $recent,
             'categories' => $this->buildCategories($communityId, true),
-            'total'      => $docs->count(),
+            'total'      => $data->count(),
         ]);
     }
 
@@ -211,14 +244,33 @@ class CommunityDocumentController extends Controller
             ->whereNull('deleted_at');
 
         if (!$isAdmin) {
-            $query->where('status', 'active');
+            $query->where(function ($visible) use ($user) {
+                $visible->where('status', 'active')
+                    ->orWhereIn('id', function ($sub) use ($user) {
+                        $sub->select('document_id')
+                            ->from('community_document_assignments')
+                            ->where('user_id', $user->id)
+                            ->where('status', 'signed');
+                    });
+            });
         }
 
         $doc = $query->first();
         abort_if(!$doc, 404, 'Document not found.');
+        $agreements = app(AgreementService::class);
+        abort_if(! $agreements->residentCanView($doc, (int) $user->id, $isAdmin), 404, 'Document not found.');
+        if (! $isAdmin) {
+            $agreements->recordView($doc, (int) $user->id);
+        }
+        $payload = $this->formatDocument($doc, $request);
+        $payload['community_name'] = DB::table('communities')->where('id', $doc->community_id)->value('name');
+        $payload['assignments'] = $agreements->assignmentsFor((int) $doc->id, (int) $user->id, $request);
+        if (($doc->kind ?? 'document') === 'agreement' && $isAdmin) {
+            $payload['stats'] = $agreements->stats((int) $doc->id);
+        }
 
         return response()->json([
-            'data' => $this->formatDocument($doc, $request),
+            'data' => $payload,
         ]);
     }
 
@@ -255,6 +307,15 @@ class CommunityDocumentController extends Controller
             ->where('community_id', $communityId)
             ->whereNull('deleted_at')
             ->orderByDesc('updated_at');
+
+        $kind = $request->input('kind', 'document');
+        if ($kind === 'agreement') {
+            $query->where('kind', 'agreement');
+        } elseif ($kind !== 'all') {
+            $query->where(function ($inner) {
+                $inner->where('kind', 'document')->orWhereNull('kind');
+            });
+        }
 
         if ($request->filled('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
@@ -375,6 +436,8 @@ class CommunityDocumentController extends Controller
             'file_size'    => $fileMeta['file_size'],
             'mime_type'    => $fileMeta['mime_type'],
             'status'       => $data['status'] ?? 'active',
+            'kind'         => 'document',
+            'publication_status' => 'published',
             'created_at'   => now(),
             'updated_at'   => now(),
         ]);
@@ -393,6 +456,9 @@ class CommunityDocumentController extends Controller
         $user = $request->user();
         $doc  = DB::table('community_documents')->whereNull('deleted_at')->where('id', $id)->first();
         abort_if(!$doc, 404, 'Document not found.');
+        if (($doc->kind ?? 'document') === 'agreement' && ($doc->publication_status ?? 'draft') !== 'draft') {
+            abort(422, 'Published agreements cannot be edited. Create a new version.');
+        }
 
         $data = $request->validate([
             'title'       => 'sometimes|string|max:200',
@@ -404,14 +470,28 @@ class CommunityDocumentController extends Controller
 
         $updates = collect($data)->except('file')->toArray();
         $updates['updated_at'] = now();
+        $isAgreement = ($doc->kind ?? 'document') === 'agreement';
+        if ($isAgreement) {
+            unset($updates['status']);
+            $dates = $request->validate([
+                'due_at' => 'nullable|date',
+                'effective_at' => 'nullable|date',
+                'expires_at' => 'nullable|date',
+            ]);
+            $updates = array_merge($updates, $dates);
+        }
 
         if (isset($updates['category'])) {
             $this->ensureCategory((int) $doc->community_id, $updates['category']);
         }
 
         if ($request->hasFile('file')) {
+            if ($isAgreement) {
+                $fileMeta = app(AgreementService::class)->storeFile($request->file('file'), (int) $doc->community_id);
+            } else {
+                $fileMeta = $this->storeUploadedFile($request->file('file'), (int) $doc->community_id);
+            }
             $this->deleteStoredFile($doc->file_path);
-            $fileMeta = $this->storeUploadedFile($request->file('file'), (int) $doc->community_id);
             $updates = array_merge($updates, $fileMeta);
         }
 
@@ -442,6 +522,9 @@ class CommunityDocumentController extends Controller
     {
         $doc = DB::table('community_documents')->whereNull('deleted_at')->where('id', $id)->first();
         abort_if(!$doc, 404, 'Document not found.');
+        if (($doc->kind ?? '') === 'agreement' && ($doc->publication_status ?? '') !== 'draft') {
+            abort(422, 'Published agreements are archived instead of deleted.');
+        }
 
         DB::table('community_documents')->where('id', $id)->update(['deleted_at' => now(), 'updated_at' => now()]);
 

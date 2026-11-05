@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
+import { AgreementsPanel } from "@/components/admin/agreements-panel";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { ThemedSelect } from "@/components/ui/themed-select";
 import { confirmDelete, toastError, toastSuccess } from "@/lib/alert";
@@ -71,7 +72,18 @@ export default function DocumentsPage() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const hasLoadedOnce = useRef(false);
+  const [section, setSection] = useState<"documents" | "agreements">("documents");
+  const [openAgreementId, setOpenAgreementId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const agreement = Number(params.get("agreement"));
+    if (params.get("tab") === "agreements" || agreement) {
+      setSection("agreements");
+    }
+    if (agreement) setOpenAgreementId(agreement);
+  }, []);
 
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
@@ -306,12 +318,21 @@ export default function DocumentsPage() {
             Upload and organize community documents by category. Residents can browse and download from the mobile app.
           </p>
         </div>
-        <button type="button" onClick={openCreate} className="nl-btn-primary">
-          <Plus className="h-4 w-4" />
-          Add Document
-        </button>
+        {section === "documents" ? (
+          <button type="button" onClick={openCreate} className="nl-btn-primary">
+            <Plus className="h-4 w-4" />
+            Add Document
+          </button>
+        ) : null}
       </div>
 
+      <div className="flex gap-6 border-b border-slate-200">
+        <button type="button" onClick={() => setSection("documents")} className={`border-b-2 pb-2 text-sm font-semibold ${section === "documents" ? "border-[#1B4F8A] text-[#1B4F8A]" : "border-transparent text-slate-500"}`}>All Documents</button>
+        <button type="button" onClick={() => setSection("agreements")} className={`border-b-2 pb-2 text-sm font-semibold ${section === "agreements" ? "border-[#1B4F8A] text-[#1B4F8A]" : "border-transparent text-slate-500"}`}>Agreements</button>
+      </div>
+
+      {section === "agreements" ? <AgreementsPanel initialId={openAgreementId} /> : null}
+      {section === "documents" ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile label="Total Documents" value={String(stats.total)} hint="All files" tone="blue" icon={<FileText className="h-5 w-5" />} />
         <StatTile label="Active" value={String(stats.active)} hint="Visible to residents" tone="green" icon={<FolderOpen className="h-5 w-5" />} />
@@ -497,6 +518,7 @@ export default function DocumentsPage() {
           />
         </DataTable>
       </div>
+      </> : null}
 
       {viewing && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">

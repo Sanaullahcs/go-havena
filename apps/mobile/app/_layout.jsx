@@ -482,6 +482,14 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="screens/property-management/documents/agreement-form"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/documents/sign-agreement"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="screens/bills/index"
           options={{ headerShown: false }}
         />

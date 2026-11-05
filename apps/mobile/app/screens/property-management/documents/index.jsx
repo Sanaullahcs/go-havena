@@ -15,7 +15,7 @@ import { Fonts } from "../../../../constants/font";
 import { HomeTheme as T } from "../../../../constants/home-theme";
 import { sw, sf } from "../../../../utils/responsive";
 import { amenityFlowRoutes } from "../../../../constants/property-management-routes";
-import { fetchCommunityDocuments } from "../../../../services/documents-api";
+import { fetchAdminAgreements, fetchCommunityDocuments } from "../../../../services/documents-api";
 import { getCurrentRole } from "../../../../constants/role-session";
 
 const CATEGORY_META = {
@@ -29,6 +29,15 @@ const CATEGORY_META = {
 
 function getCategoryMeta(name) {
   return CATEGORY_META[name] ?? { icon: "folder", color: "#64748B", bg: "#F8FAFC" };
+}
+
+function statusLabel(status) {
+  if (status === "signed") return "Signed";
+  if (status === "overdue") return "Overdue";
+  if (status === "expired") return "Expired";
+  if (status === "declined") return "Declined";
+  if (status === "viewed") return "Viewed";
+  return "Requires signature";
 }
 
 function formatDocDate(value) {
@@ -47,7 +56,14 @@ function DocumentRow({ doc, onPress, showDownloads, actionIcon = "download" }) {
         </View>
         <View style={styles.docBody}>
           <Text style={styles.docTitle} numberOfLines={2}>{doc.title}</Text>
-<Text style={styles.docCategory} numberOfLines={1}>{doc.category}</Text>
+          <Text style={styles.docCategory} numberOfLines={1}>{doc.category}</Text>
+          {doc.kind === "agreement" ? (
+            <Text style={styles.docStatus} numberOfLines={1}>
+              {doc.publication_status ? `${doc.publication_status} · ${doc.stats?.signed ?? 0} signed · ${doc.stats?.pending ?? 0} pending` : statusLabel(doc.display_status)}
+              {doc.unit_label ? ` · ${doc.unit_label}` : ""}
+              {doc.due_at ? ` · ${formatDocDate(doc.due_at)}` : ""}
+            </Text>
+          ) : null}
           <View style={styles.docMeta}>
             <Text style={styles.docMetaText}>{doc.file_size_label}</Text>
             <Text style={styles.docMetaText}>•</Text>
@@ -74,11 +90,14 @@ export default function Documents() {
   const isAdmin = getCurrentRole() === "admin";
 
   const [documents, setDocuments] = useState([]);
+  const [agreementRows, setAgreementRows] = useState([]);
   const [recent, setRecent] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [section, setSection] = useState("documents");
+  const [agreementFilter, setAgreementFilter] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
@@ -89,9 +108,20 @@ export default function Documents() {
     setError(null);
     try {
       const data = await fetchCommunityDocuments();
-      setDocuments(data.documents);
-      setRecent(data.recent);
+      const plain = (data.documents ?? []).filter((item) => item.kind !== "agreement");
+      const assigned = (data.documents ?? []).filter((item) => item.kind === "agreement");
+      setDocuments(plain);
+      setRecent((data.recent ?? []).filter((item) => item.kind !== "agreement"));
       setCategories(data.categories);
+      let agreements = assigned;
+      if (isAdmin) {
+        try {
+          agreements = await fetchAdminAgreements();
+        } catch {
+          agreements = assigned;
+        }
+      }
+      setAgreementRows(agreements);
     } catch (err) {
       setError(err?.message ?? t("propertyMgmt.couldNotLoadDocs"));
     } finally {
@@ -99,7 +129,7 @@ export default function Documents() {
       setRefreshing(false);
       hasLoadedOnce.current = true;
     }
-  }, []);
+  }, [isAdmin, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -112,9 +142,31 @@ export default function Documents() {
     load(true);
   }, [load]);
 
+  const pendingAgreements = useMemo(
+    () => agreementRows.filter((doc) => doc.display_status
+      ? ["pending", "viewed", "overdue"].includes(doc.display_status)
+      : (doc.stats?.pending ?? 0) > 0),
+    [agreementRows],
+  );
+
   const filteredDocuments = useMemo(() => {
-    let list = documents;
-    if (selectedCategory !== "all") {
+    let list = section === "agreements" ? agreementRows : documents;
+    if (section === "agreements" && agreementFilter !== "all") {
+      list = list.filter((doc) => {
+        if (agreementFilter === "pending") {
+          return doc.display_status
+            ? ["pending", "viewed", "overdue"].includes(doc.display_status)
+            : (doc.stats?.pending ?? 0) > 0;
+        }
+        if (agreementFilter === "signed") {
+          return doc.display_status
+            ? doc.display_status === "signed"
+            : (doc.stats?.signed ?? 0) > 0 && (doc.stats?.pending ?? 0) === 0;
+        }
+        return doc.display_status === "expired" || doc.publication_status === "archived";
+      });
+    }
+    if (section === "documents" && selectedCategory !== "all") {
       list = list.filter((d) => d.category === selectedCategory);
     }
     const q = search.trim().toLowerCase();
@@ -126,17 +178,21 @@ export default function Documents() {
       );
     }
     return list;
-  }, [documents, selectedCategory, search]);
+  }, [documents, agreementRows, section, agreementFilter, selectedCategory, search]);
 
   const openDocument = (doc) => {
     router.push({
       pathname: amenityFlowRoutes(pathname).documentDetail,
-      params: { documentId: String(doc.id) },
+      params: {
+        documentId: String(doc.id),
+        assignmentId: doc.assignment_id ? String(doc.assignment_id) : "",
+      },
     });
   };
 
   const openAddDocument = () => {
-    router.push(amenityFlowRoutes(pathname).documentForm);
+    const routes = amenityFlowRoutes(pathname);
+    router.push(section === "agreements" ? routes.agreementForm : routes.documentForm);
   };
 
   if (loading && !hasLoadedOnce.current) {
@@ -204,7 +260,51 @@ export default function Documents() {
           </View>
         )}
 
-        {categories.length > 0 ? (
+        <View style={styles.tabs}>
+          <Pressable onPress={() => setSection("documents")} style={[styles.tab, section === "documents" && styles.tabOn]}>
+            <Text style={[styles.tabText, section === "documents" && styles.tabTextOn]}>{t("propertyMgmt.allDocumentsTab")}</Text>
+          </Pressable>
+          <Pressable onPress={() => setSection("agreements")} style={[styles.tab, section === "agreements" && styles.tabOn]}>
+            <Text style={[styles.tabText, section === "agreements" && styles.tabTextOn]}>{t("propertyMgmt.agreementsTab")}</Text>
+          </Pressable>
+        </View>
+
+        {section === "agreements" && !isAdmin && pendingAgreements.length > 0 ? (
+          <Pressable
+            style={styles.actionCard}
+            onPress={() => {
+              if (pendingAgreements.length === 1) openDocument(pendingAgreements[0]);
+              else setAgreementFilter("pending");
+            }}
+          >
+            <Text style={styles.actionTitle}>{t("propertyMgmt.actionRequired")}</Text>
+            <Text style={styles.actionBody}>
+              {pendingAgreements.length === 1
+                ? t("propertyMgmt.oneAgreementNeedsSignature")
+                : t("propertyMgmt.manyAgreementsNeedSignature", { count: pendingAgreements.length })}
+            </Text>
+            <Text style={styles.actionLink}>{t("propertyMgmt.reviewAgreement")}</Text>
+          </Pressable>
+        ) : null}
+
+        {section === "agreements" ? (
+          <View style={styles.filterRow}>
+            {["all", "pending", "signed"].map((key) => (
+              <Pressable key={key} onPress={() => setAgreementFilter(key)} style={[styles.chip, agreementFilter === key && styles.chipOn]}>
+                <Text style={[styles.chipLabel, agreementFilter === key && styles.chipLabelOn]}>
+                  {key === "all" ? t("propertyMgmt.allFilter") : key === "pending" ? t("propertyMgmt.pendingFilter") : t("propertyMgmt.signedFilter")}
+                </Text>
+              </Pressable>
+            ))}
+            {agreementRows.some((doc) => doc.display_status === "expired" || doc.publication_status === "archived") ? (
+              <Pressable onPress={() => setAgreementFilter("expired")} style={[styles.chip, agreementFilter === "expired" && styles.chipOn]}>
+                <Text style={[styles.chipLabel, agreementFilter === "expired" && styles.chipLabelOn]}>{t("propertyMgmt.expiredFilter")}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        {section === "documents" && categories.length > 0 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -238,7 +338,7 @@ export default function Documents() {
           </ScrollView>
         ) : null}
 
-        {recent.length > 0 && selectedCategory === "all" && !search.trim() && (
+        {section === "documents" && recent.length > 0 && selectedCategory === "all" && !search.trim() && (
           <View style={propertyStyles.sectionBlock}>
             <Text style={propertyStyles.sectionTitle}>{t("propertyMgmt.recentDocuments")}</Text>
             {recent.map((doc) => (
@@ -249,22 +349,22 @@ export default function Documents() {
 
         <View style={[propertyStyles.sectionBlock, styles.lastSection]}>
           <View style={styles.sectionHeader}>
-            <Text style={propertyStyles.sectionTitle}>{t("propertyMgmt.allDocuments")}</Text>
+            <Text style={propertyStyles.sectionTitle}>{section === "agreements" ? t("propertyMgmt.agreementsTab") : t("propertyMgmt.allDocuments")}</Text>
             <Text style={styles.sectionSub}>
-              {t("propertyMgmt.filteredCount", { filtered: filteredDocuments.length, total: documents.length })}
+              {t("propertyMgmt.filteredCount", { filtered: filteredDocuments.length, total: section === "agreements" ? agreementRows.length : documents.length })}
               {selectedCategory !== "all" ? ` · ${selectedCategory}` : ""}
             </Text>
           </View>
 
-          {documents.length === 0 && !error && (
+          {(section === "agreements" ? agreementRows.length : documents.length) === 0 && !error && (
             <View style={styles.empty}>
               <Feather name="folder" size={sf(32)} color="#D1D5DB" />
-              <Text style={styles.emptyText}>{t("propertyMgmt.noDocuments")}</Text>
+              <Text style={styles.emptyText}>{section === "agreements" ? t("propertyMgmt.noAgreements") : t("propertyMgmt.noDocuments")}</Text>
               {isAdmin && <Text style={styles.emptyHint}>{t("propertyMgmt.addFirstDocument")}</Text>}
             </View>
           )}
 
-          {documents.length > 0 && filteredDocuments.length === 0 && (
+          {(section === "agreements" ? agreementRows.length : documents.length) > 0 && filteredDocuments.length === 0 && (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>{t("propertyMgmt.noDocumentsMatch")}</Text>
               <Pressable onPress={() => { setSelectedCategory("all"); setSearch(""); }}>
@@ -274,7 +374,13 @@ export default function Documents() {
           )}
 
           {filteredDocuments.map((doc) => (
-            <DocumentRow key={doc.id} doc={doc} onPress={() => openDocument(doc)} showDownloads actionIcon="eye" />
+            <DocumentRow
+              key={doc.assignment_id ? `${doc.id}-${doc.assignment_id}` : String(doc.id)}
+              doc={doc}
+              onPress={() => openDocument(doc)}
+              showDownloads={section === "documents" && isAdmin}
+              actionIcon="chevron-right"
+            />
           ))}
         </View>
       </ScrollView>
@@ -317,6 +423,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   searchInput: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(13), color: "#101828", padding: 0 },
+  tabs: { flexDirection: "row", gap: sw(18), paddingHorizontal: sw(18), paddingTop: sw(8) },
+  tab: { paddingBottom: sw(8), borderBottomWidth: 2, borderBottomColor: "transparent" },
+  tabOn: { borderBottomColor: "#1B4F8A" },
+  tabText: { fontFamily: Fonts.medium, fontSize: sf(14), color: "#64748B" },
+  tabTextOn: { color: "#1B4F8A", fontFamily: Fonts.bold },
+  actionCard: {
+    marginHorizontal: sw(18),
+    marginTop: sw(14),
+    padding: sw(14),
+    borderRadius: sw(16),
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+  },
+  actionTitle: { fontFamily: Fonts.bold, color: "#9A3412", fontSize: sf(14) },
+  actionBody: { fontFamily: Fonts.regular, color: "#7C2D12", marginTop: sw(4), fontSize: sf(13) },
+  actionLink: { fontFamily: Fonts.bold, color: "#1B4F8A", marginTop: sw(8) },
+  filterRow: { flexDirection: "row", gap: sw(8), paddingHorizontal: sw(18), marginTop: sw(12) },
+  docStatus: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#B45309", marginTop: sw(2) },
   chipWrap: { flexGrow: 0, marginTop: sw(16), marginBottom: sw(14) },
   chipRail: { paddingHorizontal: sw(18), gap: sw(8) },
   chip: {
