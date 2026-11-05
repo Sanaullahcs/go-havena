@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
@@ -14,25 +15,32 @@ import { Fonts } from "../../../../constants/font";
 import { sw, sf, hp } from "../../../../utils/responsive";
 import {
   createAgreementDraft,
+  fetchAdminCommunityDocuments,
   fetchAgreementOptions,
   publishAgreement,
 } from "../../../../services/documents-api";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
+import { useTouchedFieldErrors } from "../../../../hooks/use-touched-field-errors";
+import { agreementDateErrors } from "../../../../utils/agreement-dates";
 
 export default function AgreementForm() {
   const { t } = useTranslation();
   const router = useRouter();
   const { showFailure } = useApiAction();
   const { submitting, run } = useSubmitLock();
+  const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("Rules & Policies");
+  const [category, setCategory] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [categoryOpen, setCategoryOpen] = useState(false);
   const [dueAt, setDueAt] = useState(null);
   const [effectiveAt, setEffectiveAt] = useState(null);
   const [expiresAt, setExpiresAt] = useState(null);
   const [openDate, setOpenDate] = useState(null);
+  const scrollRef = useRef(null);
   const [file, setFile] = useState(null);
   const [scope, setScope] = useState("all");
   const [options, setOptions] = useState({ residents: [], units: [], resident_count: 0 });
@@ -41,6 +49,19 @@ export default function AgreementForm() {
   const [selectedUnits, setSelectedUnits] = useState([]);
   const [notify, setNotify] = useState(true);
   const [draftId, setDraftId] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchAdminCommunityDocuments()
+      .then((res) => {
+        if (!active) return;
+        setCategories((res.categories ?? []).map((item) => item.name).filter(Boolean));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (step !== 2) return;
@@ -82,12 +103,39 @@ export default function AgreementForm() {
   }).catch((err) => showFailure(t("propertyMgmt.publishAgreement"), err));
 
   const dateValue = openDate === "effective" ? effectiveAt : openDate === "expires" ? expiresAt : dueAt;
+  const minimumDate = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }, []);
+  const liveDateErrors = useMemo(
+    () => agreementDateErrors(dueAt, effectiveAt, expiresAt, t),
+    [dueAt, effectiveAt, expiresAt, t],
+  );
+  useEffect(() => {
+    clearError("dueAt");
+    clearError("effectiveAt");
+    clearError("expiresAt");
+  }, [liveDateErrors, clearError]);
+  const dateFieldKey = openDate === "effective" ? "effectiveAt" : openDate === "expires" ? "expiresAt" : "dueAt";
   const confirmDate = (next) => {
+    touch(dateFieldKey);
     if (openDate === "effective") setEffectiveAt(next);
     else if (openDate === "expires") setExpiresAt(next);
     else setDueAt(next);
     setOpenDate(null);
   };
+  const showDate = (key) => {
+    Keyboard.dismiss();
+    setCategoryOpen(false);
+    setOpenDate(key);
+  };
+  const closeDate = () => {
+    if (openDate) touch(dateFieldKey);
+    setOpenDate(null);
+  };
+  const categoryQuery = category.trim().toLowerCase();
+  const categorySuggestions = categories.filter((name) => !categoryQuery || name.toLowerCase().includes(categoryQuery));
 
   const recipientCount = scope === "all"
     ? options.resident_count
@@ -98,27 +146,79 @@ export default function AgreementForm() {
   return (
     <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
       <InternalScreenHeader title={t("propertyMgmt.createAgreement")} />
-      <KeyboardScroll contentContainerStyle={styles.scroll}>
+      <KeyboardScroll ref={scrollRef} footerHeight={sw(76)} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {step === 1 ? (
           <>
             <Text style={styles.label}>{t("propertyMgmt.docTitleLabel")}</Text>
             <LocaleTextInput style={styles.input} value={title} onChangeText={setTitle} />
             <Text style={styles.label}>{t("propertyMgmt.docCategoryRequired")}</Text>
-            <LocaleTextInput style={styles.input} value={category} onChangeText={setCategory} />
+            <View style={styles.combo}>
+              <LocaleTextInput
+                style={styles.comboInput}
+                value={category}
+                onChangeText={(value) => {
+                  setCategory(value);
+                  setCategoryOpen(true);
+                }}
+                onFocus={() => setCategoryOpen(true)}
+                placeholder={t("propertyMgmt.categoryPlaceholder")}
+                placeholderTextColor="#9CA3AF"
+                maxLength={100}
+              />
+              <Pressable style={styles.comboButton} onPress={() => setCategoryOpen((open) => !open)} hitSlop={8}>
+                <Feather name={categoryOpen ? "chevron-up" : "chevron-down"} size={sf(16)} color="#64748B" />
+              </Pressable>
+            </View>
+            {categoryOpen && categorySuggestions.length > 0 ? (
+              <ScrollView style={styles.menu} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                {categorySuggestions.map((name) => (
+                  <Pressable
+                    key={name}
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setCategory(name);
+                      setCategoryOpen(false);
+                    }}
+                  >
+                    <Text style={styles.menuText}>{name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
             <Text style={styles.label}>{t("propertyMgmt.docDescriptionLabel")}</Text>
             <LocaleTextInput style={[styles.input, styles.area]} value={description} onChangeText={setDescription} multiline />
-            <Text style={styles.label}>{t("propertyMgmt.dueDate")}</Text>
-            <Pressable style={styles.input} onPress={() => setOpenDate("due")}>
-              <Text style={dueAt ? styles.dateValue : styles.datePlaceholder}>{dueAt ? formatDisplayDate(dueAt) : t("propertyMgmt.selectDate")}</Text>
-            </Pressable>
-            <Text style={styles.label}>{t("propertyMgmt.agreementEffectiveDate")}</Text>
-            <Pressable style={styles.input} onPress={() => setOpenDate("effective")}>
-              <Text style={effectiveAt ? styles.dateValue : styles.datePlaceholder}>{effectiveAt ? formatDisplayDate(effectiveAt) : t("propertyMgmt.selectDate")}</Text>
-            </Pressable>
-            <Text style={styles.label}>{t("propertyMgmt.expirationDate")}</Text>
-            <Pressable style={styles.input} onPress={() => setOpenDate("expires")}>
-              <Text style={expiresAt ? styles.dateValue : styles.datePlaceholder}>{expiresAt ? formatDisplayDate(expiresAt) : t("propertyMgmt.selectDate")}</Text>
-            </Pressable>
+            {[
+              ["due", "dueAt", t("propertyMgmt.dueDate"), dueAt],
+              ["effective", "effectiveAt", t("propertyMgmt.agreementEffectiveDate"), effectiveAt],
+              ["expires", "expiresAt", t("propertyMgmt.expirationDate"), expiresAt],
+            ].map(([key, field, label, value]) => {
+              const error = showError(field, liveDateErrors);
+              return (
+                <View
+                  key={key}
+                  onLayout={(event) => {
+                    if (openDate !== key) return;
+                    const y = event.nativeEvent.layout.y;
+                    scrollRef.current?.scrollTo?.({ y: Math.max(0, y - sw(8)), animated: true });
+                  }}
+                >
+                  <Text style={styles.label}>{label}</Text>
+                  <Pressable style={[styles.input, error && styles.inputError]} onPress={() => showDate(key)}>
+                    <Text style={value ? styles.dateValue : styles.datePlaceholder}>{value ? formatDisplayDate(value) : t("propertyMgmt.selectDate")}</Text>
+                  </Pressable>
+                  {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                  <FormDatePickerSheet
+                    embedded
+                    visible={openDate === key}
+                    value={dateValue}
+                    minimumDate={minimumDate}
+                    title={label}
+                    onCancel={closeDate}
+                    onConfirm={confirmDate}
+                  />
+                </View>
+              );
+            })}
             <Pressable style={styles.file} onPress={pickFile}>
               <Text style={styles.fileText}>{file?.name ?? t("propertyMgmt.tapChooseFile")}</Text>
             </Pressable>
@@ -155,35 +255,22 @@ export default function AgreementForm() {
               <Text style={styles.hint}>{notify ? "✓ " : ""}Notify residents</Text>
             </Pressable>
           </>
-        ) : (
+        ) : step === 3 ? (
           <View>
             <Text style={styles.choiceTitle}>{title}</Text>
             <Text style={styles.hint}>{file?.name}</Text>
-            <Text style={styles.hint}>{scope} · {recipientCount}</Text>
-            <Text style={styles.hint}>{dueAt ? formatDisplayDate(dueAt) : t("propertyMgmt.noDueDate")}</Text>
-            {step === 3 ? (
-              <>
-                <Text style={styles.hint}>{effectiveAt ? formatDisplayDate(effectiveAt) : t("propertyMgmt.noEffectiveDate")}</Text>
-                <Text style={styles.hint}>{expiresAt ? formatDisplayDate(expiresAt) : t("propertyMgmt.noExpirationDate")}</Text>
-              </>
-            ) : null}
+            <Text style={styles.hint}>{effectiveAt ? formatDisplayDate(effectiveAt) : t("propertyMgmt.noEffectiveDate")}</Text>
+            <Text style={styles.hint}>{expiresAt ? formatDisplayDate(expiresAt) : t("propertyMgmt.noExpirationDate")}</Text>
           </View>
-        )}
+        ) : null}
       </KeyboardScroll>
-      <FormDatePickerSheet
-        visible={openDate != null}
-        value={dateValue}
-        title={openDate === "effective" ? t("propertyMgmt.agreementEffectiveDate") : openDate === "expires" ? t("propertyMgmt.expirationDate") : t("propertyMgmt.dueDate")}
-        onCancel={() => setOpenDate(null)}
-        onConfirm={confirmDate}
-      />
       <View style={styles.footer}>
         {step > 1 ? <Pressable style={styles.secondary} onPress={() => setStep((value) => value - 1)}><Text style={styles.secondaryText}>Back</Text></Pressable> : null}
         {step < 3 ? (
           <Pressable
             style={styles.primary}
             onPress={() => {
-              if (step === 1 && (!title.trim() || !category.trim() || !file)) return;
+              if (step === 1 && (!title.trim() || !category.trim() || !file || !validateOnSubmit(liveDateErrors))) return;
               setStep((value) => value + 1);
             }}
           >
@@ -203,6 +290,29 @@ const styles = StyleSheet.create({
   scroll: { padding: sw(18), paddingBottom: hp(4) },
   label: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#374151", marginBottom: sw(6), marginTop: sw(12) },
   input: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: sw(12), padding: sw(12), fontFamily: Fonts.regular, color: "#111827" },
+  inputError: { borderColor: "#DC2626" },
+  errorText: { marginTop: sw(4), fontFamily: Fonts.regular, fontSize: sf(12), color: "#DC2626" },
+  combo: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: sw(12),
+    backgroundColor: "#FFFFFF",
+  },
+  comboInput: { flex: 1, paddingHorizontal: sw(12), paddingVertical: sw(12), fontFamily: Fonts.regular, color: "#111827" },
+  comboButton: { paddingHorizontal: sw(12), alignSelf: "stretch", justifyContent: "center" },
+  menu: {
+    marginTop: sw(6),
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: sw(12),
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    maxHeight: sw(180),
+  },
+  menuItem: { paddingHorizontal: sw(12), paddingVertical: sw(10), borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EEF2F6" },
+  menuText: { fontFamily: Fonts.medium, fontSize: sf(14), color: "#111827" },
   dateValue: { fontFamily: Fonts.regular, fontSize: sf(15), color: "#111827" },
   datePlaceholder: { fontFamily: Fonts.regular, fontSize: sf(15), color: "#9CA3AF" },
   area: { minHeight: sw(80), textAlignVertical: "top" },

@@ -31,6 +31,7 @@ import {
 } from "../../../../services/documents-api";
 import { getCurrentRole } from "../../../../constants/role-session";
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
+import { useAppDialog } from "../../../../providers/app-dialog-provider";
 
 function formatDocDate(value) {
   if (!value) return "—";
@@ -140,13 +141,10 @@ function AgreementDetails({
     ? (Number(doc.page_count) === 1 ? t("propertyMgmt.onePage") : t("propertyMgmt.pageCount", { count: doc.page_count }))
     : null;
   const fileMeta = [doc.file_size_label, pages].filter(Boolean).join(" · ");
-  const rows = [
-    [t("propertyMgmt.communityLabel"), doc.community_name || "—"],
-    [t("propertyMgmt.unitLabel"), assignment?.unit_label || t("propertyMgmt.notUnitSpecific")],
-    [t("propertyMgmt.signingDeadline"), formatDocDate(doc.due_at)],
-    [t("propertyMgmt.agreementEffectiveDate"), formatDocDate(doc.effective_at)],
-    [t("propertyMgmt.expirationDate"), formatDocDate(doc.expires_at)],
-    [t("propertyMgmt.versionLabel"), doc.version ? `v${doc.version}` : "—"],
+  const dates = [
+    { key: "due", icon: "calendar", label: t("propertyMgmt.signingDeadline"), value: formatDocDate(doc.due_at), tint: "#92400E", wash: "#FFF7ED" },
+    { key: "effective", icon: "check-circle", label: t("propertyMgmt.agreementEffectiveDate"), value: formatDocDate(doc.effective_at), tint: "#1B4F8A", wash: "#E8F0F7" },
+    { key: "expires", icon: "flag", label: t("propertyMgmt.expirationDate"), value: formatDocDate(doc.expires_at), tint: "#475569", wash: "#F1F5F9" },
   ];
 
   const preview = () => {
@@ -193,21 +191,54 @@ function AgreementDetails({
         </View>
 
         <View style={agreementStyles.card}>
-          {rows.map(([label, value], index) => (
-            <View key={label} style={[agreementStyles.infoRow, index > 0 && agreementStyles.infoDivider]}>
-              <Text style={agreementStyles.infoLabel}>{label}</Text>
-              <Text style={agreementStyles.infoValue}>{value}</Text>
+          <View style={agreementStyles.factPair}>
+            <View style={agreementStyles.factTile}>
+              <View style={[agreementStyles.factIcon, { backgroundColor: "#E8F0F7" }]}>
+                <Feather name="home" size={sf(14)} color="#1B4F8A" />
+              </View>
+              <Text style={agreementStyles.factLabel}>{t("propertyMgmt.communityLabel")}</Text>
+              <Text style={agreementStyles.factValue} numberOfLines={2}>{doc.community_name || "—"}</Text>
             </View>
-          ))}
+            <View style={agreementStyles.factTile}>
+              <View style={[agreementStyles.factIcon, { backgroundColor: "#F1F5F9" }]}>
+                <Feather name="grid" size={sf(14)} color="#475569" />
+              </View>
+              <Text style={agreementStyles.factLabel}>{t("propertyMgmt.unitLabel")}</Text>
+              <Text style={agreementStyles.factValue} numberOfLines={2}>{assignment?.unit_label || t("propertyMgmt.notUnitSpecific")}</Text>
+            </View>
+          </View>
+          <View style={agreementStyles.dateList}>
+            {dates.map((item) => (
+              <View key={item.key} style={agreementStyles.dateItem}>
+                <View style={[agreementStyles.dateIcon, { backgroundColor: item.wash }]}>
+                  <Feather name={item.icon} size={sf(13)} color={item.tint} />
+                </View>
+                <View style={agreementStyles.dateCopy}>
+                  <Text style={agreementStyles.dateLabel}>{item.label}</Text>
+                  <Text style={agreementStyles.dateValue}>{item.value}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
           {isAdmin && doc.stats ? (
-            <Text style={agreementStyles.adminStats}>
-              {doc.stats.signed} signed · {doc.stats.pending} pending · {doc.stats.viewed} viewed
-            </Text>
+            <View style={agreementStyles.metricRow}>
+              {[
+                [doc.stats.signed, t("propertyMgmt.statusSigned"), "#0F766E"],
+                [doc.stats.pending, t("propertyMgmt.pendingFilter"), "#1B4F8A"],
+                [doc.stats.viewed, t("propertyMgmt.viewedCount"), "#475569"],
+              ].map(([value, label, color]) => (
+                <View key={label} style={agreementStyles.metric}>
+                  <Text style={[agreementStyles.metricValue, { color }]}>{value}</Text>
+                  <Text style={agreementStyles.metricLabel}>{label}</Text>
+                </View>
+              ))}
+            </View>
           ) : null}
         </View>
 
         {isAdmin ? (
           <View style={agreementStyles.card}>
+            <Text style={agreementStyles.sectionLabel}>{t("propertyMgmt.residents")}</Text>
             <View style={agreementStyles.filterRow}>
               {[
                 ["all", t("propertyMgmt.allFilter"), recipients.length],
@@ -220,26 +251,39 @@ function AgreementDetails({
                   style={[agreementStyles.chip, signatureFilter === key && agreementStyles.chipOn]}
                 >
                   <Text style={[agreementStyles.chipLabel, signatureFilter === key && agreementStyles.chipLabelOn]}>
-                    {label} {count}
+                    {label}
                   </Text>
+                  <View style={[agreementStyles.chipCount, signatureFilter === key && agreementStyles.chipCountOn]}>
+                    <Text style={[agreementStyles.chipCountText, signatureFilter === key && agreementStyles.chipCountTextOn]}>{count}</Text>
+                  </View>
                 </Pressable>
               ))}
             </View>
             {visibleRecipients.length === 0 ? (
               <Text style={agreementStyles.emptyRecipients}>{t("propertyMgmt.noResidentsInFilter")}</Text>
             ) : visibleRecipients.map((row) => {
-              const signed = row.signature_status === "signed";
+              const signedRow = row.signature_status === "signed";
+              const initial = String(row.resident_name || "?").trim().charAt(0).toUpperCase() || "?";
               return (
-                <View key={String(row.id)} style={agreementStyles.recipientRow}>
+                <View key={String(row.id)} style={agreementStyles.recipientTile}>
+                  <View style={[agreementStyles.avatar, signedRow ? agreementStyles.avatarSigned : agreementStyles.avatarPending]}>
+                    <Text style={[agreementStyles.avatarText, signedRow ? agreementStyles.avatarTextSigned : agreementStyles.avatarTextPending]}>{initial}</Text>
+                  </View>
                   <View style={agreementStyles.recipientCopy}>
                     <Text style={agreementStyles.recipientName} numberOfLines={1}>{row.resident_name}</Text>
-                    <Text style={agreementStyles.recipientUnit} numberOfLines={1}>{row.unit_label || t("propertyMgmt.notUnitSpecific")}</Text>
-                  </View>
-                  <View style={agreementStyles.recipientMeta}>
-                    <Text style={[agreementStyles.recipientStatus, signed && agreementStyles.recipientStatusSigned]}>
-                      {signed ? t("propertyMgmt.statusSigned") : t("propertyMgmt.pendingSignature")}
-                    </Text>
-                    <Text style={agreementStyles.recipientDate}>{signed ? formatDocDate(row.signed_at) : t("propertyMgmt.notSigned")}</Text>
+                    <View style={agreementStyles.unitLine}>
+                      <Feather name="grid" size={sf(11)} color="#94A3B8" />
+                      <Text style={agreementStyles.recipientUnit} numberOfLines={1}>{row.unit_label || t("propertyMgmt.notUnitSpecific")}</Text>
+                    </View>
+                    <View style={agreementStyles.statusLine}>
+                      <View style={[agreementStyles.statusPill, signedRow ? agreementStyles.statusPillSigned : agreementStyles.statusPillPending]}>
+                        <Feather name={signedRow ? "check" : "clock"} size={sf(11)} color={signedRow ? "#0F766E" : "#B45309"} />
+                        <Text style={[agreementStyles.statusPillText, signedRow ? agreementStyles.statusPillTextSigned : agreementStyles.statusPillTextPending]}>
+                          {signedRow ? t("propertyMgmt.statusSigned") : t("propertyMgmt.pendingSignature")}
+                        </Text>
+                      </View>
+                      <Text style={agreementStyles.recipientDate}>{signedRow ? formatDocDate(row.signed_at) : t("propertyMgmt.notSigned")}</Text>
+                    </View>
                   </View>
                 </View>
               );
@@ -314,6 +358,7 @@ export default function DocumentDetail() {
   const { documentId, assignmentId } = useLocalSearchParams();
   const isAdmin = getCurrentRole() === "admin";
   const { submitting, run } = useSubmitLock();
+  const dialog = useAppDialog();
 
   const [doc, setDoc] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -367,7 +412,20 @@ export default function DocumentDetail() {
     });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    if (isAgreement) {
+      const choice = await dialog.showConfirm(
+        t("propertyMgmt.deleteDocument"),
+        t("propertyMgmt.deleteDocumentMsg", { title: doc?.title }),
+        { confirmLabel: t("common.delete"), cancelLabel: t("common.cancel"), destructive: true },
+      );
+      if (choice !== "confirm") return;
+      run(async () => {
+        await deleteCommunityDocument(doc.id);
+        router.back();
+      });
+      return;
+    }
     Alert.alert(t("propertyMgmt.deleteDocument"), t("propertyMgmt.deleteDocumentMsg", { title: doc?.title }), [
       { text: t("common.cancel"), style: "cancel" },
       {
@@ -559,15 +617,55 @@ const agreementStyles = StyleSheet.create({
   caption: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#6A7282", marginTop: sw(2) },
   badge: { alignSelf: "flex-start", borderRadius: sw(999), paddingHorizontal: sw(8), paddingVertical: sw(4), marginTop: sw(8) },
   badgeText: { fontFamily: Fonts.bold, fontSize: sf(11), fontWeight: "700" },
-  infoRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: sw(12), paddingVertical: sw(8) },
-  infoDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#EEF2F6" },
-  infoLabel: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#6A7282" },
-  infoValue: { flex: 1, textAlign: "right", fontFamily: Fonts.medium, fontSize: sf(13), color: "#101828" },
-  adminStats: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#64748B", marginTop: sw(4) },
-  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: sw(8), marginBottom: sw(8) },
-  chip: {
-    paddingVertical: sw(6),
+  factPair: { flexDirection: "row", gap: sw(8) },
+  factTile: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: "#F8FAFC",
+    borderRadius: sw(12),
     paddingHorizontal: sw(10),
+    paddingVertical: sw(10),
+  },
+  factIcon: {
+    width: sw(28),
+    height: sw(28),
+    borderRadius: sw(8),
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: sw(8),
+  },
+  factLabel: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#64748B" },
+  factValue: { marginTop: 2, fontFamily: Fonts.bold, fontSize: sf(13), lineHeight: sf(18), color: "#101828", fontWeight: "700" },
+  dateList: { marginTop: sw(12), gap: sw(10) },
+  dateItem: { flexDirection: "row", alignItems: "center", gap: sw(10) },
+  dateIcon: {
+    width: sw(32),
+    height: sw(32),
+    borderRadius: sw(10),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dateCopy: { flex: 1, minWidth: 0 },
+  dateLabel: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#64748B" },
+  dateValue: { marginTop: 1, fontFamily: Fonts.medium, fontSize: sf(14), color: "#101828" },
+  metricRow: {
+    flexDirection: "row",
+    marginTop: sw(12),
+    paddingTop: sw(10),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#EEF2F6",
+  },
+  metric: { flex: 1, alignItems: "center" },
+  metricValue: { fontFamily: Fonts.bold, fontSize: sf(16), fontWeight: "700" },
+  metricLabel: { marginTop: 2, fontFamily: Fonts.medium, fontSize: sf(11), color: "#64748B" },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: sw(8), marginTop: sw(10), marginBottom: sw(4) },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(6),
+    paddingVertical: sw(6),
+    paddingLeft: sw(10),
+    paddingRight: sw(6),
     borderRadius: sw(999),
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
@@ -576,22 +674,59 @@ const agreementStyles = StyleSheet.create({
   chipOn: { backgroundColor: "#1B4F8A", borderColor: "#1B4F8A" },
   chipLabel: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#334155" },
   chipLabelOn: { color: "#FFFFFF" },
-  emptyRecipients: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#94A3B8", paddingVertical: sw(8) },
-  recipientRow: {
+  chipCount: {
+    minWidth: sw(18),
+    height: sw(18),
+    paddingHorizontal: sw(5),
+    borderRadius: sw(9),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E8F0F7",
+  },
+  chipCountOn: { backgroundColor: "rgba(255,255,255,0.22)" },
+  chipCountText: { fontFamily: Fonts.bold, fontSize: sf(10), color: "#1B4F8A", fontWeight: "700" },
+  chipCountTextOn: { color: "#FFFFFF" },
+  emptyRecipients: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#94A3B8", paddingVertical: sw(12) },
+  recipientTile: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: sw(10),
+    marginTop: sw(8),
+    padding: sw(10),
+    borderRadius: sw(12),
+    backgroundColor: "#F8FAFC",
+  },
+  avatar: {
+    width: sw(36),
+    height: sw(36),
+    borderRadius: sw(18),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarSigned: { backgroundColor: "#CCFBF1" },
+  avatarPending: { backgroundColor: "#FFEDD5" },
+  avatarText: { fontFamily: Fonts.bold, fontSize: sf(14), fontWeight: "700" },
+  avatarTextSigned: { color: "#0F766E" },
+  avatarTextPending: { color: "#C2410C" },
+  recipientCopy: { flex: 1, minWidth: 0 },
+  recipientName: { fontFamily: Fonts.bold, fontSize: sf(14), color: "#101828", fontWeight: "700" },
+  unitLine: { flexDirection: "row", alignItems: "center", gap: sw(4), marginTop: sw(3) },
+  recipientUnit: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(12), color: "#64748B" },
+  statusLine: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: sw(8), marginTop: sw(8) },
+  statusPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(12),
-    paddingVertical: sw(10),
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#EEF2F6",
+    gap: sw(4),
+    borderRadius: sw(999),
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(3),
   },
-  recipientCopy: { flex: 1, minWidth: 0 },
-  recipientName: { fontFamily: Fonts.medium, fontSize: sf(14), color: "#101828" },
-  recipientUnit: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(12), color: "#64748B" },
-  recipientMeta: { alignItems: "flex-end", maxWidth: "46%" },
-  recipientStatus: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#1B4F8A" },
-  recipientStatusSigned: { color: "#0F766E" },
-  recipientDate: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(11), color: "#64748B" },
+  statusPillSigned: { backgroundColor: "#F0FDFA" },
+  statusPillPending: { backgroundColor: "#FFF7ED" },
+  statusPillText: { fontFamily: Fonts.bold, fontSize: sf(11), fontWeight: "700" },
+  statusPillTextSigned: { color: "#0F766E" },
+  statusPillTextPending: { color: "#B45309" },
+  recipientDate: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#64748B" },
   sectionLabel: {
     fontFamily: Fonts.bold, fontSize: sf(11), color: "#6A7282", fontWeight: "700",
     letterSpacing: 0.4, textTransform: "uppercase", marginBottom: sw(6),

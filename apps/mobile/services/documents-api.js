@@ -105,6 +105,9 @@ export async function updateCommunityDocument(id, payload, fileAsset = null) {
       category: payload.category,
       description: payload.description ?? "",
       status: payload.status ?? "active",
+      due_at: payload.due_at,
+      effective_at: payload.effective_at,
+      expires_at: payload.expires_at,
     },
     fileAsset,
   });

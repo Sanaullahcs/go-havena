@@ -1,4 +1,6 @@
+import { Linking } from "react-native";
 import { apiRequest } from "./api-client";
+import { fetchAgreementDetail, fetchSignedAgreementLink } from "./documents-api";
 import { parseApiDate } from "../utils/parse-api-date";
 import { getNoticeDetailRoute } from "./notices-api";
 import { getNotificationIconSource } from "../utils/notification-visual";
@@ -89,6 +91,36 @@ function withParams(pathname, queryParams = {}) {
     pathname,
     params: Object.fromEntries(entries.map(([key, value]) => [key, String(value)])),
   };
+}
+
+function agreementDetailRoute(documentId) {
+  if (documentId == null || documentId === "") return null;
+  return withParams("/screens/property-management/documents/document-detail", {
+    documentId,
+  });
+}
+
+function agreementDocumentId(notification, queryParams = {}) {
+  return (
+    queryParams.agreement
+    ?? queryParams.documentId
+    ?? queryParams.document_id
+    ?? notification?.documentId
+    ?? null
+  );
+}
+
+function resolveAgreementRoute(notification, pathname = "", queryParams = {}) {
+  const path = String(pathname).toLowerCase();
+  const kind = String(notification?.kind ?? notification?.type ?? "").toLowerCase();
+  const haystack = `${notification?.title ?? ""} ${notification?.description ?? ""}`.toLowerCase();
+  const isAgreement =
+    kind === "agreement"
+    || path.includes("/admin/documents")
+    || path.includes("/documents/document-detail")
+    || haystack.includes("agreement");
+  if (!isAgreement) return null;
+  return agreementDetailRoute(agreementDocumentId(notification, queryParams));
 }
 
 function resolveAdminPendingRoute(pathname, queryParams, notification) {
@@ -241,6 +273,9 @@ function resolveNotificationRouteFallback(notification) {
     return { pathname: "/screens/pending-community" };
   }
 
+  const agreementRoute = resolveAgreementRoute(notification);
+  if (agreementRoute) return agreementRoute;
+
   if (haystack.includes("seat available") || haystack.includes("waiting list")) {
     const noticeId = String(notification?.actionUrl ?? "").match(/\/notices\/(\d+)/)?.[1];
     if (noticeId) {
@@ -284,6 +319,9 @@ export function normalizeNotification(raw) {
 
   const data = parseNotificationData(raw.data);
   let kind = raw.kind ?? data?.kind ?? null;
+  if (!kind && String(raw.type ?? "").toLowerCase() === "agreement") {
+    kind = "agreement";
+  }
   const category = raw.category ?? raw.notice_category ?? data?.category ?? null;
 
   const normalized = {
@@ -299,6 +337,9 @@ export function normalizeNotification(raw) {
     category,
     unitId: data?.unit_id ?? raw.unit_id ?? null,
     unitNumber: data?.unit_number ?? raw.unit_number ?? null,
+    documentId: data?.document_id ?? data?.documentId ?? data?.agreement ?? null,
+    assignmentId: data?.assignment_id ?? data?.assignmentId ?? null,
+    openSignedPdf: data?.open_signed === true || data?.open_signed === 1 || data?.open_signed === "1" || data?.open_signed === "true",
   };
 
   normalized.icon = getNotificationIcon(normalized);
@@ -310,6 +351,63 @@ export function sortNotifications(notifications) {
   return [...notifications].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
+}
+
+export function isAdminAgreementSignedNotification(notification) {
+  if (notification?.openSignedPdf === true) return true;
+  return String(notification?.title ?? "").trim().toLowerCase() === "agreement signed";
+}
+
+function notificationDocumentId(notification) {
+  if (notification?.documentId) return notification.documentId;
+  const query = String(notification?.actionUrl ?? "").split("?")[1] ?? "";
+  const params = parseQueryString(query);
+  return params.agreement || params.documentId || params.document_id || null;
+}
+
+function signedRecipientForNotification(recipients, notification) {
+  const signed = (recipients ?? []).filter(
+    (row) => row?.signature_status === "signed" && row?.signed_file_url,
+  );
+  if (signed.length === 0) return null;
+  if (notification?.assignmentId) {
+    const exact = signed.find((row) => String(row.id) === String(notification.assignmentId));
+    if (exact) return exact;
+  }
+  const body = String(notification?.description ?? "").trim();
+  const match = body.match(/^(.*?) signed (.*)\.?$/i);
+  const name = match?.[1]?.trim().toLowerCase();
+  if (name) {
+    const named = signed.filter(
+      (row) => String(row.resident_name ?? "").trim().toLowerCase() === name,
+    );
+    if (named.length > 0) {
+      return named.sort((a, b) => String(b.signed_at ?? "").localeCompare(String(a.signed_at ?? "")))[0];
+    }
+  }
+  return signed.length === 1 ? signed[0] : null;
+}
+
+/** Open the resident's stamped PDF for an admin Agreement Signed notification. */
+export async function openAdminSignedAgreement(notification) {
+  const documentId = notificationDocumentId(notification);
+  if (!documentId) return false;
+  if (notification?.assignmentId) {
+    try {
+      const url = await fetchSignedAgreementLink(documentId, notification.assignmentId);
+      if (url) {
+        await Linking.openURL(url);
+        return true;
+      }
+    } catch {
+      // Older rows can be resolved from the agreement's signed recipients.
+    }
+  }
+  const detail = await fetchAgreementDetail(documentId);
+  const recipient = signedRecipientForNotification(detail?.recipients, notification);
+  if (!recipient?.signed_file_url) return false;
+  await Linking.openURL(recipient.signed_file_url);
+  return true;
 }
 
 /** Map backend action_url to an in-app route. Returns null when no safe destination exists. */
@@ -326,6 +424,9 @@ export function resolveNotificationRoute(notification) {
   const url = String(actionUrl).trim();
   const [pathname, queryString = ""] = url.split("?");
   const queryParams = parseQueryString(queryString);
+
+  const agreementRoute = resolveAgreementRoute(notification, pathname, queryParams);
+  if (agreementRoute) return agreementRoute;
 
   const noticeMatch = url.match(/\/notices\/(\d+)/i);
   if (noticeMatch) {

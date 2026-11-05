@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Mail\HavenaTransactionalMail;
 use App\Models\Community;
 use App\Models\CommunityMembership;
 use App\Models\Region;
 use App\Models\User;
+use App\Support\AppUrls;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -302,6 +305,121 @@ class AgreementSigningTest extends TestCase
         $this->assertSame(0, $counts['archived']);
         $this->assertSame(0, $counts['revoked']);
         $this->assertSame(0, $counts['superseded']);
+    }
+
+    public function test_publish_emails_only_the_selected_residents(): void
+    {
+        Mail::fake();
+        Storage::fake('public');
+        ['admin' => $admin, 'resident' => $resident, 'community' => $community] = $this->seedCommunity();
+        $skipped = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'name' => 'Skipped Resident',
+            'phone' => '+201700000044',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $skipped->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $id = $this->post('/api/v1/admin/documents/agreements', [
+            'title' => 'Community Rules Agreement',
+            'category' => 'Rules & Policies',
+            'file' => $this->pdfFile('Residents agree to the community rules.'),
+        ], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
+
+        $this->postJson("/api/v1/admin/documents/agreements/{$id}/publish", [
+            'scope' => 'residents',
+            'user_ids' => [$resident->id],
+            'notify' => true,
+        ])->assertOk()->assertJsonPath('assigned', 1);
+
+        Mail::assertSent(HavenaTransactionalMail::class, function (HavenaTransactionalMail $mail) use ($resident, $id) {
+            $details = collect($mail->details);
+
+            return $mail->hasTo($resident->email)
+                && str_contains($mail->subjectLine, 'Community Rules Agreement')
+                && str_contains($mail->intro, 'new agreement is available for your review and signature')
+                && $details->contains(fn ($detail) => $detail['label'] === 'Agreement' && $detail['value'] === 'Community Rules Agreement')
+                && $details->contains(fn ($detail) => $detail['label'] === 'Community' && $detail['value'] === 'Haly Tower')
+                && $mail->ctaUrl === AppUrls::agreementReview((int) $id);
+        });
+        Mail::assertNotSent(HavenaTransactionalMail::class, fn (HavenaTransactionalMail $mail) => $mail->hasTo($skipped->email));
+        Mail::assertNotSent(HavenaTransactionalMail::class, fn (HavenaTransactionalMail $mail) => $mail->hasTo($admin->email));
+        $this->assertSame(1, Mail::sent(HavenaTransactionalMail::class)->count());
+
+        Mail::fake();
+        $silentId = $this->post('/api/v1/admin/documents/agreements', [
+            'title' => 'Silent Agreement',
+            'category' => 'Rules & Policies',
+            'file' => $this->pdfFile('No email for this one.'),
+        ], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
+        $this->postJson("/api/v1/admin/documents/agreements/{$silentId}/publish", [
+            'scope' => 'residents',
+            'user_ids' => [$resident->id],
+            'notify' => false,
+        ])->assertOk();
+        Mail::assertNothingSent();
+    }
+
+    public function test_signing_emails_the_community_admin_a_signed_pdf_link(): void
+    {
+        Mail::fake();
+        Storage::fake('public');
+        Storage::fake('local');
+        ['admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+
+        Sanctum::actingAs($admin);
+        $id = $this->post('/api/v1/admin/documents/agreements', [
+            'title' => 'Community Rules Agreement',
+            'category' => 'Rules & Policies',
+            'file' => $this->pdfFile('Residents agree to the community rules.'),
+        ], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
+        $this->postJson("/api/v1/admin/documents/agreements/{$id}/publish", [
+            'scope' => 'residents',
+            'user_ids' => [$resident->id],
+            'notify' => false,
+        ])->assertOk();
+
+        Sanctum::actingAs($resident);
+        $assignmentId = $this->getJson("/api/v1/documents/{$id}")->assertOk()->json('data.assignments.0.assignment_id');
+        $this->postJson("/api/v1/documents/{$id}/sign", [
+            'version' => 1,
+            'assignment_id' => $assignmentId,
+            'method' => 'type',
+            'typed_name' => $resident->name,
+            'consent' => true,
+        ])->assertCreated();
+
+        $pdfUrl = null;
+        Mail::assertSent(HavenaTransactionalMail::class, function (HavenaTransactionalMail $mail) use ($admin, $resident, &$pdfUrl) {
+            $details = collect($mail->details);
+            $matches = $mail->hasTo($admin->email)
+                && str_contains($mail->subjectLine, $resident->name)
+                && str_contains($mail->subjectLine, 'Community Rules Agreement')
+                && $details->contains(fn ($detail) => $detail['label'] === 'Resident' && $detail['value'] === $resident->name)
+                && $details->contains(fn ($detail) => $detail['label'] === 'Agreement' && $detail['value'] === 'Community Rules Agreement')
+                && $details->contains(fn ($detail) => $detail['label'] === 'Community' && $detail['value'] === 'Haly Tower')
+                && $details->contains(fn ($detail) => $detail['label'] === 'Signed on' && $detail['value'] !== '')
+                && $mail->ctaLabel === 'View signed PDF'
+                && str_contains((string) $mail->ctaUrl, '/api/v1/documents/signed-files/');
+            if ($matches) {
+                $pdfUrl = $mail->ctaUrl;
+            }
+
+            return $matches;
+        });
+        Mail::assertNotSent(HavenaTransactionalMail::class, fn (HavenaTransactionalMail $mail) => $mail->hasTo($resident->email));
+        $this->assertSame(1, Mail::sent(HavenaTransactionalMail::class)->count());
+
+        $url = parse_url((string) $pdfUrl);
+        $download = $this->get($url['path'].'?'.$url['query']);
+        $download->assertOk();
+        $this->assertStringStartsWith('%PDF', $download->streamedContent());
     }
 
     public function test_invalid_pdf_is_rejected(): void

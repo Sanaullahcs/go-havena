@@ -71,6 +71,7 @@ export default function FormDatePickerSheet({
   onCancel,
   onConfirm,
   mode = "date",
+  embedded = false,
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -99,7 +100,7 @@ export default function FormDatePickerSheet({
 
   if (!visible) return null;
 
-  if (mode === "date" && Platform.OS === "android") {
+  if (!embedded && mode === "date" && Platform.OS === "android") {
     return (
       <DateTimePicker
         value={draft}
@@ -120,16 +121,14 @@ export default function FormDatePickerSheet({
     );
   }
 
-  return (
-    <Modal transparent animationType="slide" visible={visible} onRequestClose={closeWithoutSaving}>
-      <View style={styles.root}>
-        <Pressable style={styles.overlay} onPress={closeWithoutSaving} />
+  const sheet = (
         <View
           style={[
             styles.sheet,
+            embedded && styles.embeddedSheet,
             {
               backgroundColor: theme.sheetBg,
-              paddingBottom: Math.max(insets.bottom, 12),
+              paddingBottom: embedded ? 8 : Math.max(insets.bottom, 12),
             },
           ]}
         >
@@ -213,6 +212,15 @@ export default function FormDatePickerSheet({
             )}
           </View>
         </View>
+  );
+
+  if (embedded) return sheet;
+
+  return (
+    <Modal transparent animationType="slide" visible={visible} onRequestClose={closeWithoutSaving}>
+      <View style={styles.root}>
+        <Pressable style={styles.overlay} onPress={closeWithoutSaving} />
+        {sheet}
       </View>
     </Modal>
   );
@@ -231,6 +239,12 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: "hidden",
+  },
+  embeddedSheet: {
+    marginTop: 8,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#E5E7EB",
   },
   toolbar: {
     flexDirection: "row",

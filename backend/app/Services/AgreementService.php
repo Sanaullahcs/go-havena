@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Mail\HavenaTransactionalMail;
+use App\Support\AppUrls;
 use App\Support\MediaUrl;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -587,6 +589,15 @@ class AgreementService
         return rtrim($request->getSchemeAndHttpHost().$request->getBaseUrl(), '/').$path;
     }
 
+    private function signedPdfEmailUrl(int $assignmentId): string
+    {
+        $expires = now()->addDays(30)->getTimestamp();
+        $signature = hash_hmac('sha256', $assignmentId.'|'.$expires, (string) config('app.key'));
+        $base = rtrim((string) config('mail.brand.api_url', config('app.url')), '/');
+
+        return $base.'/api/v1/documents/signed-files/'.$assignmentId.'?expires='.$expires.'&signature='.$signature;
+    }
+
     public function validFileSignature(int $assignmentId, ?string $expires, ?string $signature): bool
     {
         if (! $expires || ! $signature || ! ctype_digit($expires)) {
@@ -902,6 +913,11 @@ class AgreementService
             ? 'An agreement was updated and needs your review.'
             : 'A new agreement requires your review and signature.';
         $url = $this->residentUrl((int) $document->id);
+        $communityName = (string) (DB::table('communities')->where('id', $document->community_id)->value('name') ?: 'your community');
+        $users = DB::table('users')
+            ->whereIn('id', collect($recipients)->pluck('user_id')->map(fn ($id) => (int) $id)->unique()->all())
+            ->get(['id', 'name', 'email'])
+            ->keyBy('id');
         $notified = [];
         foreach ($recipients as $recipient) {
             $userId = (int) $recipient['user_id'];
@@ -921,6 +937,46 @@ class AgreementService
             } catch (\Throwable) {
                 // A notification failure must not change the published agreement.
             }
+            $this->emailRecipient($document, $users->get($userId), $communityName, $reason);
+        }
+    }
+
+    private function emailRecipient(object $document, ?object $user, string $communityName, string $reason): void
+    {
+        if (! $user || ! filled($user->email)) {
+            return;
+        }
+
+        $updated = $reason === 'updated';
+        $name = trim((string) ($user->name ?? ''));
+        $greeting = $name !== '' ? "Hello {$name}." : 'Hello.';
+        try {
+            app(LifecycleMailService::class)->sendOnce(
+                'agreement_available',
+                'agreement:'.(int) $document->id.':user:'.(int) $user->id,
+                (string) $user->email,
+                new HavenaTransactionalMail(
+                    subjectLine: ($updated ? 'Updated agreement to sign: ' : 'New agreement to sign: ').$document->title,
+                    preheader: $document->title.' is ready for your review and signature in '.$communityName.'.',
+                    eyebrow: 'Agreement',
+                    heading: $updated ? 'An updated agreement is ready to sign' : 'A new agreement is ready to sign',
+                    intro: $greeting.' '.($updated
+                        ? 'An updated agreement is available for your review and signature.'
+                        : 'A new agreement is available for your review and signature.'),
+                    paragraphs: [
+                        'Open Havena to review the agreement and sign it.',
+                    ],
+                    details: [
+                        ['label' => 'Agreement', 'value' => (string) $document->title],
+                        ['label' => 'Community', 'value' => $communityName],
+                    ],
+                    ctaLabel: 'Review and sign',
+                    ctaUrl: AppUrls::agreementReview((int) $document->id),
+                    footerNote: 'This email was sent because your community admin shared this agreement with you.',
+                ),
+            );
+        } catch (\Throwable) {
+            // An email failure must not change the published agreement.
         }
     }
 
@@ -967,6 +1023,13 @@ class AgreementService
             ->where('status', 'approved')
             ->where('role', 'admin')
             ->pluck('user_id');
+        $adminUsers = DB::table('users')
+            ->whereIn('id', $admins)
+            ->get(['id', 'name', 'email'])
+            ->keyBy('id');
+        $communityName = (string) (DB::table('communities')->where('id', $document->community_id)->value('name') ?: 'your community');
+        $signedOn = Carbon::parse($assignment->signed_at ?? now())->timezone(config('app.timezone'))->format('M j, Y');
+        $pdfUrl = $this->signedPdfEmailUrl((int) $assignment->id);
         foreach ($admins as $adminId) {
             if ((int) $adminId === (int) $user->id) {
                 continue;
@@ -978,11 +1041,56 @@ class AgreementService
                     'Agreement Signed',
                     $user->name.' signed '.$document->title.'.',
                     '/admin/documents?tab=agreements&agreement='.$document->id,
-                    ['kind' => 'agreement', 'document_id' => (int) $document->id],
+                    [
+                        'kind' => 'agreement',
+                        'document_id' => (int) $document->id,
+                        'assignment_id' => (int) $assignment->id,
+                        'open_signed' => true,
+                    ],
                     (int) $document->community_id,
                 );
             } catch (\Throwable) {
             }
+            $admin = $adminUsers->get((int) $adminId) ?? $adminUsers->get((string) $adminId);
+            $this->emailAdminSigned($document, $user, $admin, $communityName, $signedOn, $pdfUrl, (int) $assignment->id);
+        }
+    }
+
+    private function emailAdminSigned(object $document, object $resident, ?object $admin, string $communityName, string $signedOn, string $pdfUrl, int $assignmentId): void
+    {
+        if (! $admin || ! filled($admin->email)) {
+            return;
+        }
+
+        $adminName = trim((string) ($admin->name ?? ''));
+        $residentName = trim((string) ($resident->name ?? '')) ?: 'A resident';
+        try {
+            app(LifecycleMailService::class)->sendOnce(
+                'agreement_signed_admin',
+                'agreement:'.(int) $document->id.':assignment:'.$assignmentId.':admin:'.(int) $admin->id,
+                (string) $admin->email,
+                new HavenaTransactionalMail(
+                    subjectLine: $residentName.' signed '.$document->title,
+                    preheader: $residentName.' signed '.$document->title.' in '.$communityName.'.',
+                    eyebrow: 'Agreement signed',
+                    heading: 'A resident signed an agreement',
+                    intro: ($adminName !== '' ? "Hello {$adminName}." : 'Hello.').' '.$residentName.' has signed this agreement.',
+                    paragraphs: [
+                        'The signed PDF includes the resident’s signature on the document.',
+                    ],
+                    details: [
+                        ['label' => 'Resident', 'value' => $residentName],
+                        ['label' => 'Agreement', 'value' => (string) $document->title],
+                        ['label' => 'Community', 'value' => $communityName],
+                        ['label' => 'Signed on', 'value' => $signedOn],
+                    ],
+                    ctaLabel: 'View signed PDF',
+                    ctaUrl: $pdfUrl,
+                    footerNote: 'This email was sent because you manage this community on Havena.',
+                ),
+            );
+        } catch (\Throwable) {
+            // An email failure must not change the completed signature.
         }
     }
 

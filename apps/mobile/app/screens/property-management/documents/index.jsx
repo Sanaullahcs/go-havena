@@ -31,23 +31,152 @@ function getCategoryMeta(name) {
   return CATEGORY_META[name] ?? { icon: "folder", color: "#64748B", bg: "#F8FAFC" };
 }
 
-function statusLabel(status) {
-  if (status === "signed") return "Signed";
-  if (status === "overdue") return "Overdue";
-  if (status === "expired") return "Expired";
-  if (status === "declined") return "Declined";
-  if (status === "viewed") return "Viewed";
-  return "Requires signature";
-}
-
 function formatDocDate(value) {
-  if (!value) return "—";
+  if (!value) return "";
   return new Date(value).toLocaleDateString(getLocaleForLang(i18n.language), { month: "short", day: "numeric", year: "numeric" });
 }
 
-function DocumentRow({ doc, onPress, showDownloads, actionIcon = "download" }) {
-  const { i18n } = useTranslation();
+function agreementMatches(doc, filter) {
+  if (filter === "pending") {
+    return doc.display_status
+      ? ["pending", "viewed", "overdue"].includes(doc.display_status)
+      : (doc.stats?.pending ?? 0) > 0;
+  }
+  if (filter === "signed") {
+    return doc.display_status
+      ? doc.display_status === "signed"
+      : (doc.stats?.signed ?? 0) > 0 && (doc.stats?.pending ?? 0) === 0;
+  }
+  if (filter === "expired") {
+    return doc.display_status === "expired" || doc.publication_status === "archived";
+  }
+  return true;
+}
+
+function agreementTone(doc) {
+  const personal = doc.display_status;
+  const publication = doc.publication_status;
+  if (personal === "signed" || (publication === "published" && (doc.stats?.pending ?? 0) === 0 && (doc.stats?.signed ?? 0) > 0)) {
+    return { bg: "#F0FDFA", color: "#0F766E", bar: "#0F766E" };
+  }
+  if (personal === "overdue" || publication === "revoked") {
+    return { bg: "#FEF2F2", color: "#B91C1C", bar: "#B91C1C" };
+  }
+  if (personal === "expired" || publication === "archived" || publication === "superseded") {
+    return { bg: "#F1F5F9", color: "#64748B", bar: "#94A3B8" };
+  }
+  if ((doc.stats?.pending ?? 0) > 0 || personal === "pending" || personal === "viewed") {
+    return { bg: "#FFF7ED", color: "#B45309", bar: "#1B4F8A" };
+  }
+  return { bg: "#E8F0F7", color: "#1B4F8A", bar: "#1B4F8A" };
+}
+
+function AgreementCard({ doc, onPress }) {
+  const { t } = useTranslation();
   const meta = getCategoryMeta(doc.category);
+  const tone = agreementTone(doc);
+  const hasStats = doc.stats != null;
+  const badgeTone = hasStats
+    ? doc.publication_status === "published"
+      ? { bg: "#E8F0F7", color: "#1B4F8A" }
+      : doc.publication_status === "draft"
+        ? { bg: "#F1F5F9", color: "#475569" }
+        : doc.publication_status === "revoked"
+          ? { bg: "#FEF2F2", color: "#B91C1C" }
+          : { bg: "#F1F5F9", color: "#64748B" }
+    : tone;
+  const signed = Number(doc.stats?.signed ?? 0);
+  const pending = Number(doc.stats?.pending ?? 0);
+  const total = signed + pending;
+  const progress = total > 0 ? Math.round((signed / total) * 100) : 0;
+  const due = formatDocDate(doc.due_at);
+  const updated = formatDocDate(doc.updated_at);
+  const publication = doc.publication_status === "published"
+    ? t("propertyMgmt.savedStatus")
+    : doc.publication_status === "draft"
+      ? t("propertyMgmt.draftStatus")
+      : doc.publication_status === "revoked"
+        ? t("propertyMgmt.statusRevoked")
+        : doc.publication_status === "archived" || doc.publication_status === "superseded"
+          ? t("propertyMgmt.statusExpired")
+          : null;
+  const personal = doc.display_status === "signed"
+    ? t("propertyMgmt.statusSigned")
+    : doc.display_status === "overdue"
+      ? t("propertyMgmt.statusOverdue")
+      : doc.display_status === "expired"
+        ? t("propertyMgmt.statusExpired")
+        : doc.display_status === "declined"
+          ? t("propertyMgmt.statusDeclined")
+          : doc.display_status === "viewed"
+            ? t("propertyMgmt.viewedCount")
+            : doc.display_status
+              ? t("propertyMgmt.requiresSignature")
+              : null;
+  const badge = hasStats ? publication : personal;
+
+  return (
+    <Pressable style={styles.agreeCard} onPress={onPress}>
+      <View style={[styles.agreeAccent, { backgroundColor: tone.bar }]} />
+      <View style={styles.docMain}>
+        <View style={[styles.docIconWrap, { backgroundColor: meta.bg }]}>
+          <Feather name={meta.icon} size={sf(18)} color={meta.color} />
+        </View>
+        <View style={styles.docBody}>
+          <Text style={styles.docTitle} numberOfLines={2}>{doc.title}</Text>
+          <Text style={styles.docCategory} numberOfLines={1}>
+            {doc.category}{doc.unit_label ? ` · ${doc.unit_label}` : ""}
+          </Text>
+          <View style={styles.agreePills}>
+            {badge ? (
+              <View style={[styles.pill, { backgroundColor: badgeTone.bg }]}>
+                <Text style={[styles.pillText, { color: badgeTone.color }]}>{badge}</Text>
+              </View>
+            ) : null}
+            {hasStats ? (
+              <>
+                <View style={styles.metricPill}>
+                  <Text style={[styles.metricValue, { color: "#0F766E" }]}>{signed}</Text>
+                  <Text style={styles.metricLabel}>{t("propertyMgmt.statusSigned")}</Text>
+                </View>
+                <View style={[styles.metricPill, pending > 0 && styles.metricPillWait]}>
+                  <Text style={[styles.metricValue, { color: pending > 0 ? "#B45309" : "#64748B" }]}>{pending}</Text>
+                  <Text style={styles.metricLabel}>{t("propertyMgmt.pendingFilter")}</Text>
+                </View>
+              </>
+            ) : null}
+          </View>
+          {hasStats && total > 0 ? (
+            <View style={styles.track}>
+              <View style={[styles.trackFill, { width: `${progress}%`, backgroundColor: tone.bar }]} />
+            </View>
+          ) : null}
+          {due || updated ? (
+            <View style={styles.docMeta}>
+              {due ? (
+                <>
+                  <Feather name="calendar" size={sf(11)} color="#64748B" />
+                  <Text style={styles.docMetaText}>{due}</Text>
+                </>
+              ) : null}
+              {updated ? (
+                <>
+                  {due ? <Text style={styles.docMetaText}>•</Text> : null}
+                  <Text style={styles.docMetaText}>{t("propertyMgmt.updatedDate", { date: updated })}</Text>
+                </>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      </View>
+      <Feather name="chevron-right" size={sf(18)} color="#9CA3AF" style={styles.actionIcon} />
+    </Pressable>
+  );
+}
+
+function DocumentRow({ doc, onPress, showDownloads, actionIcon = "download" }) {
+  const meta = getCategoryMeta(doc.category);
+  const updated = formatDocDate(doc.updated_at);
   return (
     <Pressable style={styles.docCard} onPress={onPress}>
       <View style={styles.docMain}>
@@ -57,17 +186,10 @@ function DocumentRow({ doc, onPress, showDownloads, actionIcon = "download" }) {
         <View style={styles.docBody}>
           <Text style={styles.docTitle} numberOfLines={2}>{doc.title}</Text>
           <Text style={styles.docCategory} numberOfLines={1}>{doc.category}</Text>
-          {doc.kind === "agreement" ? (
-            <Text style={styles.docStatus} numberOfLines={1}>
-              {doc.publication_status ? `${doc.publication_status} · ${doc.stats?.signed ?? 0} signed · ${doc.stats?.pending ?? 0} pending` : statusLabel(doc.display_status)}
-              {doc.unit_label ? ` · ${doc.unit_label}` : ""}
-              {doc.due_at ? ` · ${formatDocDate(doc.due_at)}` : ""}
-            </Text>
-          ) : null}
           <View style={styles.docMeta}>
-            <Text style={styles.docMetaText}>{doc.file_size_label}</Text>
-            <Text style={styles.docMetaText}>•</Text>
-            <Text style={styles.docMetaText}>{formatDocDate(doc.updated_at)}</Text>
+            {doc.file_size_label ? <Text style={styles.docMetaText}>{doc.file_size_label}</Text> : null}
+            {doc.file_size_label && updated ? <Text style={styles.docMetaText}>•</Text> : null}
+            {updated ? <Text style={styles.docMetaText}>{updated}</Text> : null}
             {showDownloads ? (
               <>
                 <Text style={styles.docMetaText}>•</Text>
@@ -149,22 +271,16 @@ export default function Documents() {
     [agreementRows],
   );
 
+  const agreementCounts = useMemo(() => ({
+    all: agreementRows.length,
+    pending: agreementRows.filter((doc) => agreementMatches(doc, "pending")).length,
+    signed: agreementRows.filter((doc) => agreementMatches(doc, "signed")).length,
+  }), [agreementRows]);
+
   const filteredDocuments = useMemo(() => {
     let list = section === "agreements" ? agreementRows : documents;
     if (section === "agreements" && agreementFilter !== "all") {
-      list = list.filter((doc) => {
-        if (agreementFilter === "pending") {
-          return doc.display_status
-            ? ["pending", "viewed", "overdue"].includes(doc.display_status)
-            : (doc.stats?.pending ?? 0) > 0;
-        }
-        if (agreementFilter === "signed") {
-          return doc.display_status
-            ? doc.display_status === "signed"
-            : (doc.stats?.signed ?? 0) > 0 && (doc.stats?.pending ?? 0) === 0;
-        }
-        return doc.display_status === "expired" || doc.publication_status === "archived";
-      });
+      list = list.filter((doc) => agreementMatches(doc, agreementFilter));
     }
     if (section === "documents" && selectedCategory !== "all") {
       list = list.filter((d) => d.category === selectedCategory);
@@ -294,6 +410,9 @@ export default function Documents() {
                 <Text style={[styles.chipLabel, agreementFilter === key && styles.chipLabelOn]}>
                   {key === "all" ? t("propertyMgmt.allFilter") : key === "pending" ? t("propertyMgmt.pendingFilter") : t("propertyMgmt.signedFilter")}
                 </Text>
+                <View style={[styles.chipCount, agreementFilter === key && styles.chipCountOn]}>
+                  <Text style={[styles.chipCountText, agreementFilter === key && styles.chipCountTextOn]}>{agreementCounts[key]}</Text>
+                </View>
               </Pressable>
             ))}
             {agreementRows.some((doc) => doc.display_status === "expired" || doc.publication_status === "archived") ? (
@@ -374,13 +493,21 @@ export default function Documents() {
           )}
 
           {filteredDocuments.map((doc) => (
-            <DocumentRow
-              key={doc.assignment_id ? `${doc.id}-${doc.assignment_id}` : String(doc.id)}
-              doc={doc}
-              onPress={() => openDocument(doc)}
-              showDownloads={section === "documents" && isAdmin}
-              actionIcon="chevron-right"
-            />
+            doc.kind === "agreement" ? (
+              <AgreementCard
+                key={doc.assignment_id ? `${doc.id}-${doc.assignment_id}` : String(doc.id)}
+                doc={doc}
+                onPress={() => openDocument(doc)}
+              />
+            ) : (
+              <DocumentRow
+                key={doc.assignment_id ? `${doc.id}-${doc.assignment_id}` : String(doc.id)}
+                doc={doc}
+                onPress={() => openDocument(doc)}
+                showDownloads={section === "documents" && isAdmin}
+                actionIcon="chevron-right"
+              />
+            )
           ))}
         </View>
       </ScrollView>
@@ -464,6 +591,51 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   chipLabelOn: { color: "#FFFFFF" },
+  chipCount: {
+    minWidth: sw(18),
+    height: sw(18),
+    paddingHorizontal: sw(5),
+    borderRadius: sw(9),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E8F0F7",
+  },
+  chipCountOn: { backgroundColor: "rgba(255,255,255,0.22)" },
+  chipCountText: { fontFamily: Fonts.bold, fontSize: sf(10), color: "#1B4F8A", fontWeight: "700" },
+  chipCountTextOn: { color: "#FFFFFF" },
+  agreeCard: {
+    marginTop: sw(12),
+    paddingVertical: sw(14),
+    paddingRight: sw(12),
+    paddingLeft: sw(16),
+    borderWidth: 1,
+    borderColor: "#E8EEF4",
+    borderRadius: sw(16),
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: sw(8),
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  agreeAccent: { position: "absolute", left: 0, top: 0, bottom: 0, width: sw(3) },
+  agreePills: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: sw(6), marginTop: sw(8) },
+  pill: { borderRadius: sw(999), paddingHorizontal: sw(8), paddingVertical: sw(3) },
+  pillText: { fontFamily: Fonts.bold, fontSize: sf(11), fontWeight: "700" },
+  metricPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(4),
+    borderRadius: sw(999),
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(3),
+    backgroundColor: "#F8FAFC",
+  },
+  metricPillWait: { backgroundColor: "#FFF7ED" },
+  metricValue: { fontFamily: Fonts.bold, fontSize: sf(12), fontWeight: "700" },
+  metricLabel: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#64748B" },
+  track: { height: sw(4), borderRadius: sw(4), backgroundColor: "#EEF2F6", marginTop: sw(10), overflow: "hidden" },
+  trackFill: { height: "100%", borderRadius: sw(4) },
   sectionHeader: { marginBottom: sw(8) },
   sectionSub: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#9CA3AF", marginTop: sw(2) },
   lastSection: { borderBottomWidth: 0 },

@@ -459,6 +459,9 @@ export function resolvePushNotificationRoute(data = {}) {
       title: data.title ?? "",
       description: data.body ?? "",
       category: data.category ?? null,
+      kind: data.kind ?? null,
+      type: data.type ?? null,
+      documentId: data.document_id ?? data.documentId ?? null,
     });
     if (route?.pathname) return route;
   }
