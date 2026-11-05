@@ -23,6 +23,7 @@ import { sw, sf, hp } from "../../../../utils/responsive";
 import { amenityFlowRoutes } from "../../../../constants/property-management-routes";
 import {
   deleteCommunityDocument,
+  fetchAgreementDetail,
   fetchCommunityDocument,
   fetchSignedAgreementLink,
   recordDocumentDownload,
@@ -120,6 +121,16 @@ function AgreementDetails({
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const [signatureFilter, setSignatureFilter] = useState("all");
+  const recipients = Array.isArray(doc.recipients) ? doc.recipients : [];
+  const awaitingSignature = (row) => row.signature_status === "pending" || row.signature_status === "viewed";
+  const signedRecipients = recipients.filter((row) => row.signature_status === "signed");
+  const pendingRecipients = recipients.filter(awaitingSignature);
+  const visibleRecipients = signatureFilter === "signed"
+    ? signedRecipients
+    : signatureFilter === "pending"
+      ? pendingRecipients
+      : recipients;
   const status = assignment?.display_status || "pending";
   const tone = STATUS_TONE[status] || STATUS_TONE.pending;
   const signed = status === "signed" || assignment?.signature_status === "signed";
@@ -195,6 +206,47 @@ function AgreementDetails({
           ) : null}
         </View>
 
+        {isAdmin ? (
+          <View style={agreementStyles.card}>
+            <View style={agreementStyles.filterRow}>
+              {[
+                ["all", t("propertyMgmt.allFilter"), recipients.length],
+                ["signed", t("propertyMgmt.signedFilter"), signedRecipients.length],
+                ["pending", t("propertyMgmt.pendingSignature"), pendingRecipients.length],
+              ].map(([key, label, count]) => (
+                <Pressable
+                  key={key}
+                  onPress={() => setSignatureFilter(key)}
+                  style={[agreementStyles.chip, signatureFilter === key && agreementStyles.chipOn]}
+                >
+                  <Text style={[agreementStyles.chipLabel, signatureFilter === key && agreementStyles.chipLabelOn]}>
+                    {label} {count}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {visibleRecipients.length === 0 ? (
+              <Text style={agreementStyles.emptyRecipients}>{t("propertyMgmt.noResidentsInFilter")}</Text>
+            ) : visibleRecipients.map((row) => {
+              const signed = row.signature_status === "signed";
+              return (
+                <View key={String(row.id)} style={agreementStyles.recipientRow}>
+                  <View style={agreementStyles.recipientCopy}>
+                    <Text style={agreementStyles.recipientName} numberOfLines={1}>{row.resident_name}</Text>
+                    <Text style={agreementStyles.recipientUnit} numberOfLines={1}>{row.unit_label || t("propertyMgmt.notUnitSpecific")}</Text>
+                  </View>
+                  <View style={agreementStyles.recipientMeta}>
+                    <Text style={[agreementStyles.recipientStatus, signed && agreementStyles.recipientStatusSigned]}>
+                      {signed ? t("propertyMgmt.statusSigned") : t("propertyMgmt.pendingSignature")}
+                    </Text>
+                    <Text style={agreementStyles.recipientDate}>{signed ? formatDocDate(row.signed_at) : t("propertyMgmt.notSigned")}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+
         {doc.description ? (
           <View style={agreementStyles.card}>
             <Text style={agreementStyles.sectionLabel}>{t("propertyMgmt.descriptionLabel")}</Text>
@@ -225,7 +277,7 @@ function AgreementDetails({
       </ScrollView>
 
       <View style={[agreementStyles.footer, { paddingBottom: Math.max(insets.bottom, sw(12)) }]}>
-        {isAdmin && doc.publication_status === "published" ? (
+        {isAdmin && doc.publication_status === "published" && (doc.stats ? Number(doc.stats.pending) > 0 : pendingRecipients.length > 0) ? (
           <Pressable style={agreementStyles.secondaryBtn} disabled={submitting} onPress={onRemind}>
             <Text style={agreementStyles.secondaryText}>{t("propertyMgmt.remindPending")}</Text>
           </Pressable>
@@ -273,6 +325,14 @@ export default function DocumentDetail() {
     setError(null);
     try {
       const found = await fetchCommunityDocument(documentId);
+      if (getCurrentRole() === "admin" && found?.kind === "agreement") {
+        try {
+          const detail = await fetchAgreementDetail(documentId);
+          found.recipients = detail?.recipients ?? [];
+        } catch {
+          found.recipients = [];
+        }
+      }
       setDoc(found);
     } catch (err) {
       setError(err?.message ?? t("propertyMgmt.couldNotLoadDocs"));
@@ -504,6 +564,34 @@ const agreementStyles = StyleSheet.create({
   infoLabel: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#6A7282" },
   infoValue: { flex: 1, textAlign: "right", fontFamily: Fonts.medium, fontSize: sf(13), color: "#101828" },
   adminStats: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#64748B", marginTop: sw(4) },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: sw(8), marginBottom: sw(8) },
+  chip: {
+    paddingVertical: sw(6),
+    paddingHorizontal: sw(10),
+    borderRadius: sw(999),
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E6EBF1",
+  },
+  chipOn: { backgroundColor: "#1B4F8A", borderColor: "#1B4F8A" },
+  chipLabel: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#334155" },
+  chipLabelOn: { color: "#FFFFFF" },
+  emptyRecipients: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#94A3B8", paddingVertical: sw(8) },
+  recipientRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(12),
+    paddingVertical: sw(10),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#EEF2F6",
+  },
+  recipientCopy: { flex: 1, minWidth: 0 },
+  recipientName: { fontFamily: Fonts.medium, fontSize: sf(14), color: "#101828" },
+  recipientUnit: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(12), color: "#64748B" },
+  recipientMeta: { alignItems: "flex-end", maxWidth: "46%" },
+  recipientStatus: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#1B4F8A" },
+  recipientStatusSigned: { color: "#0F766E" },
+  recipientDate: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(11), color: "#64748B" },
   sectionLabel: {
     fontFamily: Fonts.bold, fontSize: sf(11), color: "#6A7282", fontWeight: "700",
     letterSpacing: 0.4, textTransform: "uppercase", marginBottom: sw(6),

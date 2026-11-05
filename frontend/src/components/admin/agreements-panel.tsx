@@ -25,6 +25,7 @@ import {
   revokeAgreement,
   type AgreementCounts,
   type AgreementDetail,
+  type AgreementRecipient,
   type AgreementSummary,
   type RecipientOption,
   type UnitOption,
@@ -843,12 +844,22 @@ function AgreementDetailView({
 }) {
   const [busy, setBusy] = useState(false);
   const [versionFile, setVersionFile] = useState<File | null>(null);
+  const [signatureFilter, setSignatureFilter] = useState<"all" | "signed" | "pending">("all");
   const stats = detail.stats;
+  const awaitingSignature = (row: AgreementRecipient) => row.signature_status === "pending" || row.signature_status === "viewed";
+  const signedCount = detail.recipients.filter((row) => row.signature_status === "signed").length;
+  const pendingCount = detail.recipients.filter(awaitingSignature).length;
   const recipients = detail.recipients.filter((row) => {
+    if (signatureFilter === "signed" && row.signature_status !== "signed") return false;
+    if (signatureFilter === "pending" && !awaitingSignature(row)) return false;
     const query = recipientQuery.trim().toLowerCase();
     if (!query) return true;
     return row.resident_name.toLowerCase().includes(query) || (row.unit_label ?? "").toLowerCase().includes(query);
   });
+
+  useEffect(() => {
+    setSignatureFilter("all");
+  }, [detail.id]);
 
   const run = async (action: () => Promise<void>) => {
     if (busy) return;
@@ -891,6 +902,7 @@ function AgreementDetailView({
     {
       id: "remind",
       label: "Remind pending",
+      hidden: pendingCount === 0,
       disabled: busy,
       onClick: () => run(async () => {
         const result = await remindAgreement(detail.id);
@@ -997,6 +1009,22 @@ function AgreementDetailView({
         </div>
       ) : null}
       <div className="mt-4">
+        <div className="mb-2 flex flex-wrap gap-2">
+          {([
+            ["all", "All", detail.recipients.length],
+            ["signed", "Signed", signedCount],
+            ["pending", "Pending signature", pendingCount],
+          ] as const).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSignatureFilter(key)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold ${signatureFilter === key ? "border-[#1B4F8A] bg-[#1B4F8A] text-white" : "border-slate-200 bg-white text-slate-600"}`}
+            >
+              {label} {count}
+            </button>
+          ))}
+        </div>
         <input value={recipientQuery} onChange={(e) => onRecipientQuery(e.target.value)} placeholder="Search recipients" className="mb-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
@@ -1012,6 +1040,11 @@ function AgreementDetailView({
               </tr>
             </thead>
             <tbody>
+              {recipients.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-6 text-center text-sm text-slate-400">No residents in this filter.</td>
+                </tr>
+              ) : null}
               {recipients.map((row) => (
                 <tr key={row.id} className="border-t border-slate-50">
                   <td className="py-2 pr-3 font-medium text-slate-800">{row.resident_name}</td>
