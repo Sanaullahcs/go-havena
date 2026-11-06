@@ -3,7 +3,7 @@
   "main": "index.js",
   "version": "1.0.4",
   "scripts": {
-    "postinstall": "node ./scripts/patch-expo-go-manifest.cjs",
+    "postinstall": "node ./scripts/patch-expo-go-manifest.cjs && node ./scripts/patch-expo-go-reload.cjs",
     "start": "node ./scripts/start-with-go-identity.cjs start --lan",
     "start:clear": "node ./scripts/start-with-go-identity.cjs start --lan --clear",
     "test:updates-identity": "node ./scripts/test-expo-go-manifest-identity.mjs",

@@ -177,7 +177,7 @@ function NavSection({
             >
               <Icon className="h-4 w-4" strokeWidth={2} aria-hidden />
             </span>
-            <span className="truncate">{item.label}</span>
+            <span className="min-w-0 leading-4">{item.label}</span>
             {item.badge && item.badge > 0 ? (
               <span
                 className={[

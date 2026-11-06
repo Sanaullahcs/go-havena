@@ -9,6 +9,13 @@ import InternalScreenHeader from "../../../../components/layout/internal-screen-
 import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { KeyboardScroll } from "../../../../components/ui/keyboard-form";
 import FormDatePickerSheet from "../../../../components/forms/form-date-picker-sheet";
+import DocumentCategoryPicker from "../../../../components/forms/document-category-picker";
+import {
+  DOCUMENT_OTHER_CATEGORY,
+  buildDocumentCategoryOptions,
+  resolveDocumentCategory,
+} from "../../../../constants/document-categories";
+import { LIMITS } from "../../../../utils/form-validation";
 import { formatDisplayDate, toApiDate } from "../../../../utils/form-datetime";
 import { propertyStyles } from "../../../../constants/property-styles";
 import { Fonts } from "../../../../constants/font";
@@ -33,9 +40,9 @@ export default function AgreementForm() {
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
+  const [categorySelect, setCategorySelect] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
   const [categories, setCategories] = useState([]);
-  const [categoryOpen, setCategoryOpen] = useState(false);
   const [dueAt, setDueAt] = useState(null);
   const [effectiveAt, setEffectiveAt] = useState(null);
   const [expiresAt, setExpiresAt] = useState(null);
@@ -127,15 +134,14 @@ export default function AgreementForm() {
   };
   const showDate = (key) => {
     Keyboard.dismiss();
-    setCategoryOpen(false);
     setOpenDate(key);
   };
   const closeDate = () => {
     if (openDate) touch(dateFieldKey);
     setOpenDate(null);
   };
-  const categoryQuery = category.trim().toLowerCase();
-  const categorySuggestions = categories.filter((name) => !categoryQuery || name.toLowerCase().includes(categoryQuery));
+  const categoryOptions = useMemo(() => buildDocumentCategoryOptions(categories), [categories]);
+  const category = resolveDocumentCategory(categorySelect, customCategory);
 
   const recipientCount = scope === "all"
     ? options.resident_count
@@ -152,39 +158,25 @@ export default function AgreementForm() {
             <Text style={styles.label}>{t("propertyMgmt.docTitleLabel")}</Text>
             <LocaleTextInput style={styles.input} value={title} onChangeText={setTitle} />
             <Text style={styles.label}>{t("propertyMgmt.docCategoryRequired")}</Text>
-            <View style={styles.combo}>
-              <LocaleTextInput
-                style={styles.comboInput}
-                value={category}
-                onChangeText={(value) => {
-                  setCategory(value);
-                  setCategoryOpen(true);
-                }}
-                onFocus={() => setCategoryOpen(true)}
-                placeholder={t("propertyMgmt.categoryPlaceholder")}
-                placeholderTextColor="#9CA3AF"
-                maxLength={100}
-              />
-              <Pressable style={styles.comboButton} onPress={() => setCategoryOpen((open) => !open)} hitSlop={8}>
-                <Feather name={categoryOpen ? "chevron-up" : "chevron-down"} size={sf(16)} color="#64748B" />
-              </Pressable>
-            </View>
-            {categoryOpen && categorySuggestions.length > 0 ? (
-              <ScrollView style={styles.menu} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                {categorySuggestions.map((name) => (
-                  <Pressable
-                    key={name}
-                    style={styles.menuItem}
-                    onPress={() => {
-                      setCategory(name);
-                      setCategoryOpen(false);
-                    }}
-                  >
-                    <Text style={styles.menuText}>{name}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            ) : null}
+            <DocumentCategoryPicker
+              selection={categorySelect}
+              customValue={customCategory}
+              options={categoryOptions}
+              placeholder={t("propertyMgmt.selectCategory")}
+              customPlaceholder={t("propertyMgmt.enterCustomCategory")}
+              maxLength={LIMITS.documentCategory}
+              onSelect={(name) => {
+                setCategorySelect(name);
+                if (name !== DOCUMENT_OTHER_CATEGORY) setCustomCategory("");
+                touch("category");
+                clearError("category");
+              }}
+              onCustomChange={(value) => {
+                setCustomCategory(value);
+                touch("category");
+                clearError("category");
+              }}
+            />
             <Text style={styles.label}>{t("propertyMgmt.docDescriptionLabel")}</Text>
             <LocaleTextInput style={[styles.input, styles.area]} value={description} onChangeText={setDescription} multiline />
             {[

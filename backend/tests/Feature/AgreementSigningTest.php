@@ -129,6 +129,7 @@ class AgreementSigningTest extends TestCase
         $draft = $this->post('/api/v1/admin/documents/agreements', [
             'title' => 'Due Today',
             'category' => 'Rules & Policies',
+            'description' => 'Agreement details for residents.',
             'due_at' => now()->toDateString(),
             'file' => $this->pdfFile('Due today.'),
         ], ['Accept' => 'application/json'])->assertCreated();
@@ -141,7 +142,8 @@ class AgreementSigningTest extends TestCase
         Sanctum::actingAs($resident);
         $detail = $this->getJson("/api/v1/documents/{$id}")->assertOk();
         $this->assertTrue($detail->json('data.assignments.0.can_sign'));
-        $this->assertSame('viewed', $detail->json('data.assignments.0.display_status'));
+        $this->assertSame('viewed', $detail->json('data.assignments.0.signature_status'));
+        $this->assertSame('pending', $detail->json('data.assignments.0.display_status'));
         $this->postJson("/api/v1/documents/{$id}/sign", [
             'version' => 1,
             'assignment_id' => $detail->json('data.assignments.0.assignment_id'),
@@ -191,6 +193,7 @@ class AgreementSigningTest extends TestCase
         $id = $this->post('/api/v1/admin/documents/agreements', [
             'title' => 'Parking Agreement',
             'category' => 'Rules & Policies',
+            'description' => 'Agreement details for residents.',
             'file' => $this->pdfFile('Parking terms stay intact.'),
         ], ['Accept' => 'application/json'])->json('data.id');
 
@@ -232,6 +235,7 @@ class AgreementSigningTest extends TestCase
         $id = $this->post('/api/v1/admin/documents/agreements', [
             'title' => 'Placement Agreement',
             'category' => 'Rules & Policies',
+            'description' => 'Agreement details for residents.',
             'file' => $this->pdfFile('The original page stays intact.'),
         ], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
         $this->postJson("/api/v1/admin/documents/agreements/{$id}/publish", [
@@ -278,6 +282,7 @@ class AgreementSigningTest extends TestCase
         $this->post('/api/v1/admin/documents/agreements', [
             'title' => 'Still a draft',
             'category' => 'Rules & Policies',
+            'description' => 'Agreement details for residents.',
             'due_at' => now()->addDays(3)->toDateString(),
             'file' => $this->pdfFile('Draft terms.'),
         ], ['Accept' => 'application/json'])->assertCreated();
@@ -285,6 +290,7 @@ class AgreementSigningTest extends TestCase
         $overdueId = $this->post('/api/v1/admin/documents/agreements', [
             'title' => 'Already due',
             'category' => 'Rules & Policies',
+            'description' => 'Agreement details for residents.',
             'due_at' => now()->subDay()->toDateString(),
             'file' => $this->pdfFile('Overdue terms.'),
         ], ['Accept' => 'application/json'])->json('data.id');
@@ -329,6 +335,7 @@ class AgreementSigningTest extends TestCase
         $id = $this->post('/api/v1/admin/documents/agreements', [
             'title' => 'Community Rules Agreement',
             'category' => 'Rules & Policies',
+            'description' => 'Agreement details for residents.',
             'file' => $this->pdfFile('Residents agree to the community rules.'),
         ], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
 
@@ -356,6 +363,7 @@ class AgreementSigningTest extends TestCase
         $silentId = $this->post('/api/v1/admin/documents/agreements', [
             'title' => 'Silent Agreement',
             'category' => 'Rules & Policies',
+            'description' => 'Agreement details for residents.',
             'file' => $this->pdfFile('No email for this one.'),
         ], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
         $this->postJson("/api/v1/admin/documents/agreements/{$silentId}/publish", [
@@ -377,6 +385,7 @@ class AgreementSigningTest extends TestCase
         $id = $this->post('/api/v1/admin/documents/agreements', [
             'title' => 'Community Rules Agreement',
             'category' => 'Rules & Policies',
+            'description' => 'Agreement details for residents.',
             'file' => $this->pdfFile('Residents agree to the community rules.'),
         ], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
         $this->postJson("/api/v1/admin/documents/agreements/{$id}/publish", [
@@ -431,8 +440,69 @@ class AgreementSigningTest extends TestCase
         $this->post('/api/v1/admin/documents/agreements', [
             'title' => 'Broken',
             'category' => 'Rules & Policies',
+            'description' => 'Agreement details for residents.',
             'file' => UploadedFile::fake()->createWithContent('notes.pdf', 'not a pdf'),
         ], ['Accept' => 'application/json'])->assertStatus(422);
+    }
+
+    public function test_agreement_status_follows_due_and_expiration_without_erasing_a_signature(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        ['admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+
+        Sanctum::actingAs($admin);
+        $id = $this->post('/api/v1/admin/documents/agreements', [
+            'title' => 'Dated agreement',
+            'category' => 'Rules & Policies',
+            'description' => 'Agreement details for residents.',
+            'due_at' => now()->addDays(2)->toDateString(),
+            'expires_at' => now()->addDays(10)->toDateString(),
+            'file' => $this->pdfFile('Status terms.'),
+        ], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
+        $this->postJson("/api/v1/admin/documents/agreements/{$id}/publish", [
+            'scope' => 'all',
+            'notify' => false,
+        ])->assertOk();
+
+        Sanctum::actingAs($resident);
+        $open = $this->getJson("/api/v1/documents/{$id}")->assertOk();
+        $this->assertSame('pending', $open->json('data.assignments.0.display_status'));
+        $assignmentId = $open->json('data.assignments.0.assignment_id');
+        $this->postJson("/api/v1/documents/{$id}/sign", [
+            'version' => 1,
+            'assignment_id' => $assignmentId,
+            'method' => 'type',
+            'typed_name' => $resident->name,
+            'consent' => true,
+        ])->assertCreated();
+
+        DB::table('community_documents')->where('id', $id)->update([
+            'due_at' => now()->subDays(2)->toDateString().' 00:00:00',
+        ]);
+        $stillSigned = $this->getJson("/api/v1/documents/{$id}")->assertOk();
+        $this->assertSame('signed', $stillSigned->json('data.assignments.0.display_status'));
+        $this->assertSame('signed', $stillSigned->json('data.assignments.0.signature_status'));
+
+        DB::table('community_documents')->where('id', $id)->update([
+            'expires_at' => now()->subDay()->toDateString().' 00:00:00',
+        ]);
+        $expired = $this->getJson("/api/v1/documents/{$id}")->assertOk();
+        $this->assertSame('expired', $expired->json('data.assignments.0.display_status'));
+        $this->assertSame('signed', $expired->json('data.assignments.0.signature_status'));
+        $this->assertNotEmpty($expired->json('data.assignments.0.signed_file_url'));
+        $this->assertSame(1, DB::table('community_document_signatures')->where('assignment_id', $assignmentId)->count());
+
+        Sanctum::actingAs($admin);
+        $counts = $this->getJson('/api/v1/admin/documents/agreements')->assertOk()->json('meta.counts');
+        $this->assertSame(0, $counts['overdue']);
+        $this->assertSame(1, $counts['expired']);
+        $detail = $this->getJson("/api/v1/admin/documents/agreements/{$id}")->assertOk();
+        $this->assertSame('expired', $detail->json('data.recipients.0.display_status'));
+        $this->assertSame('signed', $detail->json('data.recipients.0.signature_status'));
+        $this->assertNotEmpty($detail->json('data.recipients.0.signed_file_url'));
+        $this->assertSame(0, $detail->json('data.stats.signed'));
+        $this->assertSame(1, $detail->json('data.stats.expired'));
     }
 
     private function pdfFile(string $sentence): UploadedFile

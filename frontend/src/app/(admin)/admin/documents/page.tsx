@@ -4,19 +4,19 @@ import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
-  ChevronRight,
+  ChevronDown,
   Download,
   FileText,
   FolderOpen,
   Layers,
   Pencil,
   Plus,
-  Trash2,
   Upload,
   X,
 } from "lucide-react";
-import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
+import { CharCount } from "@/components/admin/char-count";
 import { AgreementsPanel } from "@/components/admin/agreements-panel";
+import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { ThemedSelect } from "@/components/ui/themed-select";
 import { confirmDelete, toastError, toastSuccess } from "@/lib/alert";
@@ -25,7 +25,9 @@ import { PageLoader, PageError } from "@/components/shared/page-states";
 import { validateDocumentForm } from "@/lib/admin/document-form-validation";
 import {
   DOCUMENT_OTHER_CATEGORY,
+  DOCUMENT_PRESET_CATEGORIES,
   buildDocumentCategoryOptions,
+  documentMatchesCategory,
   resolveDocumentCategory,
   splitDocumentCategory,
 } from "@/lib/admin/document-categories";
@@ -34,13 +36,10 @@ import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import { adminTableBusy } from "@/lib/admin/table-loading";
 import {
   createDocument,
-  createDocumentCategory,
   deleteDocument,
-  deleteDocumentCategory,
   fetchAdminDocuments,
   updateDocument,
   type CommunityDocument,
-  type DocumentCategory,
   type DocumentForm,
 } from "@/lib/api/documents";
 
@@ -54,8 +53,6 @@ const emptyForm: DocumentForm = {
   file: null,
 };
 
-type StatusFilter = "all" | "active" | "inactive";
-
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("en-US", {
     month: "short",
@@ -66,7 +63,6 @@ function formatDate(value: string) {
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<CommunityDocument[]>([]);
-  const [categories, setCategories] = useState<DocumentCategory[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -74,20 +70,26 @@ export default function DocumentsPage() {
   const hasLoadedOnce = useRef(false);
   const [section, setSection] = useState<"documents" | "agreements">("documents");
   const [openAgreementId, setOpenAgreementId] = useState<number | null>(null);
+  const openAgreementCreate = useRef<(() => void) | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const agreement = Number(params.get("agreement"));
-    if (params.get("tab") === "agreements" || agreement) {
+    if (params.get("tab") === "agreements" || (Number.isFinite(agreement) && agreement > 0)) {
       setSection("agreements");
     }
-    if (agreement) setOpenAgreementId(agreement);
+    if (Number.isFinite(agreement) && agreement > 0) setOpenAgreementId(agreement);
   }, []);
+
+  const showSection = (next: "documents" | "agreements") => {
+    setSection(next);
+    const url = next === "agreements" ? "/admin/documents?tab=agreements" : "/admin/documents";
+    window.history.replaceState(null, "", url);
+  };
 
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
-  const [filterStatus, setFilterStatus] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
@@ -97,16 +99,10 @@ export default function DocumentsPage() {
   const [categorySelect, setCategorySelect] = useState("");
   const [customCategoryInput, setCustomCategoryInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [showCategoryForm, setShowCategoryForm] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [savingCategory, setSavingCategory] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { touch, clearError, showError, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
 
-  const categoryOptions = useMemo(
-    () => buildDocumentCategoryOptions(categories.map((c) => c.name)),
-    [categories],
-  );
+  const categoryOptions = useMemo(() => buildDocumentCategoryOptions(), []);
 
   const resolvedCategory = resolveDocumentCategory(categorySelect, customCategoryInput);
   const liveErrors = useMemo(
@@ -121,7 +117,6 @@ export default function DocumentsPage() {
     try {
       const res = await fetchAdminDocuments();
       setDocuments(res.data);
-      setCategories(res.categories);
       setPageError(null);
     } catch (err) {
       setPageError(apiError(err));
@@ -136,10 +131,10 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     startTransition(() => setPage(1));
-  }, [search, filterCat, filterStatus]);
+  }, [search, filterCat]);
 
   const categoryScoped = useMemo(
-    () => (filterCat === "all" ? documents : documents.filter((d) => d.category === filterCat)),
+    () => documents.filter((d) => documentMatchesCategory(d.category, filterCat)),
     [documents, filterCat],
   );
 
@@ -149,12 +144,8 @@ export default function DocumentsPage() {
       d.title.toLowerCase().includes(q) ||
       d.category.toLowerCase().includes(q) ||
       (d.description ?? "").toLowerCase().includes(q);
-    const matchStatus =
-      filterStatus === "all" ||
-      (filterStatus === "active" && d.status === "active") ||
-      (filterStatus === "inactive" && d.status === "inactive");
-    return matchSearch && matchStatus;
-  }), [categoryScoped, search, filterStatus]);
+    return matchSearch;
+  }), [categoryScoped, search]);
 
   const lastPage = Math.max(1, Math.ceil(filtered.length / DOCUMENTS_PAGE_SIZE));
   const pagedDocuments = useMemo(() => {
@@ -166,21 +157,10 @@ export default function DocumentsPage() {
   const stats = useMemo(() => ({
     total: documents.length,
     active: documents.filter((d) => d.status === "active").length,
-    downloads: documents.reduce((sum, d) => sum + d.download_count, 0),
-    categoryCount: categories.length,
-  }), [documents, categories]);
+    categoryCount: DOCUMENT_PRESET_CATEGORIES.length + 1,
+  }), [documents]);
 
-  const statusFilters = useMemo(() => {
-    const active = categoryScoped.filter((d) => d.status === "active").length;
-    const inactive = categoryScoped.length - active;
-    return [
-      { key: "all", label: "All", count: categoryScoped.length },
-      { key: "active", label: "Active", count: active },
-      { key: "inactive", label: "Inactive", count: inactive },
-    ];
-  }, [categoryScoped]);
-
-  const tableTitle = filterCat === "all" ? "All Documents" : filterCat;
+  const tableTitle = "All Documents";
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -200,7 +180,7 @@ export default function DocumentsPage() {
       description: doc.description ?? "",
       status: doc.status,
     });
-    const split = splitDocumentCategory(doc.category, categories.map((c) => c.name));
+    const split = splitDocumentCategory(doc.category);
     setCategorySelect(split.selection);
     setCustomCategoryInput(split.customName);
     setSelectedFile(null);
@@ -262,47 +242,6 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleAddCategory = async () => {
-    const name = newCategoryName.trim();
-    if (!name) {
-      toastError("Enter a category name.");
-      return;
-    }
-    setSavingCategory(true);
-    try {
-      await createDocumentCategory(name);
-      toastSuccess("Category added");
-      setNewCategoryName("");
-      setShowCategoryForm(false);
-      await load();
-      setFilterCat(name);
-    } catch (err) {
-      toastError(apiError(err));
-    } finally {
-      setSavingCategory(false);
-    }
-  };
-
-  const handleDeleteCategory = async (cat: DocumentCategory) => {
-    if (cat.count > 0) {
-      toastError("Remove or reassign documents in this category before deleting it.");
-      return;
-    }
-    const ok = await confirmDelete({
-      title: `Delete category "${cat.name}"?`,
-      text: "This removes the empty category from the list.",
-    });
-    if (!ok.isConfirmed) return;
-    try {
-      await deleteDocumentCategory(cat.name);
-      toastSuccess("Category deleted");
-      if (filterCat === cat.name) setFilterCat("all");
-      await load();
-    } catch (err) {
-      toastError(apiError(err));
-    }
-  };
-
   if (initialLoading) return <PageLoader skeleton />;
   if (pageError && !documents.length) {
     return <PageError message={pageError} onRetry={() => { setPageError(null); void load(); }} />;
@@ -313,9 +252,11 @@ export default function DocumentsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="nl-eyebrow">Community Admin</p>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Documents</h2>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Documents & Agreements</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Upload and organize community documents by category. Residents can browse and download from the mobile app.
+            {section === "documents"
+              ? "Upload and organize community documents by category. Residents can browse and download from the mobile app."
+              : "Send agreements for signature and track pending, signed, overdue, and expired records."}
           </p>
         </div>
         {section === "documents" ? (
@@ -323,132 +264,45 @@ export default function DocumentsPage() {
             <Plus className="h-4 w-4" />
             Add Document
           </button>
-        ) : null}
+        ) : (
+          <button type="button" onClick={() => openAgreementCreate.current?.()} className="nl-btn-primary">
+            <Plus className="h-4 w-4" />
+            Create Agreement
+          </button>
+        )}
       </div>
 
-      <div className="flex gap-6 border-b border-slate-200">
-        <button type="button" onClick={() => setSection("documents")} className={`border-b-2 pb-2 text-sm font-semibold ${section === "documents" ? "border-[#1B4F8A] text-[#1B4F8A]" : "border-transparent text-slate-500"}`}>All Documents</button>
-        <button type="button" onClick={() => setSection("agreements")} className={`border-b-2 pb-2 text-sm font-semibold ${section === "agreements" ? "border-[#1B4F8A] text-[#1B4F8A]" : "border-transparent text-slate-500"}`}>Agreements</button>
+      <div className="flex w-fit gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Documents and agreements">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === "documents"}
+          onClick={() => showSection("documents")}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${section === "documents" ? "bg-[#1B4F8A] text-white" : "text-slate-600 hover:bg-white"}`}
+        >
+          Documents
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === "agreements"}
+          onClick={() => showSection("agreements")}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${section === "agreements" ? "bg-[#1B4F8A] text-white" : "text-slate-600 hover:bg-white"}`}
+        >
+          Agreements
+        </button>
       </div>
 
-      {section === "agreements" ? <AgreementsPanel initialId={openAgreementId} /> : null}
-      {section === "documents" ? <>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {section === "agreements" ? (
+        <AgreementsPanel initialId={openAgreementId} openCreateRef={openAgreementCreate} />
+      ) : null}
+      {section === "documents" ? (
+      <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
         <StatTile label="Total Documents" value={String(stats.total)} hint="All files" tone="blue" icon={<FileText className="h-5 w-5" />} />
         <StatTile label="Active" value={String(stats.active)} hint="Visible to residents" tone="green" icon={<FolderOpen className="h-5 w-5" />} />
-        <StatTile label="Total Downloads" value={String(stats.downloads)} hint="All time" tone="amber" icon={<Download className="h-5 w-5" />} />
         <StatTile label="Categories" value={String(stats.categoryCount)} hint="Document groups" tone="violet" icon={<Layers className="h-5 w-5" />} />
       </div>
-
-      <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-        <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="mb-2 flex items-center justify-between px-2">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Categories</p>
-              <p className="text-[11px] text-slate-400">Add and filter groups</p>
-            </div>
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-              onClick={() => setShowCategoryForm((v) => !v)}
-              title="Add category"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          </div>
-
-          {showCategoryForm ? (
-            <div className="mb-3 space-y-2 rounded-xl border border-blue-200 bg-blue-50/40 p-3">
-              <ClearableInput
-                className="nl-input"
-                placeholder="Category name *"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddCategory();
-                  }
-                }}
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="nl-btn-primary flex-1 disabled:opacity-60"
-                  disabled={savingCategory || !newCategoryName.trim()}
-                  onClick={handleAddCategory}
-                >
-                  {savingCategory ? "Adding…" : "Add"}
-                </button>
-                <button
-                  type="button"
-                  className="nl-btn-secondary"
-                  onClick={() => {
-                    setShowCategoryForm(false);
-                    setNewCategoryName("");
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="space-y-1">
-            <button
-              type="button"
-              onClick={() => startTransition(() => setFilterCat("all"))}
-              className={[
-                "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition",
-                filterCat === "all" ? "bg-blue-50 font-semibold text-blue-700 ring-1 ring-blue-100" : "text-slate-700 hover:bg-slate-50",
-              ].join(" ")}
-            >
-              <span className="flex items-center gap-2"><FolderOpen className="h-3.5 w-3.5" /> All Documents</span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold tabular-nums text-slate-500">{documents.length}</span>
-            </button>
-
-            {categories.length === 0 ? (
-              <p className="px-3 py-4 text-xs leading-relaxed text-slate-400">
-                No categories yet. Click + to add one, or upload a document.
-              </p>
-            ) : (
-              categories.map((cat) => (
-                <div
-                  key={cat.name}
-                  className={[
-                    "group flex w-full items-center gap-1 rounded-xl transition",
-                    filterCat === cat.name ? "bg-blue-50 ring-1 ring-blue-100" : "hover:bg-slate-50",
-                  ].join(" ")}
-                >
-                  <button
-                    type="button"
-                    onClick={() => startTransition(() => setFilterCat(cat.name))}
-                    className={[
-                      "flex min-w-0 flex-1 items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition",
-                      filterCat === cat.name ? "font-semibold text-blue-700" : "text-slate-700",
-                    ].join(" ")}
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <ChevronRight className={["h-3 w-3 shrink-0 transition-transform", filterCat === cat.name ? "rotate-90 text-blue-600" : "text-slate-400"].join(" ")} />
-                      <span className="truncate">{cat.name}</span>
-                    </span>
-                    <span className="ml-2 shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold tabular-nums text-slate-500">{cat.count}</span>
-                  </button>
-                  {cat.count === 0 ? (
-                    <button
-                      type="button"
-                      title={`Delete ${cat.name}`}
-                      onClick={() => handleDeleteCategory(cat)}
-                      className="mr-2 hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600 group-hover:inline-flex"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  ) : null}
-                </div>
-              ))
-            )}
-          </div>
-        </aside>
 
         <DataTable
           title={tableTitle}
@@ -457,12 +311,27 @@ export default function DocumentsPage() {
           search={search}
           onSearch={(value) => startTransition(() => setSearch(value))}
           searchPlaceholder="Search title, category…"
-          loading={adminTableBusy(refreshing, submitting, savingCategory, isPending)}
-          filters={statusFilters}
-          activeFilter={filterStatus}
-          onFilter={(key) => startTransition(() => setFilterStatus(key as StatusFilter))}
+          searchClassName="min-w-0 w-full sm:w-56"
+          beforeSearch={
+            <div className="relative shrink-0">
+              <select
+                aria-label="Category"
+                value={filterCat}
+                onChange={(event) => startTransition(() => setFilterCat(event.target.value))}
+                className="h-8 w-44 appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-9 text-[12.5px] font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:w-52"
+              >
+                <option value="all">All categories</option>
+                {DOCUMENT_PRESET_CATEGORIES.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+                <option value={DOCUMENT_OTHER_CATEGORY}>{DOCUMENT_OTHER_CATEGORY}</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+            </div>
+          }
+          loading={adminTableBusy(refreshing, submitting, isPending)}
           isEmpty={filtered.length === 0}
-          empty={search || filterCat !== "all" || filterStatus !== "all" ? "No documents match your filters." : "No documents yet. Click \"Add Document\" to upload your first file."}
+          empty={search || filterCat !== "all" ? "No documents match your filters." : "No documents yet. Click \"Add Document\" to upload your first file."}
         >
           <div className="max-h-[min(680px,calc(100vh-16rem))] overflow-y-auto">
             <div className="space-y-3 p-4">
@@ -518,7 +387,7 @@ export default function DocumentsPage() {
           />
         </DataTable>
       </div>
-      </> : null}
+      ) : null}
 
       {viewing && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
@@ -568,12 +437,15 @@ export default function DocumentsPage() {
                 <ClearableInput
                   className={inputClass(showError("title", liveErrors), "nl-input")}
                   value={form.title}
+                  maxLength={200}
                   onChange={(e) => setF("title", e.target.value)}
+                  onBlur={() => touch("title")}
                   placeholder="e.g. Community Rules & Bylaws"
                 />
                 {showError("title", liveErrors) ? (
                   <p className="mt-1 text-xs text-red-600">{showError("title", liveErrors)}</p>
                 ) : null}
+                <CharCount value={form.title} max={200} />
               </div>
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Category *</label>
@@ -613,8 +485,21 @@ export default function DocumentsPage() {
                 ) : null}
               </div>
               <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Description</label>
-                <ClearableTextarea className="nl-input min-h-[80px] resize-y" value={form.description} onChange={(e) => setF("description", e.target.value)} placeholder="Optional notes about this document…" />
+                <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Description *</label>
+                <ClearableTextarea
+                  className={inputClass(showError("description", liveErrors), "nl-input min-h-[80px] resize-none overflow-y-auto")}
+                  style={{ resize: "none" }}
+                  value={form.description}
+                  maxLength={5000}
+                  rows={4}
+                  onChange={(e) => setF("description", e.target.value)}
+                  onBlur={() => touch("description")}
+                  placeholder="Describe this document for residents"
+                />
+                {showError("description", liveErrors) ? (
+                  <p className="mt-1 text-xs text-red-600">{showError("description", liveErrors)}</p>
+                ) : null}
+                <CharCount value={form.description} max={5000} />
               </div>
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">{editingId ? "Replace File (optional)" : "File *"}</label>

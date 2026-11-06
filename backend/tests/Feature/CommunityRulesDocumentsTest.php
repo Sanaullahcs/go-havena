@@ -307,6 +307,7 @@ class CommunityRulesDocumentsTest extends TestCase
         $docId = $this->post('/api/v1/admin/documents', [
             'title'    => 'Move-in Form',
             'category' => 'Forms',
+            'description' => 'Move-in form for new residents.',
             'file'     => $file,
         ])->json('data.id');
 
@@ -333,6 +334,7 @@ class CommunityRulesDocumentsTest extends TestCase
         $docId = $this->post('/api/v1/admin/documents', [
             'title'    => 'Draft Document',
             'category' => 'Financial',
+            'description' => 'Draft document kept inactive.',
             'status'   => 'inactive',
             'file'     => $file,
         ])->json('data.id');
@@ -365,6 +367,7 @@ class CommunityRulesDocumentsTest extends TestCase
         $docId = $this->post('/api/v1/admin/documents', [
             'title'    => 'Old Guide',
             'category' => 'Guidelines',
+            'description' => 'Community guide for residents.',
             'file'     => $file,
         ])->json('data.id');
 
@@ -418,12 +421,14 @@ class CommunityRulesDocumentsTest extends TestCase
         $this->post('/api/v1/admin/documents', [
             'title'    => 'Fire Safety Plan',
             'category' => 'Safety',
+            'description' => 'Fire safety plan for the community.',
             'file'     => $fileA,
         ])->assertCreated();
 
         $this->post('/api/v1/admin/documents', [
             'title'    => 'Site Map',
             'category' => 'Maps & Diagrams',
+            'description' => 'Site map of community grounds.',
             'file'     => $fileB,
         ])->assertCreated();
 
@@ -485,6 +490,7 @@ class CommunityRulesDocumentsTest extends TestCase
         $docId = $this->post('/api/v1/admin/documents', [
             'title'    => 'System Admin Doc',
             'category' => 'Forms',
+            'description' => 'Document created by a system admin.',
             'file'     => $file,
         ])->assertCreated()->json('data.id');
 

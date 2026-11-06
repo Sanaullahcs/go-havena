@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\ContentFieldRules;
+use App\Support\DocumentCategories;
 use App\Services\ActivityLogService;
 use App\Services\AgreementService;
 use App\Services\UserActingContextService;
@@ -353,6 +355,7 @@ class CommunityDocumentController extends Controller
 
         $name = trim($data['name']);
         abort_if($name === '', 422, 'Category name is required.');
+        abort_if(DocumentCategories::isOther($name), 422, 'Enter a custom category name.');
 
         $exists = DB::table('community_document_categories')
             ->where('community_id', $communityId)
@@ -389,6 +392,7 @@ class CommunityDocumentController extends Controller
         ]);
 
         $name = trim($data['name']);
+        abort_if(DocumentCategories::isPreset($name), 422, 'Predefined categories cannot be deleted.');
 
         $inUse = DB::table('community_documents')
             ->where('community_id', $communityId)
@@ -415,12 +419,12 @@ class CommunityDocumentController extends Controller
         $communityId = $this->resolveCommunityId($request, $user);
 
         $data = $request->validate([
-            'title'       => 'required|string|max:200',
+            'title'       => ContentFieldRules::rules()['title'],
             'category'    => 'required|string|max:100',
-            'description' => 'nullable|string',
+            'description' => ContentFieldRules::rules()['description'],
             'status'      => 'in:active,inactive',
             'file'        => 'required|file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,webp',
-        ]);
+        ], ContentFieldRules::messages());
 
         $fileMeta = $this->storeUploadedFile($request->file('file'), $communityId);
         $this->ensureCategory($communityId, $data['category']);
@@ -460,13 +464,14 @@ class CommunityDocumentController extends Controller
             abort(422, 'Published agreements cannot be edited. Create a new version.');
         }
 
+        $text = ContentFieldRules::rules(false);
         $data = $request->validate([
-            'title'       => 'sometimes|string|max:200',
+            'title'       => $text['title'],
             'category'    => 'sometimes|string|max:100',
-            'description' => 'nullable|string',
+            'description' => $text['description'],
             'status'      => 'sometimes|in:active,inactive',
             'file'        => 'sometimes|file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,webp',
-        ]);
+        ], ContentFieldRules::messages());
 
         $updates = collect($data)->except('file')->toArray();
         $updates['updated_at'] = now();

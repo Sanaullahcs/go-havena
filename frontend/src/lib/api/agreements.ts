@@ -31,6 +31,7 @@ export type AgreementSummary = {
     viewed: number;
     declined: number;
     overdue: number;
+    expired: number;
   } | null;
 };
 
@@ -71,17 +72,22 @@ export type AgreementCounts = {
   revoked: number;
   superseded: number;
   overdue: number;
+  expired: number;
+  pending: number;
+  signed: number;
 };
 
 export async function fetchAgreements(params?: {
   status?: string;
   search?: string;
+  category?: string;
   due_from?: string;
   due_to?: string;
   page?: number;
 }): Promise<{ data: AgreementSummary[]; meta: { current_page: number; last_page: number; total: number; counts: AgreementCounts } }> {
   const p = new URLSearchParams();
   if (params?.status && params.status !== "all") p.set("status", params.status);
+  if (params?.category && params.category !== "all") p.set("category", params.category);
   if (params?.search?.trim()) p.set("search", params.search.trim());
   if (params?.due_from) p.set("due_from", params.due_from);
   if (params?.due_to) p.set("due_to", params.due_to);

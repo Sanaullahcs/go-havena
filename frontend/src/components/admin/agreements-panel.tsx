@@ -2,15 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, FileText, Plus, Upload, X } from "lucide-react";
+import { AlertTriangle, CalendarOff, Check, CheckCircle2, ChevronDown, Clock, FileText, Upload, X } from "lucide-react";
+import { CharCount } from "@/components/admin/char-count";
 import { AdminActionsMenu, type AdminMenuAction } from "@/components/admin/admin-actions-menu";
-import { AdminBadge, DataTable, DtPagination } from "@/components/admin/ui";
+import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import { validateAgreementDetails } from "@/lib/admin/agreement-form-validation";
 import { inputClass } from "@/lib/admin/form-validation-utils";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { apiError } from "@/lib/api/client";
 import { fetchAdminDocuments } from "@/lib/api/documents";
+import {
+  DOCUMENT_OTHER_CATEGORY,
+  DOCUMENT_PRESET_CATEGORIES,
+  buildDocumentCategoryOptions,
+  isDocumentOtherCategory,
+  resolveDocumentCategory,
+  splitDocumentCategory,
+} from "@/lib/admin/document-categories";
+import { ThemedSelect } from "@/components/ui/themed-select";
 import {
   archiveAgreement,
   createAgreementDraft,
@@ -49,11 +59,21 @@ function formatWhen(value: string | null) {
 }
 
 function agreementStatusLabel(status: string) {
-  if (status === "published") return "Saved";
+  if (status === "published") return "";
   if (status === "draft") return "Draft";
   if (status === "archived") return "Archived";
   if (status === "revoked") return "Revoked";
   if (status === "superseded") return "Superseded";
+  return status;
+}
+
+function recipientStatusLabel(status: string) {
+  if (status === "pending" || status === "viewed") return "Pending";
+  if (status === "overdue") return "Overdue";
+  if (status === "signed") return "Signed";
+  if (status === "expired") return "Expired";
+  if (status === "declined") return "Declined";
+  if (status === "revoked") return "Revoked";
   return status;
 }
 
@@ -70,6 +90,9 @@ const EMPTY_COUNTS: AgreementCounts = {
   revoked: 0,
   superseded: 0,
   overdue: 0,
+  expired: 0,
+  pending: 0,
+  signed: 0,
 };
 
 function fileSize(bytes: number) {
@@ -78,14 +101,19 @@ function fileSize(bytes: number) {
   return `${bytes} B`;
 }
 
-export function AgreementsPanel({ initialId = null }: { initialId?: number | null }) {
+export function AgreementsPanel({
+  initialId = null,
+  openCreateRef,
+}: {
+  initialId?: number | null;
+  openCreateRef?: { current: (() => void) | null };
+}) {
   const [rows, setRows] = useState<AgreementSummary[]>([]);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0, counts: EMPTY_COUNTS });
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
   const [status, setStatus] = useState("all");
-  const [dueFrom, setDueFrom] = useState("");
-  const [dueTo, setDueTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [wizardDraft, setWizardDraft] = useState<AgreementDetail | null>(null);
@@ -99,8 +127,7 @@ export function AgreementsPanel({ initialId = null }: { initialId?: number | nul
       const res = await fetchAgreements({
         status,
         search,
-        due_from: dueFrom || undefined,
-        due_to: dueTo || undefined,
+        category,
         page: nextPage,
       });
       setRows(res.data);
@@ -115,7 +142,7 @@ export function AgreementsPanel({ initialId = null }: { initialId?: number | nul
   useEffect(() => {
     void load(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, status]);
+  }, [page, status, search, category]);
 
   useEffect(() => {
     if (!initialId) return;
@@ -140,19 +167,110 @@ export function AgreementsPanel({ initialId = null }: { initialId?: number | nul
     }
   };
 
+  const openCreate = () => {
+    setDetail(null);
+    setWizardIntent("create");
+    setCreating(true);
+  };
+  if (openCreateRef) openCreateRef.current = openCreate;
+
+  const rowActions = (row: AgreementSummary): AdminMenuAction[] => {
+    const status = row.publication_status;
+    const awaiting = (row.stats?.pending ?? 0) + (row.stats?.overdue ?? 0);
+    const expired = (row.stats?.expired ?? 0) > 0;
+    return [
+      {
+        id: "edit",
+        label: "Edit draft",
+        icon: "edit",
+        hidden: status !== "draft",
+        onClick: () => void openDraftWizard(row.id, "edit"),
+      },
+      {
+        id: "publish",
+        label: "Save",
+        icon: "check",
+        hidden: status !== "draft",
+        onClick: () => void openDraftWizard(row.id, "publish"),
+      },
+      {
+        id: "preview",
+        label: "Preview original",
+        icon: "view",
+        hidden: !row.file_url,
+        onClick: () => window.open(row.file_url, "_blank", "noopener,noreferrer"),
+      },
+      {
+        id: "remind",
+        label: "Remind pending",
+        hidden: status !== "published" || awaiting === 0 || expired,
+        onClick: async () => {
+          try {
+            const result = await remindAgreement(row.id);
+            toastSuccess(`Reminders sent: ${result.sent}`);
+          } catch (err) {
+            toastError(apiError(err));
+          }
+        },
+      },
+      {
+        id: "export",
+        label: "Export",
+        icon: "download",
+        onClick: () => downloadAgreementExport(row.id).catch((err) => toastError(apiError(err))),
+      },
+      {
+        id: "archive",
+        label: "Archive",
+        hidden: status !== "published",
+        onClick: async () => {
+          try {
+            await archiveAgreement(row.id);
+            toastSuccess("Agreement archived");
+            await load(page);
+          } catch (err) {
+            toastError(apiError(err));
+          }
+        },
+      },
+      {
+        id: "revoke",
+        label: "Revoke",
+        icon: "ban",
+        tone: "danger",
+        hidden: status !== "published" && status !== "archived",
+        onClick: async () => {
+          try {
+            await revokeAgreement(row.id);
+            toastSuccess("Agreement revoked");
+            await load(page);
+          } catch (err) {
+            toastError(apiError(err));
+          }
+        },
+      },
+    ];
+  };
+
   const counts = meta.counts ?? EMPTY_COUNTS;
   const filters = [
     { key: "all", label: "All", count: counts.all },
-    { key: "draft", label: "Draft", count: counts.draft },
-    { key: "published", label: "Saved", count: counts.published },
-    { key: "archived", label: "Archived", count: counts.archived },
-    { key: "revoked", label: "Revoked", count: counts.revoked },
-    { key: "superseded", label: "Superseded", count: counts.superseded },
+    { key: "signed", label: "Signed", count: counts.signed },
     { key: "overdue", label: "Overdue", count: counts.overdue },
+    { key: "archived", label: "Archived", count: counts.archived },
+    { key: "draft", label: "Draft", count: counts.draft },
+    { key: "expired", label: "Expired", count: counts.expired },
   ];
 
   return (
     <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <StatTile label="Total Agreements" value={String(counts.all)} hint="All records" tone="blue" icon={<FileText className="h-5 w-5" />} />
+        <StatTile label="Pending" value={String(counts.pending ?? 0)} hint="Awaiting signature" tone="amber" icon={<Clock className="h-5 w-5" />} />
+        <StatTile label="Signed" value={String(counts.signed ?? 0)} hint="Fully signed" tone="green" icon={<CheckCircle2 className="h-5 w-5" />} />
+        <StatTile label="Overdue" value={String(counts.overdue)} hint="Deadline passed" tone="red" icon={<AlertTriangle className="h-5 w-5" />} />
+        <StatTile label="Expired" value={String(counts.expired)} hint="No longer in effect" tone="violet" icon={<CalendarOff className="h-5 w-5" />} />
+      </div>
       {creating || wizardDraft ? (
         <AgreementWizard
           key={wizardDraft?.id ?? "new"}
@@ -197,8 +315,32 @@ export function AgreementsPanel({ initialId = null }: { initialId?: number | nul
         totalCount={meta.total}
         visibleCount={rows.length}
         search={search}
-        onSearch={setSearch}
+        onSearch={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
         searchPlaceholder="Search agreements"
+        searchClassName="min-w-0 w-full sm:w-56"
+        beforeSearch={
+          <div className="relative shrink-0">
+            <select
+              aria-label="Category"
+              value={category}
+              onChange={(event) => {
+                setCategory(event.target.value);
+                setPage(1);
+              }}
+              className="h-8 w-44 appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-9 text-[12.5px] font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:w-52"
+            >
+              <option value="all">All categories</option>
+              {DOCUMENT_PRESET_CATEGORIES.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+              <option value={DOCUMENT_OTHER_CATEGORY}>{DOCUMENT_OTHER_CATEGORY}</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+          </div>
+        }
         loading={loading}
         filters={filters}
         activeFilter={status}
@@ -206,23 +348,8 @@ export function AgreementsPanel({ initialId = null }: { initialId?: number | nul
           setStatus(key);
           setPage(1);
         }}
-        toolbar={
-          <button type="button" className="nl-btn-primary" onClick={() => { setDetail(null); setWizardIntent("create"); setCreating(true); }}>
-            <Plus className="h-4 w-4" />
-            Create Agreement
-          </button>
-        }
-        filterAccessory={
-          <div className="flex items-center gap-2">
-            <input type="date" value={dueFrom} onChange={(e) => setDueFrom(e.target.value)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600" aria-label="Due from" />
-            <input type="date" value={dueTo} onChange={(e) => setDueTo(e.target.value)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600" aria-label="Due to" />
-            <button type="button" className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600" onClick={() => { setPage(1); void load(1); }}>
-              Apply
-            </button>
-          </div>
-        }
         isEmpty={!loading && rows.length === 0}
-        empty="No agreements yet."
+        empty={search || category !== "all" ? "No agreements match your filters." : "No agreements yet."}
       >
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
@@ -251,19 +378,23 @@ export function AgreementsPanel({ initialId = null }: { initialId?: number | nul
                   <td className="px-4 py-3">{row.stats?.declined ?? 0}</td>
                   <td className="px-4 py-3">{formatWhen(row.due_at)}</td>
                   <td className="px-4 py-3">
-                    <AdminBadge tone={STATUS_TONE[row.publication_status] ?? "slate"}>{agreementStatusLabel(row.publication_status)}</AdminBadge>
+                    <div className="flex flex-wrap gap-1">
+                      {agreementStatusLabel(row.publication_status) ? (
+                        <AdminBadge tone={STATUS_TONE[row.publication_status] ?? "slate"}>{agreementStatusLabel(row.publication_status)}</AdminBadge>
+                      ) : null}
+                      {(row.stats?.expired ?? 0) > 0 ? (
+                        <AdminBadge tone="red">Expired</AdminBadge>
+                      ) : (row.stats?.overdue ?? 0) > 0 ? (
+                        <AdminBadge tone="amber">Overdue</AdminBadge>
+                      ) : row.publication_status === "published" && (row.stats?.signed ?? 0) > 0 && (row.stats?.pending ?? 0) === 0 ? (
+                        <AdminBadge tone="green">Signed</AdminBadge>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-slate-500">
                     <div className="flex items-center justify-between gap-2">
                       <span>{formatWhen(row.updated_at)}</span>
-                      {row.publication_status === "draft" ? (
-                        <AdminActionsMenu
-                          actions={[
-                            { id: "edit", label: "Edit draft", icon: "edit", onClick: () => void openDraftWizard(row.id, "edit") },
-                            { id: "publish", label: "Save", icon: "check", onClick: () => void openDraftWizard(row.id, "publish") },
-                          ]}
-                        />
-                      ) : null}
+                      <AdminActionsMenu actions={rowActions(row)} />
                     </div>
                   </td>
                 </tr>
@@ -306,7 +437,9 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState(draft?.title ?? "");
   const [description, setDescription] = useState(draft?.description ?? "");
-  const [category, setCategory] = useState(draft?.category ?? "");
+  const initialCategory = splitDocumentCategory(draft?.category ?? "");
+  const [categorySelect, setCategorySelect] = useState(initialCategory.selection);
+  const [customCategory, setCustomCategory] = useState(initialCategory.customName);
   const [categories, setCategories] = useState<string[]>([]);
   const [dueAt, setDueAt] = useState(dateInput(draft?.due_at));
   const [effectiveAt, setEffectiveAt] = useState(dateInput(draft?.effective_at));
@@ -345,6 +478,8 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { touch, showError, validateOnSubmit } = useTouchedFieldErrors();
 
+  const categoryOptions = useMemo(() => buildDocumentCategoryOptions(categories), [categories]);
+  const category = resolveDocumentCategory(categorySelect, customCategory);
   const formKey = useMemo(
     () => JSON.stringify({
       title,
@@ -365,13 +500,14 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
   const liveErrors = useMemo(
     () => validateAgreementDetails({
       title,
+      description,
       category,
       dueAt,
       effectiveAt,
       expiresAt,
       hasFile: Boolean(file) || Boolean(draftId),
     }),
-    [title, category, dueAt, effectiveAt, expiresAt, file, draftId],
+    [title, description, category, dueAt, effectiveAt, expiresAt, file, draftId],
   );
 
   const markSaved = () => {
@@ -464,8 +600,8 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
     const confirmed = await confirmAction({
       title: "Save this agreement?",
       text: notify
-        ? "Selected residents will be notified, and this agreement will change from Draft to Saved."
-        : "This agreement will change from Draft to Saved without notifying residents.",
+        ? "Selected residents will be notified, and this agreement will be published."
+        : "This agreement will be published without notifying residents.",
       confirmText: "Save",
       icon: "question",
       color: "blue",
@@ -614,22 +750,48 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
                     placeholder="Community rules agreement"
                   />
                   {showError("title", liveErrors) ? <p className="mt-1 text-xs font-normal text-red-600">{showError("title", liveErrors)}</p> : null}
+                  <CharCount value={title} max={200} />
                 </label>
                 <label className="nl-label">Category
-                  <input
-                    value={category}
-                    onChange={(e) => { setCategory(e.target.value); touch("category"); }}
-                    onBlur={() => touch("category")}
-                    list="agreement-categories"
-                    maxLength={100}
-                    className={inputClass(showError("category", liveErrors), "nl-input mt-1.5 font-normal")}
-                    placeholder="Rules & Policies"
-                  />
-                  <datalist id="agreement-categories">{categories.map((name) => <option key={name} value={name} />)}</datalist>
+                  <div className="mt-1.5">
+                    <ThemedSelect
+                      value={categorySelect}
+                      placeholder="Select category…"
+                      error={showError("category", liveErrors) || undefined}
+                      options={categoryOptions.map((name) => ({ value: name, label: name }))}
+                      onChange={(value) => {
+                        setCategorySelect(value);
+                        touch("category");
+                        if (!isDocumentOtherCategory(value)) setCustomCategory("");
+                      }}
+                      onBlur={() => touch("category")}
+                    />
+                  </div>
+                  {isDocumentOtherCategory(categorySelect) ? (
+                    <input
+                      value={customCategory}
+                      onChange={(e) => { setCustomCategory(e.target.value); touch("category"); }}
+                      onBlur={() => touch("category")}
+                      maxLength={100}
+                      className={inputClass(showError("category", liveErrors), "nl-input mt-2 font-normal")}
+                      placeholder="Enter custom category name"
+                    />
+                  ) : null}
                   {showError("category", liveErrors) ? <p className="mt-1 text-xs font-normal text-red-600">{showError("category", liveErrors)}</p> : null}
                 </label>
-                <label className="nl-label sm:col-span-2">Description
-                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={4} className="nl-input mt-1.5 min-h-24 resize-none overflow-y-auto font-normal" placeholder="What residents are agreeing to" />
+                <label className="nl-label sm:col-span-2">Description *
+                  <textarea
+                    value={description}
+                    onChange={(e) => { setDescription(e.target.value); touch("description"); }}
+                    onBlur={() => touch("description")}
+                    maxLength={5000}
+                    rows={4}
+                    style={{ resize: "none" }}
+                    className={inputClass(showError("description", liveErrors), "nl-input mt-1.5 min-h-24 resize-none overflow-y-auto font-normal")}
+                    placeholder="What residents are agreeing to"
+                  />
+                  {showError("description", liveErrors) ? <p className="mt-1 text-xs font-normal text-red-600">{showError("description", liveErrors)}</p> : null}
+                  <CharCount value={description} max={5000} />
                 </label>
                 <label className="nl-label">Due date
                   <input
@@ -844,14 +1006,18 @@ function AgreementDetailView({
 }) {
   const [busy, setBusy] = useState(false);
   const [versionFile, setVersionFile] = useState<File | null>(null);
-  const [signatureFilter, setSignatureFilter] = useState<"all" | "signed" | "pending">("all");
+  const [signatureFilter, setSignatureFilter] = useState<"all" | "signed" | "pending" | "overdue" | "expired">("all");
   const stats = detail.stats;
-  const awaitingSignature = (row: AgreementRecipient) => row.signature_status === "pending" || row.signature_status === "viewed";
-  const signedCount = detail.recipients.filter((row) => row.signature_status === "signed").length;
-  const pendingCount = detail.recipients.filter(awaitingSignature).length;
+  const awaitingSignature = (row: AgreementRecipient) => (row.signature_status === "pending" || row.signature_status === "viewed") && row.display_status !== "expired";
+  const signedCount = detail.recipients.filter((row) => row.display_status === "signed").length;
+  const pendingCount = detail.recipients.filter((row) => row.display_status === "pending" || row.display_status === "viewed").length;
+  const overdueCount = detail.recipients.filter((row) => row.display_status === "overdue").length;
+  const expiredCount = detail.recipients.filter((row) => row.display_status === "expired").length;
   const recipients = detail.recipients.filter((row) => {
-    if (signatureFilter === "signed" && row.signature_status !== "signed") return false;
-    if (signatureFilter === "pending" && !awaitingSignature(row)) return false;
+    if (signatureFilter === "signed" && row.display_status !== "signed") return false;
+    if (signatureFilter === "pending" && row.display_status !== "pending" && row.display_status !== "viewed") return false;
+    if (signatureFilter === "overdue" && row.display_status !== "overdue") return false;
+    if (signatureFilter === "expired" && row.display_status !== "expired") return false;
     const query = recipientQuery.trim().toLowerCase();
     if (!query) return true;
     return row.resident_name.toLowerCase().includes(query) || (row.unit_label ?? "").toLowerCase().includes(query);
@@ -945,16 +1111,19 @@ function AgreementDetailView({
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-bold text-slate-900">{detail.title}</h3>
-            <AdminBadge tone={STATUS_TONE[detail.publication_status] ?? "slate"}>{agreementStatusLabel(detail.publication_status)}</AdminBadge>
+            {agreementStatusLabel(detail.publication_status) ? (
+              <AdminBadge tone={STATUS_TONE[detail.publication_status] ?? "slate"}>{agreementStatusLabel(detail.publication_status)}</AdminBadge>
+            ) : null}
+            {(stats?.expired ?? 0) > 0 ? <AdminBadge tone="red">Expired</AdminBadge> : (stats?.overdue ?? 0) > 0 ? <AdminBadge tone="amber">Overdue</AdminBadge> : null}
           </div>
-          <p className="mt-1 text-sm text-slate-500">Version {detail.version} · {detail.created_by_name ?? "Admin"} · Saved {formatWhen(detail.published_at)}</p>
+          <p className="mt-1 text-sm text-slate-500">Version {detail.version} · {detail.created_by_name ?? "Admin"}{detail.published_at ? ` · Published ${formatWhen(detail.published_at)}` : ""}</p>
         </div>
         <div className="flex items-center gap-2">
           <AdminActionsMenu actions={actions} disabled={busy} />
           <button type="button" className="text-sm font-semibold text-slate-500" onClick={onClose}>Close</button>
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
         {[
           ["Recipients", stats?.recipients ?? 0],
           ["Signed", stats?.signed ?? 0],
@@ -962,6 +1131,7 @@ function AgreementDetailView({
           ["Viewed", stats?.viewed ?? 0],
           ["Declined", stats?.declined ?? 0],
           ["Overdue", stats?.overdue ?? 0],
+          ["Expired", stats?.expired ?? 0],
           ["Due", formatWhen(detail.due_at)],
         ].map(([label, value]) => (
           <div key={String(label)} className="rounded-xl border border-slate-100 px-3 py-2">
@@ -1012,8 +1182,10 @@ function AgreementDetailView({
         <div className="mb-2 flex flex-wrap gap-2">
           {([
             ["all", "All", detail.recipients.length],
+            ["pending", "Pending", pendingCount],
+            ["overdue", "Overdue", overdueCount],
             ["signed", "Signed", signedCount],
-            ["pending", "Pending signature", pendingCount],
+            ["expired", "Expired", expiredCount],
           ] as const).map(([key, label, count]) => (
             <button
               key={key}
@@ -1051,7 +1223,7 @@ function AgreementDetailView({
                   <td className="py-2 pr-3">{row.unit_label ?? "—"}</td>
                   <td className="py-2 pr-3">{row.delivery_status}</td>
                   <td className="py-2 pr-3">{formatWhen(row.viewed_at)}</td>
-                  <td className="py-2 pr-3">{row.display_status}</td>
+                  <td className="py-2 pr-3">{recipientStatusLabel(row.display_status)}</td>
                   <td className="py-2 pr-3">{formatWhen(row.signed_at)}</td>
                   <td className="py-2">
                     <div className="flex gap-2">

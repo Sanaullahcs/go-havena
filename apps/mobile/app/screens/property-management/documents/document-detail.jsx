@@ -55,6 +55,7 @@ function statusLabel(status, t) {
   if (status === "expired") return t("propertyMgmt.statusExpired");
   if (status === "revoked") return t("propertyMgmt.statusRevoked");
   if (status === "declined") return t("propertyMgmt.statusDeclined");
+  if (status === "pending" || status === "viewed") return t("propertyMgmt.pendingFilter");
   return t("propertyMgmt.requiresSignature");
 }
 
@@ -123,19 +124,26 @@ function AgreementDetails({
   const insets = useSafeAreaInsets();
   const [signatureFilter, setSignatureFilter] = useState("all");
   const recipients = Array.isArray(doc.recipients) ? doc.recipients : [];
-  const awaitingSignature = (row) => row.signature_status === "pending" || row.signature_status === "viewed";
-  const signedRecipients = recipients.filter((row) => row.signature_status === "signed");
-  const pendingRecipients = recipients.filter(awaitingSignature);
+  const recipientStatus = (row) => row.display_status || (row.signature_status === "signed" ? "signed" : "pending");
+  const signedRecipients = recipients.filter((row) => recipientStatus(row) === "signed");
+  const pendingRecipients = recipients.filter((row) => recipientStatus(row) === "pending" || recipientStatus(row) === "viewed");
+  const overdueRecipients = recipients.filter((row) => recipientStatus(row) === "overdue");
+  const expiredRecipients = recipients.filter((row) => recipientStatus(row) === "expired");
   const visibleRecipients = signatureFilter === "signed"
     ? signedRecipients
     : signatureFilter === "pending"
       ? pendingRecipients
-      : recipients;
+      : signatureFilter === "overdue"
+        ? overdueRecipients
+        : signatureFilter === "expired"
+          ? expiredRecipients
+          : recipients;
   const status = assignment?.display_status || "pending";
   const tone = STATUS_TONE[status] || STATUS_TONE.pending;
-  const signed = status === "signed" || assignment?.signature_status === "signed";
+  const signatureSigned = assignment?.signature_status === "signed";
+  const signed = status === "signed" || signatureSigned;
   const canSign = !isAdmin && Boolean(assignment?.can_sign);
-  const note = isAdmin || signed ? null : closedCopy(status, canSign, t);
+  const note = isAdmin ? null : status === "expired" ? closedCopy("expired", false, t) : signed ? null : closedCopy(status, canSign, t);
   const pages = Number(doc.page_count) > 0
     ? (Number(doc.page_count) === 1 ? t("propertyMgmt.onePage") : t("propertyMgmt.pageCount", { count: doc.page_count }))
     : null;
@@ -148,7 +156,7 @@ function AgreementDetails({
 
   const preview = () => {
     if (canSign) onSign();
-    else if (signed) onSignedCopy();
+    else if (signatureSigned) onSignedCopy();
     else onOpenFile();
   };
 
@@ -236,7 +244,8 @@ function AgreementDetails({
               {[
                 [doc.stats.signed, t("propertyMgmt.statusSigned"), "#0F766E"],
                 [doc.stats.pending, t("propertyMgmt.pendingFilter"), "#1B4F8A"],
-                [doc.stats.viewed, t("propertyMgmt.viewedCount"), "#475569"],
+                [doc.stats.overdue, t("propertyMgmt.statusOverdue"), "#92400E"],
+                [doc.stats.expired, t("propertyMgmt.statusExpired"), "#B91C1C"],
               ].map(([value, label, color]) => (
                 <View key={label} style={agreementStyles.metric}>
                   <Text style={[agreementStyles.metricValue, { color }]}>{value}</Text>
@@ -253,8 +262,10 @@ function AgreementDetails({
             <View style={agreementStyles.filterRow}>
               {[
                 ["all", t("propertyMgmt.allFilter"), recipients.length],
+                ["pending", t("propertyMgmt.pendingFilter"), pendingRecipients.length],
+                ["overdue", t("propertyMgmt.overdueFilter"), overdueRecipients.length],
                 ["signed", t("propertyMgmt.signedFilter"), signedRecipients.length],
-                ["pending", t("propertyMgmt.pendingSignature"), pendingRecipients.length],
+                ["expired", t("propertyMgmt.expiredFilter"), expiredRecipients.length],
               ].map(([key, label, count]) => (
                 <Pressable
                   key={key}
@@ -273,7 +284,8 @@ function AgreementDetails({
             {visibleRecipients.length === 0 ? (
               <Text style={agreementStyles.emptyRecipients}>{t("propertyMgmt.noResidentsInFilter")}</Text>
             ) : visibleRecipients.map((row) => {
-              const signedRow = row.signature_status === "signed";
+              const rowStatus = recipientStatus(row);
+              const signedRow = rowStatus === "signed" || row.signature_status === "signed";
               const initial = String(row.resident_name || "?").trim().charAt(0).toUpperCase() || "?";
               return (
                 <View key={String(row.id)} style={agreementStyles.recipientTile}>
@@ -289,8 +301,8 @@ function AgreementDetails({
                     <View style={agreementStyles.statusLine}>
                       <View style={[agreementStyles.statusPill, signedRow ? agreementStyles.statusPillSigned : agreementStyles.statusPillPending]}>
                         <Feather name={signedRow ? "check" : "clock"} size={sf(11)} color={signedRow ? "#0F766E" : "#B45309"} />
-                        <Text style={[agreementStyles.statusPillText, signedRow ? agreementStyles.statusPillTextSigned : agreementStyles.statusPillTextPending]}>
-                          {signedRow ? t("propertyMgmt.statusSigned") : t("propertyMgmt.pendingSignature")}
+                        <Text style={[agreementStyles.statusPillText, signedRow && rowStatus !== "expired" ? agreementStyles.statusPillTextSigned : agreementStyles.statusPillTextPending]}>
+                          {statusLabel(rowStatus, t)}
                         </Text>
                       </View>
                       <Text style={agreementStyles.recipientDate}>{signedRow ? formatDocDate(row.signed_at) : t("propertyMgmt.notSigned")}</Text>
@@ -335,7 +347,7 @@ function AgreementDetails({
       </ScrollView>
 
       <View style={[agreementStyles.footer, { paddingBottom: Math.max(insets.bottom, sw(12)) }]}>
-        {isAdmin && doc.publication_status === "published" && (doc.stats ? Number(doc.stats.pending) > 0 : pendingRecipients.length > 0) ? (
+        {isAdmin && doc.publication_status === "published" && (doc.stats ? Number(doc.stats.pending) + Number(doc.stats.overdue) > 0 : pendingRecipients.length + overdueRecipients.length > 0) ? (
           <Pressable style={agreementStyles.secondaryBtn} disabled={submitting} onPress={onRemind}>
             <Text style={agreementStyles.secondaryText}>{t("propertyMgmt.remindPending")}</Text>
           </Pressable>
@@ -343,17 +355,17 @@ function AgreementDetails({
         <Pressable
           style={[agreementStyles.primaryBtn, submitting && styles.btnDisabled]}
           disabled={submitting}
-          onPress={canSign ? onSign : signed ? onSignedCopy : onOpenFile}
+          onPress={canSign ? onSign : signatureSigned ? onSignedCopy : onOpenFile}
         >
           {submitting ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
             <>
-              <Feather name={canSign ? "edit-3" : signed ? "check-circle" : "eye"} size={sf(16)} color="#FFFFFF" />
+              <Feather name={canSign ? "edit-3" : signatureSigned ? "check-circle" : "eye"} size={sf(16)} color="#FFFFFF" />
               <Text style={agreementStyles.primaryText}>
                 {canSign
                   ? t("propertyMgmt.reviewAndSign")
-                  : signed
+                  : signatureSigned
                     ? t("propertyMgmt.viewSignedCopy")
                     : t("propertyMgmt.viewDocument")}
               </Text>

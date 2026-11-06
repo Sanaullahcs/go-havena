@@ -36,6 +36,8 @@ export {
   DOCUMENT_PRESET_CATEGORIES,
   PRESET_DOCUMENT_CATEGORIES,
   buildDocumentCategoryOptions,
+  documentMatchesCategory,
+  isDocumentOtherCategory,
   resolveDocumentCategory,
   splitDocumentCategory,
 } from "@/lib/admin/document-categories";

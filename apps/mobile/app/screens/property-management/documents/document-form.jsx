@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Switch, Keyboard } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Switch, Keyboard } from "react-native";
 import { KeyboardScroll } from "../../../../components/ui/keyboard-form";
 import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -28,6 +28,7 @@ import { useApiAction } from "../../../../hooks/use-api-action";
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
 import { useTouchedFieldErrors } from "../../../../hooks/use-touched-field-errors";
 import FormDatePickerSheet from "../../../../components/forms/form-date-picker-sheet";
+import DocumentCategoryPicker from "../../../../components/forms/document-category-picker";
 import { formatDisplayDate, toApiDate } from "../../../../utils/form-datetime";
 import { agreementDateErrors, agreementDateFromApi } from "../../../../utils/agreement-dates";
 
@@ -53,8 +54,6 @@ export default function DocumentForm() {
   const [categorySelect, setCategorySelect] = useState("");
   const [customCategoryInput, setCustomCategoryInput] = useState("");
   const [isAgreement, setIsAgreement] = useState(false);
-  const [agreementCategory, setAgreementCategory] = useState("");
-  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [dueAt, setDueAt] = useState(null);
   const [effectiveAt, setEffectiveAt] = useState(null);
   const [expiresAt, setExpiresAt] = useState(null);
@@ -67,9 +66,7 @@ export default function DocumentForm() {
     [managedCategories],
   );
 
-  const resolvedCategory = isAgreement
-    ? agreementCategory.trim()
-    : resolveDocumentCategory(categorySelect, customCategoryInput);
+  const resolvedCategory = resolveDocumentCategory(categorySelect, customCategoryInput);
   const liveErrors = useMemo(
     () => validateDocumentForm({ ...form, category: resolvedCategory }, { hasFile: Boolean(fileAsset) || isEdit }),
     [form, resolvedCategory, fileAsset, isEdit],
@@ -110,7 +107,6 @@ export default function DocumentForm() {
           if (!cancelled && found) {
             const agreement = found.kind === "agreement";
             setIsAgreement(agreement);
-            setAgreementCategory(found.category ?? "");
             setDueAt(agreementDateFromApi(found.due_at));
             setEffectiveAt(agreementDateFromApi(found.effective_at));
             setExpiresAt(agreementDateFromApi(found.expires_at));
@@ -170,9 +166,6 @@ export default function DocumentForm() {
     if (openDate) touch(dateFieldKey);
     setOpenDate(null);
   };
-  const categoryQuery = agreementCategory.trim().toLowerCase();
-  const categorySuggestions = managedCategories.filter((name) => !categoryQuery || String(name).toLowerCase().includes(categoryQuery));
-
   const handleSubmit = useCallback(() => {
     const fieldErrors = isAgreement ? { ...liveErrors, ...liveDateErrors } : liveErrors;
     if (!validateOnSubmit(fieldErrors)) return;
@@ -220,88 +213,31 @@ export default function DocumentForm() {
 
         <View style={styles.field}>
           <Text style={styles.label}>{t("propertyMgmt.docCategoryRequired")}</Text>
-          {isAgreement ? (
-            <>
-              <View style={styles.combo}>
-                <LocaleTextInput
-                  style={styles.comboInput}
-                  value={agreementCategory}
-                  onChangeText={(value) => {
-                    setAgreementCategory(value);
-                    setCategoryMenuOpen(true);
-                    setF("category", value);
-                  }}
-                  onFocus={() => setCategoryMenuOpen(true)}
-                  placeholder={t("propertyMgmt.categoryPlaceholder")}
-                  placeholderTextColor="#9CA3AF"
-                  maxLength={LIMITS.documentCategory}
-                />
-                <Pressable style={styles.comboButton} onPress={() => setCategoryMenuOpen((open) => !open)} hitSlop={8}>
-                  <Feather name={categoryMenuOpen ? "chevron-up" : "chevron-down"} size={sf(16)} color="#64748B" />
-                </Pressable>
-              </View>
-              {categoryMenuOpen && categorySuggestions.length > 0 ? (
-                <ScrollView style={styles.menu} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                  {categorySuggestions.map((name) => (
-                    <Pressable
-                      key={name}
-                      style={styles.menuItem}
-                      onPress={() => {
-                        setAgreementCategory(name);
-                        setF("category", name);
-                        setCategoryMenuOpen(false);
-                      }}
-                    >
-                      <Text style={styles.menuText}>{name}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              ) : null}
-            </>
-          ) : (
-            <>
-              {categoryOptions.length <= 1 ? (
-                <Text style={[styles.hint, { marginBottom: sw(8) }]}>
-                  {t("propertyMgmt.noCategoriesHint")}
-                </Text>
-              ) : null}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                {categoryOptions.map((cat) => (
-                  <Pressable
-                    key={cat}
-                    style={[styles.chip, categorySelect === cat && styles.chipActive]}
-                    onPress={() => {
-                      setCategorySelect(cat);
-                      touch("category");
-                      clearError("category");
-                      if (cat !== DOCUMENT_OTHER_CATEGORY) {
-                        setCustomCategoryInput("");
-                        setF("category", cat);
-                      } else {
-                        setF("category", "");
-                      }
-                    }}
-                  >
-                    <Text style={[styles.chipText, categorySelect === cat && styles.chipTextActive]}>{cat}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              {categorySelect === DOCUMENT_OTHER_CATEGORY ? (
-                <LocaleTextInput
-                  style={[styles.input, { marginTop: sw(8) }, showError("category", liveErrors) && styles.inputError]}
-                  placeholder={t("propertyMgmt.enterCustomCategory")}
-                  placeholderTextColor="#9CA3AF"
-                  value={customCategoryInput}
-                  onChangeText={(v) => {
-                    setCustomCategoryInput(v);
-                    touch("category");
-                    clearError("category");
-                  }}
-                  maxLength={LIMITS.documentCategory}
-                />
-              ) : null}
-            </>
-          )}
+          <DocumentCategoryPicker
+            selection={categorySelect}
+            customValue={customCategoryInput}
+            options={categoryOptions}
+            error={showError("category", liveErrors)}
+            placeholder={t("propertyMgmt.selectCategory")}
+            customPlaceholder={t("propertyMgmt.enterCustomCategory")}
+            maxLength={LIMITS.documentCategory}
+            onSelect={(cat) => {
+              setCategorySelect(cat);
+              touch("category");
+              clearError("category");
+              if (cat !== DOCUMENT_OTHER_CATEGORY) {
+                setCustomCategoryInput("");
+                setF("category", cat);
+              } else {
+                setF("category", "");
+              }
+            }}
+            onCustomChange={(value) => {
+              setCustomCategoryInput(value);
+              touch("category");
+              clearError("category");
+            }}
+          />
           {showError("category", liveErrors) ? <Text style={styles.errorText}>{showError("category", liveErrors)}</Text> : null}
         </View>
 
@@ -327,7 +263,7 @@ export default function DocumentForm() {
                 }}
               >
                 <Text style={styles.label}>{label}</Text>
-                <Pressable style={[styles.input, error && styles.inputError]} onPress={() => { Keyboard.dismiss(); setCategoryMenuOpen(false); setOpenDate(key); }}>
+                <Pressable style={[styles.input, error && styles.inputError]} onPress={() => { Keyboard.dismiss(); setOpenDate(key); }}>
                   <Text style={value ? styles.dateValue : styles.datePlaceholder}>{value ? formatDisplayDate(value) : t("propertyMgmt.selectDate")}</Text>
                 </Pressable>
                 {error ? <Text style={styles.errorText}>{error}</Text> : null}

@@ -43,19 +43,18 @@ function formatDocDate(value) {
 }
 
 function agreementMatches(doc, filter) {
-  if (filter === "pending") {
-    return doc.display_status
-      ? ["pending", "viewed", "overdue"].includes(doc.display_status)
-      : (doc.stats?.pending ?? 0) > 0;
+  if (doc.display_status) {
+    if (filter === "pending") return doc.display_status === "pending" || doc.display_status === "viewed";
+    if (filter === "overdue") return doc.display_status === "overdue";
+    if (filter === "signed") return doc.display_status === "signed";
+    if (filter === "expired") return doc.display_status === "expired" || doc.publication_status === "archived";
+    return true;
   }
-  if (filter === "signed") {
-    return doc.display_status
-      ? doc.display_status === "signed"
-      : (doc.stats?.signed ?? 0) > 0 && (doc.stats?.pending ?? 0) === 0;
-  }
-  if (filter === "expired") {
-    return doc.display_status === "expired" || doc.publication_status === "archived";
-  }
+  const stats = doc.stats ?? {};
+  if (filter === "pending") return (stats.pending ?? 0) > 0;
+  if (filter === "overdue") return (stats.overdue ?? 0) > 0;
+  if (filter === "signed") return (stats.signed ?? 0) > 0 && (stats.pending ?? 0) === 0 && (stats.overdue ?? 0) === 0 && (stats.expired ?? 0) === 0;
+  if (filter === "expired") return (stats.expired ?? 0) > 0 || doc.publication_status === "archived";
   return true;
 }
 
@@ -311,11 +310,21 @@ export default function Documents() {
       : (doc.stats?.pending ?? 0) > 0),
     [agreementRows],
   );
+  const signatureAgreements = useMemo(
+    () => pendingAgreements.filter((doc) => doc.display_status !== "overdue"),
+    [pendingAgreements],
+  );
+  const overdueAgreements = useMemo(
+    () => pendingAgreements.filter((doc) => doc.display_status === "overdue"),
+    [pendingAgreements],
+  );
 
   const agreementCounts = useMemo(() => ({
     all: agreementRows.length,
     pending: agreementRows.filter((doc) => agreementMatches(doc, "pending")).length,
+    overdue: agreementRows.filter((doc) => agreementMatches(doc, "overdue")).length,
     signed: agreementRows.filter((doc) => agreementMatches(doc, "signed")).length,
+    expired: agreementRows.filter((doc) => agreementMatches(doc, "expired")).length,
   }), [agreementRows]);
 
   const filteredDocuments = useMemo(() => {
@@ -363,13 +372,10 @@ export default function Documents() {
     );
   }
 
-  const subtitle = t("propertyMgmt.documentCount", { count: documents.length });
-
   return (
     <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
         title={t("propertyMgmt.documentsTitle")}
-        subtitle={subtitle}
         right={
           <View style={styles.headerActions}>
             <Pressable onPress={() => setShowSearch((v) => !v)} style={styles.iconBtn}>
@@ -426,41 +432,54 @@ export default function Documents() {
           </Pressable>
         </View>
 
-        {section === "agreements" && !isAdmin && pendingAgreements.length > 0 ? (
+        {section === "agreements" && !isAdmin && (signatureAgreements.length > 0 || overdueAgreements.length > 0) ? (
           <Pressable
             style={styles.actionCard}
             onPress={() => {
-              if (pendingAgreements.length === 1) openDocument(pendingAgreements[0]);
+              const actionable = [...signatureAgreements, ...overdueAgreements];
+              if (actionable.length === 1) openDocument(actionable[0]);
               else setAgreementFilter("pending");
             }}
           >
             <Text style={styles.actionTitle}>{t("propertyMgmt.actionRequired")}</Text>
-            <Text style={styles.actionBody}>
-              {pendingAgreements.length === 1
-                ? t("propertyMgmt.oneAgreementNeedsSignature")
-                : t("propertyMgmt.manyAgreementsNeedSignature", { count: pendingAgreements.length })}
-            </Text>
+            {signatureAgreements.length > 0 ? (
+              <Text style={styles.actionBody}>
+                {signatureAgreements.length === 1
+                  ? t("propertyMgmt.oneAgreementNeedsSignature")
+                  : t("propertyMgmt.manyAgreementsNeedSignature", { count: signatureAgreements.length })}
+              </Text>
+            ) : null}
+            {overdueAgreements.length > 0 ? (
+              <Text style={styles.actionBody}>
+                {overdueAgreements.length === 1
+                  ? t("propertyMgmt.oneAgreementOverdue")
+                  : t("propertyMgmt.manyAgreementsOverdue", { count: overdueAgreements.length })}
+              </Text>
+            ) : null}
             <Text style={styles.actionLink}>{t("propertyMgmt.reviewAgreement")}</Text>
           </Pressable>
         ) : null}
 
         {section === "agreements" ? (
           <View style={styles.filterRow}>
-            {["all", "pending", "signed"].map((key) => (
+            {["all", "pending", "overdue", "signed", "expired"].map((key) => (
               <Pressable key={key} onPress={() => setAgreementFilter(key)} style={[styles.chip, agreementFilter === key && styles.chipOn]}>
                 <Text style={[styles.chipLabel, agreementFilter === key && styles.chipLabelOn]}>
-                  {key === "all" ? t("propertyMgmt.allFilter") : key === "pending" ? t("propertyMgmt.pendingFilter") : t("propertyMgmt.signedFilter")}
+                  {key === "all"
+                    ? t("propertyMgmt.allFilter")
+                    : key === "pending"
+                      ? t("propertyMgmt.pendingFilter")
+                      : key === "overdue"
+                        ? t("propertyMgmt.overdueFilter")
+                        : key === "signed"
+                          ? t("propertyMgmt.signedFilter")
+                          : t("propertyMgmt.expiredFilter")}
                 </Text>
                 <View style={[styles.chipCount, agreementFilter === key && styles.chipCountOn]}>
                   <Text style={[styles.chipCountText, agreementFilter === key && styles.chipCountTextOn]}>{agreementCounts[key]}</Text>
                 </View>
               </Pressable>
             ))}
-            {agreementRows.some((doc) => doc.display_status === "expired" || doc.publication_status === "archived") ? (
-              <Pressable onPress={() => setAgreementFilter("expired")} style={[styles.chip, agreementFilter === "expired" && styles.chipOn]}>
-                <Text style={[styles.chipLabel, agreementFilter === "expired" && styles.chipLabelOn]}>{t("propertyMgmt.expiredFilter")}</Text>
-              </Pressable>
-            ) : null}
           </View>
         ) : null}
 
@@ -518,11 +537,6 @@ export default function Documents() {
         <View style={[propertyStyles.sectionBlock, styles.lastSection]}>
           <View style={styles.sectionHeader}>
             <Text style={propertyStyles.sectionTitle}>{section === "agreements" ? t("propertyMgmt.agreementsTab") : t("propertyMgmt.allDocuments")}</Text>
-            <View style={styles.countPill}>
-              <Text style={styles.countPillText}>
-                {t("propertyMgmt.filteredCount", { filtered: filteredDocuments.length, total: section === "agreements" ? agreementRows.length : documents.length })}
-              </Text>
-            </View>
           </View>
 
           {(section === "agreements" ? agreementRows.length : documents.length) === 0 && !error && (
@@ -699,13 +713,6 @@ const styles = StyleSheet.create({
     gap: sw(8),
     marginBottom: sw(4),
   },
-  countPill: {
-    borderRadius: sw(999),
-    backgroundColor: "#E8F0F7",
-    paddingHorizontal: sw(10),
-    paddingVertical: sw(4),
-  },
-  countPillText: { fontFamily: Fonts.bold, fontSize: sf(11), color: "#1B4F8A", fontWeight: "700" },
   recentRail: { gap: sw(10), paddingTop: sw(12) },
   recentCard: {
     width: sw(148),

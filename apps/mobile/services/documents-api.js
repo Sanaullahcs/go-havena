@@ -178,6 +178,8 @@ export {
   DOCUMENT_OTHER_CATEGORY,
   DOCUMENT_PRESET_CATEGORIES,
   PRESET_DOCUMENT_CATEGORIES,
+  buildDocumentCategoryOptions,
+  isDocumentOtherCategory,
   resolveDocumentCategory,
   splitDocumentCategory,
 } from "../constants/document-categories";

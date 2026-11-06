@@ -187,7 +187,7 @@ class AgreementService
         $sent = 0;
         $skipped = 0;
         foreach ($rows as $row) {
-            if (! $this->reminderAllowed($row)) {
+            if ($this->agreementNoLongerSignable($document) || ! $this->reminderAllowed($row)) {
                 $skipped++;
                 continue;
             }
@@ -209,19 +209,22 @@ class AgreementService
             ->whereIn('a.status', ['pending', 'viewed'])
             ->whereNotNull('d.due_at')
             ->where('d.due_at', '<=', now()->addDays(3))
-            ->get(['a.*', 'd.title', 'd.due_at', 'd.community_id as doc_community_id', 'd.publication_status', 'd.supersedes_id', 'd.kind', 'd.id as doc_id']);
+            ->get(['a.*', 'd.title', 'd.due_at', 'd.expires_at', 'd.community_id as doc_community_id', 'd.publication_status', 'd.supersedes_id', 'd.kind', 'd.id as doc_id']);
 
         $sent = 0;
         foreach ($rows as $row) {
-            if (! $this->reminderAllowed($row)) {
-                continue;
-            }
             $document = (object) [
                 'id' => $row->doc_id,
                 'title' => $row->title,
                 'community_id' => $row->doc_community_id,
                 'supersedes_id' => $row->supersedes_id,
+                'due_at' => $row->due_at,
+                'expires_at' => $row->expires_at,
+                'publication_status' => $row->publication_status,
             ];
+            if ($this->agreementNoLongerSignable($document) || ! $this->reminderAllowed($row)) {
+                continue;
+            }
             $this->sendReminder($document, $row);
             $sent++;
         }
@@ -395,35 +398,45 @@ class AgreementService
 
     public function stats(int $documentId): array
     {
-        $rows = DB::table('community_document_assignments')
-            ->where('document_id', $documentId)
-            ->selectRaw('status, COUNT(*) as total')
-            ->groupBy('status')
-            ->pluck('total', 'status');
         $document = DB::table('community_documents')->where('id', $documentId)->first();
+        $assignments = DB::table('community_document_assignments')
+            ->where('document_id', $documentId)
+            ->get();
+        $signed = 0;
+        $pending = 0;
         $overdue = 0;
-        if ($document && $this->deadlinePassed($document->due_at)) {
-            $overdue = (int) DB::table('community_document_assignments')
-                ->where('document_id', $documentId)
-                ->whereIn('status', ['pending', 'viewed'])
-                ->count();
+        $expired = 0;
+        $declined = 0;
+        $viewed = 0;
+        foreach ($assignments as $assignment) {
+            if ($assignment->viewed_at) {
+                $viewed++;
+            }
+            if (! $document) {
+                continue;
+            }
+            $display = $this->displayStatus($document, $assignment);
+            if ($display === 'signed') {
+                $signed++;
+            } elseif ($display === 'overdue') {
+                $overdue++;
+            } elseif ($display === 'expired') {
+                $expired++;
+            } elseif ($display === 'pending') {
+                $pending++;
+            } elseif ($display === 'declined') {
+                $declined++;
+            }
         }
 
-        $signed = (int) ($rows['signed'] ?? 0);
-        $pending = (int) ($rows['pending'] ?? 0) + (int) ($rows['viewed'] ?? 0);
-        $declined = (int) ($rows['declined'] ?? 0);
-        $viewed = (int) DB::table('community_document_assignments')
-            ->where('document_id', $documentId)
-            ->whereNotNull('viewed_at')
-            ->count();
-
         return [
-            'recipients' => (int) $rows->sum(),
+            'recipients' => $assignments->count(),
             'signed' => $signed,
             'pending' => $pending,
             'viewed' => $viewed,
             'declined' => $declined,
             'overdue' => $overdue,
+            'expired' => $expired,
         ];
     }
 
@@ -982,14 +995,17 @@ class AgreementService
 
     private function sendReminder(object $document, object $assignment): void
     {
+        $overdue = $this->deadlinePassed($document->due_at ?? null);
         try {
             NotificationService::send(
                 (int) $assignment->user_id,
                 'agreement',
-                'Agreement Signature Reminder',
-                'Your agreement is awaiting your signature.',
+                $overdue ? 'Agreement overdue' : 'Agreement Signature Reminder',
+                $overdue
+                    ? 'The signing deadline has passed. This agreement is overdue.'
+                    : 'Your agreement is awaiting your signature.',
                 $this->residentUrl((int) $document->id),
-                ['kind' => 'agreement', 'document_id' => (int) $document->id],
+                ['kind' => 'agreement', 'document_id' => (int) $document->id, 'agreement_status' => $overdue ? 'overdue' : 'pending'],
                 (int) $document->community_id,
             );
         } catch (\Throwable) {
@@ -1120,11 +1136,18 @@ class AgreementService
         return $document;
     }
 
+    private function agreementNoLongerSignable(object $document): bool
+    {
+        $publication = $document->publication_status ?? 'published';
+        if (in_array($publication, ['archived', 'superseded', 'revoked', 'draft'], true)) {
+            return true;
+        }
+
+        return $this->deadlinePassed($document->expires_at ?? null);
+    }
+
     private function displayStatus(object $document, object $assignment): string
     {
-        if ($assignment->status === 'signed') {
-            return 'signed';
-        }
         if (in_array($assignment->status, ['declined', 'revoked'], true)) {
             return $assignment->status;
         }
@@ -1132,17 +1155,14 @@ class AgreementService
         if ($publication === 'revoked') {
             return 'revoked';
         }
-        if ($publication === 'archived' || $publication === 'superseded') {
+        if ($publication === 'archived' || $publication === 'superseded' || $this->deadlinePassed($document->expires_at ?? null)) {
             return 'expired';
         }
-        if ($this->deadlinePassed($document->expires_at ?? null)) {
-            return 'expired';
+        if ($assignment->status === 'signed') {
+            return 'signed';
         }
         if ($this->deadlinePassed($document->due_at ?? null)) {
             return 'overdue';
-        }
-        if ($assignment->status === 'viewed' || ! empty($assignment->viewed_at)) {
-            return 'viewed';
         }
 
         return 'pending';

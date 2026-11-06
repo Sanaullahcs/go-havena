@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\ContentFieldRules;
+use App\Support\DocumentCategories;
 use App\Services\AgreementService;
 use App\Services\UserActingContextService;
 use App\Support\MediaUrl;
@@ -32,11 +34,16 @@ class AgreementController extends Controller
             ->whereNull('deleted_at');
 
         $this->applyAgreementSearch($query, $request);
+        $this->applyAgreementCategory($query, $request);
         $counts = $this->agreementCounts(clone $query);
 
         $status = (string) $request->input('status', 'all');
         if ($status === 'overdue') {
             $this->applyOverdue($query);
+        } elseif ($status === 'expired') {
+            $this->applyExpired($query);
+        } elseif ($status === 'signed') {
+            $this->applySigned($query);
         } elseif ($status !== '' && $status !== 'all') {
             $query->where('publication_status', $status);
         }
@@ -78,23 +85,71 @@ class AgreementController extends Controller
         }
     }
 
+    private function applyAgreementCategory($query, Request $request): void
+    {
+        if (! $request->filled('category')) {
+            return;
+        }
+        $category = trim((string) $request->input('category'));
+        if ($category === '' || strcasecmp($category, 'all') === 0) {
+            return;
+        }
+        if (DocumentCategories::isOther($category)) {
+            $presets = array_map(static fn (string $name) => mb_strtolower($name), DocumentCategories::PRESETS);
+            $placeholders = implode(',', array_fill(0, count($presets), '?'));
+            $query->whereRaw('LOWER(category) NOT IN ('.$placeholders.')', $presets);
+
+            return;
+        }
+        $query->whereRaw('LOWER(category) = ?', [mb_strtolower($category)]);
+    }
+
     private function applyOverdue($query): void
     {
-        $today = now()->toDateString();
         $query->where('publication_status', 'published')
-            ->whereNotNull('due_at')
-            ->where(function ($overdue) use ($today) {
-                $overdue->whereDate('due_at', '<', $today)
-                    ->orWhere(function ($timed) use ($today) {
-                        $timed->whereDate('due_at', $today)
-                            ->whereRaw('TIME(due_at) <> ?', ['00:00:00'])
-                            ->where('due_at', '<', now());
+            ->where(fn ($due) => $this->whereDeadlinePassed($due, 'due_at'))
+            ->where(fn ($open) => $this->whereDeadlineOpen($open, 'expires_at'))
+            ->where(fn ($open) => $this->whereHasUnsigned($open));
+    }
+
+    private function applyExpired($query): void
+    {
+        $query->whereIn('publication_status', ['published', 'archived'])
+            ->where(fn ($expired) => $this->whereDeadlinePassed($expired, 'expires_at'));
+    }
+
+    private function whereDeadlinePassed($query, string $column): void
+    {
+        $today = now()->toDateString();
+        $query->whereNotNull($column)
+            ->where(function ($passed) use ($column, $today) {
+                $passed->whereDate($column, '<', $today)
+                    ->orWhere(function ($timed) use ($column, $today) {
+                        $timed->whereDate($column, $today)
+                            ->whereRaw('TIME('.$column.') <> ?', ['00:00:00'])
+                            ->where($column, '<', now());
                     });
             });
     }
 
+    private function whereDeadlineOpen($query, string $column): void
+    {
+        $today = now()->toDateString();
+        $query->where(function ($open) use ($column, $today) {
+            $open->whereNull($column)
+                ->orWhereDate($column, '>', $today)
+                ->orWhere(function ($todayOpen) use ($column, $today) {
+                    $todayOpen->whereDate($column, $today)
+                        ->where(function ($still) use ($column) {
+                            $still->whereRaw('TIME('.$column.') = ?', ['00:00:00'])
+                                ->orWhere($column, '>=', now());
+                        });
+                });
+        });
+    }
+
     /**
-     * @return array{all: int, draft: int, published: int, archived: int, revoked: int, superseded: int, overdue: int}
+     * @return array{all: int, draft: int, published: int, archived: int, revoked: int, superseded: int, overdue: int, expired: int, pending: int, signed: int}
      */
     private function agreementCounts($query): array
     {
@@ -106,21 +161,61 @@ class AgreementController extends Controller
             'revoked' => (clone $query)->where('publication_status', 'revoked')->count(),
             'superseded' => (clone $query)->where('publication_status', 'superseded')->count(),
             'overdue' => (clone $query)->tap(fn ($overdue) => $this->applyOverdue($overdue))->count(),
+            'expired' => (clone $query)->tap(fn ($expired) => $this->applyExpired($expired))->count(),
+            'pending' => (clone $query)->tap(fn ($pending) => $this->applyPending($pending))->count(),
+            'signed' => (clone $query)->tap(fn ($signed) => $this->applySigned($signed))->count(),
         ];
+    }
+
+    private function applyPending($query): void
+    {
+        $query->where('publication_status', 'published')
+            ->where(fn ($open) => $this->whereDeadlineOpen($open, 'expires_at'))
+            ->where(fn ($due) => $this->whereDeadlineOpen($due, 'due_at'))
+            ->where(fn ($open) => $this->whereHasUnsigned($open));
+    }
+
+    private function applySigned($query): void
+    {
+        $query->where('publication_status', 'published')
+            ->where(fn ($open) => $this->whereDeadlineOpen($open, 'expires_at'))
+            ->whereExists(function ($sub) {
+                $sub->selectRaw('1')
+                    ->from('community_document_assignments')
+                    ->whereColumn('community_document_assignments.document_id', 'community_documents.id')
+                    ->where('status', 'signed');
+            })
+            ->whereNotExists(function ($sub) {
+                $sub->selectRaw('1')
+                    ->from('community_document_assignments')
+                    ->whereColumn('community_document_assignments.document_id', 'community_documents.id')
+                    ->whereIn('status', ['pending', 'viewed']);
+            });
+    }
+
+    private function whereHasUnsigned($query): void
+    {
+        $query->whereExists(function ($sub) {
+            $sub->selectRaw('1')
+                ->from('community_document_assignments')
+                ->whereColumn('community_document_assignments.document_id', 'community_documents.id')
+                ->whereIn('status', ['pending', 'viewed']);
+        });
     }
 
     public function store(Request $request): JsonResponse
     {
         $communityId = $this->communityId($request);
+        $text = ContentFieldRules::rules();
         $data = $request->validate([
-            'title' => 'required|string|max:200',
+            'title' => $text['title'],
             'category' => 'required|string|max:100',
-            'description' => 'nullable|string|max:2000',
+            'description' => $text['description'],
             'due_at' => 'nullable|date',
             'effective_at' => 'nullable|date',
             'expires_at' => 'nullable|date',
             'file' => 'required|file|max:10240',
-        ]);
+        ], ContentFieldRules::messages());
         $fileMeta = $this->agreements->storeFile($request->file('file'), $communityId);
         $this->ensureCategory($communityId, $data['category']);
         $id = $this->agreements->createDraft($communityId, (int) $request->user()->id, $data, $fileMeta);
@@ -192,15 +287,16 @@ class AgreementController extends Controller
         $current = $this->findInCommunity($id, $communityId);
         abort_if(($current->kind ?? '') !== 'agreement', 404, 'Agreement not found.');
         abort_if($current->publication_status === 'draft', 422, 'Publish or delete the current draft before creating a new version.');
+        $text = ContentFieldRules::rules(false);
         $data = $request->validate([
-            'title' => 'sometimes|string|max:200',
+            'title' => $text['title'],
             'category' => 'sometimes|string|max:100',
-            'description' => 'nullable|string|max:2000',
+            'description' => $text['description'],
             'due_at' => 'nullable|date',
             'effective_at' => 'nullable|date',
             'expires_at' => 'nullable|date',
             'file' => 'required|file|max:10240',
-        ]);
+        ], ContentFieldRules::messages());
         $fileMeta = $this->agreements->storeFile($request->file('file'), $communityId);
         $fields = [
             'title' => $data['title'] ?? $current->title,

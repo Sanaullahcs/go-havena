@@ -1,4 +1,5 @@
 import type { FieldErrors } from "@/lib/admin/form-validation-utils";
+import { validateTitleAndDescription } from "@/lib/admin/document-form-validation";
 
 function localToday(): string {
   const now = new Date();
@@ -15,19 +16,16 @@ function requiredDate(value: string, label: string, today: string): string | nul
 
 export function validateAgreementDetails(form: {
   title: string;
+  description?: string;
   category: string;
   dueAt: string;
   effectiveAt: string;
   expiresAt: string;
   hasFile: boolean;
 }): FieldErrors {
-  const errors: FieldErrors = {};
+  const errors: FieldErrors = validateTitleAndDescription(form.title, form.description ?? "");
   const today = localToday();
-  const title = form.title.trim();
   const category = form.category.trim();
-
-  if (!title) errors.title = "Title is required.";
-  else if (title.length > 200) errors.title = "Title must be 200 characters or less.";
 
   if (!category) errors.category = "Category is required.";
   else if (category.length > 100) errors.category = "Category must be 100 characters or less.";
