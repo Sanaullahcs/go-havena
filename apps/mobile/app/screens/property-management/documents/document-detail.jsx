@@ -5,8 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Alert,
   ActivityIndicator,
+  Keyboard,
   Linking,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,7 +16,6 @@ import { useTranslation } from "react-i18next";
 import i18n from "../../../../i18n";
 import { getLocaleForLang } from "../../../../hooks/use-app-locale";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
-import { pageStyles } from "../../../../constants/page-styles";
 import { propertyStyles } from "../../../../constants/property-styles";
 import { Fonts } from "../../../../constants/font";
 import { sw, sf, hp } from "../../../../utils/responsive";
@@ -94,12 +93,12 @@ function SigningProgress({ index }) {
             <View style={agreementStyles.progressStep}>
               <View style={[agreementStyles.progressDot, (done || current) && agreementStyles.progressDotOn]}>
                 {done ? (
-                  <Feather name="check" size={sf(10)} color="#FFFFFF" />
+                  <Feather name="check" size={sf(12)} color="#FFFFFF" />
                 ) : (
                   <Text style={[agreementStyles.progressNum, current && agreementStyles.progressNumOn]}>{step}</Text>
                 )}
               </View>
-              <Text style={[agreementStyles.progressLabel, current && agreementStyles.progressLabelOn]}>{label}</Text>
+              <Text style={[agreementStyles.progressLabel, (done || current) && agreementStyles.progressLabelOn]} numberOfLines={2}>{label}</Text>
             </View>
           </React.Fragment>
         );
@@ -178,16 +177,28 @@ function AgreementDetails({
             </View>
             <View style={agreementStyles.summaryCopy}>
               <Text style={agreementStyles.title}>{doc.title}</Text>
-              {doc.category ? <Text style={agreementStyles.category}>{doc.category}</Text> : null}
-              <View style={[agreementStyles.badge, { backgroundColor: tone.bg }]}>
-                <Text style={[agreementStyles.badgeText, { color: tone.fg }]}>{statusLabel(status, t)}</Text>
+              <View style={agreementStyles.summaryPills}>
+                {doc.category ? (
+                  <View style={agreementStyles.categoryPill}>
+                    <Text style={agreementStyles.category} numberOfLines={1}>{doc.category}</Text>
+                  </View>
+                ) : null}
+                <View style={[agreementStyles.badge, { backgroundColor: tone.bg }]}>
+                  <Text style={[agreementStyles.badgeText, { color: tone.fg }]}>{statusLabel(status, t)}</Text>
+                </View>
               </View>
             </View>
           </View>
-          <Text style={agreementStyles.caption}>
-            {t("propertyMgmt.updatedDate", { date: formatDocDate(doc.updated_at) })}
-            {doc.download_count != null ? ` · ${t("propertyMgmt.downloadCount", { count: doc.download_count })}` : ""}
-          </Text>
+          <View style={agreementStyles.metaLine}>
+            <Feather name="clock" size={sf(12)} color="#64748B" />
+            <Text style={agreementStyles.caption}>{t("propertyMgmt.updatedDate", { date: formatDocDate(doc.updated_at) })}</Text>
+            {doc.download_count != null ? (
+              <>
+                <Feather name="download" size={sf(12)} color="#64748B" />
+                <Text style={agreementStyles.caption}>{t("propertyMgmt.downloadCount", { count: doc.download_count })}</Text>
+              </>
+            ) : null}
+          </View>
         </View>
 
         <View style={agreementStyles.card}>
@@ -293,7 +304,7 @@ function AgreementDetails({
 
         {doc.description ? (
           <View style={agreementStyles.card}>
-            <Text style={agreementStyles.sectionLabel}>{t("propertyMgmt.descriptionLabel")}</Text>
+            <Text style={agreementStyles.descTitle}>{t("propertyMgmt.descriptionLabel")}</Text>
             <Text style={agreementStyles.description}>{doc.description}</Text>
           </View>
         ) : null}
@@ -304,10 +315,13 @@ function AgreementDetails({
               <Feather name="file" size={sf(16)} color="#1B4F8A" />
             </View>
             <View style={agreementStyles.summaryCopy}>
-              <Text style={agreementStyles.pdfName} numberOfLines={1}>{doc.file_name}</Text>
+              <Text style={agreementStyles.pdfName} numberOfLines={2}>{doc.file_name}</Text>
               {fileMeta ? <Text style={agreementStyles.caption}>{fileMeta}</Text> : null}
             </View>
+          </View>
+          <View style={agreementStyles.previewPill}>
             <Text style={agreementStyles.preview}>{t("propertyMgmt.previewPdf")}</Text>
+            <Feather name="chevron-right" size={sf(14)} color="#0F766E" />
           </View>
         </Pressable>
 
@@ -413,31 +427,17 @@ export default function DocumentDetail() {
   };
 
   const handleDelete = async () => {
-    if (isAgreement) {
-      const choice = await dialog.showConfirm(
-        t("propertyMgmt.deleteDocument"),
-        t("propertyMgmt.deleteDocumentMsg", { title: doc?.title }),
-        { confirmLabel: t("common.delete"), cancelLabel: t("common.cancel"), destructive: true },
-      );
-      if (choice !== "confirm") return;
-      run(async () => {
-        await deleteCommunityDocument(doc.id);
-        router.back();
-      });
-      return;
-    }
-    Alert.alert(t("propertyMgmt.deleteDocument"), t("propertyMgmt.deleteDocumentMsg", { title: doc?.title }), [
-      { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("common.delete"),
-        style: "destructive",
-        onPress: () =>
-          run(async () => {
-            await deleteCommunityDocument(doc.id);
-            router.back();
-          }),
-      },
-    ]);
+    Keyboard.dismiss();
+    const choice = await dialog.showConfirm(
+      t("propertyMgmt.deleteDocument"),
+      t("propertyMgmt.deleteDocumentMsg", { title: doc?.title }),
+      { confirmLabel: t("common.delete"), cancelLabel: t("common.cancel"), destructive: true },
+    );
+    if (choice !== "confirm") return;
+    run(async () => {
+      await deleteCommunityDocument(doc.id);
+      router.back();
+    });
   };
 
   const handleEdit = () => {
@@ -496,7 +496,7 @@ export default function DocumentDetail() {
   }
 
   return (
-    <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
+    <SafeAreaView style={styles.docScreen} edges={["left", "right"]}>
       <InternalScreenHeader
         title={t("propertyMgmt.documentTitle")}
         right={
@@ -513,28 +513,56 @@ export default function DocumentDetail() {
         }
       />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={pageStyles.scrollBottom}>
-        <View style={[propertyStyles.sectionBlock, styles.heroBlock]}>
-          <View style={styles.fileBadge}>
-            <Feather name="file-text" size={sf(22)} color="#E7000B" />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.docScroll}>
+        <View style={styles.docCard}>
+          <View style={styles.docSummary}>
+            <View style={styles.fileBadge}>
+              <Feather name="file-text" size={sf(20)} color="#E11D48" />
+            </View>
+            <View style={styles.docCopy}>
+              <Text style={styles.title}>{doc.title}</Text>
+              {doc.category ? (
+                <View style={styles.categoryPill}>
+                  <Text style={styles.category} numberOfLines={1}>{doc.category}</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
-          <Text style={styles.title}>{doc.title}</Text>
-          <Text style={styles.category}>{doc.category}</Text>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaText}>{doc.file_size_label} · {doc.file_name}</Text>
+
+          {doc.file_name ? (
+            <View style={styles.fileRow}>
+              <Feather name="paperclip" size={sf(14)} color="#64748B" />
+              <Text style={styles.fileName}>{doc.file_name}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.statRow}>
+            {doc.file_size_label ? (
+              <View style={styles.statTile}>
+                <View style={[styles.statIcon, { backgroundColor: "#E8F0F7" }]}>
+                  <Feather name="file" size={sf(14)} color="#1B4F8A" />
+                </View>
+                <Text style={styles.statValue}>{doc.file_size_label}</Text>
+              </View>
+            ) : null}
+            <View style={styles.statTile}>
+              <View style={[styles.statIcon, { backgroundColor: "#F0FDFA" }]}>
+                <Feather name="download" size={sf(14)} color="#0F766E" />
+              </View>
+              <Text style={styles.statValue}>{t("propertyMgmt.downloadCount", { count: doc.download_count ?? 0 })}</Text>
+            </View>
           </View>
-          <View style={styles.metaRow}>
-            <Feather name="clock" size={sf(11)} color="#9CA3AF" />
-            <Text style={styles.metaText}>{t("propertyMgmt.updatedDate", { date: formatDocDate(doc.updated_at) })}</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Feather name="download" size={sf(11)} color="#9CA3AF" />
-            <Text style={styles.metaText}>{t("propertyMgmt.downloadCount", { count: doc.download_count ?? 0 })}</Text>
+
+          <View style={styles.dateRow}>
+            <View style={styles.dateIcon}>
+              <Feather name="clock" size={sf(14)} color="#475569" />
+            </View>
+            <Text style={styles.dateText}>{t("propertyMgmt.updatedDate", { date: formatDocDate(doc.updated_at) })}</Text>
           </View>
         </View>
 
         {doc.description ? (
-          <View style={[propertyStyles.sectionBlock, styles.descBlock]}>
+          <View style={styles.docCard}>
             <Text style={styles.descLabel}>{t("propertyMgmt.descriptionLabel")}</Text>
             <Text style={styles.descText}>{doc.description}</Text>
           </View>
@@ -568,21 +596,73 @@ const styles = StyleSheet.create({
     backgroundColor: "#D1FAF5", alignItems: "center", justifyContent: "center",
   },
   iconBtnRed: { backgroundColor: "#FEF2F2" },
-  heroBlock: { alignItems: "flex-start" },
+  docScreen: { flex: 1, backgroundColor: "#F6F8FB" },
+  docScroll: { paddingHorizontal: sw(16), paddingTop: sw(12), paddingBottom: sw(20), gap: sw(10) },
+  docCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: sw(16),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#E6EBF1",
+    padding: sw(14),
+  },
+  docSummary: { flexDirection: "row", alignItems: "flex-start", gap: sw(12) },
   fileBadge: {
-    width: sw(52), height: sw(52), borderRadius: sw(14),
-    backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center", marginBottom: sw(12),
+    width: sw(48), height: sw(48), borderRadius: sw(14),
+    backgroundColor: "#FFF1F2", alignItems: "center", justifyContent: "center",
   },
-  title: { fontFamily: Fonts.bold, fontSize: sf(20), lineHeight: sf(27), color: "#101828", fontWeight: "700" },
-  category: { fontFamily: Fonts.medium, fontSize: sf(13), color: "#1B4F8A", marginTop: sw(4) },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: sw(4), marginTop: sw(6) },
-  metaText: { fontFamily: Fonts.regular, fontSize: sf(11), color: "#9CA3AF", flexShrink: 1 },
-  descBlock: { paddingTop: sw(8) },
-  descLabel: {
-    fontFamily: Fonts.bold, fontSize: sf(12), fontWeight: "700", color: "#6A7282",
-    letterSpacing: 0.5, textTransform: "uppercase", marginBottom: sw(8),
+  docCopy: { flex: 1, minWidth: 0 },
+  title: { fontFamily: Fonts.bold, fontSize: sf(20), lineHeight: sf(26), color: "#101828", fontWeight: "700" },
+  categoryPill: {
+    alignSelf: "flex-start",
+    marginTop: sw(8),
+    borderRadius: sw(999),
+    backgroundColor: "#E8F0F7",
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(4),
+    maxWidth: "100%",
   },
-  descText: { fontFamily: Fonts.regular, fontSize: sf(14), lineHeight: sf(22), color: "#364153" },
+  category: { fontFamily: Fonts.bold, fontSize: sf(12), color: "#1B4F8A", fontWeight: "700" },
+  fileRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: sw(8),
+    marginTop: sw(14),
+    padding: sw(10),
+    borderRadius: sw(12),
+    backgroundColor: "#F8FAFC",
+  },
+  fileName: { flex: 1, fontFamily: Fonts.medium, fontSize: sf(13), lineHeight: sf(18), color: "#334155" },
+  statRow: { flexDirection: "row", gap: sw(8), marginTop: sw(10) },
+  statTile: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(8),
+    padding: sw(10),
+    borderRadius: sw(12),
+    backgroundColor: "#F8FAFC",
+  },
+  statIcon: {
+    width: sw(28),
+    height: sw(28),
+    borderRadius: sw(8),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statValue: { flex: 1, fontFamily: Fonts.bold, fontSize: sf(12), lineHeight: sf(16), color: "#101828", fontWeight: "700" },
+  dateRow: { flexDirection: "row", alignItems: "center", gap: sw(10), marginTop: sw(12) },
+  dateIcon: {
+    width: sw(32),
+    height: sw(32),
+    borderRadius: sw(10),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+  },
+  dateText: { flex: 1, fontFamily: Fonts.medium, fontSize: sf(13), color: "#334155" },
+  descLabel: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#64748B", fontWeight: "700", marginBottom: sw(6) },
+  descText: { fontFamily: Fonts.regular, fontSize: sf(15), lineHeight: sf(22), color: "#101828" },
   footer: {
     paddingHorizontal: sw(18), paddingBottom: hp(3), paddingTop: sw(12),
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#F3F4F6", backgroundColor: "#FFFFFF",
@@ -613,9 +693,18 @@ const agreementStyles = StyleSheet.create({
   },
   summaryCopy: { flex: 1, minWidth: 0 },
   title: { fontFamily: Fonts.bold, fontSize: sf(17), lineHeight: sf(22), color: "#101828", fontWeight: "700" },
-  category: { fontFamily: Fonts.medium, fontSize: sf(13), color: "#1B4F8A", marginTop: sw(2) },
-  caption: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#6A7282", marginTop: sw(2) },
-  badge: { alignSelf: "flex-start", borderRadius: sw(999), paddingHorizontal: sw(8), paddingVertical: sw(4), marginTop: sw(8) },
+  summaryPills: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: sw(6), marginTop: sw(8) },
+  categoryPill: {
+    maxWidth: "100%",
+    borderRadius: sw(999),
+    backgroundColor: "#E8F0F7",
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(3),
+  },
+  category: { fontFamily: Fonts.bold, fontSize: sf(12), color: "#1B4F8A", fontWeight: "700" },
+  metaLine: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: sw(6), marginTop: sw(12) },
+  caption: { fontFamily: Fonts.medium, fontSize: sf(12), lineHeight: sf(16), color: "#64748B" },
+  badge: { alignSelf: "flex-start", borderRadius: sw(999), paddingHorizontal: sw(8), paddingVertical: sw(4) },
   badgeText: { fontFamily: Fonts.bold, fontSize: sf(11), fontWeight: "700" },
   factPair: { flexDirection: "row", gap: sw(8) },
   factTile: {
@@ -731,26 +820,38 @@ const agreementStyles = StyleSheet.create({
     fontFamily: Fonts.bold, fontSize: sf(11), color: "#6A7282", fontWeight: "700",
     letterSpacing: 0.4, textTransform: "uppercase", marginBottom: sw(6),
   },
-  description: { fontFamily: Fonts.regular, fontSize: sf(14), lineHeight: sf(21), color: "#364153" },
-  pdfRow: { flexDirection: "row", alignItems: "center", gap: sw(10) },
+  descTitle: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#64748B", fontWeight: "700", marginBottom: sw(6) },
+  description: { fontFamily: Fonts.regular, fontSize: sf(15), lineHeight: sf(22), color: "#101828" },
+  pdfRow: { flexDirection: "row", alignItems: "flex-start", gap: sw(10) },
   pdfIcon: {
     width: sw(36), height: sw(36), borderRadius: sw(10),
     backgroundColor: "#E8F0F7", alignItems: "center", justifyContent: "center",
   },
-  pdfName: { fontFamily: Fonts.medium, fontSize: sf(13), color: "#101828" },
+  pdfName: { fontFamily: Fonts.medium, fontSize: sf(13), lineHeight: sf(18), color: "#101828" },
+  previewPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(2),
+    marginTop: sw(12),
+    paddingVertical: sw(6),
+    paddingHorizontal: sw(10),
+    borderRadius: sw(999),
+    backgroundColor: "#F0FDFA",
+  },
   preview: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#0F766E", fontWeight: "700" },
-  progress: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  progressStep: { alignItems: "center", width: sw(72) },
+  progress: { flexDirection: "row", alignItems: "flex-start" },
+  progressStep: { flex: 1, alignItems: "center", minWidth: 0, paddingHorizontal: sw(2) },
   progressDot: {
-    width: sw(22), height: sw(22), borderRadius: sw(11),
+    width: sw(28), height: sw(28), borderRadius: sw(14),
     backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center",
   },
   progressDotOn: { backgroundColor: "#1B4F8A" },
-  progressNum: { fontFamily: Fonts.bold, fontSize: sf(11), color: "#64748B", fontWeight: "700" },
+  progressNum: { fontFamily: Fonts.bold, fontSize: sf(12), lineHeight: sf(16), color: "#64748B", fontWeight: "700" },
   progressNumOn: { color: "#FFFFFF" },
-  progressLabel: { marginTop: sw(4), fontFamily: Fonts.medium, fontSize: sf(11), color: "#94A3B8" },
+  progressLabel: { marginTop: sw(8), fontFamily: Fonts.medium, fontSize: sf(12), lineHeight: sf(16), color: "#94A3B8", textAlign: "center" },
   progressLabelOn: { color: "#1B4F8A" },
-  progressLine: { flex: 1, height: 1, backgroundColor: "#E6EBF1", marginTop: sw(11) },
+  progressLine: { width: sw(16), height: 2, borderRadius: 1, backgroundColor: "#E6EBF1", marginTop: sw(13) },
   progressLineOn: { backgroundColor: "#1B4F8A" },
   note: { fontFamily: Fonts.regular, fontSize: sf(13), lineHeight: sf(18), color: "#92400E", paddingHorizontal: sw(4) },
   footer: {

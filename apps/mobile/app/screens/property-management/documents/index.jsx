@@ -31,6 +31,12 @@ function getCategoryMeta(name) {
   return CATEGORY_META[name] ?? { icon: "folder", color: "#64748B", bg: "#F8FAFC" };
 }
 
+function fileKind(doc) {
+  const ext = String(doc.file_name ?? "").split(".").pop()?.trim().toUpperCase();
+  if (!ext || ext.length > 5 || ext === String(doc.file_name ?? "").toUpperCase()) return "";
+  return ext;
+}
+
 function formatDocDate(value) {
   if (!value) return "";
   return new Date(value).toLocaleDateString(getLocaleForLang(i18n.language), { month: "short", day: "numeric", year: "numeric" });
@@ -174,33 +180,68 @@ function AgreementCard({ doc, onPress }) {
   );
 }
 
-function DocumentRow({ doc, onPress, showDownloads, actionIcon = "download" }) {
+function DocumentRow({ doc, onPress, showDownloads }) {
+  const meta = getCategoryMeta(doc.category);
+  const updated = formatDocDate(doc.updated_at);
+  const kind = fileKind(doc);
+  return (
+    <Pressable style={styles.fileCard} onPress={onPress}>
+      <View style={[styles.agreeAccent, { backgroundColor: meta.color }]} />
+      <View style={[styles.docIconWrap, { backgroundColor: meta.bg }]}>
+        <Feather name={meta.icon} size={sf(18)} color={meta.color} />
+      </View>
+      <View style={styles.docBody}>
+        <Text style={styles.docTitle} numberOfLines={2}>{doc.title}</Text>
+        <View style={styles.agreePills}>
+          {doc.category ? (
+            <View style={[styles.pill, { backgroundColor: meta.bg }]}>
+              <Text style={[styles.pillText, { color: meta.color }]} numberOfLines={1}>{doc.category}</Text>
+            </View>
+          ) : null}
+          {kind ? (
+            <View style={styles.metricPill}>
+              <Text style={styles.metricLabel}>{kind}</Text>
+            </View>
+          ) : null}
+        </View>
+        <View style={styles.docMeta}>
+          {doc.file_size_label ? (
+            <>
+              <Feather name="file" size={sf(11)} color="#64748B" />
+              <Text style={styles.docMetaText}>{doc.file_size_label}</Text>
+            </>
+          ) : null}
+          {updated ? (
+            <>
+              <Feather name="clock" size={sf(11)} color="#64748B" />
+              <Text style={styles.docMetaText}>{updated}</Text>
+            </>
+          ) : null}
+          {showDownloads ? (
+            <>
+              <Feather name="download" size={sf(11)} color="#64748B" />
+              <Text style={styles.docMetaText}>{doc.download_count ?? 0}</Text>
+            </>
+          ) : null}
+        </View>
+      </View>
+      <View style={styles.chevronBtn}>
+        <Feather name="chevron-right" size={sf(16)} color="#64748B" />
+      </View>
+    </Pressable>
+  );
+}
+
+function RecentCard({ doc, onPress }) {
   const meta = getCategoryMeta(doc.category);
   const updated = formatDocDate(doc.updated_at);
   return (
-    <Pressable style={styles.docCard} onPress={onPress}>
-      <View style={styles.docMain}>
-        <View style={[styles.docIconWrap, { backgroundColor: meta.bg }]}>
-          <Feather name={meta.icon} size={sf(18)} color={meta.color} />
-        </View>
-        <View style={styles.docBody}>
-          <Text style={styles.docTitle} numberOfLines={2}>{doc.title}</Text>
-          <Text style={styles.docCategory} numberOfLines={1}>{doc.category}</Text>
-          <View style={styles.docMeta}>
-            {doc.file_size_label ? <Text style={styles.docMetaText}>{doc.file_size_label}</Text> : null}
-            {doc.file_size_label && updated ? <Text style={styles.docMetaText}>•</Text> : null}
-            {updated ? <Text style={styles.docMetaText}>{updated}</Text> : null}
-            {showDownloads ? (
-              <>
-                <Text style={styles.docMetaText}>•</Text>
-                <Feather name="download" size={sf(11)} color="#6A7282" />
-                <Text style={styles.docMetaText}>{doc.download_count ?? 0}</Text>
-              </>
-            ) : null}
-          </View>
-        </View>
+    <Pressable style={styles.recentCard} onPress={onPress}>
+      <View style={[styles.recentIcon, { backgroundColor: meta.bg }]}>
+        <Feather name={meta.icon} size={sf(16)} color={meta.color} />
       </View>
-      <Feather name={actionIcon} size={sf(18)} color="#9CA3AF" style={styles.actionIcon} />
+      <Text style={styles.recentTitle} numberOfLines={2}>{doc.title}</Text>
+      <Text style={styles.recentMeta} numberOfLines={1}>{updated || doc.category}</Text>
     </Pressable>
   );
 }
@@ -437,6 +478,9 @@ export default function Documents() {
               <Text style={[styles.chipLabel, selectedCategory === "all" && styles.chipLabelOn]}>
                 {t("propertyMgmt.allFilter")}
               </Text>
+              <View style={[styles.chipCount, selectedCategory === "all" && styles.chipCountOn]}>
+                <Text style={[styles.chipCountText, selectedCategory === "all" && styles.chipCountTextOn]}>{documents.length}</Text>
+              </View>
             </Pressable>
             {categories.map((cat) => {
               const on = selectedCategory === cat.name;
@@ -444,13 +488,16 @@ export default function Documents() {
               return (
                 <Pressable
                   key={cat.name}
-                  onPress={() => setSelectedCategory(on ? "all" : cat.name)}
+                  onPress={() => setSelectedCategory(cat.name)}
                   style={[styles.chip, on && styles.chipOn]}
                 >
                   <Feather name={meta.icon} size={sf(12)} color={on ? "#FFF" : meta.color} />
                   <Text style={[styles.chipLabel, on && styles.chipLabelOn]} numberOfLines={1}>
                     {cat.name}
                   </Text>
+                  <View style={[styles.chipCount, on && styles.chipCountOn]}>
+                    <Text style={[styles.chipCountText, on && styles.chipCountTextOn]}>{cat.count ?? 0}</Text>
+                  </View>
                 </Pressable>
               );
             })}
@@ -460,19 +507,22 @@ export default function Documents() {
         {section === "documents" && recent.length > 0 && selectedCategory === "all" && !search.trim() && (
           <View style={propertyStyles.sectionBlock}>
             <Text style={propertyStyles.sectionTitle}>{t("propertyMgmt.recentDocuments")}</Text>
-            {recent.map((doc) => (
-              <DocumentRow key={`recent-${doc.id}`} doc={doc} onPress={() => openDocument(doc)} actionIcon="download" />
-            ))}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentRail}>
+              {recent.map((doc) => (
+                <RecentCard key={`recent-${doc.id}`} doc={doc} onPress={() => openDocument(doc)} />
+              ))}
+            </ScrollView>
           </View>
         )}
 
         <View style={[propertyStyles.sectionBlock, styles.lastSection]}>
           <View style={styles.sectionHeader}>
             <Text style={propertyStyles.sectionTitle}>{section === "agreements" ? t("propertyMgmt.agreementsTab") : t("propertyMgmt.allDocuments")}</Text>
-            <Text style={styles.sectionSub}>
-              {t("propertyMgmt.filteredCount", { filtered: filteredDocuments.length, total: section === "agreements" ? agreementRows.length : documents.length })}
-              {selectedCategory !== "all" ? ` · ${selectedCategory}` : ""}
-            </Text>
+            <View style={styles.countPill}>
+              <Text style={styles.countPillText}>
+                {t("propertyMgmt.filteredCount", { filtered: filteredDocuments.length, total: section === "agreements" ? agreementRows.length : documents.length })}
+              </Text>
+            </View>
           </View>
 
           {(section === "agreements" ? agreementRows.length : documents.length) === 0 && !error && (
@@ -505,7 +555,6 @@ export default function Documents() {
                 doc={doc}
                 onPress={() => openDocument(doc)}
                 showDownloads={section === "documents" && isAdmin}
-                actionIcon="chevron-right"
               />
             )
           ))}
@@ -550,11 +599,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   searchInput: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(13), color: "#101828", padding: 0 },
-  tabs: { flexDirection: "row", gap: sw(18), paddingHorizontal: sw(18), paddingTop: sw(8) },
-  tab: { paddingBottom: sw(8), borderBottomWidth: 2, borderBottomColor: "transparent" },
-  tabOn: { borderBottomColor: "#1B4F8A" },
-  tabText: { fontFamily: Fonts.medium, fontSize: sf(14), color: "#64748B" },
-  tabTextOn: { color: "#1B4F8A", fontFamily: Fonts.bold },
+  tabs: {
+    flexDirection: "row",
+    marginHorizontal: sw(18),
+    marginTop: sw(12),
+    padding: sw(4),
+    borderRadius: sw(14),
+    backgroundColor: "#F1F5F9",
+  },
+  tab: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: sw(8), borderRadius: sw(11) },
+  tabOn: { backgroundColor: T.navy },
+  tabText: { fontFamily: Fonts.medium, fontSize: sf(13), color: "#64748B" },
+  tabTextOn: { color: T.white, fontFamily: Fonts.bold },
   actionCard: {
     marginHorizontal: sw(18),
     marginTop: sw(14),
@@ -636,21 +692,63 @@ const styles = StyleSheet.create({
   metricLabel: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#64748B" },
   track: { height: sw(4), borderRadius: sw(4), backgroundColor: "#EEF2F6", marginTop: sw(10), overflow: "hidden" },
   trackFill: { height: "100%", borderRadius: sw(4) },
-  sectionHeader: { marginBottom: sw(8) },
-  sectionSub: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#9CA3AF", marginTop: sw(2) },
-  lastSection: { borderBottomWidth: 0 },
-  docCard: {
-    marginTop: sw(12),
-    padding: sw(14),
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
-    borderRadius: sw(14),
+  sectionHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: sw(10),
-    backgroundColor: "#FFFFFF",
+    gap: sw(8),
+    marginBottom: sw(4),
   },
+  countPill: {
+    borderRadius: sw(999),
+    backgroundColor: "#E8F0F7",
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(4),
+  },
+  countPillText: { fontFamily: Fonts.bold, fontSize: sf(11), color: "#1B4F8A", fontWeight: "700" },
+  recentRail: { gap: sw(10), paddingTop: sw(12) },
+  recentCard: {
+    width: sw(148),
+    minHeight: sw(112),
+    padding: sw(12),
+    borderRadius: sw(16),
+    borderWidth: 1,
+    borderColor: "#E8EEF4",
+    backgroundColor: "#FFFFFF",
+    gap: sw(8),
+  },
+  recentIcon: {
+    width: sw(32),
+    height: sw(32),
+    borderRadius: sw(10),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recentTitle: { fontFamily: Fonts.bold, fontSize: sf(13), lineHeight: sf(18), color: "#101828", fontWeight: "700" },
+  recentMeta: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#64748B" },
+  fileCard: {
+    marginTop: sw(12),
+    paddingVertical: sw(14),
+    paddingRight: sw(12),
+    paddingLeft: sw(16),
+    borderWidth: 1,
+    borderColor: "#E8EEF4",
+    borderRadius: sw(16),
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(12),
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  chevronBtn: {
+    width: sw(28),
+    height: sw(28),
+    borderRadius: sw(14),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8FAFC",
+  },
+  lastSection: { borderBottomWidth: 0 },
   docMain: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: sw(12), minWidth: 0 },
   docIconWrap: {
     width: sw(44),

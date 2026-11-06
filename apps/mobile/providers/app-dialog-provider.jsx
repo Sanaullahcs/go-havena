@@ -627,6 +627,7 @@ const styles = StyleSheet.create({
   actionsInline: {
     flexDirection: "row",
     alignItems: "stretch",
+    justifyContent: "center",
   },
   actionsStatus: {
     marginTop: 16,
@@ -656,10 +657,13 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   actionBtnInline: {
-    flex: 1,
-    width: undefined,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    width: "auto",
+    maxWidth: "100%",
     minWidth: 0,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
   },
   actionPrimary: {
     backgroundColor: "#1B4F8A",
@@ -685,6 +689,7 @@ const styles = StyleSheet.create({
     color: "#364153",
     fontWeight: "600",
     textAlign: "center",
+    textAlignVertical: "center",
   },
   actionTextInline: {
     textAlign: "center",
