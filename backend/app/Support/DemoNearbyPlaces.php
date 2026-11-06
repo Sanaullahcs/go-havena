@@ -11,16 +11,17 @@ use Illuminate\Support\Facades\DB;
 class DemoNearbyPlaces
 {
     /** @return list<array<string, mixed>> */
-    public static function forCommunity(?int $communityId, float $originLat, float $originLng): array
+    public static function forCommunity(?int $communityId, float $originLat, float $originLng, ?int $radiusMeters = null): array
     {
         if (! self::isDemoCommunity($communityId)) {
             return [];
         }
 
+        $radius = $radiusMeters ?? (int) config('osm.radius_meters', 3000);
         $places = [];
         foreach (self::catalog() as $row) {
             $meters = NearbyDiscovery::metersBetween($originLat, $originLng, $row['latitude'], $row['longitude']);
-            if ($meters > (int) config('osm.radius_meters', 3000)) {
+            if ($meters > $radius) {
                 continue;
             }
 

@@ -62,6 +62,7 @@ use App\Http\Controllers\Api\V1\PlaidWebhookController;
 use App\Http\Controllers\Api\V1\ResidentPlaidController;
 use App\Http\Controllers\Api\V1\GeoController;
 use App\Http\Controllers\Api\V1\NearbyPlaceController;
+use App\Http\Controllers\Api\V1\CommunityDirectoryController;
 use App\Http\Controllers\Api\V1\InviteQrImageController;
 use App\Http\Controllers\Api\V1\CommunityFeatureController;
 use Illuminate\Support\Facades\Route;
@@ -176,6 +177,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/geo/address-suggest', [GeoController::class, 'suggest']);
         Route::get('/geo/address-reverse', [GeoController::class, 'reverse']);
         Route::get('/nearby-places', [NearbyPlaceController::class, 'index'])->middleware('resident.feature:nearby_places');
+        Route::get('/nearby-places/suggestions', [CommunityDirectoryController::class, 'mySuggestions'])->middleware('resident.feature:nearby_places');
+        Route::post('/nearby-places/suggestions', [CommunityDirectoryController::class, 'storeSuggestion'])->middleware('resident.feature:nearby_places');
+        Route::get('/essentials', [CommunityDirectoryController::class, 'essentials'])->middleware('resident.feature:nearby_places');
 
         /* Guest invitations (resident) */
         Route::middleware('resident.feature:guest_invites')->group(function () {
@@ -459,6 +463,13 @@ Route::prefix('v1')->group(function () {
                 Route::post('/resident-features/enable', [CommunityFeatureController::class, 'enableMine']);
 
                 /* Community Rules — admin CRUD */
+                Route::get('/essentials', [CommunityDirectoryController::class, 'adminIndex']);
+                Route::post('/essentials', [CommunityDirectoryController::class, 'adminStore']);
+                Route::match(['patch', 'post'], '/essentials/{id}', [CommunityDirectoryController::class, 'adminUpdate'])->whereNumber('id');
+                Route::delete('/essentials/{id}', [CommunityDirectoryController::class, 'adminDestroy'])->whereNumber('id');
+                Route::post('/nearby-suggestions/{id}/approve', [CommunityDirectoryController::class, 'approveSuggestion'])->whereNumber('id');
+                Route::post('/nearby-suggestions/{id}/reject', [CommunityDirectoryController::class, 'rejectSuggestion'])->whereNumber('id');
+
                 Route::get('/community-rules',              [CommunityRuleController::class, 'adminIndex']);
                 Route::post('/community-rules',             [CommunityRuleController::class, 'store']);
                 Route::post('/community-rules/categories',  [CommunityRuleController::class, 'storeCategory']);

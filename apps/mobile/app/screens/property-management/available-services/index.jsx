@@ -26,6 +26,7 @@ import {
 } from "../../../../services/property-services-api";
 import { showApiFailure } from "../../../../utils/auth-errors";
 import { formatCommunityMoney } from "../../../../utils/money";
+import EssentialServicesPanel from "../../../../components/property/essential-services-panel";
 
 const CATEGORY_ICON = {
   electricity: "zap",
@@ -366,6 +367,7 @@ export default function AvailableServicesScreen() {
   const [busyId, setBusyId] = useState(null);
   const [picker, setPicker] = useState(null);
   const [selectedUnitIds, setSelectedUnitIds] = useState([]);
+  const [screenTab, setScreenTab] = useState("services");
 
   const headerSubtitle = useMemo(() => {
     if (billingUnits.length > 1) {
@@ -458,7 +460,28 @@ export default function AvailableServicesScreen() {
         title={t("services.availableServicesTitle")}
         subtitle={headerSubtitle}
       />
-      {loading && services.length === 0 ? (
+      <View style={styles.screenTabs}>
+        {[
+          ["services", t("services.servicesTab")],
+          ["essentials", t("services.essentialServicesTab")],
+        ].map(([key, label]) => {
+          const active = screenTab === key;
+          return (
+            <Pressable
+              key={key}
+              onPress={() => setScreenTab(key)}
+              style={[styles.screenTab, active && styles.screenTabOn]}
+            >
+              <Text style={[styles.screenTabText, active && styles.screenTabTextOn]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {screenTab === "essentials" ? (
+        <ScrollView contentContainerStyle={{ paddingTop: sw(8) }} showsVerticalScrollIndicator={false}>
+          <EssentialServicesPanel />
+        </ScrollView>
+      ) : loading && services.length === 0 ? (
         <View style={styles.centered}>
           <ActivityIndicator color={PropertyHubTheme.teal} />
         </View>
@@ -533,6 +556,11 @@ export default function AvailableServicesScreen() {
 }
 
 const styles = {
+  screenTabs: { flexDirection: "row", gap: 8, paddingHorizontal: sw(16), paddingBottom: sw(8) },
+  screenTab: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E5E7EB" },
+  screenTabOn: { backgroundColor: PropertyHubTheme.deepTeal, borderColor: PropertyHubTheme.deepTeal },
+  screenTabText: { fontFamily: Fonts.medium, fontSize: sf(13), color: PropertyHubTheme.text },
+  screenTabTextOn: { color: "#fff" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   list: {
     paddingHorizontal: sw(16),

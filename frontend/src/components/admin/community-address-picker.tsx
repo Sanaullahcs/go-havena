@@ -3,12 +3,14 @@
 import { ClearableInput } from "@/components/admin/clearable-field";
 
 import dynamic from "next/dynamic";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import { Loader2, MapPin } from "lucide-react";
 import { reverseAddress, suggestAddress, type AddressSuggestion } from "@/lib/api/geo";
 import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
 
 const MAP_HEIGHT = 300;
+const COMPACT_MAP_HEIGHT = 180;
 
 const CommunityAddressMap = dynamic(
   () => import("./community-address-map").then((mod) => mod.CommunityAddressMap),
@@ -40,6 +42,8 @@ type Props = {
   placeholder?: string;
   inputClassName?: string;
   id?: string;
+  /** Shorter field for dialogs: icon, suggestion menu, and a smaller map. */
+  compact?: boolean;
 };
 
 function formatCoord(value: number) {
@@ -55,6 +59,7 @@ export function CommunityAddressPicker({
   placeholder = "Search a street address",
   inputClassName,
   id,
+  compact = false,
 }: Props) {
   const listId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -66,6 +71,7 @@ export function CommunityAddressPicker({
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [resolvingAddress, setResolvingAddress] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const skipSuggest = useRef(true);
   const typingRef = useRef(false);
   const reverseTimer = useRef<number | null>(null);
@@ -109,10 +115,14 @@ export function CommunityAddressPicker({
     }
 
     const handle = window.setTimeout(() => {
+      setSuggestions([]);
       setLoading(true);
+      setOpen(true);
+      setActiveIndex(0);
       suggestAddress(term)
         .then((rows) => {
           setSuggestions(rows);
+          setActiveIndex(0);
           setOpen(rows.length > 0);
         })
         .catch(() => {
@@ -185,6 +195,26 @@ export function CommunityAddressPicker({
   };
 
   const hasPin = value.latitude != null && value.longitude != null;
+  const mapHeight = compact ? COMPACT_MAP_HEIGHT : MAP_HEIGHT;
+
+  const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      setOpen(false);
+      return;
+    }
+    if (!open || suggestions.length === 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveIndex((index) => (index + 1) % suggestions.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((index) => (index - 1 + suggestions.length) % suggestions.length);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const row = suggestions[activeIndex] ?? suggestions[0];
+      if (row) pick(row);
+    }
+  };
 
   const pick = (row: AddressSuggestion) => {
     cancelReverse();
@@ -200,37 +230,54 @@ export function CommunityAddressPicker({
     });
   };
 
+  const showMenu = open && mounted && (suggestions.length > 0 || loading);
+
   return (
-    <div ref={rootRef} className="relative space-y-2.5">
-      <ClearableInput
-        ref={inputRef}
-        id={id}
-        value={query}
-        autoComplete="off"
-        aria-autocomplete="list"
-        aria-expanded={open}
-        aria-controls={listId}
-        required={required}
-        placeholder={placeholder}
-        className={inputClassName}
-        onChange={(event) => {
-          const next = event.target.value;
-          cancelReverse();
-          typingRef.current = true;
-          setQuery(next);
-          onChange({
-            address: next,
-            latitude: next.trim() === value.address.trim() ? value.latitude : null,
-            longitude: next.trim() === value.address.trim() ? value.longitude : null,
-          });
-        }}
-        onFocus={() => {
-          if (suggestions.length > 0) setOpen(true);
-        }}
-        onBlur={onBlur}
-      />
+    <div ref={rootRef} className="relative space-y-2">
+      <div className="relative">
+        {compact ? (
+          <MapPin className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#1B4F8A]" aria-hidden />
+        ) : null}
+        <ClearableInput
+          ref={inputRef}
+          id={id}
+          value={query}
+          autoComplete="off"
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-activedescendant={open && suggestions[activeIndex] ? `${listId}-option-${activeIndex}` : undefined}
+          required={required}
+          placeholder={placeholder}
+          className={[
+            compact ? "nl-input box-border h-11 !py-0 !pl-9 outline-none focus:outline-none" : "",
+            error ? "border-red-300 focus:border-red-400" : "",
+            inputClassName ?? "",
+          ].filter(Boolean).join(" ")}
+          hideClear={loading}
+          onKeyDown={onInputKeyDown}
+          onChange={(event) => {
+            const next = event.target.value;
+            cancelReverse();
+            typingRef.current = true;
+            setQuery(next);
+            onChange({
+              address: next,
+              latitude: next.trim() === value.address.trim() ? value.latitude : null,
+              longitude: next.trim() === value.address.trim() ? value.longitude : null,
+            });
+          }}
+          onFocus={() => {
+            if (suggestions.length > 0) setOpen(true);
+          }}
+          onBlur={onBlur}
+        />
+        {loading ? (
+          <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" aria-hidden />
+        ) : null}
+      </div>
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
-      {open && mounted && suggestions.length > 0
+      {showMenu
         ? createPortal(
             <ul
               ref={popoverRef}
@@ -238,37 +285,56 @@ export function CommunityAddressPicker({
               role="listbox"
               style={popoverStyle}
               className={[
-                "nl-themed-popover overflow-y-auto overscroll-contain py-1 [scrollbar-width:thin]",
+                "nl-themed-popover overflow-y-auto overscroll-contain p-1.5 [scrollbar-width:thin]",
                 popoverReady ? "opacity-100" : "opacity-0",
               ].join(" ")}
             >
-              {suggestions.map((row) => (
-                <li key={`${row.latitude}-${row.longitude}-${row.label}`}>
-                  <button
-                    type="button"
-                    role="option"
-                    className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => pick(row)}
-                  >
-                    {row.label}
-                  </button>
+              {loading && suggestions.length === 0 ? (
+                <li className="flex items-center gap-2 px-2.5 py-2.5 text-[13px] text-slate-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  Searching addresses…
                 </li>
-              ))}
+              ) : suggestions.map((row, index) => {
+                const title = row.label || row.address;
+                const detail = row.address && row.address !== title ? row.address : null;
+                const active = index === activeIndex;
+                return (
+                  <li key={`${row.latitude}-${row.longitude}-${row.label}`}>
+                    <button
+                      id={`${listId}-option-${index}`}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      className={[
+                        "nl-select-option w-full items-start text-left",
+                        active ? "nl-select-option-selected" : "",
+                      ].join(" ")}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => pick(row)}
+                    >
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{title}</span>
+                        {detail ? <span className="block truncate text-xs font-normal text-slate-500">{detail}</span> : null}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>,
             document.body,
           )
         : null}
-      {loading ? <p className="text-[13px] leading-5 text-slate-400">Searching addresses…</p> : null}
       {hasPin ? (
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_12px_32px_rgba(11,31,58,0.08)] ring-1 ring-slate-900/5">
           <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#0b1f3a] via-[#1B4F8A] to-[#0d9488] px-3.5 py-2.5 text-white">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-teal-200">
-                Community pin
+                {compact ? "Pinned address" : "Community pin"}
               </p>
               <p className="truncate text-[12px] font-medium text-white/90">
-                {resolvingAddress ? "Updating address…" : "Drag or tap to update the address"}
+                {resolvingAddress ? "Updating address…" : "Drag or tap to adjust the pin"}
               </p>
             </div>
             <p className="shrink-0 rounded-full bg-white/12 px-2.5 py-1 font-mono text-[10px] tabular-nums text-white/90 ring-1 ring-white/15">
@@ -278,9 +344,16 @@ export function CommunityAddressPicker({
           <CommunityAddressMap
             latitude={value.latitude as number}
             longitude={value.longitude as number}
+            height={mapHeight}
             onMove={applyPinMove}
           />
         </div>
+      ) : compact ? (
+        error ? null : (
+          <p className="text-[12px] leading-5 text-slate-400">
+            Search, then choose a suggestion. Distance is measured from the community.
+          </p>
+        )
       ) : (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3.5">
           <p className="text-[13px] leading-6 text-slate-600">

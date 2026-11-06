@@ -5,12 +5,39 @@ export const NEARBY_PLACE_CATEGORIES = [
   "restaurants",
   "cafes",
   "pharmacies",
-  "banks",
+  "hospitals",
   "gyms",
-  "supermarkets",
+  "gas_stations",
+  "parking",
+  "clubs",
+  "shopping",
 ];
 
 export const NEARBY_FILTER_CATEGORIES = ["all", ...NEARBY_PLACE_CATEGORIES];
+
+export const ESSENTIAL_SECTION_CATEGORIES = {
+  health: ["hospitals", "pharmacies"],
+  burial: ["burial_places"],
+  parking: ["parking"],
+  clubs: ["clubs"],
+};
+
+const BUNDLE_CATEGORIES = [...NEARBY_PLACE_CATEGORIES, "burial_places"];
+
+export const DISCOVER_RADIUS_OPTIONS = Array.from({ length: 20 }, (_, index) => (index + 1) * 500);
+export const DEFAULT_DISCOVER_RADIUS_METERS = 3000;
+
+export function formatDiscoverRadius(meters) {
+  const km = Number(meters) / 1000;
+  if (!Number.isFinite(km) || km <= 0) return "";
+  const text = Number.isInteger(km) ? String(km) : km.toFixed(1);
+  return `${text} km`;
+}
+
+export function normalizeDiscoverRadius(meters) {
+  const value = Number(meters);
+  return DISCOVER_RADIUS_OPTIONS.includes(value) ? value : DEFAULT_DISCOVER_RADIUS_METERS;
+}
 
 function nearbyPlaceHasPhone(place) {
   return Boolean(String(place?.phone ?? "").trim());
@@ -33,12 +60,24 @@ export function mergeNearbyPlaces(byCategory = {}) {
   return [...seen.values()].sort(compareNearbyPlacesByPhoneThenDistance);
 }
 
-let bundleCache = null;
-let bundleCommunityId = null;
+const bundleCacheByKey = new Map();
 const bundleInFlightByCommunity = new Map();
 
 function emptyGroups() {
-  return Object.fromEntries(NEARBY_PLACE_CATEGORIES.map((key) => [key, []]));
+  return Object.fromEntries(BUNDLE_CATEGORIES.map((key) => [key, []]));
+}
+
+export function placesForEssentialSection(byCategory = {}, section = "") {
+  const seen = new Set();
+  const rows = [];
+  for (const category of ESSENTIAL_SECTION_CATEGORIES[section] ?? []) {
+    for (const place of byCategory[category] ?? []) {
+      if (!place?.id || seen.has(place.id) || place.category === "gyms") continue;
+      seen.add(place.id);
+      rows.push(place);
+    }
+  }
+  return rows.sort(compareNearbyPlacesByPhoneThenDistance);
 }
 
 export function mapNearbyPlace(row, fallbackCategory = "") {
@@ -69,7 +108,9 @@ export function mapNearbyPlace(row, fallbackCategory = "") {
     latitude: row.latitude == null ? null : Number(row.latitude),
     longitude: row.longitude == null ? null : Number(row.longitude),
     distanceMeters: Number(row.distance_meters ?? 0),
-    distanceKm: Number(row.distance_km ?? 0),
+    distanceKm: row.distance_km == null ? null : Number(row.distance_km),
+    verified: Boolean(row.verified),
+    source: row.source ? String(row.source) : "osm",
   };
 }
 
@@ -78,55 +119,162 @@ function mapGroup(rows, category) {
 }
 
 export function clearNearbyPlacesCache() {
-  bundleCache = null;
-  bundleCommunityId = null;
+  bundleCacheByKey.clear();
   bundleInFlightByCommunity.clear();
 }
 
-export async function fetchNearbyPlacesBundle({ force = false, communityId: requestedId } = {}) {
+function snapshotBundle(byCategory, meta, radiusMeters, complete) {
+  return {
+    byCategory: Object.fromEntries(Object.entries(byCategory).map(([key, rows]) => [key, rows.slice()])),
+    hasCoordinates: Boolean(meta?.has_coordinates),
+    overpassFailed: Boolean(meta?.overpass_failed),
+    radiusMeters,
+    communityId: meta?.community_id ?? null,
+    latitude: meta?.latitude ?? null,
+    longitude: meta?.longitude ?? null,
+    complete,
+  };
+}
+
+function coveringBundle(communityId, radiusMeters) {
+  const prefix = `${communityId ?? ""}:`;
+  let best = null;
+  let bestRadius = Infinity;
+  for (const [key, bundle] of bundleCacheByKey) {
+    if (!bundle?.complete || !key.startsWith(prefix)) continue;
+    const cachedRadius = Number(key.slice(prefix.length));
+    if (cachedRadius >= radiusMeters && cachedRadius < bestRadius) {
+      best = bundle;
+      bestRadius = cachedRadius;
+    }
+  }
+  return best;
+}
+
+function placeInsideRadius(place, radiusMeters) {
+  const meters = Number(place?.distanceMeters ?? 0);
+  return !Number.isFinite(meters) || meters <= 0 || meters <= radiusMeters;
+}
+
+function mergePlaceList(byCategory, category, places) {
+  const incoming = (places ?? []).filter((place) => place?.id);
+  if (incoming.length === 0) return;
+  const seen = new Set((byCategory[category] ?? []).map((place) => place.id));
+  byCategory[category] = [
+    ...(byCategory[category] ?? []),
+    ...incoming.filter((place) => !seen.has(place.id)),
+  ];
+}
+
+function absorbBundle(byCategory, bundle, radiusMeters) {
+  if (!bundle?.byCategory) return;
+  for (const category of BUNDLE_CATEGORIES) {
+    mergePlaceList(
+      byCategory,
+      category,
+      (bundle.byCategory[category] ?? []).filter((place) => placeInsideRadius(place, radiusMeters)),
+    );
+  }
+}
+
+function mergeBundlePage(byCategory, data) {
+  for (const category of BUNDLE_CATEGORIES) {
+    mergePlaceList(byCategory, category, mapGroup(data?.[category], category));
+  }
+}
+
+export async function fetchNearbyPlacesBundle({ force = false, communityId: requestedId, radiusMeters: requestedRadius, seedBundle = null, onPage } = {}) {
   const communityId = requestedId != null && String(requestedId).trim() !== ""
     ? String(requestedId)
     : await getCommunityId();
-  const cacheKey = String(communityId ?? "");
-  if (!force && bundleCache && bundleCommunityId === cacheKey) return bundleCache;
-  if (!force && bundleInFlightByCommunity.has(cacheKey)) {
-    return bundleInFlightByCommunity.get(cacheKey);
+  const radiusMeters = normalizeDiscoverRadius(requestedRadius);
+  const cacheKey = `${communityId ?? ""}:${radiusMeters}`;
+  const prefix = `${communityId ?? ""}:`;
+  if (!force) {
+    const covered = coveringBundle(communityId, radiusMeters);
+    if (covered) {
+      const byCategory = emptyGroups();
+      absorbBundle(byCategory, covered, radiusMeters);
+      absorbBundle(byCategory, seedBundle, radiusMeters);
+      const filtered = snapshotBundle(byCategory, {
+        has_coordinates: covered.hasCoordinates || seedBundle?.hasCoordinates,
+        community_id: covered.communityId ?? seedBundle?.communityId,
+        latitude: covered.latitude ?? seedBundle?.latitude,
+        longitude: covered.longitude ?? seedBundle?.longitude,
+      }, radiusMeters, true);
+      bundleCacheByKey.set(cacheKey, filtered);
+      onPage?.(filtered, { done: true });
+      return filtered;
+    }
+    if (bundleCacheByKey.has(cacheKey)) {
+      const cached = bundleCacheByKey.get(cacheKey);
+      onPage?.(cached, { done: true });
+      return cached;
+    }
+    if (bundleInFlightByCommunity.has(cacheKey)) {
+      return bundleInFlightByCommunity.get(cacheKey);
+    }
   }
 
   const request = (async () => {
-    const params = new URLSearchParams({ all: "1" });
-    if (communityId) params.set("community_id", String(communityId));
-    const res = await apiRequest(`/nearby-places?${params}`, {
-      cache: "no-store",
-      timeoutMs: 40000,
-      community: false,
-    });
-    const grouped = res?.meta?.grouped && res?.data && !Array.isArray(res.data);
     const byCategory = emptyGroups();
-
-    if (grouped) {
-      for (const category of NEARBY_PLACE_CATEGORIES) {
-        byCategory[category] = mapGroup(res.data?.[category], category);
-      }
-    } else {
-      const fallbackCategory = res?.meta?.category ?? "restaurants";
-      byCategory[fallbackCategory] = mapGroup(res?.data, fallbackCategory);
+    for (const [key, bundle] of bundleCacheByKey) {
+      if (!bundle?.complete || !key.startsWith(prefix)) continue;
+      const cachedRadius = Number(key.slice(prefix.length));
+      if (cachedRadius > 0 && cachedRadius <= radiusMeters) absorbBundle(byCategory, bundle, radiusMeters);
     }
-
-    const payload = {
-      byCategory,
-      hasCoordinates: Boolean(res?.meta?.has_coordinates),
-      overpassFailed: Boolean(res?.meta?.overpass_failed),
-      radiusMeters: Number(res?.meta?.radius_meters ?? 3000),
-      communityId: res?.meta?.community_id ?? communityId ?? null,
-      latitude: res?.meta?.latitude ?? null,
-      longitude: res?.meta?.longitude ?? null,
+    absorbBundle(byCategory, seedBundle, radiusMeters);
+    const hasSeed = BUNDLE_CATEGORIES.some((key) => (byCategory[key] ?? []).length > 0);
+    if (hasSeed) {
+      onPage?.(snapshotBundle(byCategory, {
+        has_coordinates: seedBundle?.hasCoordinates,
+        community_id: seedBundle?.communityId,
+        latitude: seedBundle?.latitude,
+        longitude: seedBundle?.longitude,
+      }, radiusMeters, false), { done: false });
+    }
+    let page = 1;
+    let payload = snapshotBundle(byCategory, {}, radiusMeters, false);
+    let failedPage = false;
+    const loadPage = async (pageNumber) => {
+      const params = new URLSearchParams({
+        all: "1",
+        radius_meters: String(radiusMeters),
+        page: String(pageNumber),
+      });
+      if (communityId) params.set("community_id", String(communityId));
+      return apiRequest(`/nearby-places?${params}`, {
+        cache: "no-store",
+        timeoutMs: 25000,
+        community: false,
+      });
     };
-    const hasPlaces = NEARBY_PLACE_CATEGORIES.some((key) => (byCategory[key] ?? []).length > 0);
-    if (hasPlaces && !payload.overpassFailed) {
-      bundleCache = payload;
-      bundleCommunityId = cacheKey;
+    for (let guard = 0; guard < 20 && page <= 20; guard += 1) {
+      let res = null;
+      try {
+        res = await loadPage(page);
+      } catch {
+        try {
+          res = await loadPage(page);
+        } catch {
+          failedPage = true;
+          page += 1;
+          continue;
+        }
+      }
+      const grouped = res?.meta?.grouped && res?.data && !Array.isArray(res.data);
+      if (grouped) mergeBundlePage(byCategory, res.data);
+      const pageCount = Number(res?.meta?.page_count || 0);
+      const done = !res?.meta?.has_more && !failedPage;
+      payload = snapshotBundle(byCategory, res?.meta, radiusMeters, done);
+      onPage?.(payload, { done });
+      if (!res?.meta?.has_coordinates || !res?.meta?.has_more) break;
+      page = Number(res?.meta?.next_page || page + 1);
+      if (pageCount > 0 && page > pageCount) break;
     }
+    payload = { ...payload, complete: !failedPage };
+    if (!failedPage) bundleCacheByKey.set(cacheKey, payload);
+    onPage?.(payload, { done: !failedPage });
     return payload;
   })();
 

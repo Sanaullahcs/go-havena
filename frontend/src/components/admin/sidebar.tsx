@@ -88,6 +88,7 @@ const communityPropertyNav: NavItem[] = [
   { href: "/admin/units", label: "Units", icon: Home },
   { href: "/admin/unit-requests", label: "Unit Requests", icon: ClipboardList },
   { href: "/admin/services", label: "Services", icon: Droplets },
+  { href: "/admin/local-essentials", label: "Local Essentials", icon: MapPin },
   { href: "/admin/service-bills", label: "Service Bills", icon: CreditCard },
   { href: "/admin/amenities", label: "Amenities", icon: Building2 },
   { href: "/admin/amenity-bills", label: "Amenity Bills", icon: CreditCard },

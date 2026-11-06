@@ -39,6 +39,7 @@ export const COMMUNITY_ADMIN_ROUTE_PREFIXES = [
   "/admin/documents",
   "/admin/units",
   "/admin/services",
+  "/admin/local-essentials",
   "/admin/service-bills",
   "/admin/amenities",
   "/admin/amenity-bills",

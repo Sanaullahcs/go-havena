@@ -76,6 +76,7 @@ export const ADMIN_FEATURE_ROUTES: Array<{ prefix: string; key: string }> = [
   { prefix: "/admin/businesses", key: "marketplace" },
   { prefix: "/admin/guests", key: "guest_invites" },
   { prefix: "/admin/refer-and-earn", key: "refer_and_earn" },
+  { prefix: "/admin/local-essentials", key: "nearby_places" },
 ];
 
 export function adminFeatureForPath(pathname: string): string | null {

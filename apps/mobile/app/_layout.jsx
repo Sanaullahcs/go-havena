@@ -342,6 +342,14 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="screens/discover/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/discover-essential/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="screens/nearby-place-detail/index"
           options={{ headerShown: false }}
         />

@@ -16,6 +16,8 @@ export default function SearchInput({
   onFocus,
   inputRef,
   editable = true,
+  containerStyle,
+  placeholderTextColor = "rgba(10, 10, 10, 0.45)",
 }) {
   const { t } = useTranslation();
   const [internal, setInternal] = useState("");
@@ -28,13 +30,13 @@ export default function SearchInput({
   const clear = () => handleChange("");
 
   return (
-    <View style={styles.searchContainer}>
+    <View style={[styles.searchContainer, containerStyle]}>
       <Ionicons name="search-outline" size={sf(16)} color="#99A1AF" style={styles.icon} />
       <LocaleTextInput
         ref={inputRef}
         style={[styles.input]}
         placeholder={placeholder ?? t("common.search")}
-        placeholderTextColor="rgba(10, 10, 10, 0.45)"
+        placeholderTextColor={placeholderTextColor}
         value={value}
         onChangeText={handleChange}
         onFocus={onFocus}

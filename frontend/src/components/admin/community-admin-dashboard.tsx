@@ -31,6 +31,7 @@ import {
   Clock,
   dashIcon,
   FileText,
+  Map,
   MessageSquare,
   ShoppingCart,
   Activity,
@@ -550,6 +551,13 @@ export default function CommunityAdminDashboard() {
       desc: "Create automatic or optional unit services",
       tone: "blue",
       icon: dashIcon(FileText),
+    },
+    {
+      label: "Local Essentials",
+      href: "/admin/local-essentials",
+      desc: "Add community essentials and review resident submissions",
+      tone: "teal",
+      icon: dashIcon(Map),
     },
     {
       label: "Service Bills",

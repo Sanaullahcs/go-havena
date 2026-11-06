@@ -1,8 +1,6 @@
 import React, { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { useTranslation } from "react-i18next";
-import InternalScreenHeader, { internalContent } from "../../../components/layout/internal-screen-header";
 import NearbyPlaceDetails from "../../../components/ui/nearby-place-details";
 import { getNearbyPlaceDraft } from "../../../services/nearby-place-draft";
 
@@ -25,7 +23,6 @@ function parsePlaceParam(raw) {
 }
 
 export default function NearbyPlaceScreen() {
-  const { t } = useTranslation();
   const { id, place: placeParam } = useLocalSearchParams();
   const place = useMemo(() => {
     const fromParam = parsePlaceParam(placeParam);
@@ -49,21 +46,11 @@ export default function NearbyPlaceScreen() {
 
   return (
     <View style={styles.safe}>
-      <InternalScreenHeader
-        title={place?.name || t("topBar.placeDetail")}
-        compact
-        dense
-      />
-      <View style={internalContent.gutter}>
-        <NearbyPlaceDetails place={place} />
-      </View>
+      <NearbyPlaceDetails place={place} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
+  safe: { flex: 1, backgroundColor: "#fff" },
 });
