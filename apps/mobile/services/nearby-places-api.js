@@ -123,15 +123,31 @@ export function clearNearbyPlacesCache() {
   bundleInFlightByCommunity.clear();
 }
 
-function snapshotBundle(byCategory, meta, radiusMeters, complete) {
+function mergeBundleMeta(meta, previous) {
+  const hasCoordinates = Boolean(meta?.has_coordinates)
+    || Boolean(previous?.hasCoordinates)
+    || (Number.isFinite(Number(meta?.latitude)) && Number.isFinite(Number(meta?.longitude)))
+    || (Number.isFinite(Number(previous?.latitude)) && Number.isFinite(Number(previous?.longitude)));
+
+  return {
+    hasCoordinates,
+    overpassFailed: Boolean(meta?.overpass_failed) || Boolean(previous?.overpassFailed),
+    communityId: meta?.community_id ?? previous?.communityId ?? null,
+    latitude: meta?.latitude ?? previous?.latitude ?? null,
+    longitude: meta?.longitude ?? previous?.longitude ?? null,
+  };
+}
+
+function snapshotBundle(byCategory, meta, radiusMeters, complete, previous = null) {
+  const merged = mergeBundleMeta(meta, previous);
   return {
     byCategory: Object.fromEntries(Object.entries(byCategory).map(([key, rows]) => [key, rows.slice()])),
-    hasCoordinates: Boolean(meta?.has_coordinates),
-    overpassFailed: Boolean(meta?.overpass_failed),
+    hasCoordinates: merged.hasCoordinates,
+    overpassFailed: merged.overpassFailed,
     radiusMeters,
-    communityId: meta?.community_id ?? null,
-    latitude: meta?.latitude ?? null,
-    longitude: meta?.longitude ?? null,
+    communityId: merged.communityId,
+    latitude: merged.latitude,
+    longitude: merged.longitude,
     complete,
   };
 }
@@ -231,10 +247,10 @@ export async function fetchNearbyPlacesBundle({ force = false, communityId: requ
         community_id: seedBundle?.communityId,
         latitude: seedBundle?.latitude,
         longitude: seedBundle?.longitude,
-      }, radiusMeters, false), { done: false });
+      }, radiusMeters, false, seedBundle), { done: false });
     }
     let page = 1;
-    let payload = snapshotBundle(byCategory, {}, radiusMeters, false);
+    let payload = snapshotBundle(byCategory, {}, radiusMeters, false, seedBundle);
     let failedPage = false;
     const loadPage = async (pageNumber) => {
       const params = new URLSearchParams({
@@ -266,7 +282,7 @@ export async function fetchNearbyPlacesBundle({ force = false, communityId: requ
       if (grouped) mergeBundlePage(byCategory, res.data);
       const pageCount = Number(res?.meta?.page_count || 0);
       const done = !res?.meta?.has_more && !failedPage;
-      payload = snapshotBundle(byCategory, res?.meta, radiusMeters, done);
+      payload = snapshotBundle(byCategory, res?.meta, radiusMeters, done, payload);
       onPage?.(payload, { done });
       if (!res?.meta?.has_coordinates || !res?.meta?.has_more) break;
       page = Number(res?.meta?.next_page || page + 1);

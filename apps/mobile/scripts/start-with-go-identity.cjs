@@ -18,7 +18,8 @@ process.env.HAVENA_GO_SLUG = slug;
 identity(projectRoot);
 
 const args = process.argv.slice(2);
-const child = spawn("./node_modules/.bin/expo", args, {
+const expoCli = path.join(projectRoot, "node_modules", "expo", "bin", "cli");
+const child = spawn(process.execPath, [expoCli, ...args], {
   cwd: projectRoot,
   stdio: "inherit",
   env: {
@@ -28,6 +29,11 @@ const child = spawn("./node_modules/.bin/expo", args, {
     HAVENA_LOCAL_EXPO: "1",
     EXPO_NO_UPDATES: process.env.EXPO_NO_UPDATES || "1",
   },
+});
+
+child.on("error", (error) => {
+  console.error("[havena] Could not start Expo CLI:", error.message);
+  process.exit(1);
 });
 
 child.on("exit", (code, signal) => {

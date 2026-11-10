@@ -16,12 +16,20 @@ import { NEW_CATEGORY } from "./category-picker";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { Fonts } from "../../constants/font";
 import { DEFAULT_PHONE_COUNTRY } from "../../constants/phone-countries";
-import { fetchEssentials, submitPlaceSuggestion } from "../../services/community-directory-api";
+import { createEssentialEntry, fetchEssentials, submitPlaceSuggestion } from "../../services/community-directory-api";
 import { toE164 } from "../../utils/phone";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 import { sf, sw } from "../../utils/responsive";
 
-export default function SuggestPlaceSheet({ visible, mode = "suggest", place, onClose, onSubmitted }) {
+export default function SuggestPlaceSheet({
+  visible,
+  mode = "suggest",
+  creating = false,
+  place,
+  onClose,
+  onSubmitted,
+  defaultCategory = "",
+}) {
   const { t } = useTranslation();
   const { showSuccess } = useAppDialog();
   const reporting = mode === "report";
@@ -45,6 +53,11 @@ export default function SuggestPlaceSheet({ visible, mode = "suggest", place, on
       .catch(() => {});
     return () => { active = false; };
   }, [visible, reporting]);
+
+  useEffect(() => {
+    if (!visible || reporting || !defaultCategory) return;
+    setCategory(defaultCategory);
+  }, [visible, defaultCategory, reporting]);
 
   function resetForm() {
     setName(reporting ? place?.name || "" : "");
@@ -84,29 +97,53 @@ export default function SuggestPlaceSheet({ visible, mode = "suggest", place, on
       }
     }
     setBusy(true);
+    const phone = phoneDigits ? toE164(phoneDigits, phoneCountry) : undefined;
+    const descriptionText = description.trim() || undefined;
     try {
-      await submitPlaceSuggestion({
-        kind: reporting ? "report" : "suggest",
-        place_id: reporting ? place?.id : undefined,
-        name: name.trim() || undefined,
-        essential_section: !reporting ? chosen : undefined,
-        publish_nearby: false,
-        publish_essentials: !reporting,
-        address: address.address.trim() || undefined,
-        latitude: address.latitude,
-        longitude: address.longitude,
-        phone: phoneDigits ? toE164(phoneDigits, phoneCountry) : undefined,
-        description: description.trim() || undefined,
-        note: reporting ? note.trim() || undefined : undefined,
-      });
+      if (creating && !reporting) {
+        await createEssentialEntry({
+          section: chosen,
+          title: name.trim(),
+          phone,
+          address: address.address.trim() || undefined,
+          latitude: address.latitude,
+          longitude: address.longitude,
+          description: descriptionText,
+          body: descriptionText,
+          verified: true,
+        });
+      } else {
+        await submitPlaceSuggestion({
+          kind: reporting ? "report" : "suggest",
+          place_id: reporting ? place?.id : undefined,
+          name: name.trim() || undefined,
+          essential_section: !reporting ? chosen : undefined,
+          publish_nearby: false,
+          publish_essentials: !reporting,
+          address: address.address.trim() || undefined,
+          latitude: address.latitude,
+          longitude: address.longitude,
+          phone,
+          description: descriptionText,
+          note: reporting ? note.trim() || undefined : undefined,
+        });
+      }
       resetForm();
       onSubmitted?.();
       onClose?.();
       setBusy(false);
       await new Promise((resolve) => setTimeout(resolve, 320));
       await showSuccess(
-        reporting ? t("topBar.reportSentTitle") : t("topBar.suggestionSentTitle"),
-        reporting ? t("topBar.reportSentMessage") : t("topBar.suggestionSentMessage"),
+        reporting
+          ? t("topBar.reportSentTitle")
+          : creating
+            ? t("topBar.placeCreatedTitle")
+            : t("topBar.suggestionSentTitle"),
+        reporting
+          ? t("topBar.reportSentMessage")
+          : creating
+            ? t("topBar.placeCreatedMessage")
+            : t("topBar.suggestionSentMessage"),
       );
       return;
     } catch (err) {
@@ -121,8 +158,12 @@ export default function SuggestPlaceSheet({ visible, mode = "suggest", place, on
       <KeyboardAvoidingView style={styles.backdrop} behavior="padding">
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={styles.sheet}>
-          <Text style={styles.title}>{reporting ? t("topBar.reportUpdate") : t("topBar.suggestPlace")}</Text>
-          <Text style={styles.sub}>{reporting ? t("topBar.reportUpdateSub") : t("topBar.suggestPlaceSub")}</Text>
+          <Text style={styles.title}>
+            {reporting ? t("topBar.reportUpdate") : creating ? t("topBar.createPlace") : t("topBar.suggestPlace")}
+          </Text>
+          <Text style={styles.sub}>
+            {reporting ? t("topBar.reportUpdateSub") : creating ? t("topBar.createPlaceSub") : t("topBar.suggestPlaceSub")}
+          </Text>
           <ScrollView
             keyboardShouldPersistTaps="handled"
             style={styles.form}
@@ -159,7 +200,11 @@ export default function SuggestPlaceSheet({ visible, mode = "suggest", place, on
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </ScrollView>
           <Pressable style={[styles.submit, busy && styles.disabled]} disabled={busy} onPress={submit}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{t("topBar.submitSuggestion")}</Text>}
+            {busy ? <ActivityIndicator color="#fff" /> : (
+              <Text style={styles.submitText}>
+                {creating && !reporting ? t("topBar.createPlaceAction") : t("topBar.submitSuggestion")}
+              </Text>
+            )}
           </Pressable>
         </View>
       </KeyboardAvoidingView>

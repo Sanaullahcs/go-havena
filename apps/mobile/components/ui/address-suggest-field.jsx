@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { suggestAddress } from "../../services/geo-api";
+import { addressFromSuggestion } from "../../utils/address-suggestion";
 import { sf } from "../../utils/responsive";
 import LocaleTextInput from "./locale-text-input";
 
@@ -14,14 +15,23 @@ export default function AddressSuggestField({ value, onChange, placeholder }) {
   const [loading, setLoading] = useState(false);
   const skipSuggest = useRef(true);
   const typingRef = useRef(false);
+  const lastValueSig = useRef("");
 
   useEffect(() => {
-    if ((value?.address || "") === query) return;
-    skipSuggest.current = true;
-    typingRef.current = false;
-    setQuery(value?.address || "");
-    setOptions([]);
-  }, [value?.address, query]);
+    const next = value?.address ?? "";
+    const sig = `${next}|${value?.latitude ?? ""}|${value?.longitude ?? ""}`;
+    if (sig === lastValueSig.current) return;
+    lastValueSig.current = sig;
+
+    const coordsPicked = value?.latitude != null && value?.longitude != null;
+    const externalReset = !next.trim() && value?.latitude == null && value?.longitude == null;
+    if (coordsPicked || externalReset || !typingRef.current) {
+      skipSuggest.current = true;
+      typingRef.current = false;
+      setQuery(next);
+      setOptions([]);
+    }
+  }, [value?.address, value?.latitude, value?.longitude]);
 
   useEffect(() => {
     if (skipSuggest.current || !typingRef.current) {
@@ -81,14 +91,16 @@ export default function AddressSuggestField({ value, onChange, placeholder }) {
               key={`${row.latitude}-${row.longitude}-${row.address}`}
               style={styles.option}
               onPress={() => {
+                const selectedAddress = addressFromSuggestion(row);
                 const next = {
-                  address: row.address || row.label || query,
+                  address: selectedAddress,
                   latitude: row.latitude ?? null,
                   longitude: row.longitude ?? null,
                 };
+                lastValueSig.current = `${selectedAddress}|${next.latitude ?? ""}|${next.longitude ?? ""}`;
                 skipSuggest.current = true;
                 typingRef.current = false;
-                setQuery(next.address);
+                setQuery(selectedAddress);
                 setOptions([]);
                 setLoading(false);
                 onChange?.(next);

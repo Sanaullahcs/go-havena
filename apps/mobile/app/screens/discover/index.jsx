@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -31,8 +31,13 @@ import {
 } from "../../../services/nearby-places-api";
 import { listingCategoryLabel } from "../../../components/discover/category-picker";
 import { fetchEssentials } from "../../../services/community-directory-api";
+import { getCachedUser, subscribeSessionUser } from "../../../services/auth-session";
+import { isCommunityAdmin } from "../../../services/community-access";
 import { setNearbyPlaceDraft } from "../../../services/nearby-place-draft";
 import { sf, sw } from "../../../utils/responsive";
+import { useNow } from "../../../hooks/use-now";
+import EssentialSuggestionRow from "../../../components/discover/essential-suggestion-row";
+import { setPlaceSuggestionDraft } from "../../../services/place-suggestion-draft";
 
 const CHIP_ICONS = {
   all: "grid-outline",
@@ -47,16 +52,16 @@ const CHIP_ICONS = {
   shopping: "bag-handle-outline",
 };
 
-const SECTION_ICONS = {
-  health: "activity",
-  burial: "minus-circle",
-  parking: "square",
-  clubs: "users",
-  food: "coffee",
-  restaurants: "coffee",
-  shopping: "shopping-bag",
-  hospitals: "plus",
-  pharmacies: "plus",
+const ESSENTIAL_ION_ICONS = {
+  health: "pulse-outline",
+  burial: "flower-outline",
+  parking: "car-outline",
+  clubs: "people-outline",
+  food: "restaurant-outline",
+  restaurants: "restaurant-outline",
+  shopping: "bag-handle-outline",
+  hospitals: "medical-outline",
+  pharmacies: "medkit-outline",
 };
 
 function capitalize(value) {
@@ -67,14 +72,9 @@ function capitalize(value) {
     .join("");
 }
 
-function statusLabel(status, t) {
-  if (status === "approved") return t("topBar.suggestionApproved");
-  if (status === "rejected") return t("topBar.suggestionRejected");
-  return t("topBar.suggestionPending");
-}
-
 export default function DiscoverScreen() {
   const { t } = useTranslation();
+  const now = useNow();
   const router = useRouter();
   const { height: windowHeight } = useWindowDimensions();
   const [tab, setTab] = useState("nearby");
@@ -86,6 +86,8 @@ export default function DiscoverScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const [sessionUser, setSessionUser] = useState(() => getCachedUser());
+  const creatingPlace = isCommunityAdmin(sessionUser);
   const [radiusMeters, setRadiusMeters] = useState(DEFAULT_DISCOVER_RADIUS_METERS);
   const [resultsRadius, setResultsRadius] = useState(null);
   const [radiusOpen, setRadiusOpen] = useState(false);
@@ -93,19 +95,36 @@ export default function DiscoverScreen() {
   const [sort, setSort] = useState("nearest");
   const [sortOpen, setSortOpen] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [essentialsLoading, setEssentialsLoading] = useState(true);
   const requestRef = useRef(0);
   const bundleRef = useRef(null);
   bundleRef.current = bundle;
+  useEffect(() => subscribeSessionUser(setSessionUser), []);
+
   const radiusLabel = formatDiscoverRadius(radiusMeters);
   const nearbyPending = resultsRadius !== radiusMeters;
 
   const load = useCallback(async (silent) => {
     const ticket = ++requestRef.current;
     const selectedRadius = radiusMeters;
-    if (!silent) setLoading(true);
+    if (!silent) {
+      setLoading(true);
+      setEssentialsLoading(true);
+    }
     setLoadingMore(true);
     setError("");
-    const guidePromise = fetchEssentials({ radiusMeters: selectedRadius, includePlaces: false }).catch(() => null);
+    const emptyEssentials = { sections: [], suggestions: [], categories: [] };
+    void fetchEssentials({ radiusMeters: selectedRadius, includePlaces: false })
+      .then((guide) => {
+        if (ticket !== requestRef.current) return;
+        setEssentials(guide || emptyEssentials);
+      })
+      .catch(() => {
+        if (ticket === requestRef.current) setEssentials(emptyEssentials);
+      })
+      .finally(() => {
+        if (ticket === requestRef.current) setEssentialsLoading(false);
+      });
     try {
       const places = await fetchNearbyPlacesBundle({
         force: silent,
@@ -115,8 +134,6 @@ export default function DiscoverScreen() {
           if (ticket !== requestRef.current) return;
           setBundle(partial);
           setResultsRadius(selectedRadius);
-          setLoading(false);
-          setRefreshing(false);
           setLoadingMore(!done);
         },
       }).catch((err) => {
@@ -127,8 +144,6 @@ export default function DiscoverScreen() {
       if (places?.overpassFailed && mergeNearbyPlaces(places.byCategory).length === 0) {
         setError(t("topBar.nearbyLoadFailed"));
       }
-      const guide = await guidePromise;
-      if (ticket === requestRef.current && guide) setEssentials(guide);
     } finally {
       if (ticket === requestRef.current) {
         setLoading(false);
@@ -159,25 +174,80 @@ export default function DiscoverScreen() {
     return rows;
   }, [places, sort]);
 
+  const mapCenter = useMemo(() => {
+    const pick = (latitude, longitude) => {
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return { latitude: lat, longitude: lng };
+    };
+
+    const fromBundle = bundle?.hasCoordinates ? pick(bundle.latitude, bundle.longitude) : null;
+    if (fromBundle) return fromBundle;
+
+    const fromEssentials = essentials?.hasCoordinates
+      ? pick(essentials.latitude, essentials.longitude)
+      : null;
+    if (fromEssentials) return fromEssentials;
+
+    const pinned = shownPlaces.find(
+      (place) => Number.isFinite(Number(place.latitude)) && Number.isFinite(Number(place.longitude)),
+    );
+    return pinned ? pick(pinned.latitude, pinned.longitude) : null;
+  }, [bundle, essentials, shownPlaces]);
+
   function openPlace(place) {
     setNearbyPlaceDraft(place);
     router.push({ pathname: "/screens/nearby-place-detail", params: { id: place.id } });
   }
 
+  function openSuggestion(item) {
+    setPlaceSuggestionDraft(item);
+    router.push({ pathname: "/screens/discover-suggestion-detail", params: { id: String(item.id) } });
+  }
+
+  function openAllSuggestions() {
+    router.push("/screens/discover-suggestions");
+  }
+
+  const previewSuggestions = useMemo(
+    () => (essentials?.suggestions || []).slice(0, 2),
+    [essentials?.suggestions],
+  );
+
   const sectionCopy = {
-    health: { title: t("topBar.essentialHealth"), sub: t("topBar.essentialHealthSub") },
-    burial: { title: t("topBar.essentialBurial"), sub: t("topBar.essentialBurialSub") },
-    parking: { title: t("topBar.essentialParking"), sub: t("topBar.essentialParkingSub") },
-    clubs: { title: t("topBar.essentialClubs"), sub: t("topBar.essentialClubsSub") },
-    food: { title: t("topBar.essentialFood"), sub: t("topBar.essentialFoodSub") },
+    health: { title: t("topBar.essentialHealth"), sub: t("topBar.essentialHealthListSub") },
+    burial: { title: t("topBar.essentialBurial"), sub: t("topBar.essentialBurialListSub") },
+    parking: { title: t("topBar.essentialParking"), sub: t("topBar.essentialParkingListSub") },
+    clubs: { title: t("topBar.essentialClubs"), sub: t("topBar.essentialClubsListSub") },
+    food: { title: t("topBar.essentialFood"), sub: t("topBar.essentialFoodListSub") },
   };
+
+  const essentialSections = useMemo(() => {
+    const withEntries = (essentials?.sections || []).filter(
+      (section) => (section.entries || []).length > 0,
+    );
+    const needle = query.trim().toLowerCase();
+    if (!needle) return withEntries;
+    return withEntries.filter((section) => {
+      const title = listingCategoryLabel(section.key, t, section.label).toLowerCase();
+      const sub = (sectionCopy[section.key]?.sub || t("topBar.localListingsOnly")).toLowerCase();
+      return title.includes(needle) || sub.includes(needle);
+    });
+  }, [essentials, query, t]);
+
+  const essentialsSearchActive = tab === "essentials" && query.trim().length > 0;
+  const essentialsShowEmpty = tab === "essentials" && !essentialsLoading && essentialSections.length === 0;
+  const essentialsTrulyEmpty = essentialsShowEmpty && !essentialsSearchActive;
+  const suggestionItems = essentials?.suggestions || [];
+  const hasSuggestions = suggestionItems.length > 0;
 
   return (
     <View style={styles.screen}>
       <InternalScreenHeader title={t("topBar.discoverTitle")} subtitle={t("topBar.discoverScreenSub")} compact dense />
       <View style={styles.controls}>
         <SearchInput
-          placeholder={t("topBar.discoverSearch")}
+          placeholder={tab === "essentials" ? t("topBar.discoverSearchEssentials") : t("topBar.discoverSearch")}
           value={query}
           onChangeText={setQuery}
           imeSync={false}
@@ -202,20 +272,20 @@ export default function DiscoverScreen() {
             );
           })}
         </View>
-        <View style={styles.toolbar}>
-          <Pressable
-            style={styles.radius}
-            android_ripple={{ color: "rgba(15, 23, 42, 0.06)", borderless: false }}
-            onPress={() => setRadiusOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel={t("topBar.discoverRadiusTitle")}
-          >
-            <Text style={styles.radiusText} numberOfLines={1}>
-              {t("topBar.discoverRadiusWithin", { distance: radiusLabel })}
-            </Text>
-            <Feather name="chevron-down" size={sf(15)} color="#6B7280" />
-          </Pressable>
-          {tab === "nearby" ? (
+        {tab === "nearby" ? (
+          <View style={styles.toolbar}>
+            <Pressable
+              style={styles.radius}
+              android_ripple={{ color: "rgba(15, 23, 42, 0.06)", borderless: false }}
+              onPress={() => setRadiusOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t("topBar.discoverRadiusTitle")}
+            >
+              <Text style={styles.radiusText} numberOfLines={1}>
+                {t("topBar.discoverRadiusWithin", { distance: radiusLabel })}
+              </Text>
+              <Feather name="chevron-down" size={sf(15)} color="#6B7280" />
+            </Pressable>
             <View style={styles.suggestClip}>
               <Pressable
                 style={styles.suggest}
@@ -224,16 +294,30 @@ export default function DiscoverScreen() {
                 accessibilityRole="button"
               >
                 <Feather name="plus" size={sf(15)} color={T.deepTeal} />
-                <Text style={styles.suggestText} numberOfLines={1}>{t("topBar.suggestPlaceAction")}</Text>
+                <Text style={styles.suggestText} numberOfLines={1}>
+                  {creatingPlace ? t("topBar.createPlaceAction") : t("topBar.suggestPlaceAction")}
+                </Text>
               </Pressable>
             </View>
-          ) : null}
-        </View>
+          </View>
+        ) : (
+          <Pressable
+            style={styles.suggestEssentialsRow}
+            android_ripple={{ color: "rgba(13, 148, 136, 0.14)", borderless: false, foreground: true }}
+            onPress={() => setSuggestOpen(true)}
+            accessibilityRole="button"
+          >
+            <Feather name="plus" size={sf(16)} color={T.deepTeal} />
+            <Text style={styles.suggestEssentialsRowText}>
+              {creatingPlace ? t("topBar.createPlaceAction") : t("topBar.suggestServiceAction")}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
-      {nearbyPending ? (
+      {tab === "nearby" && nearbyPending ? (
         <View style={styles.center}><ActivityIndicator color={T.teal} /></View>
-      ) : loading && !bundle && !essentials ? (
+      ) : tab === "nearby" && loading && !bundle ? (
         <View style={styles.center}><ActivityIndicator color={T.teal} /></View>
       ) : (
         <ScrollView
@@ -268,13 +352,21 @@ export default function DiscoverScreen() {
                   );
                 })}
               </ScrollView>
-              {bundle?.hasCoordinates ? (
+              {mapCenter ? (
                 <View style={styles.mapWrap}>
-                  <NearbyMap latitude={bundle.latitude} longitude={bundle.longitude} places={shownPlaces} />
+                  <NearbyMap
+                    latitude={mapCenter.latitude}
+                    longitude={mapCenter.longitude}
+                    places={shownPlaces}
+                  />
                   <Pressable style={styles.expand} onPress={() => setMapOpen(true)} accessibilityRole="button">
                     <Feather name="maximize-2" size={sf(13)} color="#334155" />
                     <Text style={styles.expandText}>{t("topBar.discoverExpandMap")}</Text>
                   </Pressable>
+                </View>
+              ) : loading || loadingMore ? (
+                <View style={[styles.mapWrap, styles.mapSkeleton]}>
+                  <ActivityIndicator color={T.teal} />
                 </View>
               ) : (
                 <Text style={styles.empty}>{t("topBar.noCommunityPin")}</Text>
@@ -328,55 +420,110 @@ export default function DiscoverScreen() {
             </>
           ) : (
             <>
-              {(essentials?.sections || []).map((section) => {
-                const sectionEntries = section.entries || [];
-                return (
-                <Pressable
-                  key={section.key}
-                  style={styles.essential}
-                  onPress={() => router.push({
-                    pathname: "/screens/discover-essential",
-                    params: { section: section.key },
-                  })}
-                >
-                  <View style={styles.essentialIcon}>
-                    <Feather name={SECTION_ICONS[section.key] || "map-pin"} size={sf(16)} color={T.navy} />
-                  </View>
-                  <View style={styles.rowCopy}>
-                    <Text style={styles.rowName}>{listingCategoryLabel(section.key, t, section.label)}</Text>
-                    <Text style={styles.rowMeta}>{sectionCopy[section.key]?.sub || t("topBar.localListingsOnly")}</Text>
-                    {sectionEntries.slice(0, 3).map((entry) => (
-                      <Text key={entry.id} style={styles.essentialPlace} numberOfLines={1}>
-                        {entry.title}{entry.distance_meters ? ` · ${formatKmLabel(entry.distance_meters)}` : ""}
-                      </Text>
-                    ))}
-                    {sectionEntries.length > 3 ? (
-                      <Text style={styles.essentialPlace}>
-                        {t("topBar.essentialMorePlaces", { count: sectionEntries.length })}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Feather name="chevron-right" size={sf(16)} color="#94A3B8" />
-                </Pressable>
-                );
-              })}
-              {loadingMore ? (
-                <View style={styles.loadingMore}>
-                  <ActivityIndicator color={T.teal} size="small" />
-                  <Text style={styles.loadingMoreText}>{t("topBar.discoverLoadingMore")}</Text>
+              {!essentialsTrulyEmpty ? (
+                <View style={styles.resourcesHeader}>
+                  <Text style={styles.resourcesTitle}>{t("topBar.communityResources")}</Text>
+                  <Text style={styles.resourcesSub}>{t("topBar.communityResourcesSub")}</Text>
                 </View>
               ) : null}
-              <View style={styles.sectionHead}>
-                <Text style={styles.sectionTitle}>{t("topBar.yourSuggestions")}</Text>
-              </View>
-              {(essentials?.suggestions || []).length === 0 ? (
-                <Text style={styles.empty}>{t("topBar.noSuggestions")}</Text>
-              ) : essentials.suggestions.map((item) => (
-                <View key={item.id} style={styles.suggestion}>
-                  <Text style={styles.rowName}>{item.name || t("topBar.reportUpdate")}</Text>
-                  <Text style={styles.rowMeta}>{statusLabel(item.status, t)}</Text>
+              {essentialsLoading && essentialSections.length === 0 ? (
+                <View style={styles.essentialsEmptyCard}>
+                  <ActivityIndicator color={T.teal} />
+                  <Text style={styles.loadingMoreText}>{t("topBar.discoverLoadingEssentials")}</Text>
                 </View>
-              ))}
+              ) : essentialsTrulyEmpty ? (
+                <View style={styles.essentialsEmptyCard}>
+                  <View style={styles.essentialsEmptyIcon}>
+                    <Ionicons name="layers-outline" size={sf(28)} color={T.deepTeal} />
+                  </View>
+                  <Text style={styles.essentialsEmptyTitle}>{t("topBar.essentialsEmptyTitle")}</Text>
+                  <Text style={styles.essentialsEmptyBody}>{t("topBar.essentialsEmptyBody")}</Text>
+                  <Pressable
+                    style={styles.essentialsEmptyBtn}
+                    onPress={() => setSuggestOpen(true)}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.essentialsEmptyBtnText}>
+                      {creatingPlace ? t("topBar.createPlaceAction") : t("topBar.suggestServiceAction")}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : essentialsShowEmpty ? (
+                <View style={styles.essentialsEmptyCard}>
+                  <Text style={styles.essentialsEmptyBody}>{t("common.noResults")}</Text>
+                </View>
+              ) : (
+                <View style={styles.resourcesList}>
+                  {essentialSections.map((section, index) => {
+                    const count = (section.entries || []).length;
+                    const copy = sectionCopy[section.key];
+                    return (
+                      <Pressable
+                        key={section.key}
+                        style={[
+                          styles.resourceRow,
+                          index < essentialSections.length - 1 && styles.resourceRowDivider,
+                        ]}
+                        android_ripple={{ color: "#F1F5F9" }}
+                        onPress={() => router.push({
+                          pathname: "/screens/discover-essential",
+                          params: { section: section.key },
+                        })}
+                      >
+                        <View style={styles.resourceIcon}>
+                          <Ionicons
+                            name={ESSENTIAL_ION_ICONS[section.key] || "grid-outline"}
+                            size={sf(22)}
+                            color={T.deepTeal}
+                          />
+                        </View>
+                        <View style={styles.rowCopy}>
+                          <Text style={styles.resourceName} numberOfLines={1}>
+                            {copy?.title || listingCategoryLabel(section.key, t, section.label)}
+                          </Text>
+                          <Text style={styles.resourceMeta} numberOfLines={2}>
+                            {copy?.sub || t("topBar.localListingsOnly")}
+                          </Text>
+                        </View>
+                        <View style={styles.resourceEnd}>
+                          <Text style={styles.resourceCount}>{count}</Text>
+                          <Feather name="chevron-right" size={sf(18)} color="#C5CDD6" />
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+              {creatingPlace ? null : hasSuggestions ? (
+                <>
+                  <View style={[styles.sectionHead, styles.suggestionsHead]}>
+                    <Text style={styles.resourcesTitle}>{t("topBar.yourSuggestions")}</Text>
+                    <Pressable
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      onPress={openAllSuggestions}
+                    >
+                      <Text style={styles.viewAllLink}>{t("topBar.viewAllSuggestions")}</Text>
+                    </Pressable>
+                  </View>
+                  <View style={styles.resourcesList}>
+                    {previewSuggestions.map((item, index) => (
+                      <EssentialSuggestionRow
+                        key={item.id}
+                        item={item}
+                        t={t}
+                        now={now}
+                        divider={index < previewSuggestions.length - 1}
+                        onPress={() => openSuggestion(item)}
+                      />
+                    ))}
+                  </View>
+                  <View style={styles.suggestionsNote}>
+                    <Feather name="info" size={sf(14)} color="#94A3B8" />
+                    <Text style={styles.suggestionsNoteText}>{t("topBar.suggestionsApprovalNote")}</Text>
+                  </View>
+                </>
+              ) : null}
             </>
           )}
         </ScrollView>
@@ -434,10 +581,10 @@ export default function DiscoverScreen() {
               <Feather name="x" size={sf(18)} color="#334155" />
             </Pressable>
           </View>
-          {bundle?.hasCoordinates ? (
+          {mapCenter ? (
             <NearbyMap
-              latitude={bundle.latitude}
-              longitude={bundle.longitude}
+              latitude={mapCenter.latitude}
+              longitude={mapCenter.longitude}
               places={shownPlaces}
               height={windowHeight - sw(88)}
             />
@@ -476,6 +623,7 @@ export default function DiscoverScreen() {
       <SuggestPlaceSheet
         visible={suggestOpen}
         mode="suggest"
+        creating={creatingPlace}
         onClose={() => setSuggestOpen(false)}
         onSubmitted={() => load(true)}
       />
@@ -511,7 +659,7 @@ const styles = StyleSheet.create({
   },
   segmentItemOn: { backgroundColor: T.deepTeal },
   segmentText: { fontFamily: Fonts.medium, fontSize: sf(14), color: "#6B7280" },
-  segmentTextOn: { fontFamily: Fonts.semiBold, color: "#fff" },
+  segmentTextOn: { fontFamily: Fonts.medium, color: "#fff" },
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: sw(8) },
   radius: {
     overflow: "hidden",
@@ -542,6 +690,28 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   suggestText: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: T.deepTeal },
+  suggestEssentials: {
+    borderWidth: 0,
+    backgroundColor: "#E8F8F6",
+  },
+  suggestEssentialsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: sw(44),
+    paddingHorizontal: sw(16),
+    borderRadius: 999,
+    backgroundColor: "#E8F8F6",
+    overflow: "hidden",
+  },
+  suggestEssentialsRowText: {
+    flexShrink: 1,
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    color: T.deepTeal,
+    textAlign: "center",
+  },
   radiusBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.4)", justifyContent: "flex-end" },
   radiusSheet: {
     backgroundColor: T.white,
@@ -586,8 +756,14 @@ const styles = StyleSheet.create({
   },
   catIconOn: { backgroundColor: "#D1FAF5" },
   catLabel: { marginTop: 6, minHeight: sf(28), fontFamily: Fonts.medium, fontSize: sf(11), lineHeight: sf(14), color: "#6B7280", textAlign: "center" },
-  catLabelOn: { color: T.deepTeal, fontFamily: Fonts.semiBold },
+  catLabelOn: { color: T.deepTeal, fontFamily: Fonts.medium },
   mapWrap: { borderRadius: sw(16), overflow: "hidden" },
+  mapSkeleton: {
+    height: sw(196),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E7EEF2",
+  },
   expand: {
     position: "absolute",
     top: 12,
@@ -616,7 +792,7 @@ const styles = StyleSheet.create({
   },
   mapBarTitle: { fontFamily: Fonts.bold, fontSize: sf(17), color: "#0F172A" },
   sectionHead: { marginTop: sw(18), marginBottom: sw(8), flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sectionTitle: { fontFamily: Fonts.bold, fontSize: sf(22), color: "#0B1220", letterSpacing: -0.3 },
+  sectionTitle: { fontFamily: Fonts.semiBold, fontSize: sf(18), color: "#0B1220", letterSpacing: -0.2 },
   sortPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -662,7 +838,7 @@ const styles = StyleSheet.create({
   rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EEF1F4" },
   rowCopy: { flex: 1, minWidth: 0 },
   rowEnd: { flexDirection: "row", alignItems: "center", gap: 2 },
-  rowName: { fontFamily: Fonts.bold, fontSize: sf(15), color: "#0B1220" },
+  rowName: { fontFamily: Fonts.semiBold, fontSize: sf(15), color: "#0B1220" },
   rowMeta: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(12), color: "#9CA3AF" },
   distance: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#6B7280" },
   emptyCard: {
@@ -677,11 +853,96 @@ const styles = StyleSheet.create({
   },
   empty: { marginTop: 8, fontFamily: Fonts.regular, fontSize: sf(13), color: T.gray, textAlign: "center" },
   error: { color: "#B91C1C", fontFamily: Fonts.medium, marginBottom: 8 },
+  essentialsEmptyCard: {
+    alignItems: "center",
+    paddingHorizontal: sw(20),
+    paddingVertical: sw(28),
+    marginBottom: sw(8),
+    borderRadius: sw(16),
+    backgroundColor: T.white,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#E8ECF0",
+  },
+  essentialsEmptyIcon: {
+    width: sw(56),
+    height: sw(56),
+    borderRadius: sw(16),
+    backgroundColor: T.mint,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: sw(14),
+  },
+  essentialsEmptyTitle: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(17),
+    color: "#0B1220",
+    textAlign: "center",
+  },
+  essentialsEmptyBody: {
+    marginTop: sw(8),
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    lineHeight: sf(20),
+    color: "#6B7280",
+    textAlign: "center",
+  },
+  essentialsEmptyBtn: {
+    marginTop: sw(18),
+    minHeight: sw(42),
+    paddingHorizontal: sw(20),
+    borderRadius: 999,
+    backgroundColor: T.deepTeal,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  essentialsEmptyBtnText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(14),
+    color: T.white,
+  },
   loadingMore: { marginTop: sw(16), flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   loadingMoreText: { fontFamily: Fonts.medium, fontSize: sf(13), color: T.gray },
-  essential: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: T.white, borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 12, marginBottom: 10 },
-  essentialIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: T.mint, alignItems: "center", justifyContent: "center" },
-  essentialPlace: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(12), color: "#334155" },
-  suggestion: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: T.border },
+  resourcesHeader: { marginTop: sw(4), marginBottom: sw(12) },
+  resourcesTitle: { fontFamily: Fonts.semiBold, fontSize: sf(18), color: "#0B1220", letterSpacing: -0.2 },
+  resourcesSub: { marginTop: 4, fontFamily: Fonts.regular, fontSize: sf(13), color: "#9CA3AF", lineHeight: sf(18) },
+  resourcesList: {
+    backgroundColor: T.white,
+    borderRadius: sw(16),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#E8ECF0",
+    overflow: "hidden",
+    marginBottom: sw(8),
+  },
+  resourceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(12),
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(14),
+    backgroundColor: T.white,
+  },
+  resourceRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EEF1F4" },
+  resourceIcon: {
+    width: sw(44),
+    height: sw(44),
+    borderRadius: sw(12),
+    backgroundColor: T.mint,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resourceName: { fontFamily: Fonts.semiBold, fontSize: sf(15), color: "#0B1220" },
+  resourceMeta: { marginTop: 3, fontFamily: Fonts.regular, fontSize: sf(12), color: "#9CA3AF", lineHeight: sf(16) },
+  resourceEnd: { flexDirection: "row", alignItems: "center", gap: 2 },
+  resourceCount: { fontFamily: Fonts.medium, fontSize: sf(14), color: "#6B7280", minWidth: sw(16), textAlign: "right" },
+  suggestionsHead: { marginTop: sw(22), marginBottom: sw(10) },
+  viewAllLink: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: T.deepTeal },
+  suggestionsNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: sw(12),
+    paddingHorizontal: 2,
+  },
+  suggestionsNoteText: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(12), color: "#94A3B8", lineHeight: sf(17) },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 });

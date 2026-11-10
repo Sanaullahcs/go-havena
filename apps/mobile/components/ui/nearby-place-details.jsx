@@ -17,7 +17,12 @@ import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { formatKmLabel } from "../../constants/location-radius";
 import { useAppDialog } from "../../providers/app-dialog-provider";
-import { callPlace, openPlaceDirections, telUrl } from "../../utils/open-place-actions";
+import {
+  callPlace,
+  mapsViewUrl,
+  openPlaceDirections,
+  telUrl,
+} from "../../utils/open-place-actions";
 import { sf, sw } from "../../utils/responsive";
 import PlaceCategoryIcon from "./place-category-icon";
 
@@ -103,17 +108,13 @@ export default function NearbyPlaceDetails({ place }) {
   };
 
   const onViewMap = async () => {
-    const lat = Number(located?.latitude);
-    const lng = Number(located?.longitude);
-    const query = Number.isFinite(lat) && Number.isFinite(lng)
-      ? `${lat},${lng}`
-      : [located?.name, located?.address].filter(Boolean).join(", ");
-    if (!query) {
+    const url = mapsViewUrl(located);
+    if (!url) {
       await showError(t("topBar.unableToOpenMaps"), t("topBar.noMapLocation"));
       return;
     }
     try {
-      await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`);
+      await Linking.openURL(url);
     } catch {
       await showError(t("topBar.unableToOpenMaps"), t("topBar.noMapLocation"));
     }

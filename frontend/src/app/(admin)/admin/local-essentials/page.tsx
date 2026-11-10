@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { CheckCircle2, Clock3, Layers, MapPin, Phone, Plus, X } from "lucide-react";
+import { CheckCircle2, Clock3, Filter, Layers, MapPin, Phone, Plus, X } from "lucide-react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { CommunityAddressPicker, type CommunityAddressValue } from "@/components/admin/community-address-picker";
@@ -83,6 +83,7 @@ export default function LocalEssentialsPage() {
   const [formKey, setFormKey] = useState(0);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ListFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [, startTransition] = useTransition();
 
@@ -135,11 +136,43 @@ export default function LocalEssentialsPage() {
     return keys.size;
   }, [entries, suggestions]);
 
+  const categoryRowCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    rows.forEach((row) => {
+      const sectionKey = row.kind === "entry" ? row.entry.section : suggestionSection(row.suggestion);
+      if (!sectionKey) return;
+      counts.set(sectionKey, (counts.get(sectionKey) ?? 0) + 1);
+    });
+    return counts;
+  }, [rows]);
+
+  const categoryFilterOptions = useMemo(() => {
+    const keys = [...categoryRowCounts.keys()].sort((a, b) =>
+      sectionLabel(a, categories).localeCompare(sectionLabel(b, categories)),
+    );
+    return [
+      {
+        value: "all",
+        label: "All categories",
+        description: `${rows.length} listing${rows.length === 1 ? "" : "s"}`,
+      },
+      ...keys.map((value) => ({
+        value,
+        label: sectionLabel(value, categories),
+        description: `${categoryRowCounts.get(value) ?? 0} listing${categoryRowCounts.get(value) === 1 ? "" : "s"}`,
+      })),
+    ];
+  }, [categoryRowCounts, categories, rows.length]);
+
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return rows.filter((row) => {
       if (filter === "published" && row.kind !== "entry") return false;
       if (filter === "pending" && row.kind !== "suggestion") return false;
+      if (categoryFilter !== "all") {
+        const sectionKey = row.kind === "entry" ? row.entry.section : suggestionSection(row.suggestion);
+        if (sectionKey !== categoryFilter) return false;
+      }
       if (!query) return true;
       const titleText = row.kind === "entry" ? row.entry.title : (row.suggestion.name || "");
       const sectionKey = row.kind === "entry" ? row.entry.section : suggestionSection(row.suggestion);
@@ -154,7 +187,17 @@ export default function LocalEssentialsPage() {
         .toLowerCase()
         .includes(query);
     });
-  }, [rows, filter, search, categories]);
+  }, [rows, filter, categoryFilter, search, categories]);
+
+  const emptyMessage = useMemo(() => {
+    if (categoryFilter !== "all") {
+      const label = sectionLabel(categoryFilter, categories);
+      return `No listings in ${label}. Try another category or clear the filter.`;
+    }
+    if (filter === "pending") return "No submissions waiting for review.";
+    if (filter === "published") return "No published local essentials yet.";
+    return "No local essentials yet. Add one for residents.";
+  }, [categoryFilter, categories, filter]);
 
   const lastPage = Math.max(1, Math.ceil(filtered.length / ADMIN_TABLE_PAGE_SIZE));
   const safePage = Math.min(page, lastPage);
@@ -319,13 +362,45 @@ export default function LocalEssentialsPage() {
         ]}
         activeFilter={filter}
         onFilter={(key) => startTransition(() => { setFilter(key); setPage(1); })}
-        empty={
-          filter === "pending"
-            ? "No submissions waiting for review."
-            : filter === "published"
-              ? "No published local essentials yet."
-              : "No local essentials yet. Add one for residents."
-        }
+        toolbar={(
+          <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+            <span
+              className="hidden h-8 w-px shrink-0 bg-slate-200 sm:block"
+              aria-hidden
+            />
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-initial">
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500">
+                <Filter className="h-4 w-4" aria-hidden />
+              </span>
+              <SearchableSelect
+                combobox
+                className="nl-picker-compact min-w-0 flex-1 sm:w-[11.5rem] sm:flex-none"
+                value={categoryFilter}
+                onChange={(value) => startTransition(() => {
+                  setCategoryFilter(value || "all");
+                  setPage(1);
+                })}
+                options={categoryFilterOptions}
+                placeholder="All categories"
+                searchPlaceholder="Search categories…"
+                emptyMessage="No categories match."
+              />
+            </div>
+            {categoryFilter !== "all" ? (
+              <button
+                type="button"
+                className="h-8 shrink-0 rounded-lg px-2.5 text-[12px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                onClick={() => startTransition(() => {
+                  setCategoryFilter("all");
+                  setPage(1);
+                })}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+        )}
+        empty={emptyMessage}
         isEmpty={filtered.length === 0}
       >
         <DtTable>
@@ -474,6 +549,7 @@ export default function LocalEssentialsPage() {
                   <CommunityAddressPicker
                     compact
                     required
+                    preserveUserAddress
                     value={address}
                     error={showAddressError ? addressError : ""}
                     onChange={(next) => {

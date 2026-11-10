@@ -10,6 +10,7 @@ use App\Models\Profile;
 use App\Models\Region;
 use App\Models\User;
 use App\Services\UnitAssignmentService;
+use App\Support\DemoEssentialEntries;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -82,6 +83,8 @@ class TgiCommunitySeeder extends Seeder
         $admin = $this->seedCommunityAdmin($region, $community);
         $this->seedResidents($region, $community);
         $this->seedInviteCode($community, $admin);
+        DemoEssentialEntries::syncForCommunity((int) $community->id, (int) $admin->id);
+        $this->command?->info('  Local essentials: 2 services per category (health, burial, parking, clubs, food)');
 
         $this->command?->info('');
         $this->command?->info('TGI community ready (OTP 123456 in local env):');

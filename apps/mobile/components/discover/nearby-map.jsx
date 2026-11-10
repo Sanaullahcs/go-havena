@@ -36,11 +36,20 @@ function mapDocument(latitude, longitude, places) {
 <script>
   const data = ${payload};
   const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([data.lat, data.lng], 13);
-  L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+  const tiles = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
     maxZoom: 19,
     subdomains: 'abc',
     attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
+  });
+  tiles.addTo(map);
+  tiles.on('tileerror', () => {
+    if (map._fallbackTileLayer) return;
+    map.removeLayer(tiles);
+    map._fallbackTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+  });
   const pin = (home) => L.divIcon({
     className: '',
     html: '<div class="pin' + (home ? ' home' : '') + '"></div>',
@@ -57,23 +66,37 @@ function mapDocument(latitude, longitude, places) {
 }
 
 export default function NearbyMap({ latitude, longitude, places, height }) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  const markerCount = (places || []).filter(
+    (place) => Number.isFinite(Number(place.latitude)) && Number.isFinite(Number(place.longitude)),
+  ).length;
+
   const html = useMemo(
-    () => mapDocument(latitude, longitude, places),
-    [latitude, longitude, places],
+    () => mapDocument(lat, lng, places),
+    [lat, lng, places, markerCount],
   );
 
-  if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return null;
   }
+
+  const mapKey = `${lat.toFixed(5)}:${lng.toFixed(5)}:${markerCount}`;
 
   return (
     <View style={[styles.frame, height ? { height } : null]}>
       <WebView
+        key={mapKey}
         originWhitelist={["*"]}
         source={{ html }}
         style={styles.web}
         scrollEnabled={false}
         setSupportMultipleWindows={false}
+        javaScriptEnabled
+        domStorageEnabled
+        mixedContentMode="always"
+        cacheEnabled={false}
+        androidLayerType="hardware"
       />
     </View>
   );

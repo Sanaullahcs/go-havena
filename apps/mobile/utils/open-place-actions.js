@@ -21,31 +21,123 @@ export async function callPlace(phone) {
   await Linking.openURL(url);
 }
 
-function mapsQuery({ name, address, communityName, latitude, longitude }) {
-  const labeled = [name, address || communityName].filter(Boolean).join(", ");
-  if (labeled) return labeled;
-  if (Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))) {
-    return `${Number(latitude)},${Number(longitude)}`;
+export function isPinnedCommunityPlace(place) {
+  if (!place) return false;
+  return (
+    place.source === "community"
+    || place.isCommunityEssential
+    || String(place.id || "").startsWith("essential-")
+  );
+}
+
+export function normalizePlaceLocation(place) {
+  if (!place || typeof place !== "object") {
+    return { name: "", address: "", communityName: "", latitude: null, longitude: null };
   }
-  return "";
+  const address = String(
+    place.address ?? place.formatted_address ?? place.formattedAddress ?? "",
+  ).trim();
+  const name = String(place.name ?? place.title ?? "").trim();
+  const communityName = String(place.communityName ?? place.community_name ?? "").trim();
+  const latitude = Number(place.latitude ?? place.lat);
+  const longitude = Number(place.longitude ?? place.lng);
+
+  return {
+    name,
+    address,
+    communityName,
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+  };
+}
+
+function formatCoordPair(latitude, longitude) {
+  return `${latitude},${longitude}`;
+}
+
+/**
+ * Maps navigation target — saved pin coordinates when present (Local Essentials).
+ * Address text is for display in-app only; routing uses lat/lng.
+ */
+export function mapsDestinationQuery(place) {
+  const { address, name, communityName, latitude, longitude } = normalizePlaceLocation(place);
+  if (latitude != null && longitude != null) {
+    return formatCoordPair(latitude, longitude);
+  }
+  if (isPinnedCommunityPlace(place)) return "";
+  if (address) return address;
+  const labeled = [name, communityName].filter(Boolean).join(", ");
+  return labeled.trim();
+}
+
+function directionsUrls(place) {
+  const { latitude, longitude, address, name, communityName } = normalizePlaceLocation(place);
+  const pinned = isPinnedCommunityPlace(place);
+
+  if (latitude != null && longitude != null) {
+    const pair = formatCoordPair(latitude, longitude);
+    if (Platform.OS === "android") {
+      return [
+        `google.navigation:q=${pair}`,
+        `https://www.google.com/maps/dir/?api=1&destination=${pair}&travelmode=driving`,
+        `geo:${latitude},${longitude}?q=${pair}`,
+      ];
+    }
+    if (Platform.OS === "ios") {
+      return [`http://maps.apple.com/?daddr=${pair}&dirflg=d`];
+    }
+    return [`https://www.google.com/maps/dir/?api=1&destination=${pair}&travelmode=driving`];
+  }
+
+  if (pinned) return [];
+
+  const text = address || [name, communityName].filter(Boolean).join(", ").trim();
+  if (!text) return [];
+
+  const encoded = encodeURIComponent(text);
+  if (Platform.OS === "ios") {
+    return [`http://maps.apple.com/?daddr=${encoded}&dirflg=d`];
+  }
+  return [
+    `https://www.google.com/maps/dir/?api=1&destination=${encoded}&travelmode=driving`,
+    `geo:0,0?q=${encoded}`,
+  ];
 }
 
 export function mapsDirectionsUrl(place) {
-  const query = mapsQuery(place);
-  if (!query) return null;
-  const encoded = encodeURIComponent(query);
-  if (Platform.OS === "ios") {
-    return `http://maps.apple.com/?daddr=${encoded}&dirflg=d`;
+  const urls = directionsUrls(place);
+  return urls[0] ?? null;
+}
+
+async function tryOpenUrl(url) {
+  try {
+    await Linking.openURL(url);
+    return true;
+  } catch {
+    return false;
   }
-  return `https://www.google.com/maps/dir/?api=1&destination=${encoded}`;
 }
 
 export async function openPlaceDirections(place) {
-  const url = mapsDirectionsUrl(place);
-  if (!url) {
+  const urls = directionsUrls(place);
+  if (!urls.length) {
     const error = new Error("no-location");
     error.code = "no-location";
     throw error;
   }
-  await Linking.openURL(url);
+
+  for (const url of urls) {
+    if (await tryOpenUrl(url)) return;
+  }
+
+  const error = new Error("no-location");
+  error.code = "no-location";
+  throw error;
+}
+
+export function mapsViewUrl(place) {
+  const query = mapsDestinationQuery(place);
+  if (!query) return null;
+  const encoded = encodeURIComponent(query);
+  return `https://www.google.com/maps/search/?api=1&query=${encoded}`;
 }

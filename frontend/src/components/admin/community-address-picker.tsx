@@ -44,6 +44,8 @@ type Props = {
   id?: string;
   /** Shorter field for dialogs: icon, suggestion menu, and a smaller map. */
   compact?: boolean;
+  /** Local essentials: keep the typed address; suggestions only set the map pin. */
+  preserveUserAddress?: boolean;
 };
 
 function formatCoord(value: number) {
@@ -60,6 +62,7 @@ export function CommunityAddressPicker({
   inputClassName,
   id,
   compact = false,
+  preserveUserAddress = false,
 }: Props) {
   const listId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -85,7 +88,9 @@ export function CommunityAddressPicker({
     popoverRef,
     align: "left",
     constrainToViewport: true,
+    preferBelow: true,
     maxHeight: 224,
+    zIndex: compact ? 10000 : 400,
   });
 
   useEffect(() => {
@@ -93,16 +98,17 @@ export function CommunityAddressPicker({
   }, []);
 
   useEffect(() => {
-    if (value.address === queryRef.current) return;
+    if (typingRef.current) return;
+    const next = value.address ?? "";
+    if (next === queryRef.current) return;
     skipSuggest.current = true;
-    typingRef.current = false;
-    setQuery(value.address);
+    setQuery(next);
     setOpen(false);
     setSuggestions([]);
-  }, [value.address]);
+  }, [value.address, value.latitude, value.longitude]);
 
   useEffect(() => {
-    if (skipSuggest.current || !typingRef.current) {
+    if (skipSuggest.current) {
       skipSuggest.current = false;
       return;
     }
@@ -111,11 +117,11 @@ export function CommunityAddressPicker({
     if (term.length < 3) {
       setSuggestions([]);
       setOpen(false);
+      setLoading(false);
       return;
     }
 
     const handle = window.setTimeout(() => {
-      setSuggestions([]);
       setLoading(true);
       setOpen(true);
       setActiveIndex(0);
@@ -123,11 +129,11 @@ export function CommunityAddressPicker({
         .then((rows) => {
           setSuggestions(rows);
           setActiveIndex(0);
-          setOpen(rows.length > 0);
+          setOpen(true);
         })
         .catch(() => {
           setSuggestions([]);
-          setOpen(false);
+          setOpen(true);
         })
         .finally(() => setLoading(false));
     }, 300);
@@ -168,6 +174,11 @@ export function CommunityAddressPicker({
       latitude,
       longitude,
     });
+
+    if (preserveUserAddress) {
+      cancelReverse();
+      return;
+    }
 
     const seq = ++reverseSeq.current;
     setResolvingAddress(true);
@@ -222,15 +233,16 @@ export function CommunityAddressPicker({
     typingRef.current = false;
     setOpen(false);
     setSuggestions([]);
-    setQuery(row.address);
+    const storedAddress = (row.address || row.label || "").trim();
+    setQuery(storedAddress);
     onChange({
-      address: row.address,
+      address: storedAddress,
       latitude: row.latitude,
       longitude: row.longitude,
     });
   };
 
-  const showMenu = open && mounted && (suggestions.length > 0 || loading);
+  const showMenu = open && mounted && (loading || suggestions.length > 0 || query.trim().length >= 3);
 
   return (
     <div ref={rootRef} className="relative space-y-2">
@@ -268,9 +280,13 @@ export function CommunityAddressPicker({
             });
           }}
           onFocus={() => {
-            if (suggestions.length > 0) setOpen(true);
+            typingRef.current = true;
+            if (suggestions.length > 0 || query.trim().length >= 3) setOpen(true);
           }}
-          onBlur={onBlur}
+          onBlur={() => {
+            typingRef.current = false;
+            onBlur?.();
+          }}
         />
         {loading ? (
           <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" aria-hidden />
@@ -283,16 +299,21 @@ export function CommunityAddressPicker({
               ref={popoverRef}
               id={listId}
               role="listbox"
-              style={popoverStyle}
-              className={[
-                "nl-themed-popover overflow-y-auto overscroll-contain p-1.5 [scrollbar-width:thin]",
-                popoverReady ? "opacity-100" : "opacity-0",
-              ].join(" ")}
+              className="nl-themed-popover overflow-y-auto overscroll-contain p-1.5 [scrollbar-width:thin]"
+              style={{
+                ...popoverStyle,
+                visibility: popoverReady ? "visible" : "hidden",
+                pointerEvents: popoverReady ? "auto" : "none",
+              }}
             >
               {loading && suggestions.length === 0 ? (
                 <li className="flex items-center gap-2 px-2.5 py-2.5 text-[13px] text-slate-500">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                   Searching addresses…
+                </li>
+              ) : suggestions.length === 0 ? (
+                <li className="px-2.5 py-2.5 text-[13px] text-slate-500">
+                  No matching addresses. Try a nearby street or landmark.
                 </li>
               ) : suggestions.map((row, index) => {
                 const title = row.label || row.address;
@@ -351,7 +372,9 @@ export function CommunityAddressPicker({
       ) : compact ? (
         error ? null : (
           <p className="text-[12px] leading-5 text-slate-400">
-            Search, then choose a suggestion. Distance is measured from the community.
+            {preserveUserAddress
+              ? "Enter the address residents should see, pick a suggestion to set the map pin, then drag the pin if needed."
+              : "Search, then choose a suggestion. Distance is measured from the community."}
           </p>
         )
       ) : (
