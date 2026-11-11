@@ -749,6 +749,16 @@ export default function CompleteProfile() {
     multiUnitFieldErrors,
   ]);
 
+  const visibleUnitErrors = useMemo(() => {
+    if (!useMultiUnitOnboarding) return {};
+    const next = {};
+    for (const key of Object.keys(multiUnitFieldErrors)) {
+      const message = showError(key, liveErrors);
+      if (message) next[key] = message;
+    }
+    return next;
+  }, [useMultiUnitOnboarding, multiUnitFieldErrors, liveErrors, showError]);
+
   const isValid = useMemo(() => {
     if (hasFieldErrors(liveErrors)) return false;
     if (
@@ -1396,6 +1406,12 @@ export default function CompleteProfile() {
                   clearError("unitNumber");
                   clearError("residenceType");
                   clearError("utilityFile");
+                  next.forEach((entry, index) => {
+                    const prefix = `unit_${index}`;
+                    if (String(entry.unit_number ?? "").trim()) clearError(`${prefix}_number`);
+                    if (entry.residence_type) clearError(`${prefix}_residence`);
+                    if (entry.utilityFile?.uri) clearError(`${prefix}_utility`);
+                  });
                 }}
                 canAdd
                 canRemove
@@ -1405,7 +1421,8 @@ export default function CompleteProfile() {
                     : t("onboarding.yourUnitsHint")
                 }
                 unitMax={unitMax}
-                errors={liveErrors}
+                errors={visibleUnitErrors}
+                onTouchField={touch}
                 dialog={dialog}
                 loadUnits={
                   resolvedCommunityId

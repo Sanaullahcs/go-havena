@@ -544,7 +544,9 @@ Route::prefix('v1')->group(function () {
 
                 Route::get('/posts',                    [FeedController::class, 'adminIndex']);
                 Route::get('/posts/{id}',                [FeedController::class, 'adminShow']);
+                Route::get('/posts/{id}/poll-voters',    [FeedController::class, 'adminPollVoters']);
                 Route::post('/posts/{id}/report',        [FeedController::class, 'adminReportPost']);
+                Route::post('/posts/{id}/release-sensitive', [FeedController::class, 'adminReleaseSensitivePost']);
                 Route::get('/posts/{id}/reports',        [FeedController::class, 'adminPostReports']);
                 Route::post('/posts/{id}/reports/{reportId}/dismiss', [FeedController::class, 'adminDismissPostReport'])->whereNumber('reportId');
                 Route::delete('/posts/{id}',             [FeedController::class, 'adminDestroy']);

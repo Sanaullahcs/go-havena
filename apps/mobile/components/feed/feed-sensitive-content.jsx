@@ -1,45 +1,29 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { sw, sf } from "../../utils/responsive";
 
 /**
- * Sensitive content warning for feed posts.
- * Use compact on constrained home cards so the message fits without overflow.
- * Revealing the post is local to this visit and starts hidden again next time.
+ * Sensitive moderation notice for feed posts and polls.
+ * Residents see only this block — not the underlying content — until an admin releases it.
  */
 export default function FeedSensitiveContent({
+  label,
   message,
+  reason,
   compact = false,
-  revealed = false,
-  onToggle,
   style,
 }) {
   const { t } = useTranslation();
 
+  const heading =
+    label ||
+    (compact ? t("feed.sensitiveContent.title") : `⚠️ ${t("feed.sensitiveContent.title")}`);
   const copy = compact
-    ? t("feed.sensitiveContent.compactMessage")
+    ? message || t("feed.sensitiveContent.compactMessage")
     : message || t("feed.sensitiveContent.defaultMessage");
-  const actionLabel = revealed
-    ? t("feed.sensitiveContent.hidePost")
-    : t("feed.sensitiveContent.showPost");
-
-  const toggle = (
-    <Pressable
-      onPress={onToggle}
-      disabled={!onToggle}
-      hitSlop={8}
-      accessibilityRole="button"
-      style={({ pressed }) => [
-        compact ? styles.compactAction : styles.action,
-        pressed && onToggle && styles.actionPressed,
-      ]}
-    >
-      <Text style={compact ? styles.compactActionText : styles.actionText}>{actionLabel}</Text>
-    </Pressable>
-  );
 
   if (compact) {
     return (
@@ -48,13 +32,17 @@ export default function FeedSensitiveContent({
           <Feather name="alert-triangle" size={sf(12)} color="#B45309" />
         </View>
         <View style={styles.compactCopy}>
-          <Text style={styles.compactTitle} numberOfLines={1}>
-            {t("feed.sensitiveContent.title")}
+          <Text style={styles.compactTitle} numberOfLines={2}>
+            {label || t("feed.sensitiveContent.title")}
           </Text>
-          <Text style={styles.compactMessage} numberOfLines={2}>
+          <Text style={styles.compactMessage} numberOfLines={3}>
             {copy}
           </Text>
-          {toggle}
+          {reason ? (
+            <Text style={styles.compactReason} numberOfLines={2}>
+              {t("feed.sensitiveContent.reasonPrefix", { reason })}
+            </Text>
+          ) : null}
         </View>
       </View>
     );
@@ -62,9 +50,11 @@ export default function FeedSensitiveContent({
 
   return (
     <View style={[styles.wrap, style]}>
-      <Text style={styles.title}>⚠️ {t("feed.sensitiveContent.title")}</Text>
+      <Text style={styles.title}>{heading.startsWith("⚠️") ? heading : `⚠️ ${heading}`}</Text>
       <Text style={styles.message}>{copy}</Text>
-      {toggle}
+      {reason ? (
+        <Text style={styles.reason}>{t("feed.sensitiveContent.reasonPrefix", { reason })}</Text>
+      ) : null}
     </View>
   );
 }
@@ -151,6 +141,20 @@ const styles = StyleSheet.create({
     fontSize: sf(10),
     lineHeight: sf(13),
     color: "#B45309",
+  },
+  compactReason: {
+    marginTop: sw(4),
+    fontFamily: Fonts.regular,
+    fontSize: sf(10),
+    lineHeight: sf(13),
+    color: "#92400E",
+  },
+  reason: {
+    marginTop: sw(6),
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(17),
+    color: "#92400E",
   },
   compactAction: {
     alignSelf: "flex-start",

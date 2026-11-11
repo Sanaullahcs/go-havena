@@ -69,7 +69,6 @@ class FeedController extends Controller
 
         $query = $this->basePostQuery($communityId);
         $this->excludeBlockedAuthors($query, (int) $user->id, 'posts.user_id');
-        $this->excludePostsReportedByViewer($query, (int) $user->id);
         $query
             ->where(function ($w) use ($user) {
                 $w->where('posts.status', 'approved')
@@ -136,8 +135,10 @@ class FeedController extends Controller
             'poll'       => 'required_if:category,poll|array',
             'poll.question' => 'required_if:category,poll|string|max:200',
             'poll.description' => 'nullable|string|max:500',
-            'poll.duration_days' => 'required_if:category,poll|integer|in:1,3,7',
-            'poll.options' => 'required_if:category,poll|array|min:2|max:4',
+            'poll.duration_days' => 'nullable|integer|min:1|max:30',
+            'poll.duration_hours' => 'nullable|integer|min:1|max:720',
+            'poll.voting_method' => 'nullable|in:single,multiple',
+            'poll.options' => 'required_if:category,poll|array|min:2|max:20',
             'poll.options.*' => 'required|string|max:80',
         ], [
             'poll.description.max' => 'Short description must be 500 characters or fewer.',
@@ -164,7 +165,15 @@ class FeedController extends Controller
             ? trim((string) $request->input('poll.question'))
             : ($request->input('body') ?? $request->input('content'));
 
-        $id = DB::transaction(function () use ($request, $user, $communityId, $body, $isPoll, $pollOptions) {
+        $pollDuration = null;
+        if ($isPoll) {
+            $pollDuration = \App\Support\PollDuration::resolve(
+                $request->input('poll.duration_hours'),
+                $request->input('poll.duration_days'),
+            );
+        }
+
+        $id = DB::transaction(function () use ($request, $user, $communityId, $body, $isPoll, $pollOptions, $pollDuration) {
             $id = DB::table('posts')->insertGetId([
                 'community_id'   => $communityId,
                 'user_id'        => $user->id,
@@ -183,14 +192,16 @@ class FeedController extends Controller
             ]);
 
             if ($isPoll) {
-                $duration = (int) $request->input('poll.duration_days');
                 $description = trim((string) $request->input('poll.description', ''));
+                $votingMethod = $request->input('poll.voting_method') === 'multiple' ? 'multiple' : 'single';
                 $pollId = DB::table('polls')->insertGetId([
                     'post_id'        => $id,
                     'question'       => $body,
                     'description'    => $description !== '' ? $description : null,
-                    'duration_days'  => $duration,
-                    'ends_at'        => now()->addDays($duration),
+                    'duration_days'  => $pollDuration['duration_days'],
+                    'duration_hours' => $pollDuration['duration_hours'],
+                    'voting_method'  => $votingMethod,
+                    'ends_at'        => $pollDuration['ends_at'],
                     'created_at'     => now(),
                     'updated_at'     => now(),
                 ]);
@@ -280,6 +291,12 @@ class FeedController extends Controller
             return response()->json(['message' => 'Poll not found'], 404);
         }
 
+        if ((bool) ($post->is_sensitive ?? false)) {
+            return response()->json([
+                'message' => 'This poll is paused while it is marked sensitive. A community admin must release it before residents can vote.',
+            ], 422);
+        }
+
         $poll = DB::table('polls')->where('post_id', $post->id)->first();
         if (! $poll) {
             return response()->json(['message' => 'Poll not found'], 404);
@@ -298,26 +315,51 @@ class FeedController extends Controller
             return response()->json(['message' => 'That option is not part of this poll.'], 422);
         }
 
-        $replaced = false;
-        DB::transaction(function () use ($poll, $option, $user, &$replaced) {
+        $message = 'Vote recorded.';
+        $votingMethod = ($poll->voting_method ?? 'single') === 'multiple' ? 'multiple' : 'single';
+
+        DB::transaction(function () use ($poll, $option, $user, $votingMethod, &$message) {
+            if ($votingMethod === 'multiple') {
+                $existing = DB::table('poll_votes')
+                    ->where('poll_id', $poll->id)
+                    ->where('user_id', $user->id)
+                    ->where('option_id', $option->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($existing) {
+                    DB::table('poll_votes')->where('id', $existing->id)->delete();
+                    $message = 'Vote removed.';
+
+                    return;
+                }
+
+                DB::table('poll_votes')->insert([
+                    'poll_id'    => $poll->id,
+                    'option_id'  => $option->id,
+                    'user_id'    => $user->id,
+                    'created_at' => now(),
+                ]);
+
+                return;
+            }
+
             $existing = DB::table('poll_votes')
                 ->where('poll_id', $poll->id)
                 ->where('user_id', $user->id)
                 ->lockForUpdate()
                 ->first();
 
-            if ($existing) {
-                if ((int) $existing->option_id === (int) $option->id) {
-                    return;
-                }
-
-                DB::table('poll_votes')->where('id', $existing->id)->update([
-                    'option_id' => $option->id,
-                ]);
-                $replaced = true;
+            if ($existing && (int) $existing->option_id === (int) $option->id) {
+                $message = 'Vote recorded.';
 
                 return;
             }
+
+            DB::table('poll_votes')
+                ->where('poll_id', $poll->id)
+                ->where('user_id', $user->id)
+                ->delete();
 
             try {
                 DB::table('poll_votes')->insert([
@@ -326,12 +368,20 @@ class FeedController extends Controller
                     'user_id'    => $user->id,
                     'created_at' => now(),
                 ]);
+                $message = $existing ? 'Vote updated.' : 'Vote recorded.';
             } catch (UniqueConstraintViolationException) {
                 DB::table('poll_votes')
                     ->where('poll_id', $poll->id)
                     ->where('user_id', $user->id)
-                    ->update(['option_id' => $option->id]);
-                $replaced = true;
+                    ->where('option_id', $option->id)
+                    ->delete();
+                DB::table('poll_votes')->insert([
+                    'poll_id'    => $poll->id,
+                    'option_id'  => $option->id,
+                    'user_id'    => $user->id,
+                    'created_at' => now(),
+                ]);
+                $message = 'Vote updated.';
             }
         });
 
@@ -340,7 +390,7 @@ class FeedController extends Controller
 
         return response()->json([
             'data'    => $this->formatPost($fresh, [], $user->id),
-            'message' => $replaced ? 'Vote updated.' : 'Vote recorded.',
+            'message' => $message,
         ]);
     }
 
@@ -466,6 +516,7 @@ class FeedController extends Controller
                 'users.role as author_role',
                 'profiles.avatar_url as author_avatar',
                 'profiles.unit_number as author_unit',
+                ...$this->postReportSelectExpressions(),
             )
             ->where('posts.id', $id)
             ->whereNull('posts.deleted_at');
@@ -475,7 +526,6 @@ class FeedController extends Controller
         }
 
         $this->excludeBlockedAuthors($query, (int) $user->id, 'posts.user_id');
-        $this->excludePostsReportedByViewer($query, (int) $user->id);
 
         $query->where(function ($w) use ($user) {
             $w->where('posts.status', 'approved')
@@ -497,7 +547,7 @@ class FeedController extends Controller
             ->pluck('post_id')
             ->all();
 
-        [$post] = $this->hydratePolls($this->hydrateEngagementCounts([$post]), (int) $user->id);
+        [$post] = $this->hydratePolls($this->hydrateEngagementCounts([$post]), (int) $user->id, true);
 
         return response()->json([
             'data' => $this->formatPost($post, $likedPostIds, $user->id),
@@ -559,16 +609,18 @@ class FeedController extends Controller
         }
 
         $userId = (int) auth()->id();
+        $contentTitle = PostReportModeration::contentTitle($post);
+        $contentKind = PostReportModeration::contentKind($post);
         if ((int) $post->user_id === $userId) {
-            return response()->json(['message' => 'You cannot report your own post'], 422);
+            return response()->json(['message' => "You cannot report your own {$contentKind}"], 422);
         }
 
         if (! UserBlockService::canReportContentAuthor((int) $post->user_id, (int) $post->community_id)) {
-            return response()->json(['message' => 'You cannot report posts from community admins.'], 422);
+            return response()->json(['message' => 'You cannot report posts or polls from community admins.'], 422);
         }
 
         if ((bool) ($post->is_sensitive ?? false)) {
-            return response()->json(['message' => 'This post is already marked as sensitive content'], 422);
+            return response()->json(['message' => "This {$contentKind} is already marked as sensitive content"], 422);
         }
 
         $alreadyReported = DB::table('post_reports')
@@ -581,7 +633,7 @@ class FeedController extends Controller
         $alreadyReported = $alreadyReported->exists();
 
         if ($alreadyReported) {
-            return response()->json(['message' => 'You have already reported this post'], 422);
+            return response()->json(['message' => "You have already reported this {$contentKind}"], 422);
         }
 
         [$type, $reason] = ReportTypes::resolvePayload($request);
@@ -608,8 +660,8 @@ class FeedController extends Controller
 
         ActivityLogService::user(
             'post_reported_by_resident',
-            'Reported community post #'.$id,
-            'Post',
+            "Reported community {$contentKind} #".$id,
+            PostReportModeration::contentTitle($post),
             $id,
             'warning',
             null,
@@ -622,24 +674,30 @@ class FeedController extends Controller
 
         PostReportModeration::notifyReviewers($post, $userId, (int) $post->user_id);
 
+        PostReportModeration::maybeMarkSensitiveFromResidentReports($id, $userId);
+
+        $isSensitive = (bool) DB::table('posts')->where('id', $id)->value('is_sensitive');
         $reportsCount = (int) DB::table('post_reports')->where('post_id', $id)->count();
-        $residentReportsCount = (int) DB::table('post_reports')
-            ->where('post_id', $id)
-            ->where('source', 'resident')
-            ->count();
+        $residentReportsCount = PostReportModeration::pendingPostReportsCount($id);
 
         return response()->json([
-            'message' => $queue === PostReportModeration::QUEUE_SYSTEM
-                ? 'Report submitted. It is pending review by a system admin.'
-                : 'Report submitted. It is pending review.',
+            'message' => $isSensitive
+                ? "This {$contentKind} has been marked as sensitive after receiving multiple community reports."
+                : ($queue === PostReportModeration::QUEUE_SYSTEM
+                    ? "{$contentTitle} report submitted. It is pending review by a system admin."
+                    : "{$contentTitle} report submitted. It is pending review."),
             'data'    => [
                 'post_id'                => $id,
-                'is_sensitive'           => false,
-                'status'                 => PostReportModeration::PENDING,
+                'is_sensitive'           => $isSensitive,
+                'status'                 => $isSensitive ? PostReportModeration::RESOLVED : PostReportModeration::PENDING,
                 'review_queue'           => $queue,
                 'reports_count'          => $reportsCount,
                 'resident_reports_count' => $residentReportsCount,
-                'report_status'          => 'reported',
+                'report_status'          => $isSensitive ? 'sensitive' : 'reported',
+                'sensitive_report_threshold' => PostReportModeration::RESIDENT_REPORTS_TO_SENSITIVE,
+                'reports_until_sensitive'  => $isSensitive
+                    ? 0
+                    : max(0, PostReportModeration::RESIDENT_REPORTS_TO_SENSITIVE - $residentReportsCount),
             ],
         ], 201);
     }
@@ -1004,13 +1062,23 @@ class FeedController extends Controller
             $query->where('posts.status', 'approved');
         }
 
+        $feedType = $this->normalizeAdminFeedType($request->input('feed_type'));
+        $this->applyAdminFeedTypeScope($query, $feedType);
+
+        if ($feedType === 'poll' && Schema::hasTable('polls')) {
+            $query->leftJoin('polls', 'polls.post_id', '=', 'posts.id');
+        }
+
         if ($request->filled('search')) {
             $term = '%'.$request->search.'%';
-            $query->where(function ($w) use ($term) {
+            $query->where(function ($w) use ($term, $feedType) {
                 $w->where('posts.body', 'like', $term)
                     ->orWhere('users.name', 'like', $term)
                     ->orWhere('profiles.display_name', 'like', $term)
                     ->orWhere('communities.name', 'like', $term);
+                if ($feedType === 'poll' && Schema::hasTable('polls')) {
+                    $w->orWhere('polls.question', 'like', $term);
+                }
             });
         }
 
@@ -1022,6 +1090,7 @@ class FeedController extends Controller
         $pageItems = $this->hydratePolls(
             $this->hydrateEngagementCounts($posts->items()),
             (int) $user->id,
+            true,
         );
 
         return response()->json([
@@ -1068,7 +1137,7 @@ class FeedController extends Controller
         $this->assertCanModeratePost($post);
 
         $userId = (int) auth()->id();
-        [$post] = $this->hydratePolls($this->hydrateEngagementCounts([$post]), $userId);
+        [$post] = $this->hydratePolls($this->hydrateEngagementCounts([$post]), $userId, true);
 
         $comments = $this->commentQuery()
             ->where('post_comments.post_id', $id)
@@ -1079,6 +1148,110 @@ class FeedController extends Controller
         return response()->json([
             'data'     => PostReportModeration::presentForAdmin($this->formatPost($post, [], $userId), $post, auth()->user()),
             'comments' => $this->formatCommentsWithDepth($comments, $userId),
+        ]);
+    }
+
+    /** GET /v1/admin/posts/{id}/poll-voters — resident-level ballot detail for community admins only */
+    public function adminPollVoters(int $id, Request $request): JsonResponse
+    {
+        $post = $this->findPostForAdmin($id);
+        if (! $post) {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
+
+        $this->assertCanModeratePost($post);
+
+        if (($post->category ?? '') !== 'poll') {
+            return response()->json(['message' => 'This post is not a poll.'], 422);
+        }
+
+        $poll = DB::table('polls')->where('post_id', $id)->first();
+        if (! $poll) {
+            return response()->json(['message' => 'Poll not found.'], 404);
+        }
+
+        $votes = DB::table('poll_votes')
+            ->join('poll_options', 'poll_options.id', '=', 'poll_votes.option_id')
+            ->join('users', 'users.id', '=', 'poll_votes.user_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'poll_votes.user_id')
+            ->where('poll_votes.poll_id', $poll->id)
+            ->orderBy('poll_votes.created_at')
+            ->select(
+                'poll_votes.user_id',
+                'poll_votes.option_id',
+                'poll_votes.created_at',
+                'poll_options.label as option_label',
+                'poll_options.position as option_position',
+                'users.role as voter_role',
+                DB::raw('COALESCE(profiles.display_name, users.name) as voter_name'),
+                'profiles.unit_number as voter_unit',
+                'profiles.avatar_url as voter_avatar',
+            )
+            ->get();
+
+        $byUser = [];
+        foreach ($votes as $vote) {
+            $userId = (int) $vote->user_id;
+            if (! isset($byUser[$userId])) {
+                $byUser[$userId] = [
+                    'user_id'           => $userId,
+                    'name'              => $vote->voter_name,
+                    'role'              => $vote->voter_role,
+                    'unit_number'       => $vote->voter_unit,
+                    'avatar_url'        => $vote->voter_avatar,
+                    'voted_at'          => $this->formatTimestamp($vote->created_at),
+                    'selected_options'  => [],
+                ];
+            }
+
+            $byUser[$userId]['selected_options'][] = [
+                'id'       => (int) $vote->option_id,
+                'label'    => $vote->option_label,
+                'position' => (int) $vote->option_position,
+            ];
+
+            $votedAt = $this->formatTimestamp($vote->created_at);
+            if ($votedAt > $byUser[$userId]['voted_at']) {
+                $byUser[$userId]['voted_at'] = $votedAt;
+            }
+        }
+
+        $voters = array_values($byUser);
+        foreach ($voters as &$voter) {
+            usort(
+                $voter['selected_options'],
+                fn (array $a, array $b) => $a['position'] <=> $b['position'],
+            );
+        }
+        unset($voter);
+
+        usort($voters, fn (array $a, array $b) => strcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? '')));
+
+        $total = count($voters);
+        $perPage = min(50, max(1, (int) $request->input('per_page', 10)));
+        $page = max(1, (int) $request->input('page', 1));
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        if ($page > $lastPage) {
+            $page = $lastPage;
+        }
+        $offset = ($page - 1) * $perPage;
+        $pagedVoters = array_slice($voters, $offset, $perPage);
+
+        return response()->json([
+            'data' => [
+                'post_id'              => $id,
+                'poll_id'              => (int) $poll->id,
+                'question'             => $poll->question,
+                'voting_method'        => $poll->voting_method ?? 'single',
+                'unique_voters_count'  => $total,
+                'voters'               => $pagedVoters,
+            ],
+            'meta' => [
+                'current_page' => $page,
+                'last_page'    => $lastPage,
+                'per_page'     => $perPage,
+                'total'        => $total,
+            ],
         ]);
     }
 
@@ -1224,7 +1397,7 @@ class FeedController extends Controller
             if ($reporterId === $actorId) {
                 continue;
             }
-            PostReportModeration::notifyReporter($reporterId, $id, (int) $post->community_id, 'removed');
+            PostReportModeration::notifyReporter($reporterId, $id, (int) $post->community_id, 'removed', $post);
         }
 
         return response()->json(['message' => 'Post deleted from the community feed']);
@@ -1233,10 +1406,7 @@ class FeedController extends Controller
     /** POST /v1/admin/posts/{id}/report — mark post sensitive and log admin report */
     public function adminReportPost(int $id, Request $request): JsonResponse
     {
-        $request->validate([
-            'reason' => 'required|string|min:8|max:500',
-            'type'   => ReportTypes::requestRules()['type'],
-        ]);
+        $request->validate(ReportTypes::requestRules(true));
 
         $post = $this->findPostForAdmin($id);
         if (! $post) {
@@ -1247,8 +1417,7 @@ class FeedController extends Controller
         $this->assertCanMarkSensitive($post);
 
         $reporterId = (int) auth()->id();
-        $reason = trim((string) $request->reason);
-        $type = $request->input('type', 'other');
+        [$type, $reason] = ReportTypes::resolvePayload($request);
         $queue = PostReportModeration::reviewQueueForUser((int) $post->user_id);
 
         $adminReport = [
@@ -1273,17 +1442,26 @@ class FeedController extends Controller
 
         DB::table('post_reports')->insert($adminReport);
 
-        DB::table('posts')->where('id', $id)->update([
+        $sensitiveUpdate = [
             'is_sensitive' => true,
             'updated_at'   => now(),
-        ]);
+        ];
+        if (Schema::hasColumn('posts', 'sensitive_source')) {
+            $sensitiveUpdate['sensitive_source'] = PostReportModeration::SENSITIVE_SOURCE_ADMIN;
+        }
+        if (Schema::hasColumn('posts', 'sensitive_reason')) {
+            $sensitiveUpdate['sensitive_reason'] = $reason;
+        }
+        DB::table('posts')->where('id', $id)->update($sensitiveUpdate);
 
         $reporterIds = PostReportModeration::resolveOpenReports($id, 'marked_sensitive', $reporterId, false);
 
+        $adminContentTitle = PostReportModeration::contentTitle($post);
+        $adminContentKind = PostReportModeration::contentKind($post);
         ActivityLogService::user(
             'post_reported',
-            'Marked community post #'.$id.' as sensitive content',
-            'Post',
+            "Marked community {$adminContentKind} #".$id.' as sensitive content',
+            $adminContentTitle,
             $id,
             'warning',
             null,
@@ -1295,7 +1473,7 @@ class FeedController extends Controller
             if ($residentReporterId === $reporterId) {
                 continue;
             }
-            PostReportModeration::notifyReporter($residentReporterId, $id, (int) $post->community_id, 'marked_sensitive');
+            PostReportModeration::notifyReporter($residentReporterId, $id, (int) $post->community_id, 'marked_sensitive', $post);
         }
 
         $reportsCount = (int) DB::table('post_reports')->where('post_id', $id)->count();
@@ -1305,13 +1483,65 @@ class FeedController extends Controller
             ->count();
 
         return response()->json([
-            'message' => 'Post marked as sensitive for resident app users.',
+            'message' => "{$adminContentTitle} marked as sensitive for resident app users.",
             'data'    => [
                 'post_id'                => $id,
                 'is_sensitive'           => true,
                 'reports_count'          => $reportsCount,
                 'resident_reports_count' => $residentReportsCount,
                 'report_status'          => 'sensitive',
+            ],
+        ]);
+    }
+
+    /** POST /v1/admin/posts/{id}/release-sensitive — allow residents to interact again (e.g. poll voting). */
+    public function adminReleaseSensitivePost(int $id): JsonResponse
+    {
+        $post = $this->findPostForAdmin($id);
+        if (! $post) {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
+
+        $this->assertCanModeratePost($post);
+
+        if (! (bool) ($post->is_sensitive ?? false)) {
+            return response()->json(['message' => 'This content is not marked as sensitive.'], 422);
+        }
+
+        $update = [
+            'is_sensitive' => false,
+            'updated_at'   => now(),
+        ];
+        if (Schema::hasColumn('posts', 'sensitive_source')) {
+            $update['sensitive_source'] = null;
+        }
+        if (Schema::hasColumn('posts', 'sensitive_reason')) {
+            $update['sensitive_reason'] = null;
+        }
+        DB::table('posts')->where('id', $id)->update($update);
+
+        $contentTitle = PostReportModeration::contentTitle($post);
+        $contentKind = PostReportModeration::contentKind($post);
+        ActivityLogService::user(
+            'post_sensitive_released',
+            "Released {$contentKind} #".$id.' from sensitive status',
+            $contentTitle,
+            $id,
+            'info',
+            null,
+            ['released_by' => (int) auth()->id()],
+        );
+
+        PostReportModeration::notifyAuthorOfModeration($post, (int) auth()->id(), 'sensitive_released');
+
+        return response()->json([
+            'message' => $contentKind === 'poll'
+                ? 'Poll released. Residents can vote again.'
+                : 'Post released. Residents see it without the sensitive warning.',
+            'data'    => [
+                'post_id'      => $id,
+                'is_sensitive' => false,
+                'report_status'=> 'published',
             ],
         ]);
     }
@@ -1469,15 +1699,19 @@ class FeedController extends Controller
             $id,
             (int) $post->community_id,
             'dismissed',
+            $post,
         );
+
+        PostReportModeration::syncResidentSensitivityState($id);
+        $freshPost = DB::table('posts')->where('id', $id)->whereNull('deleted_at')->first();
 
         return response()->json([
             'message' => 'Report dismissed. The post was not changed.',
             'data' => [
                 'report_id' => $reportId,
                 'status' => PostReportModeration::DISMISSED,
-                'post_status' => $post->status ?? 'approved',
-                'is_sensitive' => (bool) ($post->is_sensitive ?? false),
+                'post_status' => $freshPost->status ?? 'approved',
+                'is_sensitive' => (bool) ($freshPost->is_sensitive ?? false),
             ],
         ]);
     }
@@ -1500,7 +1734,10 @@ class FeedController extends Controller
             $pending = Schema::hasColumn('post_reports', 'status')
                 ? " AND (post_reports.status = 'pending_review' OR post_reports.status IS NULL)"
                 : '';
-            $expressions[] = DB::raw("(SELECT COUNT(*) FROM post_reports WHERE post_reports.post_id = posts.id AND post_reports.source = 'resident'{$pending}) as resident_reports_count");
+            $postOnly = Schema::hasColumn('post_reports', 'comment_id')
+                ? ' AND post_reports.comment_id IS NULL'
+                : '';
+            $expressions[] = DB::raw("(SELECT COUNT(*) FROM post_reports WHERE post_reports.post_id = posts.id AND post_reports.source = 'resident'{$postOnly}{$pending}) as resident_reports_count");
         } else {
             // Fallback before source column migration: treat non-sensitive report counts as resident reports.
             $expressions[] = DB::raw('(SELECT COUNT(*) FROM post_reports WHERE post_reports.post_id = posts.id) as resident_reports_count');
@@ -1511,6 +1748,7 @@ class FeedController extends Controller
 
     private function adminPostStats(?int $communityScope, Request $request): array
     {
+        $feedType = $this->normalizeAdminFeedType($request->input('feed_type'));
         $statsQuery = DB::table('posts')->whereNull('deleted_at');
 
         if ($communityScope) {
@@ -1518,6 +1756,8 @@ class FeedController extends Controller
         } elseif ($request->input('community_id') !== 'all' && $request->filled('community_id')) {
             $statsQuery->where('community_id', (int) $request->community_id);
         }
+
+        $this->applyAdminFeedTypeScopeOnPostsTable($statsQuery, $feedType);
 
         $publishedQuery = (clone $statsQuery)->where('status', 'approved');
         $published = (clone $publishedQuery)->count();
@@ -1546,6 +1786,9 @@ class FeedController extends Controller
                 if (Schema::hasColumn('post_reports', 'source')) {
                     $q->where('post_reports.source', 'resident');
                 }
+                if (Schema::hasColumn('post_reports', 'comment_id')) {
+                    $q->whereNull('post_reports.comment_id');
+                }
                 if (Schema::hasColumn('post_reports', 'status')) {
                     $q->where(function ($inner) {
                         $inner->where('post_reports.status', PostReportModeration::PENDING)
@@ -1566,7 +1809,7 @@ class FeedController extends Controller
             $reported = $reportedQuery->count();
         }
 
-        return [
+        $result = [
             'total'     => (int) $published,
             'pending'   => 0,
             'approved'  => (int) $published,
@@ -1574,6 +1817,51 @@ class FeedController extends Controller
             'sensitive' => (int) $sensitive,
             'reported'  => (int) $reported,
         ];
+
+        if ($feedType === 'poll' && Schema::hasTable('polls')) {
+            $pollBase = (clone $publishedQuery)->join('polls', 'polls.post_id', '=', 'posts.id');
+            $pollOpenQuery = (clone $pollBase)->where('polls.ends_at', '>', now());
+            if (Schema::hasColumn('posts', 'is_sensitive')) {
+                $pollOpenQuery->where(function ($q) {
+                    $q->where('posts.is_sensitive', false)->orWhereNull('posts.is_sensitive');
+                });
+            }
+            $result['poll_open'] = (int) $pollOpenQuery->count();
+            $result['poll_closed'] = (int) (clone $pollBase)->where('polls.ends_at', '<=', now())->count();
+        }
+
+        return $result;
+    }
+
+    private function normalizeAdminFeedType(?string $feedType): string
+    {
+        return $feedType === 'poll' ? 'poll' : 'posts';
+    }
+
+    /** @param \Illuminate\Database\Query\Builder $query */
+    private function applyAdminFeedTypeScope($query, string $feedType): void
+    {
+        if ($feedType === 'poll') {
+            $query->where('posts.category', 'poll');
+        } else {
+            $query->where(function ($q) {
+                $q->where('posts.category', '!=', 'poll')
+                    ->orWhereNull('posts.category');
+            });
+        }
+    }
+
+    /** @param \Illuminate\Database\Query\Builder $query */
+    private function applyAdminFeedTypeScopeOnPostsTable($query, string $feedType): void
+    {
+        if ($feedType === 'poll') {
+            $query->where('category', 'poll');
+        } else {
+            $query->where(function ($q) {
+                $q->where('category', '!=', 'poll')
+                    ->orWhereNull('category');
+            });
+        }
     }
 
     private function resolveAdminCommunityScope($user, Request $request): ?int
@@ -1704,6 +1992,7 @@ class FeedController extends Controller
                 'users.role as author_role',
                 'profiles.avatar_url as author_avatar',
                 'profiles.unit_number as author_unit',
+                ...$this->postReportSelectExpressions(),
             )
             ->where('posts.community_id', $communityId)
             ->whereNull('posts.deleted_at');
@@ -1742,11 +2031,13 @@ class FeedController extends Controller
             'category'       => $post->category,
             'status'         => $post->status ?? 'approved',
             'is_sensitive'   => $isSensitive,
-            'sensitive_message' => $isSensitive
-                ? 'This post has been reported and hidden due to community guidelines.'
-                : null,
+            ...PostReportModeration::sensitivePresentation($post),
             'reports_count'  => $reportsCount,
             'resident_reports_count' => $residentReportsCount,
+            'sensitive_report_threshold' => PostReportModeration::RESIDENT_REPORTS_TO_SENSITIVE,
+            'reports_until_sensitive' => $isSensitive
+                ? 0
+                : max(0, PostReportModeration::RESIDENT_REPORTS_TO_SENSITIVE - (int) ($residentReportsCount ?? 0)),
             'report_status'  => $reportStatus,
             'tag'            => $categoryLabels[$post->category] ?? ucfirst($post->category),
             'image_url'      => MediaUrl::toPublic($post->image_url, request()),
@@ -2025,7 +2316,7 @@ class FeedController extends Controller
             }
             $seen[$key] = true;
             $labels[] = $label;
-            if (count($labels) === 4) {
+            if (count($labels) === 20) {
                 break;
             }
         }
@@ -2037,7 +2328,7 @@ class FeedController extends Controller
      * @param  iterable<object>  $posts
      * @return list<object>
      */
-    private function hydratePolls(iterable $posts, int $userId): array
+    private function hydratePolls(iterable $posts, int $userId, bool $revealAllResults = false): array
     {
         $items = collect($posts)->filter()->values();
         if ($items->isEmpty()) {
@@ -2063,7 +2354,7 @@ class FeedController extends Controller
             ? collect()
             : DB::table('poll_votes')->whereIn('poll_id', $pollIds)->get();
         $votesByPoll = $votes->groupBy('poll_id');
-        $myVoteByPoll = $votes->where('user_id', $userId)->keyBy('poll_id');
+        $myVotesByPoll = $votes->where('user_id', $userId)->groupBy('poll_id');
 
         foreach ($items as $post) {
             if (($post->category ?? '') !== 'poll') {
@@ -2082,27 +2373,68 @@ class FeedController extends Controller
             }
             $total = array_sum($counts);
             $closed = Carbon::parse($poll->ends_at)->lte(now());
-            $myVote = $myVoteByPoll->get($poll->id);
-            $resultsVisible = $closed || $myVote !== null;
+            $sensitive = (bool) ($post->is_sensitive ?? false);
+            $myVoteRows = $myVotesByPoll->get($poll->id, collect());
+            $votingMethod = ($poll->voting_method ?? 'single') === 'multiple' ? 'multiple' : 'single';
+            $votedOptionIds = $myVoteRows->pluck('option_id')->map(fn ($id) => (int) $id)->values()->all();
+            $resultsVisible = $revealAllResults || $closed || $myVoteRows->isNotEmpty();
             $percents = $resultsVisible ? $this->votePercents($counts, $total) : [];
 
+            $winningOptionIds = [];
+            $leadingOptionIds = [];
+            $isTie = false;
+            $noParticipation = $closed && $total === 0;
+
+            if ($closed && $total > 0) {
+                $maxVotes = max($counts);
+                foreach ($pollOptions->values() as $index => $option) {
+                    if (($counts[$index] ?? 0) === $maxVotes) {
+                        $winningOptionIds[] = (int) $option->id;
+                    }
+                }
+                $isTie = count($winningOptionIds) > 1;
+            } elseif ($revealAllResults && ! $closed && $total > 0) {
+                $maxVotes = max($counts);
+                foreach ($pollOptions->values() as $index => $option) {
+                    if (($counts[$index] ?? 0) === $maxVotes) {
+                        $leadingOptionIds[] = (int) $option->id;
+                    }
+                }
+            }
+
             $post->poll_view = [
-                'question'         => $poll->question,
-                'description'      => $poll->description,
-                'duration_days'    => (int) $poll->duration_days,
-                'ends_at'          => $this->formatTimestamp($poll->ends_at),
-                'closed'           => $closed,
-                'results_visible'  => $resultsVisible,
-                'total_votes'      => $resultsVisible ? $total : null,
-                'voted_option_id'  => $myVote ? (int) $myVote->option_id : null,
-                'options'          => $pollOptions->values()->map(function ($option, $index) use ($resultsVisible, $counts, $percents) {
+                'question'             => $poll->question,
+                'description'          => $poll->description,
+                'duration_days'        => (int) $poll->duration_days,
+                'duration_hours'       => $poll->duration_hours !== null ? (int) $poll->duration_hours : null,
+                'voting_method'        => $votingMethod,
+                'started_at'           => $this->formatTimestamp($post->created_at),
+                'ends_at'              => $this->formatTimestamp($poll->ends_at),
+                'closed'               => $closed,
+                'active'               => ! $closed,
+                'results_visible'      => $resultsVisible,
+                'options_count'        => $pollOptions->count(),
+                'total_votes'          => $resultsVisible ? $total : null,
+                'voted_option_id'      => $votingMethod === 'single' ? ($votedOptionIds[0] ?? null) : null,
+                'voted_option_ids'     => $votedOptionIds,
+                'vote_changes_allowed' => ! $closed && ! $sensitive,
+                'voting_paused'        => $sensitive && ! $closed,
+                'voting_paused_reason' => $sensitive && ! $closed ? 'sensitive' : null,
+                'winning_option_ids'   => $winningOptionIds,
+                'leading_option_ids'   => $leadingOptionIds,
+                'is_tie'               => $isTie,
+                'no_participation'     => $noParticipation,
+                'options'              => $pollOptions->values()->map(function ($option, $index) use ($resultsVisible, $counts, $percents, $winningOptionIds, $leadingOptionIds) {
+                    $optionId = (int) $option->id;
                     $row = [
-                        'id'    => (int) $option->id,
+                        'id'    => $optionId,
                         'label' => $option->label,
                     ];
                     if ($resultsVisible) {
                         $row['votes'] = (int) ($counts[$index] ?? 0);
                         $row['percent'] = (int) ($percents[$index] ?? 0);
+                        $row['is_winner'] = in_array($optionId, $winningOptionIds, true);
+                        $row['is_leading'] = in_array($optionId, $leadingOptionIds, true);
                     }
 
                     return $row;

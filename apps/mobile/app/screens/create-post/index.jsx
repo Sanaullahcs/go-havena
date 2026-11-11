@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Pressable, Keyboard, Modal, Platform, ScrollView, useWindowDimensions } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Feather } from "@expo/vector-icons";
@@ -30,7 +30,9 @@ import { resolveLoadRestriction } from "../../../utils/account-access-sync";
 import { useLanguage } from "../../../providers/language-provider";
 import { syncKeyboardForFocusedInput } from "../../../utils/native-app-locale";
 import { rnShadow } from "../../../utils/shadow";
-
+import PollDurationPicker, { DEFAULT_POLL_DURATION } from "../../../components/feed/poll-duration-picker";
+import PollVotingMethodPicker from "../../../components/feed/poll-voting-method-picker";
+import { toPollDurationApiPayload } from "../../../utils/poll-duration";
 
 const TYPE_ICONS = {
   Recommendations: "star",
@@ -59,13 +61,9 @@ const FEELINGS = [
 ];
 
 const VALID_CATEGORIES = new Set(["general", "event", "help", "update", "announcement"]);
-/** Matches backend `poll.options` max:4 */
-const MAX_POLL_OPTIONS = 4;
-const POLL_DURATION_OPTIONS = [
-  { days: 1, labelKey: "feed.createPost.duration1" },
-  { days: 3, labelKey: "feed.createPost.duration3" },
-  { days: 7, labelKey: "feed.createPost.duration7" },
-];
+/** Matches backend `poll.options` max (FeedController). */
+const MAX_POLL_OPTIONS = 20;
+const MIN_POLL_OPTIONS = 2;
 
 /**
  * Plain object (not StyleSheet.create). The global text-metrics patch adds
@@ -113,7 +111,8 @@ export default function CreatePost() {
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollDescription, setPollDescription] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
-  const [pollDuration, setPollDuration] = useState(3);
+  const [pollDuration, setPollDuration] = useState(DEFAULT_POLL_DURATION);
+  const [pollVotingMethod, setPollVotingMethod] = useState("single");
   const [feelingModal, setFeelingModal] = useState(false);
   const [feelingHeaderHeight, setFeelingHeaderHeight] = useState(0);
   const insets = useSafeAreaInsets();
@@ -135,7 +134,7 @@ export default function CreatePost() {
     : null;
   const [user, setUser] = useState(null);
   const [restrictionError, setRestrictionError] = useState(null);
-  const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
+  const { touch, clearError, showError, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
 
   useFocusEffect(
     useCallback(() => {
@@ -221,7 +220,11 @@ export default function CreatePost() {
     }
     const filled = pollOptions.map((option) => option.trim()).filter(Boolean);
     const unique = new Set(filled.map((option) => option.toLowerCase()));
-    if (filled.length < 2 || unique.size !== filled.length || filled.some((option) => option.length > 80)) {
+    if (filled.some((option) => option.length > 80)) {
+      errors.options = t("feed.createPost.pollNeedOptions");
+    } else if (filled.length >= 2 && unique.size !== filled.length) {
+      errors.options = t("feed.createPost.pollDuplicateOptions");
+    } else if (filled.length < 2) {
       errors.options = t("feed.createPost.pollNeedOptions");
     }
     if (pollDescription.trim().length > 500) {
@@ -229,6 +232,16 @@ export default function CreatePost() {
     }
     return errors;
   }, [attachedImage, isPoll, pollDescription, pollOptions, pollQuestion, postText, t]);
+
+  const previousCategoryRef = useRef(selectedCategory);
+  useEffect(() => {
+    if (selectedCategory === "poll" && previousCategoryRef.current !== "poll") {
+      resetTouched();
+    }
+    previousCategoryRef.current = selectedCategory;
+  }, [selectedCategory, resetTouched]);
+
+  const optionsError = showError("options", liveErrors);
 
   const canPost = useMemo(
     () => !hasFieldErrors(liveErrors) && !submitting,
@@ -321,8 +334,9 @@ export default function CreatePost() {
           category: "poll",
           poll: {
             question: pollQuestion.trim(),
-            description: postText.trim() || pollDescription.trim(),
-            duration_days: pollDuration,
+            description: pollDescription.trim(),
+            ...toPollDurationApiPayload(pollDuration),
+            voting_method: pollVotingMethod,
             options: pollOptions.map((option) => option.trim()).filter(Boolean),
           },
         });
@@ -386,7 +400,8 @@ export default function CreatePost() {
     setPollQuestion("");
     setPollDescription("");
     setPollOptions(["", ""]);
-    setPollDuration(3);
+    setPollDuration(DEFAULT_POLL_DURATION);
+    setPollVotingMethod("single");
     setShowDone(false);
     router.back();
   };
@@ -591,7 +606,10 @@ export default function CreatePost() {
             <View style={styles.card}>
               <Text style={styles.sectionLabel}>{t("feed.createPost.createPoll")}</Text>
 
-              <Text style={styles.pollFieldLabel}>{t("feed.createPost.pollQuestion")}</Text>
+              <Text style={styles.pollFieldLabel}>
+                {t("feed.createPost.pollQuestion")}
+                <Text style={styles.requiredMark}> *</Text>
+              </Text>
               <View
                 style={[
                   styles.pollInputBox,
@@ -619,15 +637,59 @@ export default function CreatePost() {
                 <Text style={styles.errorText}>{showError("body", liveErrors)}</Text>
               ) : null}
 
+              <Text style={[styles.pollFieldLabel, { marginTop: sw(12) }]}>
+                {t("feed.createPost.pollDescription")}
+              </Text>
+              <View
+                style={[
+                  styles.pollTextAreaBox,
+                  showError("description", liveErrors) && styles.pollInputBoxError,
+                ]}
+              >
+                <LocaleTextInput
+                  placeholder={t("feed.createPost.pollDescriptionPlaceholder")}
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                  value={pollDescription}
+                  onChangeText={(text) => {
+                    setPollDescription(text.slice(0, 500));
+                    clearError("description");
+                  }}
+                  onBlur={() => touch("description")}
+                  style={styles.pollDescriptionInput}
+                  maxLength={500}
+                  underlineColorAndroid="transparent"
+                  textAlignVertical="top"
+                  allowFontScaling={false}
+                />
+              </View>
+              {pollDescription.length > 0 ? (
+                <Text style={styles.pollCharCount}>{pollDescription.length}/500</Text>
+              ) : (
+                <Text style={styles.pollHelperText}>{t("feed.createPost.pollDescriptionHint")}</Text>
+              )}
+              {showError("description", liveErrors) ? (
+                <Text style={styles.errorText}>{showError("description", liveErrors)}</Text>
+              ) : null}
+
               <View style={styles.pollOptionsHeader}>
-                <Text style={styles.pollFieldLabel}>{t("feed.createPost.pollOptions")}</Text>
+                <Text style={styles.pollFieldLabel}>
+                  {t("feed.createPost.pollOptions")}
+                  <Text style={styles.requiredMark}> *</Text>
+                </Text>
                 <Text style={styles.pollOptionCount}>
-                  {pollOptions.length}/{MAX_POLL_OPTIONS}
+                  {t("feed.createPost.pollOptionCount", { count: pollOptions.length })}
                 </Text>
               </View>
               {pollOptions.map((option, index) => (
                 <View key={`poll-opt-${index}`} style={styles.pollOptionRow}>
-                  <View style={[styles.pollInputBox, styles.pollInputBoxFlex]}>
+                  <View
+                    style={[
+                      styles.pollInputBox,
+                      styles.pollInputBoxFlex,
+                      optionsError && styles.pollInputBoxError,
+                    ]}
+                  >
                     <LocaleTextInput
                       placeholder={t("feed.createPost.pollOptionPlaceholder", { number: index + 1 })}
                       placeholderTextColor={Colors.textMuted}
@@ -638,6 +700,7 @@ export default function CreatePost() {
                         );
                         clearError("options");
                       }}
+                      onBlur={() => touch("options")}
                       style={POLL_INPUT_TEXT}
                       maxLength={80}
                       underlineColorAndroid="transparent"
@@ -645,7 +708,7 @@ export default function CreatePost() {
                       allowFontScaling={false}
                     />
                   </View>
-                  {pollOptions.length > 2 ? (
+                  {index >= MIN_POLL_OPTIONS ? (
                     <TouchableOpacity
                       style={styles.pollRemoveBtn}
                       onPress={() =>
@@ -657,55 +720,49 @@ export default function CreatePost() {
                       accessibilityRole="button"
                       accessibilityLabel={t("common.delete")}
                     >
-                      <Feather name="x" size={sf(14)} color={Colors.textMuted} />
+                      <Feather name="x" size={sf(14)} color="#B91C1C" />
                     </TouchableOpacity>
-                  ) : null}
+                  ) : (
+                    <View style={styles.pollRemoveSpacer} />
+                  )}
                 </View>
               ))}
-              {showError("options", liveErrors) ? (
-                <Text style={styles.errorText}>{showError("options", liveErrors)}</Text>
-              ) : null}
+              {optionsError ? <Text style={styles.errorText}>{optionsError}</Text> : (
+                <Text style={styles.pollHelperText}>{t("feed.createPost.pollOptionsHint")}</Text>
+              )}
               {pollOptions.length < MAX_POLL_OPTIONS ? (
                 <TouchableOpacity
                   style={styles.pollAddOptionBtn}
                   onPress={() => setPollOptions((current) => [...current, ""])}
                   activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("feed.createPost.addOption")}
                 >
                   <View style={styles.pollAddIcon}>
                     <Feather name="plus" size={sf(14)} color={Colors.brandPrimary} />
                   </View>
                   <Text style={styles.pollAddOptionText}>{t("feed.createPost.addOption")}</Text>
                 </TouchableOpacity>
-              ) : null}
+              ) : (
+                <Text style={styles.pollHelperText}>
+                  {t("feed.createPost.pollOptionsMax", { max: MAX_POLL_OPTIONS })}
+                </Text>
+              )}
 
-              <Text style={[styles.pollFieldLabel, { marginTop: sw(14) }]}>
-                {t("feed.createPost.pollDuration")}
-              </Text>
-              <View style={styles.pollDurationRow}>
-                {POLL_DURATION_OPTIONS.map((item) => {
-                  const selected = pollDuration === item.days;
-                  return (
-                    <Pressable
-                      key={item.days}
-                      style={[styles.pollDurationChip, selected && styles.pollDurationChipSelected]}
-                      onPress={() => setPollDuration(item.days)}
-                    >
-                      <Feather
-                        name="clock"
-                        size={sf(12)}
-                        color={selected ? Colors.brandPrimary : Colors.textPrimary}
-                      />
-                      <Text
-                        style={[
-                          styles.pollDurationText,
-                          selected && styles.pollDurationTextSelected,
-                        ]}
-                      >
-                        {t(item.labelKey)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+              <PollVotingMethodPicker
+                value={pollVotingMethod}
+                onChange={setPollVotingMethod}
+                disabled={submitting}
+                required
+              />
+
+              <View style={{ marginTop: sw(4) }}>
+                <PollDurationPicker
+                  value={pollDuration}
+                  onChange={setPollDuration}
+                  disabled={submitting}
+                  required
+                />
               </View>
             </View>
           ) : null}
@@ -930,6 +987,10 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: sw(8),
   },
+  requiredMark: {
+    color: "#DC2626",
+    fontFamily: Fonts.semiBold,
+  },
   pollInputBox: {
     height: sw(48),
     borderWidth: 1,
@@ -973,15 +1034,48 @@ const styles = StyleSheet.create({
     gap: sw(8),
     marginBottom: sw(10),
   },
-  pollRemoveBtn: {
-    width: sw(28),
-    height: sw(28),
-    borderRadius: sw(14),
+  pollTextAreaBox: {
+    minHeight: sw(96),
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
+    borderRadius: sw(12),
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(10),
+    backgroundColor: "#FFFFFF",
+    alignSelf: "stretch",
+  },
+  pollDescriptionInput: {
+    minHeight: sw(72),
+    fontFamily: Fonts.regular,
+    fontSize: sf(14),
+    lineHeight: sf(20),
+    color: Colors.textPrimary,
+    padding: 0,
+    margin: 0,
+    textAlignVertical: "top",
+    includeFontPadding: false,
+  },
+  pollHelperText: {
+    marginTop: sw(6),
+    marginBottom: sw(10),
+    fontFamily: Fonts.regular,
+    fontSize: sf(11),
+    lineHeight: sf(16),
+    color: Colors.textMuted,
+  },
+  pollRemoveBtn: {
+    width: sw(32),
+    height: sw(32),
+    borderRadius: sw(10),
+    borderWidth: 1,
+    borderColor: "#FECACA",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FEF2F2",
+  },
+  pollRemoveSpacer: {
+    width: sw(32),
+    height: sw(32),
   },
   pollAddOptionBtn: {
     flexDirection: "row",

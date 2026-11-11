@@ -47,17 +47,6 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
   const theme = getFeedTagTheme(post.tag);
   const display = parsePostDisplayContent(post);
   const sensitive = isSensitivePost(post);
-  const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
-
-  useEffect(() => {
-    setSensitiveRevealed(false);
-  }, [post?.id]);
-
-  useFocusEffect(
-    useCallback(() => {
-      setSensitiveRevealed(false);
-    }, []),
-  );
 
   return (
     <View style={styles.card}>
@@ -117,12 +106,12 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
 
         {sensitive ? (
           <FeedSensitiveContent
+            label={post.sensitive_label}
             message={post.sensitive_message}
-            revealed={sensitiveRevealed}
-            onToggle={() => setSensitiveRevealed((current) => !current)}
+            reason={post.sensitive_reason}
           />
         ) : null}
-        {!sensitive || sensitiveRevealed ? (
+        {!sensitive ? (
           <>
             {display.mainText ? (
               <Text style={styles.bodyText}>{display.mainText}</Text>

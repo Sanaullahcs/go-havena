@@ -12,7 +12,7 @@ import { getCurrentRole } from "../../../../constants/role-session";
 import { saveRegionSelection, joinCommunity } from "../../../../services/auth-api";
 import { getUser } from "../../../../services/auth-session";
 import { approvedResidentMemberships, canAccessDashboard, membershipForCommunity } from "../../../../services/community-access";
-import { fetchMe, switchActiveCommunity } from "../../../../services/profile-api";
+import { fetchMe } from "../../../../services/profile-api";
 import { navigateAfterAuth } from "../../../../constants/onboarding-routes";
 import { ionChevronForward } from "../../../../utils/rtl";
 import { fetchCommunitiesInRegion } from "../../../../services/regions-api";
@@ -132,6 +132,11 @@ export default function RegionCommunitiesScreen() {
     loadCommunities();
   }, [loadCommunities]);
 
+  useEffect(() => {
+    if (!isJoinAnother) return;
+    void fetchMe().catch(() => null);
+  }, [isJoinAnother]);
+
   const isAdminOnboarding = activeRole === "admin";
 
   const handleCommunitySelect = async (community) => {
@@ -155,12 +160,8 @@ export default function RegionCommunitiesScreen() {
       const sessionUser = await getUser();
       const existing = membershipForCommunity(sessionUser, community.id);
 
-      if (existing?.status === "approved") {
-        if (isJoinAnother) {
-          const next = await switchActiveCommunity(Number(community.id));
-          navigateAfterAuth(router, next, { mode: "login" });
-          return;
-        }
+      if (isJoinAnother && (existing?.status === "approved" || existing?.status === "pending")) {
+        return;
       }
 
       if (isJoinAnother) {
@@ -355,13 +356,19 @@ export default function RegionCommunitiesScreen() {
               ) : null}
               {communities.map((community) => {
                 const busy = selectingId === community.id;
-                const isDisabled = isAdminOnboarding && community.hasAdmin;
+                const adminClaimed = isAdminOnboarding && community.hasAdmin;
                 const membership = membershipForCommunity(sessionUser, community.id);
                 const membershipStatus = membership?.status;
+                const alreadyEnrolled =
+                  isJoinAnother &&
+                  !isAdminOnboarding &&
+                  (membershipStatus === "approved" || membershipStatus === "pending");
+                const isDisabled = adminClaimed || alreadyEnrolled;
                 // First signup creates a pending membership as soon as the card is tapped.
                 // That is not an approval wait yet — only a later community request should say so.
                 const showPendingApproval =
                   membershipStatus === "pending" &&
+                  !alreadyEnrolled &&
                   (isJoinAnother || approvedResidentMemberships(sessionUser).length > 0);
 
                 return (
@@ -391,8 +398,12 @@ export default function RegionCommunitiesScreen() {
                       {community.area ? (
                         <Text style={styles.cardArea}>{community.area}</Text>
                       ) : null}
-                      {isDisabled ? (
+                      {adminClaimed ? (
                         <Text style={styles.cardBadge}>{t("region.communityAdminAssigned")}</Text>
+                      ) : alreadyEnrolled && membershipStatus === "approved" ? (
+                        <Text style={styles.cardBadgeJoined}>{t("region.alreadyEnrolled")}</Text>
+                      ) : alreadyEnrolled && membershipStatus === "pending" ? (
+                        <Text style={styles.cardBadgePending}>{t("region.joinPendingBadge")}</Text>
                       ) : membershipStatus === "approved" ? (
                         <Text style={styles.cardBadgeJoined}>{t("region.alreadyJoined")}</Text>
                       ) : showPendingApproval ? (

@@ -19,6 +19,7 @@ import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import {
   fetchFeed,
+  fetchPost,
   likePost,
   applyLikeToPost,
   FEED_CATEGORY_TABS,
@@ -212,6 +213,18 @@ export default function CommunityFeedPanel() {
     setPollPosts(remove);
   }, []);
 
+  /** Reporting must not remove posts or polls — refresh the row from the API instead. */
+  const handleReported = useCallback(async (postId) => {
+    try {
+      const fresh = await fetchPost(postId);
+      const merge = (prev) => prev.map((item) => (String(item.id) === String(postId) ? { ...item, ...fresh } : item));
+      setPosts(merge);
+      setPollPosts(merge);
+    } catch {
+      // Leave the item visible if the detail fetch fails.
+    }
+  }, []);
+
   const dropAuthor = useCallback((userId) => {
     const remove = (prev) => prev.filter((item) => String(item.user_id ?? item.user?.id) !== String(userId));
     setPosts(remove);
@@ -377,7 +390,7 @@ export default function CommunityFeedPanel() {
             }
             onShare={() => handleShare(post)}
             onDeleted={dropPost}
-            onReported={dropPost}
+            onReported={handleReported}
             onUserBlocked={dropAuthor}
           />
         ))

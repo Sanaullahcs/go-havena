@@ -398,6 +398,18 @@ export function goToJoinCommunityUnits(router, { communityId, communityName, reg
   });
 }
 
+/** After a resident adds another community, land on Home for their existing approved community. */
+export function finishJoinAnotherCommunity(router) {
+  try {
+    if (router.canDismiss?.()) {
+      router.dismissAll();
+    }
+  } catch {
+    // cold start — nothing to dismiss
+  }
+  router.replace({ pathname: Routes.TABS_HOME, params: { role: "resident" } });
+}
+
 export function goToMyCommunity(router) {
   resetTo(router, Routes.MY_COMMUNITY);
 }

@@ -438,14 +438,21 @@ export default function FeedCommentsScreen() {
                 now={now}
                 footerVariant="engagement"
                 showFooter={!isPoll}
+                pollDetailMode={isPoll}
                 style={[styles.postCard, isPoll && styles.pollCard]}
                 onLike={isPoll ? undefined : handleLike}
                 onComments={isPoll ? undefined : focusComposer}
                 onDeleted={() => {
                   if (router.canGoBack?.()) router.back();
                 }}
-                onReported={() => {
-                  if (router.canGoBack?.()) router.back();
+                onReported={async () => {
+                  if (!post?.id) return;
+                  try {
+                    const fresh = await fetchPost(post.id);
+                    setPost(fresh);
+                  } catch {
+                    // Stay on the poll/post detail; content remains in the feed.
+                  }
                 }}
                 onUserBlocked={(userId) => {
                   const authorId = post?.user_id ?? post?.user?.id;
