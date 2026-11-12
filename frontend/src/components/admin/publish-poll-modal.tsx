@@ -18,9 +18,9 @@ const POLL_DESCRIPTION_MAX = 500;
 const DESCRIPTION_MIN_HEIGHT = 88;
 const DESCRIPTION_MAX_HEIGHT = 220;
 
-const FIELD_LABEL = "text-[16px] font-semibold leading-6 text-[#0A2A43]";
+const FIELD_LABEL = "text-[13px] font-medium leading-5 text-slate-700";
 const FIELD_CONTROL =
-  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-[15px] leading-6 text-[#0A2A43] outline-none placeholder:text-[15px] placeholder:text-slate-400 focus:border-[#1B4F8A] focus:bg-white focus:ring-2 focus:ring-[#1B4F8A]/15 disabled:opacity-60";
+  "w-full rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm leading-5 text-slate-900 outline-none placeholder:text-sm placeholder:text-slate-400 focus:border-[#1B4F8A] focus:bg-white focus:ring-2 focus:ring-[#1B4F8A]/15 disabled:opacity-60";
 
 function pollOptionsState(options: string[]) {
   const labels: string[] = [];
@@ -129,12 +129,12 @@ export function PublishPollModal({
       >
         <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-slate-200 sm:hidden" />
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-6 sm:pt-6">
-          <div className="mb-6 flex items-start justify-between gap-4">
+          <div className="mb-5 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 id="publish-poll-title" className="text-[24px] font-bold leading-8 text-[#0A2A43]">
+              <h3 id="publish-poll-title" className="text-lg font-bold tracking-tight text-slate-900">
                 Publish Poll
               </h3>
-              <p className="mt-2 text-[15px] leading-6 text-slate-500">
+              <p className="mt-1 text-sm leading-5 text-slate-500">
                 Create a poll to gather opinions and feedback from your community members.
               </p>
             </div>
@@ -148,7 +148,7 @@ export function PublishPollModal({
             </button>
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-4">
             <label className={`block ${FIELD_LABEL}`}>
               Poll question
               <ClearableInput
@@ -159,7 +159,7 @@ export function PublishPollModal({
                   setQuestion(e.target.value);
                   setError("");
                 }}
-                className={`mt-2 ${FIELD_CONTROL}`}
+                className={`mt-1.5 ${FIELD_CONTROL}`}
                 placeholder="Ask your community a question"
               />
             </label>
@@ -173,7 +173,7 @@ export function PublishPollModal({
                 maxLength={POLL_DESCRIPTION_MAX}
                 disabled={busy}
                 onChange={(e) => setDescription(e.target.value.slice(0, POLL_DESCRIPTION_MAX))}
-                className={`mt-2 resize-none ${FIELD_CONTROL}`}
+                className={`mt-1.5 resize-none ${FIELD_CONTROL}`}
                 rows={3}
                 placeholder="Add a short note for residents"
                 aria-describedby={description.length > 0 ? "publish-poll-description-count" : undefined}
@@ -185,7 +185,7 @@ export function PublishPollModal({
               {description.length > 0 ? (
                 <p
                   id="publish-poll-description-count"
-                  className="mt-1.5 text-right text-[15px] leading-6 text-slate-500 tabular-nums"
+                  className="mt-1 text-right text-[11px] leading-4 text-slate-400 tabular-nums"
                   aria-live="polite"
                 >
                   {description.length}/{POLL_DESCRIPTION_MAX}
@@ -195,7 +195,7 @@ export function PublishPollModal({
 
             <div>
               <p className={FIELD_LABEL}>Options</p>
-              <div className="mt-2 space-y-2.5">
+              <div className="mt-1.5 space-y-2">
                 {options.map((option, index) => (
                   <div key={index} className="flex items-center gap-2">
                     <ClearableInput
@@ -213,7 +213,7 @@ export function PublishPollModal({
                     {options.length > 2 ? (
                       <button
                         type="button"
-                        className="shrink-0 px-1 text-[15px] font-medium text-slate-500 hover:text-slate-800"
+                        className="shrink-0 px-1 text-xs font-medium text-slate-500 hover:text-slate-800"
                         onClick={() => setOptions((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                         disabled={busy}
                       >
@@ -226,21 +226,21 @@ export function PublishPollModal({
               {options.length < 4 ? (
                 <button
                   type="button"
-                  className="mt-3 text-[15px] font-semibold text-[#1B4F8A] hover:underline"
+                  className="mt-2.5 text-[13px] font-semibold text-[#1B4F8A] hover:underline"
                   onClick={() => setOptions((current) => [...current, ""])}
                   disabled={busy}
                 >
                   Add option
                 </button>
               ) : null}
-              <p className={`mt-2 text-[15px] leading-6 ${optionState.duplicate ? "text-red-600" : "text-slate-500"}`}>
+              <p className={`mt-1.5 text-xs leading-4 ${optionState.duplicate ? "text-red-600" : "text-slate-500"}`}>
                 {optionState.duplicate ? "Each option must be different." : "Add at least 2 different options."}
               </p>
             </div>
 
             <div>
               <p className={FIELD_LABEL}>Poll duration</p>
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="mt-1.5 flex flex-wrap gap-2">
                 {DURATIONS.map((item) => {
                   const selected = duration === item.days;
                   return (
@@ -249,7 +249,7 @@ export function PublishPollModal({
                       type="button"
                       onClick={() => setDuration(item.days)}
                       disabled={busy}
-                      className="min-h-11 min-w-[5.75rem] flex-1 rounded-full border px-4 py-2 text-[15px] font-medium transition disabled:opacity-60"
+                      className="min-h-10 min-w-[5.25rem] flex-1 rounded-full border px-3 py-1.5 text-sm font-medium transition disabled:opacity-60"
                       style={{
                         borderColor: selected ? "#1B4F8A" : "#e2e8f0",
                         background: selected ? "#E0F2FE" : "#fff",
@@ -263,13 +263,13 @@ export function PublishPollModal({
               </div>
             </div>
 
-            {error ? <p className="text-[15px] leading-6 text-red-600">{error}</p> : null}
+            {error ? <p className="text-xs leading-4 text-red-600">{error}</p> : null}
 
             <button
               type="button"
               disabled={!canPublish}
               onClick={publish}
-              className="mt-1 w-full rounded-xl bg-[#1B4F8A] px-4 py-3 text-[16px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-1 w-full rounded-xl bg-[#1B4F8A] px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy ? "Publishing…" : "Publish Poll"}
             </button>

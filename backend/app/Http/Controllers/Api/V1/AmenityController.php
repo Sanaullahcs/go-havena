@@ -1203,6 +1203,9 @@ class AmenityController extends Controller
 
     private function amenityNameIsValid(string $value): bool
     {
+        if (! preg_match('/\p{L}/u', $value)) {
+            return false;
+        }
         if (! preg_match("/^[\\p{L}\\p{N} &'’\\-]+$/u", $value)) {
             return false;
         }
@@ -1218,6 +1221,9 @@ class AmenityController extends Controller
 
     private function amenityLocationIsValid(string $value): bool
     {
+        if (! preg_match('/\p{L}/u', $value)) {
+            return false;
+        }
         if (! preg_match('~^[\p{L}\p{N} \-/,.#]+$~u', $value)) {
             return false;
         }

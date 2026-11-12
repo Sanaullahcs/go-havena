@@ -22,6 +22,7 @@ export const SYSTEM_ADMIN_ROUTE_PREFIXES = [
   "/admin/community-requests",
   "/admin/activity",
   "/admin/feature-requests",
+  "/admin/support-complaints",
 ] as const;
 
 /** Routes reserved for community administrators (single-community scope). */
@@ -37,6 +38,7 @@ export const COMMUNITY_ADMIN_ROUTE_PREFIXES = [
   "/admin/alerts",
   "/admin/community-rules",
   "/admin/documents",
+  "/admin/complaints",
   "/admin/units",
   "/admin/services",
   "/admin/service-bills",

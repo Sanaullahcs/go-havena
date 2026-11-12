@@ -30,6 +30,7 @@ class CommunityFeatureCatalog
             self::feature('amenities', 'Amenities', 'Residents can browse community amenities and facilities.', 'property', 'Property', ['/property'], ['api/v1/amenities']),
             self::feature('bookings', 'Bookings', 'Residents can reserve amenities and manage booking requests.', 'property', 'Property', ['/property'], ['api/v1/bookings']),
             self::feature('documents', 'Documents', 'Residents can open the community document library.', 'property', 'Property', ['/property'], ['api/v1/documents']),
+            self::feature('complaints', 'Complaints', 'Residents can submit maintenance complaints for this community. Technical support stays available when this is off.', 'property', 'Property', [], []),
             self::feature('community_rules', 'Community Rules', 'Residents can view and acknowledge community rules.', 'property', 'Property', ['/property'], ['api/v1/community-rules']),
             self::feature('wellness', 'Wellness', 'Residents can access wellness courses and lessons.', 'lifestyle', 'Lifestyle', ['/wellness'], ['api/v1/wellness']),
             self::feature('family', 'My Family', 'Residents can manage household members and family requests.', 'lifestyle', 'Lifestyle', [], ['api/v1/families', 'api/v1/family-join-requests', 'api/v1/family-add-member-requests']),

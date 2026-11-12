@@ -27,6 +27,7 @@ import {
   fetchSignedAgreementLink,
   recordDocumentDownload,
   remindAgreement,
+  remindDocument,
 } from "../../../../services/documents-api";
 import { getCurrentRole } from "../../../../constants/role-session";
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
@@ -422,7 +423,7 @@ export default function DocumentDetail() {
   const assignment = (doc?.assignments ?? []).find(
     (item) => String(item.assignment_id) === String(assignmentId),
   ) ?? doc?.assignments?.[0];
-  const isAgreement = doc?.kind === "agreement";
+  const needsSignature = doc?.kind === "agreement" || Boolean(doc?.signature_required);
 
   const openSigned = () => run(async () => {
     const url = assignment?.signed_file_url || await fetchSignedAgreementLink(doc.id, assignment?.assignment_id);
@@ -482,7 +483,7 @@ export default function DocumentDetail() {
     );
   }
 
-  if (isAgreement) {
+  if (needsSignature) {
     return (
       <AgreementDetails
         doc={doc}
@@ -500,7 +501,10 @@ export default function DocumentDetail() {
         }
         onOpenFile={handleDownload}
         onSignedCopy={() => void openSigned()}
-        onRemind={() => run(async () => { await remindAgreement(doc.id); })}
+        onRemind={() => run(async () => {
+          if (doc.kind === "agreement") await remindAgreement(doc.id);
+          else await remindDocument(doc.id);
+        })}
         onEdit={handleEdit}
         onDelete={handleDelete}
       />

@@ -167,18 +167,19 @@ export function visibleAmenityFormSteps(showSharedBilling: boolean, _billingEnab
   return steps;
 }
 
-/** Letters, numbers, spaces, and a single - & or ' between them. */
+/** Letters, numbers, spaces, and a single - & or ' between them. At least one letter. */
 function isValidAmenityName(value: string): boolean {
-  if (!/^[\p{L}\p{N} &'’-]+$/u.test(value)) return false;
+  if (!/\p{L}/u.test(value)) return false;
+  if (!/^[\p{L}\p{N} &'’\-]+$/u.test(value)) return false;
   if (!/^[\p{L}\p{N}]/u.test(value) || !/[\p{L}\p{N}]$/u.test(value)) return false;
   if (/[-&'’]{2,}/u.test(value)) return false;
   return true;
 }
 
-/** Letters, numbers, spaces, and address marks - / , . # without leading or repeated punctuation. */
+/** Letters, numbers, spaces, and address marks - / , . #. At least one letter. */
 function isValidAmenityLocation(value: string): boolean {
+  if (!/\p{L}/u.test(value)) return false;
   if (!/^[\p{L}\p{N} \-\/,\.#]+$/u.test(value)) return false;
-  if (!/[\p{L}\p{N}]/u.test(value)) return false;
   if (/^[,.\-\/]/u.test(value)) return false;
   if (/[,#\-\/]$/u.test(value)) return false;
   if (/[-/,.#]{2,}/u.test(value)) return false;
@@ -209,6 +210,7 @@ export function validateAmenityForm(
   if (form.name.length > AMENITY_FIELD_MAX.name) errors.name = "Keep the name under 100 characters.";
   else if (!name) errors.name = "Name is required.";
   else if (name.length < 2) errors.name = "Use at least 2 characters.";
+  else if (!isValidAmenityName(name)) errors.name = "Please enter a valid amenity name.";
 
   const description = form.description.trim();
   if (form.description.length > AMENITY_FIELD_MAX.description) {
@@ -239,6 +241,8 @@ export function validateAmenityForm(
 
   if (form.floor.length > AMENITY_FIELD_MAX.floor) errors.floor = "Keep location under 40 characters.";
   else if (!floor) errors.floor = "Location is required.";
+  else if (floor.length < 2) errors.floor = "Use at least 2 characters.";
+  else if (!isValidAmenityLocation(floor)) errors.floor = "Please enter a valid location.";
 
   if (form.custom_category.length > AMENITY_FIELD_MAX.custom_category) {
     errors.custom_category = "Keep the custom category under 80 characters.";

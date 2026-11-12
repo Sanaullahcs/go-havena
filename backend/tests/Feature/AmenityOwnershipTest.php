@@ -749,6 +749,51 @@ class AmenityOwnershipTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonPath('errors.floor.0', 'Please enter a valid location.');
 
+        $created = $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => '  Pool & Spa  ',
+            'floor' => '  Bldg A, #4  ',
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated();
+
+        $this->patchJson('/api/v1/admin/amenities/'.$created->json('data.id'), [
+            'name' => '././..???',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.name.0', 'Please enter a valid amenity name.');
+
+        $this->patchJson('/api/v1/admin/amenities/'.$created->json('data.id'), [
+            'floor' => '????>/..?./.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.floor.0', 'Please enter a valid location.');
+
+        foreach (['././..???', '12345', '???'] as $name) {
+            $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+                'name' => $name,
+                'floor' => 'Ground floor',
+            ]), [
+                'X-Community-Id' => (string) $community->id,
+            ])
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.name.0', 'Please enter a valid amenity name.');
+        }
+
+        foreach (['????>/..?./.', '123', '...'] as $floor) {
+            $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+                'name' => 'Clubhouse',
+                'floor' => $floor,
+            ]), [
+                'X-Community-Id' => (string) $community->id,
+            ])
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.floor.0', 'Please enter a valid location.');
+        }
+
         $this->postJson('/api/v1/admin/amenities', array_merge($base, [
             'name' => 'A',
         ]), [

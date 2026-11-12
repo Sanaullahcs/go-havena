@@ -20,6 +20,7 @@ import {
 import { confirmMarkAllNotificationsRead } from "@/lib/admin/dashboard-confirmations";
 import { resolveAdminNotificationHref } from "@/lib/notifications/resolve-admin-notification-href";
 import { notificationPreviewText } from "@/lib/notifications/notification-preview";
+import { subscribeForegroundNotification } from "@/lib/notifications/foreground-notification-events";
 import { NL } from "@/lib/design-tokens";
 
 export type AppNotification = {
@@ -142,6 +143,7 @@ export function NotificationBell({
     window.addEventListener("nbr-session-updated", onSession);
     window.addEventListener(NOTIFICATIONS_REFRESH_EVENT, load);
     document.addEventListener("visibilitychange", onVisible);
+    const unsubscribePush = subscribeForegroundNotification(() => load());
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") load();
     }, 20_000);
@@ -150,6 +152,7 @@ export function NotificationBell({
       window.removeEventListener("nbr-session-updated", onSession);
       window.removeEventListener(NOTIFICATIONS_REFRESH_EVENT, load);
       document.removeEventListener("visibilitychange", onVisible);
+      unsubscribePush();
       window.clearInterval(timer);
     };
   }, [keepSeedWhenEmpty, load]);

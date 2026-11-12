@@ -177,10 +177,26 @@ export async function revokeAgreement(id: number): Promise<void> {
   await api.post(`/v1/admin/documents/agreements/${id}/revoke`);
 }
 
-export async function createAgreementVersion(id: number, file: File, title?: string): Promise<AgreementSummary> {
+export async function createAgreementVersion(
+  id: number,
+  file: File,
+  fields?: {
+    title?: string;
+    category?: string;
+    description?: string | null;
+    due_at?: string | null;
+    effective_at?: string | null;
+    expires_at?: string | null;
+  },
+): Promise<AgreementSummary> {
   const form = new FormData();
   form.append("file", file);
-  if (title) form.append("title", title);
+  if (fields?.title) form.append("title", fields.title);
+  if (fields?.category) form.append("category", fields.category);
+  if (fields?.description) form.append("description", fields.description);
+  if (fields?.due_at) form.append("due_at", fields.due_at);
+  if (fields?.effective_at) form.append("effective_at", fields.effective_at);
+  if (fields?.expires_at) form.append("expires_at", fields.expires_at);
   const res = await api.post(`/v1/admin/documents/agreements/${id}/versions`, form, {
     headers: { "Content-Type": "multipart/form-data" },
   });

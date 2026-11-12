@@ -331,7 +331,7 @@ export default function AdminProfilePage() {
       </section>
 
       <div className="grid items-start gap-4 lg:grid-cols-5">
-        <div className="space-y-4 lg:col-span-3">
+        <div className="min-w-0 space-y-4 lg:col-span-3">
           <DashboardPanel
             fit
             compact
@@ -448,7 +448,7 @@ export default function AdminProfilePage() {
                   <label className="nl-label mb-1.5">Bio</label>
                   <ClearableTextarea
                     data-field="bio"
-                    className={inputClass(showProfileError("bio") ? profileErrors.bio : undefined, "nl-input w-full resize-none")}
+                    className={inputClass(showProfileError("bio") ? profileErrors.bio : undefined, "nl-input w-full resize-none [overflow-wrap:anywhere]")}
                     rows={3}
                     maxLength={500}
                     value={form.bio}
@@ -503,13 +503,13 @@ export default function AdminProfilePage() {
                 ].map(({ label, value }) => (
                   <div
                     key={label}
-                    className="flex gap-3 rounded-lg border px-3 py-2 text-[13px]"
+                    className={`flex min-w-0 gap-3 rounded-lg border px-3 py-2 text-[13px] ${label === "Bio" ? "overflow-hidden" : ""}`}
                     style={{ borderColor: NL.borderCard, background: NL.surfaceMuted }}
                   >
                     <dt className="w-24 shrink-0 font-semibold" style={{ color: NL.textMuted }}>
                       {label}
                     </dt>
-                    <dd className="min-w-0 font-medium" style={{ color: NL.textPrimary }}>
+                    <dd className={`min-w-0 font-medium ${label === "Bio" ? "[overflow-wrap:anywhere]" : ""}`} style={{ color: NL.textPrimary }}>
                       {typeof value === "string" ? value : value}
                     </dd>
                   </div>

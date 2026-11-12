@@ -303,6 +303,9 @@ function writePortalSession(portal: SessionPortal, token: string, user: WebUser)
   localStorage.setItem(SESSION_KEYS[portal].user, JSON.stringify(user));
 }
 
+/** Session fields changed without a full auth cycle. Does not retrigger access checks. */
+export const SESSION_PATCHED_EVENT = "nbr-session-patched";
+
 export function updateUser(partial: Partial<WebUser>, options?: { silent?: boolean }) {
   if (typeof window === "undefined") return;
   const portal = resolveSessionPortal();
@@ -324,9 +327,9 @@ export function updateUser(partial: Partial<WebUser>, options?: { silent?: boole
       localStorage.setItem(SESSION_KEYS[other].user, serialized);
     }
   }
-  if (!options?.silent) {
-    window.dispatchEvent(new CustomEvent("nbr-session-updated"));
-  }
+  window.dispatchEvent(
+    new CustomEvent(options?.silent ? SESSION_PATCHED_EVENT : "nbr-session-updated"),
+  );
 }
 
 export function getUser(): WebUser | null {

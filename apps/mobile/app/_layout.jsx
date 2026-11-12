@@ -434,6 +434,34 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="screens/admin-complaints/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-complaints/detail"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-complaints/chat"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-complaints/report"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-complaints/report-detail"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-complaints/report-chat"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/complaints"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="screens/admin-amenities/index"
           options={{ headerShown: false }}
         />

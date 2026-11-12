@@ -1,5 +1,7 @@
 import { Linking } from "react-native";
 import { apiRequest } from "./api-client";
+import { getCachedUser } from "./auth-session";
+import { isCommunityAdmin } from "./community-access";
 import { fetchAgreementDetail, fetchSignedAgreementLink } from "./documents-api";
 import { parseApiDate } from "../utils/parse-api-date";
 import { getNoticeDetailRoute } from "./notices-api";
@@ -16,6 +18,8 @@ const ALLOWED_SCREEN_PREFIXES = [
   "/screens/admin-amenities",
   "/screens/admin-amenity-bills",
   "/screens/admin-bookings",
+  "/screens/admin-complaints",
+  "/screens/complaints",
   "/screens/admin-service-bills",
   "/screens/admin-content-review",
   "/screens/admin-dashboard",
@@ -338,6 +342,8 @@ export function normalizeNotification(raw) {
     unitId: data?.unit_id ?? raw.unit_id ?? null,
     unitNumber: data?.unit_number ?? raw.unit_number ?? null,
     documentId: data?.document_id ?? data?.documentId ?? data?.agreement ?? null,
+    complaintId: data?.complaint_id ?? data?.complaintId ?? null,
+    audience: data?.audience ?? null,
     assignmentId: data?.assignment_id ?? data?.assignmentId ?? null,
     openSignedPdf: data?.open_signed === true || data?.open_signed === 1 || data?.open_signed === "1" || data?.open_signed === "true",
   };
@@ -427,6 +433,22 @@ export function resolveNotificationRoute(notification) {
 
   const agreementRoute = resolveAgreementRoute(notification, pathname, queryParams);
   if (agreementRoute) return agreementRoute;
+
+  const complaintId = queryParams.complaint || queryParams.id || notification?.complaintId;
+  const complaintUrl = url.includes("support-complaints") || url.includes("/complaints") || notification?.kind === "complaint";
+  if (complaintUrl && complaintId) {
+    const wantsAdmin = notification?.audience === "admin" || pathname.startsWith("/admin/");
+    const managing = isCommunityAdmin(getCachedUser());
+    if (wantsAdmin) {
+      return managing
+        ? withParams("/screens/admin-complaints/detail", { id: String(complaintId) })
+        : "/screens/complaints";
+    }
+    return withParams(
+      managing ? "/screens/admin-complaints/report-detail" : "/screens/complaints/detail",
+      { id: String(complaintId) },
+    );
+  }
 
   const noticeMatch = url.match(/\/notices\/(\d+)/i);
   if (noticeMatch) {

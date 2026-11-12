@@ -16,6 +16,12 @@ class CommunityRulesDocumentsTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['billing.enabled' => false, 'billing.enforce' => false]);
+    }
+
     private function seedCommunityWithAdmin(): array
     {
         $region = Region::query()->create([
@@ -373,7 +379,25 @@ class CommunityRulesDocumentsTest extends TestCase
 
         $this->patch("/api/v1/admin/documents/{$docId}", [
             'title' => 'Updated Guide',
-        ])->assertOk()->assertJsonPath('data.title', 'Updated Guide');
+        ])->assertOk()
+            ->assertJsonPath('data.title', 'Updated Guide')
+            ->assertJsonPath('data.file_name', 'guide.pdf');
+
+        $this->postJson("/api/v1/admin/documents/{$docId}", [
+            'remove_file' => 1,
+        ])->assertUnprocessable()
+            ->assertJsonPath('errors.file.0', 'Choose a file to upload.');
+
+        $this->getJson('/api/v1/admin/documents')
+            ->assertOk()
+            ->assertJsonPath('data.0.file_name', 'guide.pdf');
+
+        $replacement = UploadedFile::fake()->create('replacement.pdf', 80, 'application/pdf');
+        $this->post("/api/v1/admin/documents/{$docId}", [
+            'title' => 'Updated Guide',
+            'file' => $replacement,
+            'remove_file' => 1,
+        ])->assertOk()->assertJsonPath('data.file_name', 'replacement.pdf');
 
         Sanctum::actingAs($resident);
         $this->getJson('/api/v1/documents')

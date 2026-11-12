@@ -180,6 +180,7 @@ function AgreementCard({ doc, onPress }) {
 }
 
 function DocumentRow({ doc, onPress, showDownloads }) {
+  const { t } = useTranslation();
   const meta = getCategoryMeta(doc.category);
   const updated = formatDocDate(doc.updated_at);
   const kind = fileKind(doc);
@@ -202,12 +203,29 @@ function DocumentRow({ doc, onPress, showDownloads }) {
               <Text style={styles.metricLabel}>{kind}</Text>
             </View>
           ) : null}
+          {doc.signature_required ? (
+            <View style={[styles.pill, { backgroundColor: doc.display_status === "signed" ? "#CCFBF1" : doc.display_status === "overdue" ? "#FFEDD5" : "#E8F0F7" }]}>
+              <Text style={[styles.pillText, { color: doc.display_status === "signed" ? "#0F766E" : doc.display_status === "overdue" ? "#92400E" : "#1B4F8A" }]}>
+                {doc.display_status === "signed"
+                  ? t("propertyMgmt.statusSigned")
+                  : doc.display_status === "overdue"
+                    ? t("propertyMgmt.statusOverdue")
+                    : t("propertyMgmt.reviewAndSign")}
+              </Text>
+            </View>
+          ) : null}
         </View>
         <View style={styles.docMeta}>
           {doc.file_size_label ? (
             <>
               <Feather name="file" size={sf(11)} color="#64748B" />
               <Text style={styles.docMetaText}>{doc.file_size_label}</Text>
+            </>
+          ) : null}
+          {doc.signature_required && doc.due_at ? (
+            <>
+              <Feather name="calendar" size={sf(11)} color="#64748B" />
+              <Text style={styles.docMetaText}>{formatDocDate(doc.due_at)}</Text>
             </>
           ) : null}
           {updated ? (

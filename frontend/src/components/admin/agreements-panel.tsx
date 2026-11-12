@@ -1,17 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, CalendarOff, Check, CheckCircle2, ChevronDown, Clock, FileText, Upload, X } from "lucide-react";
 import { CharCount } from "@/components/admin/char-count";
 import { AdminActionsMenu, type AdminMenuAction } from "@/components/admin/admin-actions-menu";
 import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
-import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
+import { confirmAction, confirmDelete, toastError, toastSuccess } from "@/lib/alert";
 import { validateAgreementDetails } from "@/lib/admin/agreement-form-validation";
 import { inputClass } from "@/lib/admin/form-validation-utils";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { apiError } from "@/lib/api/client";
-import { fetchAdminDocuments } from "@/lib/api/documents";
+import { deleteDocument, fetchAdminDocuments } from "@/lib/api/documents";
 import {
   DOCUMENT_OTHER_CATEGORY,
   DOCUMENT_PRESET_CATEGORIES,
@@ -119,6 +119,8 @@ export function AgreementsPanel({
   const [wizardDraft, setWizardDraft] = useState<AgreementDetail | null>(null);
   const [wizardIntent, setWizardIntent] = useState<"create" | "edit" | "publish">("create");
   const [detail, setDetail] = useState<AgreementDetail | null>(null);
+  const [info, setInfo] = useState<AgreementDetail | null>(null);
+  const [versionSource, setVersionSource] = useState<AgreementSummary | null>(null);
   const [recipientQuery, setRecipientQuery] = useState("");
 
   const load = async (nextPage = page) => {
@@ -158,6 +160,81 @@ export function AgreementsPanel({
     }
   };
 
+  const openInfo = async (id: number) => {
+    try {
+      setInfo(await fetchAgreement(id));
+    } catch (err) {
+      toastError(apiError(err));
+    }
+  };
+
+  const refreshOpen = async (id: number) => {
+    await load(page);
+    if (detail?.id === id) {
+      try {
+        setDetail(await fetchAgreement(id));
+      } catch {
+        setDetail(null);
+      }
+    }
+    if (info?.id === id) {
+      try {
+        setInfo(await fetchAgreement(id));
+      } catch {
+        setInfo(null);
+      }
+    }
+  };
+
+  const handleRemind = async (row: AgreementSummary) => {
+    try {
+      const result = await remindAgreement(row.id);
+      if (result.sent > 0) {
+        toastSuccess(result.sent === 1 ? "Reminder sent." : `Reminders sent: ${result.sent}`);
+      } else {
+        toastError("No eligible residents to remind.");
+      }
+      await refreshOpen(row.id);
+    } catch (err) {
+      toastError(apiError(err));
+    }
+  };
+
+  const handleArchive = async (row: AgreementSummary) => {
+    const ok = await confirmAction({
+      title: "Archive Agreement?",
+      text: "Are you sure you want to archive this agreement? It will be removed from residents' view.",
+      confirmText: "Archive",
+      icon: "warning",
+      color: "amber",
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await archiveAgreement(row.id);
+      toastSuccess("Agreement archived");
+      await refreshOpen(row.id);
+    } catch (err) {
+      toastError(apiError(err));
+    }
+  };
+
+  const handleDelete = async (row: AgreementSummary) => {
+    const ok = await confirmDelete({
+      title: "Delete Agreement?",
+      text: "Are you sure you want to delete this agreement? It will be permanently removed and cannot be restored.",
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await deleteDocument(row.id);
+      toastSuccess("Agreement deleted");
+      if (detail?.id === row.id) setDetail(null);
+      if (info?.id === row.id) setInfo(null);
+      await load(page);
+    } catch (err) {
+      toastError(apiError(err));
+    }
+  };
+
   const openDraftWizard = async (id: number, intent: "edit" | "publish") => {
     try {
       setWizardIntent(intent);
@@ -176,9 +253,27 @@ export function AgreementsPanel({
 
   const rowActions = (row: AgreementSummary): AdminMenuAction[] => {
     const status = row.publication_status;
-    const awaiting = (row.stats?.pending ?? 0) + (row.stats?.overdue ?? 0);
-    const expired = (row.stats?.expired ?? 0) > 0;
+    const outstanding = (row.stats?.pending ?? 0) + (row.stats?.overdue ?? 0);
     return [
+      {
+        id: "details",
+        label: "View Details",
+        icon: "view",
+        onClick: () => void openInfo(row.id),
+      },
+      {
+        id: "pdf",
+        label: "View PDF",
+        icon: "download",
+        hidden: !row.file_url,
+        onClick: () => window.open(row.file_url, "_blank", "noopener,noreferrer"),
+      },
+      {
+        id: "tracking",
+        label: "Signature Tracking",
+        icon: "check",
+        onClick: () => void openDetail(row.id),
+      },
       {
         id: "edit",
         label: "Edit draft",
@@ -194,24 +289,18 @@ export function AgreementsPanel({
         onClick: () => void openDraftWizard(row.id, "publish"),
       },
       {
-        id: "preview",
-        label: "Preview original",
-        icon: "view",
-        hidden: !row.file_url,
-        onClick: () => window.open(row.file_url, "_blank", "noopener,noreferrer"),
+        id: "remind",
+        label: "Send Reminder",
+        icon: "escalate",
+        hidden: status !== "published" || outstanding === 0,
+        onClick: () => void handleRemind(row),
       },
       {
-        id: "remind",
-        label: "Remind pending",
-        hidden: status !== "published" || awaiting === 0 || expired,
-        onClick: async () => {
-          try {
-            const result = await remindAgreement(row.id);
-            toastSuccess(`Reminders sent: ${result.sent}`);
-          } catch (err) {
-            toastError(apiError(err));
-          }
-        },
+        id: "version",
+        label: "Create New Version",
+        icon: "plus",
+        hidden: status === "draft",
+        onClick: () => setVersionSource(row),
       },
       {
         id: "export",
@@ -221,17 +310,11 @@ export function AgreementsPanel({
       },
       {
         id: "archive",
-        label: "Archive",
+        label: "Archive Agreement",
+        icon: "ban",
+        tone: "warning",
         hidden: status !== "published",
-        onClick: async () => {
-          try {
-            await archiveAgreement(row.id);
-            toastSuccess("Agreement archived");
-            await load(page);
-          } catch (err) {
-            toastError(apiError(err));
-          }
-        },
+        onClick: () => void handleArchive(row),
       },
       {
         id: "revoke",
@@ -243,11 +326,19 @@ export function AgreementsPanel({
           try {
             await revokeAgreement(row.id);
             toastSuccess("Agreement revoked");
-            await load(page);
+            await refreshOpen(row.id);
           } catch (err) {
             toastError(apiError(err));
           }
         },
+      },
+      {
+        id: "delete",
+        label: "Delete Agreement",
+        icon: "delete",
+        tone: "danger",
+        hidden: status !== "draft",
+        onClick: () => void handleDelete(row),
       },
     ];
   };
@@ -295,14 +386,27 @@ export function AgreementsPanel({
         />
       ) : null}
 
+      {info ? <AgreementInfoDialog detail={info} onClose={() => setInfo(null)} /> : null}
+      {versionSource ? (
+        <AgreementVersionDialog
+          source={versionSource}
+          onClose={() => setVersionSource(null)}
+          onCreated={async (draft) => {
+            setVersionSource(null);
+            toastSuccess(`Version ${draft.version} saved as a draft. Save it to assign recipients.`);
+            await load(1);
+            setPage(1);
+            await openDraftWizard(draft.id, "edit");
+          }}
+        />
+      ) : null}
+
       {detail ? (
         <AgreementDetailView
           detail={detail}
           recipientQuery={recipientQuery}
           onRecipientQuery={setRecipientQuery}
           onClose={() => setDetail(null)}
-          onEdit={() => void openDraftWizard(detail.id, "edit")}
-          onPublish={() => void openDraftWizard(detail.id, "publish")}
           onChange={async () => {
             await load(page);
             await openDetail(detail.id);
@@ -363,6 +467,7 @@ export function AgreementsPanel({
                 <th className="px-4 py-3 font-semibold">Due</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="px-4 py-3 font-semibold">Updated</th>
+                <th className="px-4 py-3 text-right font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -391,11 +496,9 @@ export function AgreementsPanel({
                       ) : null}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-500">
-                    <div className="flex items-center justify-between gap-2">
-                      <span>{formatWhen(row.updated_at)}</span>
-                      <AdminActionsMenu actions={rowActions(row)} />
-                    </div>
+                  <td className="px-4 py-3 text-slate-500">{formatWhen(row.updated_at)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right" onClick={(event) => event.stopPropagation()}>
+                    <AdminActionsMenu actions={rowActions(row)} />
                   </td>
                 </tr>
               ))}
@@ -686,6 +789,11 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
   if (!mounted) return null;
 
   const scopeLabel = scope === "all" ? "All eligible residents" : scope === "residents" ? "Selected residents" : "Selected units";
+  const reviewFileName = file?.name || savedFile?.name || "";
+  const reviewFileDetail = [
+    file || savedFile ? fileSize(file?.size ?? savedFile?.size ?? 0) : "",
+    !file && savedFile?.pages ? `${savedFile.pages} pages` : "",
+  ].filter(Boolean).join(" · ");
 
   return createPortal(
     <div className="nl-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-3 backdrop-blur-[2px] sm:p-6">
@@ -947,20 +1055,27 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
             ) : null}
 
             {step === 3 ? (
-              <dl className="grid gap-3 sm:grid-cols-2">
+              <dl className="grid min-w-0 gap-3 sm:grid-cols-2">
                 {[
                   ["Title", title],
-                  ["File", `${savedFile?.name ?? file?.name ?? "—"}${savedFile ? ` · ${fileSize(savedFile.size)}` : ""}${savedFile?.pages ? ` · ${savedFile.pages} pages` : ""}`],
                   ["Recipients", `${scopeLabel} · ${recipientCount}`],
                   ["Due", dueAt || "None"],
                   ["Signature", "Required"],
                   ["Notifications", notify ? "Send on save" : "Do not notify"],
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div key={label} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</dt>
-                    <dd className="mt-1 text-sm font-medium text-slate-800">{value}</dd>
+                    <dd className="mt-1 break-words text-sm font-medium text-slate-800">{value}</dd>
                   </div>
                 ))}
+                <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">File</dt>
+                  <dd className="mt-1 flex min-w-0 items-center gap-2 text-sm font-medium text-slate-800">
+                    <FileText className="h-4 w-4 shrink-0 text-[#1B4F8A]" />
+                    <span className="min-w-0 flex-1 truncate" title={reviewFileName || undefined}>{reviewFileName || "—"}</span>
+                    {reviewFileDetail ? <span className="shrink-0 font-normal text-slate-500">{reviewFileDetail}</span> : null}
+                  </dd>
+                </div>
               </dl>
             ) : null}
           </div>
@@ -992,32 +1107,28 @@ function AgreementDetailView({
   recipientQuery,
   onRecipientQuery,
   onClose,
-  onEdit,
-  onPublish,
   onChange,
 }: {
   detail: AgreementDetail;
   recipientQuery: string;
   onRecipientQuery: (value: string) => void;
   onClose: () => void;
-  onEdit: () => void;
-  onPublish: () => void;
   onChange: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
-  const [versionFile, setVersionFile] = useState<File | null>(null);
-  const [signatureFilter, setSignatureFilter] = useState<"all" | "signed" | "pending" | "overdue" | "expired">("all");
+  const [signatureFilter, setSignatureFilter] = useState<"all" | "signed" | "pending" | "overdue" | "expired" | "declined">("all");
   const stats = detail.stats;
-  const awaitingSignature = (row: AgreementRecipient) => (row.signature_status === "pending" || row.signature_status === "viewed") && row.display_status !== "expired";
   const signedCount = detail.recipients.filter((row) => row.display_status === "signed").length;
   const pendingCount = detail.recipients.filter((row) => row.display_status === "pending" || row.display_status === "viewed").length;
   const overdueCount = detail.recipients.filter((row) => row.display_status === "overdue").length;
   const expiredCount = detail.recipients.filter((row) => row.display_status === "expired").length;
+  const declinedCount = detail.recipients.filter((row) => row.display_status === "declined").length;
   const recipients = detail.recipients.filter((row) => {
     if (signatureFilter === "signed" && row.display_status !== "signed") return false;
     if (signatureFilter === "pending" && row.display_status !== "pending" && row.display_status !== "viewed") return false;
     if (signatureFilter === "overdue" && row.display_status !== "overdue") return false;
     if (signatureFilter === "expired" && row.display_status !== "expired") return false;
+    if (signatureFilter === "declined" && row.display_status !== "declined") return false;
     const query = recipientQuery.trim().toLowerCase();
     if (!query) return true;
     return row.resident_name.toLowerCase().includes(query) || (row.unit_label ?? "").toLowerCase().includes(query);
@@ -1040,76 +1151,12 @@ function AgreementDetailView({
     }
   };
 
-  const actions: AdminMenuAction[] = [
-    {
-      id: "edit",
-      label: "Edit draft",
-      icon: "edit",
-      hidden: detail.publication_status !== "draft",
-      disabled: busy,
-      onClick: () => onEdit(),
-    },
-    {
-      id: "publish",
-      label: "Save",
-      icon: "check",
-      hidden: detail.publication_status !== "draft",
-      disabled: busy,
-      onClick: () => onPublish(),
-    },
-    {
-      id: "preview",
-      label: "Preview original",
-      icon: "view",
-      onClick: () => {
-        window.open(detail.file_url, "_blank", "noopener,noreferrer");
-      },
-    },
-    {
-      id: "remind",
-      label: "Remind pending",
-      hidden: pendingCount === 0,
-      disabled: busy,
-      onClick: () => run(async () => {
-        const result = await remindAgreement(detail.id);
-        toastSuccess(`Reminders sent: ${result.sent}`);
-      }),
-    },
-    {
-      id: "export",
-      label: "Export",
-      icon: "download",
-      onClick: () => downloadAgreementExport(detail.id).catch((err) => toastError(apiError(err))),
-    },
-    {
-      id: "archive",
-      label: "Archive",
-      hidden: detail.publication_status !== "published",
-      disabled: busy,
-      onClick: () => run(async () => {
-        await archiveAgreement(detail.id);
-        toastSuccess("Agreement archived");
-      }),
-    },
-    {
-      id: "revoke",
-      label: "Revoke",
-      icon: "ban",
-      tone: "danger",
-      hidden: detail.publication_status !== "published" && detail.publication_status !== "archived",
-      disabled: busy,
-      onClick: () => run(async () => {
-        await revokeAgreement(detail.id);
-        toastSuccess("Agreement revoked");
-      }),
-    },
-  ];
-
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#1B4F8A]">Signature Tracking</p>
+            <div className="mt-1 flex items-center gap-2">
             <h3 className="text-lg font-bold text-slate-900">{detail.title}</h3>
             {agreementStatusLabel(detail.publication_status) ? (
               <AdminBadge tone={STATUS_TONE[detail.publication_status] ?? "slate"}>{agreementStatusLabel(detail.publication_status)}</AdminBadge>
@@ -1118,10 +1165,7 @@ function AgreementDetailView({
           </div>
           <p className="mt-1 text-sm text-slate-500">Version {detail.version} · {detail.created_by_name ?? "Admin"}{detail.published_at ? ` · Published ${formatWhen(detail.published_at)}` : ""}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <AdminActionsMenu actions={actions} disabled={busy} />
-          <button type="button" className="text-sm font-semibold text-slate-500" onClick={onClose}>Close</button>
-        </div>
+        <button type="button" className="text-sm font-semibold text-slate-500" onClick={onClose}>Close</button>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
         {[
@@ -1140,44 +1184,6 @@ function AgreementDetailView({
           </div>
         ))}
       </div>
-      {detail.publication_status !== "draft" ? (
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className={`flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl border border-dashed px-3 py-2.5 transition ${versionFile ? "border-emerald-300 bg-emerald-50" : "border-[#1B4F8A] bg-[#F4F8FC] hover:bg-[#E8F0F7]"}`}>
-            <input
-              type="file"
-              accept="application/pdf,.pdf"
-              className="sr-only"
-              onChange={(e) => setVersionFile(e.target.files?.[0] ?? null)}
-            />
-            {versionFile ? (
-              <>
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                  <Check className="h-4 w-4" />
-                </span>
-                <span className="min-w-0 truncate text-sm font-semibold text-slate-800">{versionFile.name}</span>
-              </>
-            ) : (
-              <>
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#1B4F8A] shadow-sm">
-                  <Upload className="h-4 w-4" />
-                </span>
-                <span className="text-sm font-semibold text-[#1B4F8A]">Select PDF</span>
-              </>
-            )}
-          </label>
-          <button
-            type="button"
-            className="w-full shrink-0 rounded-xl bg-[#1B4F8A] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto"
-            disabled={!versionFile || busy}
-            onClick={() => void run(async () => {
-              const draft = await createAgreementVersion(detail.id, versionFile!);
-              toastSuccess(`Version ${draft.version} saved as a draft. Save it to assign recipients.`);
-            })}
-          >
-            Create new version
-          </button>
-        </div>
-      ) : null}
       <div className="mt-4">
         <div className="mb-2 flex flex-wrap gap-2">
           {([
@@ -1185,6 +1191,7 @@ function AgreementDetailView({
             ["pending", "Pending", pendingCount],
             ["overdue", "Overdue", overdueCount],
             ["signed", "Signed", signedCount],
+            ["declined", "Declined", declinedCount],
             ["expired", "Expired", expiredCount],
           ] as const).map(([key, label, count]) => (
             <button
@@ -1227,7 +1234,7 @@ function AgreementDetailView({
                   <td className="py-2 pr-3">{formatWhen(row.signed_at)}</td>
                   <td className="py-2">
                     <div className="flex gap-2">
-                      {row.signature_status === "pending" || row.signature_status === "viewed" ? (
+                      {(row.display_status === "pending" || row.display_status === "overdue") ? (
                         <button type="button" className="font-semibold text-[#1B4F8A]" disabled={busy} onClick={() => void run(async () => { const result = await remindAgreement(detail.id, row.id); toastSuccess(result.sent ? "Reminder sent" : "Reminder was already sent"); })}>Remind</button>
                       ) : null}
                       {row.signed_file_url ? <a className="font-semibold text-[#1B4F8A]" href={row.signed_file_url} target="_blank" rel="noreferrer">Signed PDF</a> : null}
@@ -1240,5 +1247,181 @@ function AgreementDetailView({
         </div>
       </div>
     </section>
+  );
+}
+
+function assignedResidents(detail: AgreementDetail) {
+  const names = detail.recipients
+    .filter((person) => person.signature_status !== "revoked" && person.resident_name?.trim())
+    .map((person) => person.unit_label ? `${person.resident_name} (Unit ${person.unit_label})` : person.resident_name);
+  if (detail.assignment_scope === "all") return "All residents";
+  if (names.length) return names.join(", ");
+  if (detail.assignment_scope === "units") return "Selected units";
+  if (detail.assignment_scope === "residents") return "Selected residents";
+  return "Not assigned yet";
+}
+
+function publicationLabel(status: string) {
+  if (status === "published") return "Published";
+  return agreementStatusLabel(status) || status;
+}
+
+function AgreementInfoDialog({ detail, onClose }: { detail: AgreementDetail; onClose: () => void }) {
+  const dates = ([
+    ["Due", detail.due_at],
+    ["Effective", detail.effective_at],
+    ["Expiration", detail.expires_at],
+    ["Published", detail.published_at],
+  ] as [string, string | null][]).filter((entry): entry is [string, string] => Boolean(entry[1]));
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
+      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200" role="dialog" aria-modal="true" aria-labelledby="agreement-details-title">
+        <div className="shrink-0 border-b border-slate-100 px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#1B4F8A]">Agreement</p>
+              <h3 id="agreement-details-title" className="mt-1 text-lg font-bold text-slate-900">View Details</h3>
+            </div>
+            <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100" aria-label="Close"><X className="h-4 w-4" /></button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-2">
+          <dl className="divide-y divide-slate-100">
+            <InfoField label="Title">{detail.title}</InfoField>
+            {detail.description?.trim() ? (
+              <InfoField label="Description"><span className="whitespace-pre-wrap break-words">{detail.description.trim()}</span></InfoField>
+            ) : null}
+            {detail.category?.trim() ? <InfoField label="Category">{detail.category}</InfoField> : null}
+            <InfoField label="Assigned To"><span className="break-words">{assignedResidents(detail)}</span></InfoField>
+            {dates.map(([label, value]) => (
+              <InfoField key={label} label={label}>{formatWhen(value ?? null)}</InfoField>
+            ))}
+            <InfoField label="Status">
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <AdminBadge tone={STATUS_TONE[detail.publication_status] ?? "slate"}>{publicationLabel(detail.publication_status)}</AdminBadge>
+                <span className="text-slate-500">Version {detail.version}</span>
+              </span>
+            </InfoField>
+            <InfoField label="File">
+              <p className="truncate font-medium text-slate-900" title={detail.file_name}>{detail.file_name}</p>
+              <p className="text-slate-500">{fileSize(detail.file_size)}{detail.page_count ? ` · ${detail.page_count} pages` : ""}</p>
+              {detail.file_url ? (
+                <iframe title="Agreement PDF" src={`${detail.file_url}#toolbar=0&navpanes=0`} className="mt-3 h-64 w-full rounded-xl border border-slate-200 bg-slate-50" />
+              ) : null}
+            </InfoField>
+          </dl>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-6 py-4">
+          <button type="button" onClick={onClose} className="nl-btn-secondary">Close</button>
+          {detail.file_url ? (
+            <a className="nl-btn-primary" href={detail.file_url} target="_blank" rel="noreferrer">View PDF</a>
+          ) : <span />}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function InfoField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-1 py-3 sm:grid-cols-[9.5rem_minmax(0,1fr)] sm:gap-4">
+      <dt className="text-[13px] font-medium text-slate-500">{label}</dt>
+      <dd className="min-w-0 text-sm leading-6 text-slate-800">{children}</dd>
+    </div>
+  );
+}
+
+function AgreementVersionDialog({
+  source,
+  onClose,
+  onCreated,
+}: {
+  source: AgreementSummary;
+  onClose: () => void;
+  onCreated: (draft: AgreementSummary) => Promise<void>;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const chooseFile = (next: File | null) => {
+    if (!next) {
+      setFile(null);
+      return;
+    }
+    const isPdf = next.type === "application/pdf" || next.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
+      toastError("Choose a PDF file.");
+      return;
+    }
+    if (next.size > 10 * 1024 * 1024) {
+      toastError("PDF must be 10 MB or less.");
+      return;
+    }
+    setFile(next);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const submit = async () => {
+    if (!file || busy) return;
+    setBusy(true);
+    try {
+      const draft = await createAgreementVersion(source.id, file, {
+        title: source.title,
+        category: source.category,
+        description: source.description && source.description.trim().length >= 10 ? source.description : undefined,
+        due_at: source.due_at,
+        effective_at: source.effective_at,
+        expires_at: source.expires_at,
+      });
+      await onCreated(draft);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
+      <div className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200" role="dialog" aria-modal="true" aria-labelledby="agreement-version-title">
+        <div className="shrink-0 border-b border-slate-100 px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#1B4F8A]">Agreement</p>
+              <h3 id="agreement-version-title" className="mt-1 text-lg font-bold text-slate-900">Create New Version</h3>
+              <p className="mt-1 text-sm text-slate-500">The current agreement, its signatures, and signed PDFs stay on file. This upload is saved as a new draft.</p>
+            </div>
+            <button type="button" onClick={onClose} disabled={busy} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-50" aria-label="Close"><X className="h-4 w-4" /></button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <p className="nl-label">PDF</p>
+          <input ref={inputRef} type="file" accept="application/pdf,.pdf" className="sr-only" onChange={(event) => chooseFile(event.target.files?.[0] ?? null)} />
+          {file ? (
+            <div className="mt-1.5 flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <FileText className="h-4 w-4 shrink-0 text-[#1B4F8A]" />
+                <p className="truncate text-sm text-slate-700" title={file.name}>{file.name} · {fileSize(file.size)}</p>
+              </div>
+              <button type="button" className="shrink-0 text-sm font-semibold text-[#1B4F8A]" onClick={() => chooseFile(null)}>Remove</button>
+            </div>
+          ) : (
+            <button type="button" className="mt-1.5 flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center hover:border-[#1B4F8A] hover:bg-[#F4F8FC]" onClick={() => inputRef.current?.click()}>
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#1B4F8A] shadow-sm"><Upload className="h-4 w-4" /></span>
+              <span className="mt-2 text-sm font-semibold text-slate-800">Choose a PDF</span>
+              <span className="mt-0.5 text-xs text-slate-500">PDF only, up to 10 MB.</span>
+            </button>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-6 py-4">
+          <button type="button" className="nl-btn-secondary" onClick={onClose} disabled={busy}>Close</button>
+          <button type="button" className="nl-btn-primary disabled:opacity-60" onClick={() => void submit()} disabled={busy || !file}>{busy ? "Saving…" : "Create version"}</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

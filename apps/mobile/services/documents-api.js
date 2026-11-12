@@ -165,6 +165,13 @@ export async function remindAgreement(id, assignmentId) {
   });
 }
 
+export async function remindDocument(id, assignmentId) {
+  return apiRequest(`/admin/documents/${id}/remind`, {
+    method: "POST",
+    body: { assignment_id: assignmentId ?? null },
+  });
+}
+
 export async function signAgreement(id, payload) {
   return apiRequest(`/documents/${id}/sign`, { method: "POST", body: payload });
 }

@@ -467,7 +467,10 @@ class AgreementController extends Controller
             ->where('community_id', $communityId)
             ->whereNull('deleted_at')
             ->first();
-        abort_if(! $document || ($document->kind ?? '') !== 'agreement', 404, 'Agreement not found.');
+        $signable = $document
+            && (($document->kind ?? '') === 'agreement'
+                || (($document->kind ?? 'document') === 'document' && (bool) ($document->signature_required ?? false)));
+        abort_if(! $signable, 404, 'Agreement not found.');
 
         return $document;
     }

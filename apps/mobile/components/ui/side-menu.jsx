@@ -367,6 +367,13 @@ function SideMenuPanel({ visible, onClose }) {
           route: PropertyManagementRoutes.DOCUMENTS,
         }
       : null,
+    !isGuestUser(user)
+      ? {
+          iconName: "life-buoy",
+          titleKey: "nav.complaints",
+          route: isCommunityAdmin(user) ? "/screens/admin-complaints" : "/screens/complaints",
+        }
+      : null,
     {
       iconName: "user",
       titleKey: "nav.profile",

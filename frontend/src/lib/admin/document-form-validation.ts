@@ -24,16 +24,41 @@ export function validateTitleAndDescription(title: string, description: string):
 }
 
 export function validateDocumentForm(
-  form: { title: string; category: string; description?: string },
-  opts: { hasFile: boolean },
+  form: {
+    title: string;
+    category: string;
+    description?: string;
+    assignment_scope?: "all" | "residents";
+    user_ids?: number[];
+  },
+  opts: { hasFile: boolean; publishing?: boolean; file?: File | null },
 ): FieldErrors {
-  const errors = validateTitleAndDescription(form.title, form.description ?? "");
+  const errors: FieldErrors = {};
+  const trimmedTitle = form.title.trim();
+  const trimmedDescription = (form.description ?? "").trim();
+
+  if (!trimmedTitle) errors.title = "Title is required.";
+  else if (trimmedTitle.length < 3) errors.title = "Title must be at least 3 characters.";
+  else if (form.title.length > LIMITS.title) errors.title = "Title must be 200 characters or less.";
+  else if (!letterPattern().test(trimmedTitle)) errors.title = "Title must include at least one letter.";
+
+  if (trimmedDescription) {
+    if (trimmedDescription.length < 10) errors.description = "Description must be at least 10 characters.";
+    else if ((form.description ?? "").length > LIMITS.description) errors.description = "Description must be 5000 characters or less.";
+  }
 
   const category = form.category.trim();
   if (!category) errors.category = "Category is required.";
   else if (category.length > LIMITS.category) errors.category = "Category must be 100 characters or less.";
 
   if (!opts.hasFile) errors.file = "Choose a file to upload.";
+  else if (opts.file && opts.file.size > 10 * 1024 * 1024) {
+    errors.file = "File must be 10 MB or less.";
+  }
+
+  if (opts.publishing && form.assignment_scope === "residents" && !(form.user_ids ?? []).length) {
+    errors.user_ids = "Choose at least one resident.";
+  }
 
   return errors;
 }

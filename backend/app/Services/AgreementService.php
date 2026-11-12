@@ -95,8 +95,9 @@ class AgreementService
 
     public function publish(object $document, int $actorId, string $scope, array $userIds, array $unitIds, bool $notify): array
     {
-        if (($document->kind ?? '') !== 'agreement') {
-            abort(404, 'Agreement not found.');
+        $kind = $document->kind ?? 'document';
+        if (! in_array($kind, ['agreement', 'document'], true)) {
+            abort(404, 'Document not found.');
         }
         if ($document->publication_status === 'published') {
             return ['document' => $this->fresh($document->id), 'assigned' => 0, 'already_published' => true];
@@ -121,6 +122,11 @@ class AgreementService
                 abort(422, 'Only a draft agreement can be published.');
             }
             $publishedNow = true;
+            $assignmentStatus = $this->assignmentStatusFor($locked);
+            DB::table('community_document_assignments')
+                ->where('document_id', $document->id)
+                ->where('status', 'draft')
+                ->delete();
 
             foreach ($recipients as $recipient) {
                 DB::table('community_document_assignments')->insert([
@@ -131,7 +137,7 @@ class AgreementService
                     'unit_label' => $recipient['unit_label'],
                     'scope_key' => $recipient['scope_key'],
                     'document_version' => (int) $locked->version,
-                    'status' => 'pending',
+                    'status' => $assignmentStatus,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
@@ -176,7 +182,7 @@ class AgreementService
 
     public function remind(object $document, ?int $assignmentId, int $actorId): array
     {
-        $this->assertAgreement($document);
+        $this->assertSignable($document);
         $query = DB::table('community_document_assignments')
             ->where('document_id', $document->id)
             ->whereIn('status', ['pending', 'viewed']);
@@ -234,7 +240,7 @@ class AgreementService
 
     public function sign(object $document, object $user, array $payload, Request $request): array
     {
-        $this->assertAgreement($document);
+        $this->assertSignable($document);
         $assignmentId = (int) $payload['assignment_id'];
         $replayed = false;
 
@@ -355,6 +361,87 @@ class AgreementService
 
             return DB::table('community_document_assignments')->where('id', $assignment->id)->first();
         });
+    }
+
+    public function archiveCommunityDocument(object $document, int $actorId): object
+    {
+        abort_if(($document->kind ?? 'document') === 'agreement' || $document->deleted_at, 404, 'Document not found.');
+        if (($document->publication_status ?? 'published') === 'draft') {
+            abort(422, 'Delete a draft instead of archiving it.');
+        }
+        if (($document->publication_status ?? '') === 'archived') {
+            return $document;
+        }
+        DB::table('community_documents')->where('id', $document->id)->update([
+            'publication_status' => 'archived',
+            'status' => 'inactive',
+            'updated_at' => now(),
+        ]);
+        $this->activity((int) $document->id, (int) $document->community_id, $actorId, null, 'archived', []);
+
+        return $this->fresh((int) $document->id);
+    }
+
+    public function restoreCommunityDocument(object $document, int $actorId): object
+    {
+        abort_if(($document->kind ?? 'document') === 'agreement' || $document->deleted_at, 404, 'Document not found.');
+        abort_if(($document->publication_status ?? '') !== 'archived', 422, 'Only archived documents can be restored.');
+        DB::table('community_documents')->where('id', $document->id)->update([
+            'publication_status' => 'published',
+            'status' => 'active',
+            'updated_at' => now(),
+        ]);
+        $this->activity((int) $document->id, (int) $document->community_id, $actorId, null, 'restored', []);
+
+        return $this->fresh((int) $document->id);
+    }
+
+    public function extendDocumentDeadline(object $document, string $dueAt, int $actorId): object
+    {
+        $this->assertSignable($document);
+        abort_if(($document->kind ?? '') === 'agreement', 422, 'Create a new agreement version to change its deadline.');
+        abort_if(($document->publication_status ?? 'published') !== 'published', 422, 'Only published documents can have their signature deadline extended.');
+        $next = Carbon::parse($dueAt)->utc();
+        if ($next->lessThanOrEqualTo(now())) {
+            throw ValidationException::withMessages(['due_at' => 'Choose a future signature deadline.']);
+        }
+        $open = DB::table('community_document_assignments')
+            ->where('document_id', $document->id)
+            ->whereIn('status', ['pending', 'viewed'])
+            ->count();
+        abort_if($open === 0, 422, 'Every assigned resident has already signed.');
+        DB::table('community_documents')->where('id', $document->id)->update([
+            'due_at' => $next->format('Y-m-d H:i:s'),
+            'updated_at' => now(),
+        ]);
+        $this->activity((int) $document->id, (int) $document->community_id, $actorId, null, 'deadline_extended', [
+            'from' => $document->due_at,
+            'to' => $next->toIso8601String(),
+        ]);
+
+        return $this->fresh((int) $document->id);
+    }
+
+    public function documentActivity(int $documentId): array
+    {
+        return DB::table('community_document_activity as a')
+            ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
+            ->where('a.document_id', $documentId)
+            ->orderByDesc('a.id')
+            ->limit(40)
+            ->get(['a.id', 'a.event', 'a.meta', 'a.created_at', 'a.assignment_id', 'u.name as actor_name'])
+            ->map(function ($row) {
+                $meta = $row->meta ? json_decode((string) $row->meta, true) : null;
+
+                return [
+                    'id' => (int) $row->id,
+                    'event' => $row->event,
+                    'meta' => is_array($meta) ? $meta : null,
+                    'created_at' => $this->iso($row->created_at),
+                    'actor_name' => $row->actor_name,
+                    'assignment_id' => $row->assignment_id ? (int) $row->assignment_id : null,
+                ];
+            })->all();
     }
 
     public function archive(object $document, int $actorId): object
@@ -511,17 +598,25 @@ class AgreementService
 
     public function residentCanView(object $document, int $userId, bool $isAdmin): bool
     {
-        if (($document->kind ?? 'document') !== 'agreement') {
+        if ($isAdmin) {
             return true;
         }
-        if ($isAdmin) {
+        $publication = $document->publication_status ?? 'published';
+        if ($publication === 'draft') {
+            return false;
+        }
+        if (($document->kind ?? 'document') !== 'agreement' && in_array($publication, ['archived', 'revoked'], true)) {
+            return false;
+        }
+        $assigned = ($document->kind ?? 'document') === 'agreement' || filled($document->assignment_scope ?? null);
+        if (! $assigned) {
             return true;
         }
 
         return DB::table('community_document_assignments')
             ->where('document_id', $document->id)
             ->where('user_id', $userId)
-            ->where('status', '!=', 'revoked')
+            ->whereNotIn('status', ['revoked', 'draft'])
             ->exists();
     }
 
@@ -538,7 +633,8 @@ class AgreementService
 
         $items = [];
         foreach ($documents as $document) {
-            if (($document['kind'] ?? 'document') !== 'agreement') {
+            $signable = ($document['kind'] ?? 'document') === 'agreement' || ! empty($document['signature_required']);
+            if (! $signable) {
                 $items[] = $document;
                 continue;
             }
@@ -694,6 +790,9 @@ class AgreementService
 
     private function canSign(object $document, object $assignment): bool
     {
+        if (($document->kind ?? '') !== 'agreement' && ! ($document->signature_required ?? false)) {
+            return false;
+        }
         if (($document->publication_status ?? '') !== 'published') {
             return false;
         }
@@ -921,10 +1020,18 @@ class AgreementService
 
     private function notifyRecipients(object $document, array $recipients, string $reason): void
     {
-        $title = $reason === 'updated' ? 'Agreement Updated' : 'New Agreement Available';
-        $body = $reason === 'updated'
-            ? 'An agreement was updated and needs your review.'
-            : 'A new agreement requires your review and signature.';
+        $agreement = ($document->kind ?? '') === 'agreement';
+        $signature = $agreement || (bool) ($document->signature_required ?? false);
+        $title = $agreement
+            ? ($reason === 'updated' ? 'Agreement Updated' : 'New Agreement Available')
+            : ($signature ? 'New document to sign' : 'New document available');
+        $body = $agreement
+            ? ($reason === 'updated'
+                ? 'An agreement was updated and needs your review.'
+                : 'A new agreement requires your review and signature.')
+            : ($signature
+                ? 'A document was published and needs your signature.'
+                : 'A document was published for you.');
         $url = $this->residentUrl((int) $document->id);
         $communityName = (string) (DB::table('communities')->where('id', $document->community_id)->value('name') ?: 'your community');
         $users = DB::table('users')
@@ -961,31 +1068,62 @@ class AgreementService
         }
 
         $updated = $reason === 'updated';
+        $agreement = ($document->kind ?? '') === 'agreement';
+        $signature = $agreement || (bool) ($document->signature_required ?? false);
         $name = trim((string) ($user->name ?? ''));
         $greeting = $name !== '' ? "Hello {$name}." : 'Hello.';
+        if ($agreement) {
+            $subject = ($updated ? 'Updated agreement to sign: ' : 'New agreement to sign: ').$document->title;
+            $preheader = $document->title.' is ready for your review and signature in '.$communityName.'.';
+            $eyebrow = 'Agreement';
+            $heading = $updated ? 'An updated agreement is ready to sign' : 'A new agreement is ready to sign';
+            $intro = $greeting.' '.($updated
+                ? 'An updated agreement is available for your review and signature.'
+                : 'A new agreement is available for your review and signature.');
+            $paragraph = 'Open Havena to review the agreement and sign it.';
+            $detailLabel = 'Agreement';
+            $ctaLabel = 'Review and sign';
+            $footer = 'This email was sent because your community admin shared this agreement with you.';
+        } elseif ($signature) {
+            $subject = 'New document to sign: '.$document->title;
+            $preheader = $document->title.' is available in '.$communityName.'.';
+            $eyebrow = 'Document';
+            $heading = 'A document is ready to sign';
+            $intro = $greeting.' A document is available for your review and signature.';
+            $paragraph = 'Open Havena to review this document and sign it.';
+            $detailLabel = 'Document';
+            $ctaLabel = 'Review and sign';
+            $footer = 'This email was sent because your community admin shared this document with you.';
+        } else {
+            $subject = 'New document: '.$document->title;
+            $preheader = $document->title.' is available in '.$communityName.'.';
+            $eyebrow = 'Document';
+            $heading = 'A document is available';
+            $intro = $greeting.' A new document is available for you.';
+            $paragraph = 'Open Havena to view this document.';
+            $detailLabel = 'Document';
+            $ctaLabel = 'View document';
+            $footer = 'This email was sent because your community admin shared this document with you.';
+        }
         try {
             app(LifecycleMailService::class)->sendOnce(
                 'agreement_available',
                 'agreement:'.(int) $document->id.':user:'.(int) $user->id,
                 (string) $user->email,
                 new HavenaTransactionalMail(
-                    subjectLine: ($updated ? 'Updated agreement to sign: ' : 'New agreement to sign: ').$document->title,
-                    preheader: $document->title.' is ready for your review and signature in '.$communityName.'.',
-                    eyebrow: 'Agreement',
-                    heading: $updated ? 'An updated agreement is ready to sign' : 'A new agreement is ready to sign',
-                    intro: $greeting.' '.($updated
-                        ? 'An updated agreement is available for your review and signature.'
-                        : 'A new agreement is available for your review and signature.'),
-                    paragraphs: [
-                        'Open Havena to review the agreement and sign it.',
-                    ],
+                    subjectLine: $subject,
+                    preheader: $preheader,
+                    eyebrow: $eyebrow,
+                    heading: $heading,
+                    intro: $intro,
+                    paragraphs: [$paragraph],
                     details: [
-                        ['label' => 'Agreement', 'value' => (string) $document->title],
+                        ['label' => $detailLabel, 'value' => (string) $document->title],
                         ['label' => 'Community', 'value' => $communityName],
                     ],
-                    ctaLabel: 'Review and sign',
+                    ctaLabel: $ctaLabel,
                     ctaUrl: AppUrls::agreementReview((int) $document->id),
-                    footerNote: 'This email was sent because your community admin shared this agreement with you.',
+                    footerNote: $footer,
                 ),
             );
         } catch (\Throwable) {
@@ -1155,11 +1293,15 @@ class AgreementService
         if ($publication === 'revoked') {
             return 'revoked';
         }
-        if ($publication === 'archived' || $publication === 'superseded' || $this->deadlinePassed($document->expires_at ?? null)) {
+        $agreementExpired = ($document->kind ?? '') === 'agreement' && $this->deadlinePassed($document->expires_at ?? null);
+        if ($publication === 'archived' || $publication === 'superseded' || $agreementExpired) {
             return 'expired';
         }
         if ($assignment->status === 'signed') {
             return 'signed';
+        }
+        if (($document->kind ?? '') !== 'agreement' && ! ($document->signature_required ?? false)) {
+            return $assignment->viewed_at ? 'viewed' : 'available';
         }
         if ($this->deadlinePassed($document->due_at ?? null)) {
             return 'overdue';
@@ -1210,6 +1352,48 @@ class AgreementService
     private function assertAgreement(object $document): void
     {
         abort_if(($document->kind ?? '') !== 'agreement' || $document->deleted_at, 404, 'Agreement not found.');
+    }
+
+    private function assertSignable(object $document): void
+    {
+        abort_if($document->deleted_at, 404, 'Document not found.');
+        $signable = ($document->kind ?? '') === 'agreement'
+            || (($document->kind ?? 'document') === 'document' && (bool) ($document->signature_required ?? false));
+        abort_if(! $signable, 404, 'This document does not require a signature.');
+    }
+
+    private function assignmentStatusFor(object $document): string
+    {
+        return ($document->kind ?? '') === 'agreement' || (bool) ($document->signature_required ?? false)
+            ? 'pending'
+            : 'available';
+    }
+
+    public function replaceDraftRecipients(object $document, string $scope, array $userIds): void
+    {
+        if (($document->publication_status ?? 'draft') !== 'draft') {
+            return;
+        }
+        DB::table('community_document_assignments')->where('document_id', $document->id)->where('status', 'draft')->delete();
+        if ($scope !== 'residents') {
+            return;
+        }
+        $recipients = $this->resolveRecipients((int) $document->community_id, 'residents', $userIds, []);
+        $now = now();
+        foreach ($recipients as $recipient) {
+            DB::table('community_document_assignments')->insert([
+                'document_id' => $document->id,
+                'community_id' => $document->community_id,
+                'user_id' => $recipient['user_id'],
+                'unit_id' => $recipient['unit_id'],
+                'unit_label' => $recipient['unit_label'],
+                'scope_key' => $recipient['scope_key'],
+                'document_version' => (int) ($document->version ?? 1),
+                'status' => 'draft',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
     }
 
     private function iso(mixed $value): ?string
