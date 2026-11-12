@@ -667,6 +667,8 @@ function PollBlock({ post, onVote }: { post: ApiPost; onVote: (optionId: number)
   const poll = post.poll;
   const [selected, setSelected] = useState<number | null>(poll?.voted_option_id ?? null);
   if (!poll) return null;
+  const isMultiple = poll.voting_method === "multiple";
+  const votedIds = poll.voted_option_ids ?? [];
   const closed = poll.closed || pollTimeLeft(poll.ends_at, false) === "Poll closed";
   const showResults = poll.results_visible || closed;
   const time = pollTimeLeft(poll.ends_at, closed);
@@ -677,13 +679,21 @@ function PollBlock({ post, onVote }: { post: ApiPost; onVote: (optionId: number)
       <p className="text-[12px]" style={{ color: C.soft }}>This poll is for community feedback.</p>
       <div className="space-y-2">
         {poll.options.map((option) => {
-          const picked = selected === option.id || poll.voted_option_id === option.id;
+          const picked = isMultiple
+            ? votedIds.includes(option.id)
+            : selected === option.id || poll.voted_option_id === option.id;
           return (
             <button
               key={option.id}
               type="button"
               disabled={showResults}
-              onClick={() => setSelected(option.id)}
+              onClick={() => {
+                if (isMultiple) {
+                  onVote(option.id);
+                  return;
+                }
+                setSelected(option.id);
+              }}
               className="relative w-full overflow-hidden rounded-xl border px-3 py-2.5 text-left"
               style={{ borderColor: picked ? "#1B4F8A" : C.border }}
             >
@@ -701,6 +711,10 @@ function PollBlock({ post, onVote }: { post: ApiPost; onVote: (optionId: number)
       {showResults ? (
         <p className="text-[12px]" style={{ color: C.soft }}>
           {poll.total_votes ?? 0} {(poll.total_votes ?? 0) === 1 ? "vote" : "votes"} · {closed ? "Poll closed" : time}
+        </p>
+      ) : isMultiple ? (
+        <p className="text-[12px]" style={{ color: C.soft }}>
+          {time} · Tap each option you agree with
         </p>
       ) : (
         <div className="flex items-center justify-between gap-3">

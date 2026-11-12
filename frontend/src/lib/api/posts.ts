@@ -6,9 +6,28 @@ export interface AdminPoll {
   question: string;
   description?: string | null;
   duration_days?: number;
+  duration_hours?: number | null;
+  voting_method?: "single" | "multiple" | string;
+  started_at?: string;
   ends_at?: string;
   closed?: boolean;
-  options?: { id: number; label: string }[];
+  active?: boolean;
+  options_count?: number;
+  total_votes?: number | null;
+  results_visible?: boolean;
+  vote_changes_allowed?: boolean;
+  winning_option_ids?: number[];
+  leading_option_ids?: number[];
+  is_tie?: boolean;
+  no_participation?: boolean;
+  options?: {
+    id: number;
+    label: string;
+    votes?: number;
+    percent?: number;
+    is_winner?: boolean;
+    is_leading?: boolean;
+  }[];
 }
 
 export interface AdminPost {
@@ -23,6 +42,8 @@ export interface AdminPost {
   is_sensitive?: boolean;
   reports_count?: number | null;
   resident_reports_count?: number | null;
+  sensitive_report_threshold?: number;
+  reports_until_sensitive?: number;
   report_status?: "published" | "reported" | "sensitive";
   reports_restricted?: boolean;
   can_mark_sensitive?: boolean;
@@ -47,7 +68,11 @@ export interface AdminPostStats {
   rejected: number;
   sensitive?: number;
   reported?: number;
+  poll_open?: number;
+  poll_closed?: number;
 }
+
+export type AdminFeedType = "posts" | "poll";
 
 export interface AdminPostsQuery {
   page?: number;
@@ -55,6 +80,7 @@ export interface AdminPostsQuery {
   status?: PostStatus | "all";
   search?: string;
   community_id?: number | "all";
+  feed_type?: AdminFeedType;
 }
 
 export interface AdminPostComment {
@@ -117,6 +143,46 @@ export async function fetchAdminPostDetail(id: number) {
   };
 }
 
+export type AdminPollVoterOption = {
+  id: number;
+  label: string;
+  position?: number;
+};
+
+export type AdminPollVoter = {
+  user_id: number;
+  name: string;
+  role?: string | null;
+  unit_number?: string | null;
+  avatar_url?: string | null;
+  voted_at?: string;
+  selected_options: AdminPollVoterOption[];
+};
+
+export type AdminPollVotersPayload = {
+  post_id: number;
+  poll_id: number;
+  question: string;
+  voting_method?: "single" | "multiple" | string;
+  unique_voters_count: number;
+  voters: AdminPollVoter[];
+};
+
+export type AdminPollVotersMeta = {
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+};
+
+export async function fetchAdminPollVoters(
+  postId: number,
+  params: { page?: number; per_page?: number } = {},
+) {
+  const res = await api.get(`/v1/admin/posts/${postId}/poll-voters`, { params });
+  return res.data as { data: AdminPollVotersPayload; meta: AdminPollVotersMeta };
+}
+
 export async function deleteAdminPost(id: number) {
   try {
     return await api.delete(`/v1/admin/posts/${id}`);
@@ -141,6 +207,14 @@ export async function reportAdminPost(id: number, reason: string, type = "other"
   return res.data as {
     message: string;
     data: { post_id: number; is_sensitive: boolean; reports_count: number };
+  };
+}
+
+export async function releaseAdminPostFromSensitive(id: number) {
+  const res = await api.post(`/v1/admin/posts/${id}/release-sensitive`);
+  return res.data as {
+    message: string;
+    data: { post_id: number; is_sensitive: boolean; report_status: string };
   };
 }
 

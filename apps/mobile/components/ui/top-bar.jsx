@@ -80,10 +80,9 @@ export default function TopBar({ onMenuPress }) {
 
   const openDiscoverNearby = useCallback(() => {
     afterMenuClose(() => {
-      setLocationFresh(true);
-      setLocationOpen(true);
+      router.push("/screens/discover");
     });
-  }, [afterMenuClose]);
+  }, [afterMenuClose, router]);
 
   const loadSwitchCommunities = useCallback(async () => {
     try {
@@ -195,8 +194,7 @@ export default function TopBar({ onMenuPress }) {
       return;
     }
     if (showNearby) {
-      setLocationFresh(true);
-      setLocationOpen(true);
+      router.push("/screens/discover");
       return;
     }
     void loadSwitchCommunities();

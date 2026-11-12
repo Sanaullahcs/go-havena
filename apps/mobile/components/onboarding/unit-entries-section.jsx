@@ -72,6 +72,7 @@ export default function UnitEntriesSection({
   loadUnits,
   createUnit,
   errors = {},
+  onTouchField,
   dialog,
   hint,
   scrollRef,
@@ -154,6 +155,8 @@ export default function UnitEntriesSection({
   }
 
   function pickProof(index, field) {
+    const prefix = `unit_${index}`;
+    onTouchField?.(`${prefix}_utility`);
     pickImage(
       (file) => updateEntry(index, { [field]: file }),
       {
@@ -213,6 +216,7 @@ export default function UnitEntriesSection({
               placeholder={t("onboarding.unitPlaceholder")}
               unitMax={unitMax}
               error={errors[`${prefix}_number`]}
+              onBlur={() => onTouchField?.(`${prefix}_number`)}
               onChange={(text) =>
                 updateEntry(index, {
                   unit_number: text,
@@ -242,7 +246,10 @@ export default function UnitEntriesSection({
                     key={type}
                     activeOpacity={0.85}
                     style={[styles.typeCard, active && styles.typeCardActive]}
-                    onPress={() => updateEntry(index, { residence_type: type })}
+                    onPress={() => {
+                      onTouchField?.(`${prefix}_residence`);
+                      updateEntry(index, { residence_type: type });
+                    }}
                   >
                     <Ionicons
                       name={type === "homeowner" ? "home-outline" : "person-outline"}

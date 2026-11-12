@@ -37,6 +37,28 @@ function lanDevOrigins(): string[] {
     // Sandbox / restricted environments cannot enumerate interfaces.
   }
 
+  // Windows users often open http://DESKTOP-XXXX:3000 — without this, dev returns 403
+  // for /_next/static/* and the admin UI renders as unstyled HTML (broken sidebar).
+  try {
+    const host = os.hostname();
+    if (host) {
+      origins.add(host);
+      origins.add(host.toLowerCase());
+      origins.add(`${host}.local`);
+      origins.add(`${host.toLowerCase()}.local`);
+    }
+  } catch {
+    // ignore
+  }
+
+  const extra = (process.env.HAVENA_DEV_ORIGINS || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  for (const item of extra) {
+    origins.add(item);
+  }
+
   return [...origins];
 }
 

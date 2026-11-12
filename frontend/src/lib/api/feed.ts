@@ -11,6 +11,9 @@ export interface FeedPoll {
   question: string;
   description?: string | null;
   duration_days: number;
+  duration_hours?: number | null;
+  voting_method?: "single" | "multiple";
+  voted_option_ids?: number[];
   ends_at: string;
   closed: boolean;
   results_visible: boolean;
@@ -50,7 +53,14 @@ export async function createPost(data: {
   body?: string;
   category?: string;
   image_url?: string;
-  poll?: { question: string; description?: string; duration_days: number; options: string[] };
+  poll?: {
+    question: string;
+    description?: string;
+    duration_days?: number;
+    duration_hours?: number;
+    voting_method?: "single" | "multiple";
+    options: string[];
+  };
 }) {
   const res = await api.post("/v1/feed", data);
   return res.data;

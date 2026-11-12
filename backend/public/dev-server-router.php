@@ -1,0 +1,31 @@
+<?php
+
+/**
+ * Router for `php -S` on Windows (dev-backend.ps1).
+ *
+ * Laravel's default server.php logs each request to php://stdout. On Windows
+ * that write often fails (errno 22) and, with display_errors on, PHP emits HTML
+ * before JSON — breaking axios and the admin dashboard.
+ */
+
+$publicPath = getcwd();
+
+$uri = urldecode(
+    parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? ''
+);
+
+if ($uri !== '/' && file_exists($publicPath.$uri)) {
+    return false;
+}
+
+if (PHP_OS_FAMILY !== 'Windows') {
+    $formattedDateTime = date('D M j H:i:s Y');
+    $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    $remoteAddress = ($_SERVER['REMOTE_ADDR'] ?? '').':'.($_SERVER['REMOTE_PORT'] ?? '');
+    @file_put_contents(
+        'php://stdout',
+        "[$formattedDateTime] $remoteAddress [$requestMethod] URI: $uri\n"
+    );
+}
+
+require_once $publicPath.'/index.php';

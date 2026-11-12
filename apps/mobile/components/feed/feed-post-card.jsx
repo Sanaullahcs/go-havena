@@ -8,7 +8,6 @@ import {
   Animated,
 } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
 import UserAvatar from "../ui/user-avatar";
 import FeedPostContent from "./feed-post-content";
@@ -37,6 +36,7 @@ export default function FeedPostCard({
   footerVariant = "compact",
   showFooter = true,
   showOptions = true,
+  pollDetailMode = false,
   style,
   contentTextStyle,
 }) {
@@ -51,18 +51,7 @@ export default function FeedPostCard({
   const theme = getFeedTagTheme(post.tag);
   const relativeTime = timeAgo(post.created_at, now) || post.user?.time || "";
   const isSensitive = isSensitivePost(post);
-  const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
   const isEngagement = footerVariant === "engagement";
-
-  useEffect(() => {
-    setSensitiveRevealed(false);
-  }, [post?.id]);
-
-  useFocusEffect(
-    useCallback(() => {
-      setSensitiveRevealed(false);
-    }, []),
-  );
 
   const likeScale = useRef(new Animated.Value(1)).current;
 
@@ -116,7 +105,9 @@ export default function FeedPostCard({
               </View>
             ) : isSensitive ? (
               <View style={[styles.tag, styles.tagWarn]}>
-                <Text style={[styles.tagText, { color: "#B45309" }]}>{t("feed.sensitive")}</Text>
+                <Text style={[styles.tagText, { color: "#B45309" }]} numberOfLines={2}>
+                  {post.sensitive_label || t("feed.sensitive")}
+                </Text>
               </View>
             ) : post.tag ? (
               <View style={[styles.tag, { backgroundColor: theme.bg }]}>
@@ -132,15 +123,15 @@ export default function FeedPostCard({
         {/* Content */}
         {isSensitive ? (
           <FeedSensitiveContent
+            label={post.sensitive_label}
             message={post.sensitive_message}
-            revealed={sensitiveRevealed}
-            onToggle={() => setSensitiveRevealed((current) => !current)}
+            reason={post.sensitive_reason}
           />
         ) : null}
-        {!isSensitive || sensitiveRevealed ? (
+        {!isSensitive ? (
           <>
             {viewPost.poll ? (
-              <FeedPollCard post={viewPost} now={now} onVoted={setVotedPost} />
+              <FeedPollCard post={viewPost} now={now} onVoted={setVotedPost} detailMode={pollDetailMode} />
             ) : (
             <FeedPostContent
               post={post}

@@ -9,6 +9,7 @@ type Props = {
   latitude: number;
   longitude: number;
   onMove: (latitude: number, longitude: number) => void;
+  height?: number;
 };
 
 const COMMUNITY_MAP_HEIGHT = 300;
@@ -57,7 +58,7 @@ function samePoint(a: L.LatLng, latitude: number, longitude: number) {
   return Math.abs(a.lat - latitude) < 0.0000001 && Math.abs(a.lng - longitude) < 0.0000001;
 }
 
-export function CommunityAddressMap({ latitude, longitude, onMove }: Props) {
+export function CommunityAddressMap({ latitude, longitude, onMove, height = COMMUNITY_MAP_HEIGHT }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
@@ -169,7 +170,7 @@ export function CommunityAddressMap({ latitude, longitude, onMove }: Props) {
   };
 
   return (
-    <div className="havena-address-map relative" style={{ height: COMMUNITY_MAP_HEIGHT, width: "100%" }}>
+    <div className="havena-address-map relative" style={{ height, width: "100%" }}>
       <div ref={containerRef} className="absolute inset-0" />
       <button
         type="button"

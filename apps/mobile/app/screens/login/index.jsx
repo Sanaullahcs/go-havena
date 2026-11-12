@@ -4,7 +4,6 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AuthEmailField from "../../../components/auth/auth-email-field";
-import AuthTermsAgreement from "../../../components/auth/auth-terms-agreement";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import AuthFlowTopBar from "../../../components/auth/auth-flow-top-bar";
@@ -42,8 +41,6 @@ export default function LoginScreen() {
   const { suspended } = useLocalSearchParams();
   const suspendedNoticeShown = useRef(false);
   const [email, setEmail] = useState("");
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [termsError, setTermsError] = useState(false);
   const [showFingerprintDialog, setShowFingerprintDialog] = useState(false);
   const [showFaceIdDialog, setShowFaceIdDialog] = useState(false);
   const [biometricOpening, setBiometricOpening] = useState(false);
@@ -131,17 +128,8 @@ export default function LoginScreen() {
     router.push("/screens/roles");
   };
 
-  const handleTermsChange = (next) => {
-    setAgreedToTerms(next);
-    if (next) setTermsError(false);
-  };
-
   const handleSendCode = () => {
     if (!isValid || submitting || !canRequestOtp) return;
-    if (!agreedToTerms) {
-      setTermsError(true);
-      return;
-    }
 
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -194,15 +182,10 @@ export default function LoginScreen() {
           keyboardVerticalOffset={8}
           footer={
             <View style={layout.footerInner}>
-              <AuthTermsAgreement
-                agreed={agreedToTerms}
-                onAgreedChange={handleTermsChange}
-                error={termsError}
-              />
               <AuthSubmitButton
                 label={t("auth.sendCode")}
                 loadingLabel={t("auth.sending")}
-                enabled={isValid && agreedToTerms && !submitting && canRequestOtp}
+                enabled={isValid && !submitting && canRequestOtp}
                 loading={submitting}
                 onPress={handleSendCode}
                 solidColor={ScreenBrand.cta}

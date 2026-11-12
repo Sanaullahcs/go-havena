@@ -119,7 +119,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: sf(17),
     lineHeight: sf(26),
-    fontWeight: "700",
     color: "#101828",
     letterSpacing: 0,
     includeFontPadding: true,

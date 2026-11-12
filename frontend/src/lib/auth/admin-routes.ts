@@ -41,6 +41,7 @@ export const COMMUNITY_ADMIN_ROUTE_PREFIXES = [
   "/admin/complaints",
   "/admin/units",
   "/admin/services",
+  "/admin/local-essentials",
   "/admin/service-bills",
   "/admin/amenities",
   "/admin/amenity-bills",
@@ -112,6 +113,9 @@ export function resolveAdminPortalRedirect(pathname: string, user: WebUser | nul
       return "/admin";
     }
     if (matchesPrefix(pathname, "/admin/kuickpay") && !isPakistanCommunityRegion(user)) {
+      return "/admin";
+    }
+    if (matchesPrefix(pathname, "/admin/refer-and-earn") && isPakistanCommunityRegion(user)) {
       return "/admin";
     }
     if (!isSystemAdminRoute(pathname)) return null;

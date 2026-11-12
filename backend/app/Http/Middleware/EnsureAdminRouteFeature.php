@@ -85,6 +85,7 @@ class EnsureAdminRouteFeature
             'listings', 'deals', 'businesses' => 'marketplace',
             'referrals' => 'refer_and_earn',
             'family-add-member-requests' => 'family',
+            'essentials', 'nearby-suggestions' => 'nearby_places',
             default => null,
         };
     }

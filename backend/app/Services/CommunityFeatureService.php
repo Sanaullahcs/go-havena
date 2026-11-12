@@ -67,7 +67,34 @@ class CommunityFeatureService
             }
         }
 
+        foreach ($this->regionLockedOffKeys($communityId) as $key) {
+            if (isset($flags[$key])) {
+                $flags[$key] = false;
+            }
+        }
+
         return $flags;
+    }
+
+    /**
+     * Refer & Earn is a US billing feature. Pakistan communities never see it,
+     * even when the stored flag was left on.
+     *
+     * @return list<string>
+     */
+    private function regionLockedOffKeys(?int $communityId): array
+    {
+        if (! $communityId) {
+            return [];
+        }
+
+        $policy = app(RegionBillingPolicy::class);
+        $code = strtoupper((string) ($policy->countryCodeForCommunity($communityId) ?? ''));
+        if ($code === 'PK' || $policy->isBillingExempt($communityId)) {
+            return ['refer_and_earn'];
+        }
+
+        return [];
     }
 
     public function isEnabled(?int $communityId, string $featureKey): bool

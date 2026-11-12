@@ -7,7 +7,29 @@ const api = axios.create({
   headers: { "Content-Type": "application/json", Accept: "application/json" },
   withCredentials: false,
   timeout: 12_000,
+  transformResponse: [
+    ...(Array.isArray(axios.defaults.transformResponse)
+      ? axios.defaults.transformResponse
+      : axios.defaults.transformResponse
+        ? [axios.defaults.transformResponse]
+        : []),
+    (data: unknown) => stripLeadingPhpNoiseBeforeJson(data),
+  ],
 });
+
+/** Windows dev `php -S` can prepend notices before JSON; recover the payload when possible. */
+function stripLeadingPhpNoiseBeforeJson(data: unknown): unknown {
+  if (typeof data !== "string") return data;
+  const trimmed = data.trim();
+  if (!trimmed.startsWith("<") && !trimmed.startsWith("Notice")) return data;
+  const jsonStart = trimmed.search(/[\[{]/);
+  if (jsonStart < 0) return data;
+  try {
+    return JSON.parse(trimmed.slice(jsonStart));
+  } catch {
+    return data;
+  }
+}
 
 function needsNgrokBrowserBypass(baseURL: string | undefined): boolean {
   const host = (baseURL ?? "").toLowerCase();

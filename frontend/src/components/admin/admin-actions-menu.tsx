@@ -43,7 +43,7 @@ export function AdminActionsMenu({
   const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const visible = actions.filter((action) => !action.hidden);
+  const visible = (Array.isArray(actions) ? actions : []).filter((action) => !action.hidden);
 
   const { style: popoverStyle, placement, ready } = useAnchoredPopover(open, triggerRef, {
     popoverRef,

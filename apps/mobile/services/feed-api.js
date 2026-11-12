@@ -203,9 +203,12 @@ export function normalizePost(raw) {
     can_report: raw.can_report,
     status: raw.status ?? "approved",
     is_sensitive: sensitive,
+    sensitive_source: raw.sensitive_source ?? null,
+    sensitive_label: sensitive ? (raw.sensitive_label ?? null) : null,
     sensitive_message: sensitive
       ? (raw.sensitive_message || getSensitivePostMessage())
       : null,
+    sensitive_reason: sensitive ? (raw.sensitive_reason ?? null) : null,
     user: {
       id: raw.user_id ?? raw.user?.id ?? null,
       name: authorName,
@@ -218,7 +221,7 @@ export function normalizePost(raw) {
   };
 }
 
-/** Latest community posts for the home feed carousel. */
+/** Latest community posts and polls for the home feed carousel. */
 export function pickHomeFeedPosts(posts, limit = HOME_SECTION_CARD_LIMIT) {
   return [...(posts ?? [])]
     .filter((post) => !isExcludedFromHomeFeed(post))
@@ -246,6 +249,10 @@ export function areFeedPostsUnchanged(prev, next) {
       && post.status === other.status
       && post.is_sensitive === other.is_sensitive
       && post.report_status === other.report_status
+      && post.poll?.total_votes === other.poll?.total_votes
+      && post.poll?.voted_option_id === other.poll?.voted_option_id
+      && post.poll?.closed === other.poll?.closed
+      && JSON.stringify(post.poll?.voted_option_ids ?? []) === JSON.stringify(other.poll?.voted_option_ids ?? [])
     );
   });
 }

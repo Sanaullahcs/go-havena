@@ -362,10 +362,30 @@ export function isBillingExempt(user) {
   return Boolean(user?.access?.billing_exempt);
 }
 
+function textLooksLikePakistan(value) {
+  return String(value ?? "").trim().toLowerCase().includes("pakistan");
+}
+
 /** True when the managed community's region country is Pakistan (Refer & Earn / Plaid are US-only). */
 export function isPakistanCommunityRegion(user) {
   const code = String(user?.access?.country_code ?? "").trim().toUpperCase();
-  return code === "PK";
+  if (code === "PK") return true;
+  if (code !== "") return false;
+
+  if (user?.access?.billing_exempt === true) return true;
+  if (String(user?.currency ?? user?.access?.currency ?? "").trim().toUpperCase() === "PKR") return true;
+
+  const regions = [
+    ...(user?.memberships ?? []).map((membership) => membership?.community?.region),
+    user?.profile?.region?.title,
+    user?.profile?.region?.area,
+    user?.profile?.region?.state,
+  ];
+  if (regions.some((region) => textLooksLikePakistan(region))) return true;
+
+  return (user?.memberships ?? []).some(
+    (membership) => membership?.community?.payment_provider === "kuickpay",
+  );
 }
 
 /** Joined because a community admin (or invite code) added them — not a self-serve request. */

@@ -4,7 +4,11 @@ import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
-import { pollTimeLeftLabel, voteOnPoll } from "../../services/feed-api";
+import { pollTimeLeftLabel, voteOnPoll, isSensitivePost } from "../../services/feed-api";
+import { PollDetailMeta, PollFinalResults } from "./poll-detail-section";
+import { useLanguage } from "../../providers/language-provider";
+import { getLocaleForLang } from "../../hooks/use-app-locale";
+import i18n from "../../i18n";
 import { sw, sf } from "../../utils/responsive";
 
 const POLL_PRIMARY = "#1B4F8A";
@@ -40,6 +44,38 @@ function votePercents(counts) {
   }
 
   return floors;
+}
+
+function toggleMultiVote(poll, optionId) {
+  const ids = new Set((poll?.voted_option_ids ?? []).map(String));
+  const key = String(optionId);
+  const removing = ids.has(key);
+  if (removing) ids.delete(key);
+  else ids.add(key);
+
+  const options = (poll?.options ?? []).map((option) => ({
+    ...option,
+    votes: Number(option.votes ?? 0),
+  }));
+  const target = options.find((option) => String(option.id) === key);
+  if (target) {
+    target.votes = Math.max(0, target.votes + (removing ? -1 : 1));
+  }
+
+  const voted_option_ids = [...ids].map((id) => Number(id));
+  const percents = votePercents(options.map((option) => option.votes));
+  options.forEach((option, index) => {
+    option.percent = percents[index] ?? 0;
+  });
+
+  return {
+    ...poll,
+    voted_option_id: null,
+    voted_option_ids,
+    results_visible: voted_option_ids.length > 0,
+    total_votes: options.reduce((sum, option) => sum + option.votes, 0),
+    options,
+  };
 }
 
 function shiftVote(poll, nextOptionId) {
@@ -79,8 +115,10 @@ function PollOptionMark({ selected }) {
   );
 }
 
-export default function FeedPollCard({ post, now, onVoted }) {
+export default function FeedPollCard({ post, now, onVoted, detailMode = false }) {
   const { t } = useTranslation();
+  const { language } = useLanguage();
+  const locale = getLocaleForLang(language ?? i18n.language);
   const poll = post?.poll;
   const [selectedId, setSelectedId] = useState(poll?.voted_option_id ?? null);
   const [voting, setVoting] = useState(false);
@@ -96,26 +134,43 @@ export default function FeedPollCard({ post, now, onVoted }) {
     confirmedRef.current = poll;
     if (poll?.voted_option_id != null) {
       setSelectedId(poll.voted_option_id);
+    } else if ((poll?.voted_option_ids ?? []).length > 0) {
+      setSelectedId(poll.voted_option_ids[0]);
     }
   }, [poll]);
 
   if (!poll) return null;
 
+  const isMultiple = (poll.voting_method ?? "single") === "multiple";
+  const votedIds = poll.voted_option_ids ?? (poll.voted_option_id != null ? [poll.voted_option_id] : []);
+
   const closed =
     Boolean(poll.closed) || pollTimeLeftLabel(poll.ends_at, false, t, now) === t("feed.poll.closed");
+  const votingPaused =
+    Boolean(poll.voting_paused) ||
+    poll.voting_paused_reason === "sensitive" ||
+    isSensitivePost(post);
+  const canVote = !closed && !votingPaused && poll.vote_changes_allowed !== false;
   const resultsVisible = Boolean(poll.results_visible) || closed;
   const timeLabel = pollTimeLeftLabel(poll.ends_at, closed || poll.closed, t, now);
   const voteCount = Number(poll.total_votes ?? 0);
-  const hasVoted = poll.voted_option_id != null;
+  const hasVoted = isMultiple ? votedIds.length > 0 : poll.voted_option_id != null;
 
   const submit = async (optionId) => {
-    if (closed || optionId == null) return;
-    if (String(optionId) === String(shownRef.current?.voted_option_id)) {
+    if (!canVote || optionId == null) return;
+  const current = shownRef.current ?? poll;
+  const currentMultiple = (current?.voting_method ?? "single") === "multiple";
+    if (
+      !currentMultiple &&
+      String(optionId) === String(current?.voted_option_id)
+    ) {
       pendingRef.current = null;
       return;
     }
 
-    const nextPoll = shiftVote(shownRef.current ?? poll, optionId);
+    const nextPoll = currentMultiple
+      ? toggleMultiVote(current, optionId)
+      : shiftVote(current, optionId);
     shownRef.current = nextPoll;
     setSelectedId(optionId);
     setError("");
@@ -134,7 +189,11 @@ export default function FeedPollCard({ post, now, onVoted }) {
           confirmedRef.current = updated?.poll ?? confirmedRef.current;
           if (pendingRef.current == null) {
             shownRef.current = confirmedRef.current;
-            setSelectedId(confirmedRef.current?.voted_option_id ?? targetId);
+            const confirmed = confirmedRef.current;
+            setSelectedId(
+              confirmed?.voted_option_id ??
+                (confirmed?.voted_option_ids?.[0] ?? targetId),
+            );
             onVoted?.(updated);
           }
         } catch (err) {
@@ -153,7 +212,8 @@ export default function FeedPollCard({ post, now, onVoted }) {
 
   return (
     <View style={styles.root}>
-      {poll.description ? <Text style={styles.intro}>{poll.description}</Text> : null}
+      {detailMode ? <PollDetailMeta poll={poll} now={now} t={t} locale={locale} /> : null}
+      {!detailMode && poll.description ? <Text style={styles.intro}>{poll.description}</Text> : null}
 
       <View style={styles.wrap}>
         <View style={styles.metaRow}>
@@ -174,18 +234,27 @@ export default function FeedPollCard({ post, now, onVoted }) {
         </View>
 
         <Text style={styles.question}>{poll.question}</Text>
+        {detailMode && poll.description ? <Text style={styles.intro}>{poll.description}</Text> : null}
+
+        {votingPaused && !closed ? (
+          <Text style={styles.pausedBanner}>{t("feed.poll.votingPausedSensitive")}</Text>
+        ) : null}
 
         <View style={styles.options}>
           {(poll.options ?? []).map((option, index) => {
-            const selected = String(selectedId) === String(option.id);
+            const selected = isMultiple
+              ? votedIds.some((id) => String(id) === String(option.id))
+              : String(selectedId) === String(option.id);
             const percent = Number(option.percent ?? 0);
             const tone = OPTION_ICON_TONES[index % OPTION_ICON_TONES.length];
 
             if (resultsVisible) {
+              const highlighted = option.is_winner || option.is_leading;
+              const voteCount = option.votes != null ? Number(option.votes) : null;
               const row = (
                 <>
                   <PollOptionMark selected={selected} />
-                  <View style={[styles.resultCard, selected && styles.resultCardVoted]}>
+                  <View style={[styles.resultCard, selected && styles.resultCardVoted, highlighted && styles.resultCardLeader]}>
                     <View style={styles.resultTop}>
                       <View style={[styles.optionIcon, { backgroundColor: selected ? "#DBEAFE" : tone.bg }]}>
                         <Feather
@@ -194,10 +263,22 @@ export default function FeedPollCard({ post, now, onVoted }) {
                           color={selected ? SELECTED_BLUE : tone.color}
                         />
                       </View>
-                      <Text style={styles.optionLabel} numberOfLines={2}>
-                        {option.label}
-                      </Text>
-                      <Text style={styles.percent}>{percent}%</Text>
+                      <View style={styles.optionTextCol}>
+                        <Text style={styles.optionLabel} numberOfLines={2}>
+                          {option.label}
+                        </Text>
+                        {detailMode && option.is_winner ? (
+                          <Text style={styles.leaderBadge}>{t("feed.poll.winner")}</Text>
+                        ) : detailMode && option.is_leading && !closed ? (
+                          <Text style={styles.leadingBadge}>{t("feed.poll.leading")}</Text>
+                        ) : null}
+                      </View>
+                      <View style={styles.resultStats}>
+                        {detailMode && voteCount != null ? (
+                          <Text style={styles.voteCount}>{t("feed.poll.votes", { count: voteCount })}</Text>
+                        ) : null}
+                        <Text style={styles.percent}>{percent}%</Text>
+                      </View>
                     </View>
                     <View style={styles.track}>
                       <View
@@ -226,6 +307,7 @@ export default function FeedPollCard({ post, now, onVoted }) {
                 <Pressable
                   key={option.id}
                   style={styles.resultOuter}
+                  disabled={!canVote || voting}
                   onPress={() => {
                     setError("");
                     void submit(option.id);
@@ -239,7 +321,7 @@ export default function FeedPollCard({ post, now, onVoted }) {
             return (
               <Pressable
                 key={option.id}
-                disabled={voting}
+                disabled={voting || !canVote}
                 onPress={() => {
                   setError("");
                   void submit(option.id);
@@ -259,6 +341,8 @@ export default function FeedPollCard({ post, now, onVoted }) {
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {detailMode ? <PollFinalResults poll={poll} t={t} /> : null}
 
         <View style={styles.footerRow}>
           <Text style={styles.meta}>{t("feed.poll.votes", { count: voteCount })}</Text>
@@ -404,6 +488,49 @@ const styles = StyleSheet.create({
   resultCardVoted: {
     borderColor: SELECTED_BLUE,
     backgroundColor: "#FFFFFF",
+  },
+  resultCardLeader: {
+    borderColor: "#1B4F8A",
+    backgroundColor: "#E8F0F7",
+  },
+  optionTextCol: {
+    flex: 1,
+    gap: sw(2),
+  },
+  pausedBanner: {
+    marginTop: sw(8),
+    marginBottom: sw(4),
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(10),
+    borderRadius: sw(10),
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(17),
+    color: "#92400E",
+  },
+  leaderBadge: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(11),
+    color: "#1B4F8A",
+    fontWeight: "600",
+  },
+  leadingBadge: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(11),
+    color: "#047857",
+    fontWeight: "600",
+  },
+  resultStats: {
+    alignItems: "flex-end",
+    gap: sw(2),
+  },
+  voteCount: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(11),
+    color: T.gray,
   },
   resultTop: {
     flexDirection: "row",

@@ -152,7 +152,15 @@ export async function fetchMembers(params: MembersQuery = {}) {
       community_id: communityId,
     },
   });
-  return res.data as { data: Member[]; meta: MemberMeta };
+  const body = (res?.data ?? {}) as { data?: Member[] | null; meta?: MemberMeta | null };
+  const rows = Array.isArray(body.data) ? body.data : [];
+  const meta = body.meta ?? {
+    current_page: params.page ?? 1,
+    last_page: 1,
+    total: rows.length,
+    per_page: params.per_page ?? ADMIN_TABLE_PAGE_SIZE,
+  };
+  return { data: rows, meta };
 }
 
 export async function fetchMember(id: number, communityId?: number | "all") {
@@ -389,7 +397,7 @@ export async function deleteMember(id: number, communityId?: number) {
 
 export function membersToCsv(rows: Member[]): string {
   const header = ["Name", "Email", "Phone Number", "Community", "Unit", "Role", "Status", "Joined"];
-  const lines = rows.map((m) => [
+  const lines = (Array.isArray(rows) ? rows : []).map((m) => [
     m.name,
     m.email,
     (m.phone ?? "").trim(),
