@@ -180,6 +180,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/service-bills/{id}/proof',   [UnitServiceBillController::class, 'residentSubmitProof'])->whereNumber('id');
 
         Route::get('/geo/address-suggest', [GeoController::class, 'suggest']);
+        Route::get('/geo/address-geocode', [GeoController::class, 'geocode']);
         Route::get('/geo/address-reverse', [GeoController::class, 'reverse']);
         Route::get('/nearby-places', [NearbyPlaceController::class, 'index'])->middleware('resident.feature:nearby_places');
         Route::get('/nearby-places/suggestions', [CommunityDirectoryController::class, 'mySuggestions'])->middleware('resident.feature:nearby_places');
@@ -534,6 +535,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/dashboard/stats', [DashboardController::class, 'adminStats']);
 
                 Route::get('/members',              [MemberController::class, 'index']);
+                Route::get('/members/invite-lookup', [MemberController::class, 'inviteLookup']);
                 Route::get('/members/{id}',         [MemberController::class, 'show']);
                 Route::get('/members/{id}/activity-logs', [MemberController::class, 'activityLogs']);
                 Route::post('/members/invite',      [MemberController::class, 'invite']);

@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, MapPin } from "lucide-react";
-import { reverseAddress, suggestAddress, type AddressSuggestion } from "@/lib/api/geo";
+import { geocodeAddress, reverseAddress, suggestAddress, type AddressSuggestion } from "@/lib/api/geo";
 import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
 
 const MAP_HEIGHT = 300;
@@ -58,7 +58,7 @@ export function CommunityAddressPicker({
   onBlur,
   error,
   required,
-  placeholder = "Search a street address",
+  placeholder = "Community address",
   inputClassName,
   id,
   compact = false,
@@ -74,11 +74,13 @@ export function CommunityAddressPicker({
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [resolvingAddress, setResolvingAddress] = useState(false);
+  const [geocodingTyped, setGeocodingTyped] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const skipSuggest = useRef(true);
   const typingRef = useRef(false);
   const reverseTimer = useRef<number | null>(null);
   const reverseSeq = useRef(0);
+  const suggestSeq = useRef(0);
   const valueRef = useRef(value);
   const queryRef = useRef(query);
   valueRef.current = value;
@@ -121,24 +123,35 @@ export function CommunityAddressPicker({
       return;
     }
 
+    const controller = new AbortController();
     const handle = window.setTimeout(() => {
+      const seq = ++suggestSeq.current;
       setLoading(true);
       setOpen(true);
       setActiveIndex(0);
-      suggestAddress(term)
+      suggestAddress(term, controller.signal)
         .then((rows) => {
+          if (seq !== suggestSeq.current) return;
           setSuggestions(rows);
           setActiveIndex(0);
           setOpen(true);
         })
-        .catch(() => {
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return;
+          if (seq !== suggestSeq.current) return;
+          if (error instanceof DOMException && error.name === "AbortError") return;
           setSuggestions([]);
           setOpen(true);
         })
-        .finally(() => setLoading(false));
-    }, 300);
+        .finally(() => {
+          if (seq === suggestSeq.current) setLoading(false);
+        });
+    }, 700);
 
-    return () => window.clearTimeout(handle);
+    return () => {
+      window.clearTimeout(handle);
+      controller.abort();
+    };
   }, [query]);
 
   useEffect(() => {
@@ -227,6 +240,28 @@ export function CommunityAddressPicker({
     }
   };
 
+  const pinTypedAddress = () => {
+    const term = query.trim();
+    if (term.length < 3 || geocodingTyped) return;
+    setGeocodingTyped(true);
+    geocodeAddress(term)
+      .then((row) => {
+        if (!row) return;
+        cancelReverse();
+        skipSuggest.current = true;
+        typingRef.current = false;
+        setOpen(false);
+        setSuggestions([]);
+        setQuery(row.address);
+        onChange({
+          address: row.address,
+          latitude: row.latitude,
+          longitude: row.longitude,
+        });
+      })
+      .finally(() => setGeocodingTyped(false));
+  };
+
   const pick = (row: AddressSuggestion) => {
     cancelReverse();
     skipSuggest.current = true;
@@ -299,21 +334,40 @@ export function CommunityAddressPicker({
               ref={popoverRef}
               id={listId}
               role="listbox"
-              className="nl-themed-popover overflow-y-auto overscroll-contain p-1.5 [scrollbar-width:thin]"
+              className="nl-themed-popover overflow-x-hidden overflow-y-auto overscroll-contain p-1.5 [scrollbar-width:thin]"
               style={{
                 ...popoverStyle,
+                maxWidth: `min(${popoverStyle.width ?? "100vw"}, calc(100vw - 24px))`,
                 visibility: popoverReady ? "visible" : "hidden",
                 pointerEvents: popoverReady ? "auto" : "none",
               }}
             >
               {loading && suggestions.length === 0 ? (
                 <li className="flex items-center gap-2 px-2.5 py-2.5 text-[13px] text-slate-500">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                  Searching addresses…
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+                  Searching addresses… This can take a few seconds.
                 </li>
               ) : suggestions.length === 0 ? (
-                <li className="px-2.5 py-2.5 text-[13px] text-slate-500">
-                  No matching addresses. Try a nearby street or landmark.
+                <li className="px-2 py-2">
+                  <p className="px-0.5 text-[13px] leading-5 text-slate-500">
+                    No list match yet. Try adding city or area, or set the pin from your text.
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-2 flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
+                    disabled={geocodingTyped}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={pinTypedAddress}
+                  >
+                    {geocodingTyped ? (
+                      <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[#1B4F8A]" aria-hidden />
+                    ) : (
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1B4F8A]" aria-hidden />
+                    )}
+                    <span className="min-w-0 flex-1 break-words leading-5">
+                      Use <span className="text-slate-900">“{query.trim()}”</span> on the map
+                    </span>
+                  </button>
                 </li>
               ) : suggestions.map((row, index) => {
                 const title = row.label || row.address;
@@ -373,14 +427,14 @@ export function CommunityAddressPicker({
         error ? null : (
           <p className="text-[12px] leading-5 text-slate-400">
             {preserveUserAddress
-              ? "Enter the address residents should see, pick a suggestion to set the map pin, then drag the pin if needed."
-              : "Search, then choose a suggestion. Distance is measured from the community."}
+              ? "Enter the community address, pick a suggestion or use your text to set the pin, then drag the pin if needed."
+              : "Enter the community address and choose a suggestion. Distance is measured from the community."}
           </p>
         )
       ) : (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3.5">
           <p className="text-[13px] leading-6 text-slate-600">
-            Type the community street address, then choose a suggestion from the list. A pin will appear on the map.
+            Type the community address, choose a suggestion, or use your text to place the pin on the map.
           </p>
         </div>
       )}

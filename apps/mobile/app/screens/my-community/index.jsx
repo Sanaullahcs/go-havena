@@ -36,6 +36,10 @@ import {
 } from "../../../services/profile-api";
 import { navigateAfterAuth } from "../../../constants/onboarding-routes";
 import SwitchCommunitySheet from "../../../components/ui/switch-community-sheet";
+import {
+  promptAddUnitsBeforeSwitch,
+  showSwitchCommunityFailure,
+} from "../../../utils/switch-community-errors";
 import { chevronForward } from "../../../utils/rtl";
 import { sf, sw } from "../../../utils/responsive";
 import { rnShadow } from "../../../utils/shadow";
@@ -57,7 +61,19 @@ function isCurrentMembership(row, activeCommunityId) {
   return Boolean(row?.is_active);
 }
 
-function membershipTone(status) {
+function membershipNeedsUnits(row) {
+  return Boolean(row?.needs_units);
+}
+
+function membershipTone(status, row) {
+  if (membershipNeedsUnits(row)) {
+    return {
+      bg: T.mint,
+      text: T.deepTeal,
+      labelKey: "myCommunity.statusAddUnit",
+      icon: "home",
+    };
+  }
   const key = String(status || "").toLowerCase();
   if (key === "approved")
     return {
@@ -121,7 +137,7 @@ function formatExpiry(value, t) {
 }
 
 function CommunityCard({ row, activeCommunityId, t }) {
-  const tone = membershipTone(row.status);
+  const tone = membershipTone(row.status, row);
   const isActive = isCurrentMembership(row, activeCommunityId);
   const name = row.community?.name || t("community.myCommunity");
   const location = communityLocation(row.community);
@@ -455,6 +471,12 @@ export default function MyCommunityScreen() {
       rows = communities.filter((row) =>
         isCurrentMembership(row, activeCommunityId),
       );
+    } else if (filter === "pending") {
+      rows = communities.filter(
+        (row) =>
+          String(row.status || "").toLowerCase() === "pending" &&
+          !membershipNeedsUnits(row),
+      );
     } else if (filter !== "all") {
       rows = communities.filter(
         (row) => String(row.status || "").toLowerCase() === filter,
@@ -471,6 +493,7 @@ export default function MyCommunityScreen() {
   const switchable = useMemo(
     () =>
       communities.filter((row) => {
+        if (membershipNeedsUnits(row)) return !isCurrentMembership(row, activeCommunityId);
         if (row.status !== "approved") return false;
         if (isCurrentMembership(row, activeCommunityId)) return false;
         const community = row.community;
@@ -522,6 +545,14 @@ export default function MyCommunityScreen() {
   const confirmSwitch = async (row) => {
     const name = row.community?.name || t("community.myCommunity");
     setSwitchOpen(false);
+    if (membershipNeedsUnits(row)) {
+      await promptAddUnitsBeforeSwitch(dialog, router, {
+        communityId: row.community_id,
+        communityName: name,
+        returnTo: "my-community",
+      });
+      return;
+    }
     const choice = await dialog.showConfirm(
       t("nav.switchCommunityTitle"),
       t("nav.switchCommunityBody", { name }),
@@ -552,7 +583,17 @@ export default function MyCommunityScreen() {
     } catch (err) {
       setActiveCommunityId(previousActiveId);
       setCommunities(previousCommunities);
-      await showFailure(t("nav.couldNotSwitchCommunity"), err);
+      await showSwitchCommunityFailure(
+        dialog,
+        router,
+        t("nav.couldNotSwitchCommunity"),
+        err,
+        {
+          communityId: row.community_id,
+          communityName: row.community?.name,
+          returnTo: "my-community",
+        },
+      );
     } finally {
       setSwitching(false);
     }

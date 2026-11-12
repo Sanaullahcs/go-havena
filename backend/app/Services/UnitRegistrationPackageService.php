@@ -589,6 +589,8 @@ class UnitRegistrationPackageService
             $this->submitPackage($userId, $communityId, self::KIND_ADDON, $extraItems);
         }
 
+        MembershipService::approvePendingInviteForCommunity($userId, $communityId);
+
         return $assigned;
     }
 

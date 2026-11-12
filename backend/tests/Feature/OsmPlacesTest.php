@@ -128,9 +128,51 @@ class OsmPlacesTest extends TestCase
         $response = $this->getJson('/api/v1/geo/address-suggest?q=harbor');
 
         $response->assertOk()
-            ->assertJsonPath('data.0.label', 'Harbor Point, 1 Seaport Blvd, Boston, MA, USA')
+            ->assertJsonPath('data.0.label', '1 Seaport Blvd, Boston, MA')
             ->assertJsonPath('data.0.latitude', 42.34955)
             ->assertJsonPath('data.0.longitude', -71.04185);
+    }
+
+    public function test_address_suggest_falls_back_to_nominatim_when_photon_empty(): void
+    {
+        config(['osm.geocode_in_tests' => true]);
+
+        Http::fake([
+            'photon.komoot.io/*' => Http::response(['features' => []]),
+            'nominatim.openstreetmap.org/search*' => Http::response([
+                [
+                    'lat' => '31.46840',
+                    'lon' => '74.40076',
+                    'display_name' => 'DHA Phase V, Lahore, Punjab, Pakistan',
+                    'name' => 'DHA Phase V',
+                    'address' => [
+                        'suburb' => 'DHA Phase V',
+                        'city' => 'Lahore',
+                        'state' => 'Punjab',
+                        'country' => 'Pakistan',
+                    ],
+                ],
+            ]),
+        ]);
+
+        Sanctum::actingAs($this->systemAdmin());
+
+        $this->getJson('/api/v1/geo/address-suggest?q=dha+lahore')
+            ->assertOk()
+            ->assertJsonPath('data.0.label', 'DHA Phase V, Lahore, Punjab, Pakistan')
+            ->assertJsonPath('data.0.latitude', 31.4684)
+            ->assertJsonPath('data.0.longitude', 74.40076);
+    }
+
+    public function test_address_geocode_returns_coordinates(): void
+    {
+        $this->fakeOsmApis();
+        Sanctum::actingAs($this->systemAdmin());
+
+        $this->getJson('/api/v1/geo/address-geocode?q=1+Seaport+Boston')
+            ->assertOk()
+            ->assertJsonPath('data.latitude', 42.34955)
+            ->assertJsonPath('data.longitude', -71.04185);
     }
 
     public function test_address_reverse_returns_nominatim_result(): void

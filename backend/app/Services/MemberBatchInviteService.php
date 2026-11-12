@@ -205,7 +205,16 @@ class MemberBatchInviteService
         }
 
         if ($issues === [] && $phone) {
-            $existingUser = ContactIdentityService::findUserByEmail($entry['email']);
+            $existingByEmail = ContactIdentityService::findUserByEmail($entry['email']);
+            $existingByPhone = ContactIdentityService::findOccupyingUserByPhone($phone);
+
+            if ($existingByEmail && $existingByPhone && (int) $existingByEmail->id !== (int) $existingByPhone->id) {
+                $add('Phone Number', 'Phone number already exists');
+
+                return $issues;
+            }
+
+            $existingUser = $existingByEmail ?: $existingByPhone;
             $inactiveInCommunity = $communityId && $existingUser
                 ? \Illuminate\Support\Facades\DB::table('community_memberships')
                     ->where('user_id', $existingUser->id)
@@ -213,6 +222,21 @@ class MemberBatchInviteService
                     ->where('status', 'inactive')
                     ->exists()
                 : false;
+
+            $canInviteExistingResident = $communityId
+                && $existingUser
+                && ! $existingUser->trashed()
+                && ($existingUser->role ?? '') === 'resident'
+                && ! $inactiveInCommunity
+                && ! \Illuminate\Support\Facades\DB::table('community_memberships')
+                    ->where('user_id', $existingUser->id)
+                    ->where('community_id', $communityId)
+                    ->whereIn('status', ['approved', 'pending', 'banned', 'not_invited'])
+                    ->exists();
+
+            if ($canInviteExistingResident) {
+                return $issues;
+            }
 
             try {
                 if ($inactiveInCommunity) {
@@ -234,6 +258,15 @@ class MemberBatchInviteService
                 }
                 if ($issues === [] && ! $inactiveInCommunity) {
                     $add('Email', 'Email already exists');
+                }
+            } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+                $payload = $e->getResponse()->getData(true);
+                $message = strtolower((string) ($payload['message'] ?? ''));
+                if (str_contains($message, 'email')) {
+                    $add('Email', 'Email already exists');
+                }
+                if (str_contains($message, 'phone')) {
+                    $add('Phone Number', 'Phone number already exists');
                 }
             }
         }

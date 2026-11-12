@@ -42,7 +42,7 @@ import { isAuthenticated } from "../../../services/auth-session";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { applyCharacterLimit, hasFieldErrors, LIMITS, validateCompleteProfileForm } from "../../../utils/form-validation";
-import { extractNationalDigits, toE164 } from "../../../utils/phone";
+import { splitStoredPhone, toE164 } from "../../../utils/phone";
 import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
 import { getProfileFields, isPlaceholderDisplayName, isPlaceholderResidenceType, isPlaceholderUnitNumber } from "../../../utils/profile-display";
 import { getPendingInvitedMembership } from "../../../services/community-access";
@@ -597,7 +597,9 @@ export default function CompleteProfile() {
         setEmail(fields.displayEmail ?? "");
         const rawPhone = user.phone ?? "";
         if (rawPhone) {
-          setPhoneDigits(extractNationalDigits(rawPhone));
+          const stored = splitStoredPhone(rawPhone);
+          setPhoneCountry(stored.country);
+          setPhoneDigits(stored.digits);
         }
         setBio(fields.bio ?? "");
         setUnitNumber(isPlaceholderUnitNumber(fields.unitNumber) ? "" : (fields.unitNumber ?? ""));
@@ -612,11 +614,14 @@ export default function CompleteProfile() {
             membership?.status === "approved" &&
             String(membership.community_id) !== String(resolvedCommunityId || communityId),
         );
-        if (inviteUnits.length > 0) {
+        const lockedInviteUnits = inviteUnits
+          .map((row) => String(row?.unit_number ?? "").trim())
+          .filter(Boolean);
+        if (lockedInviteUnits.length > 0) {
           setUnitEntries(
-            inviteUnits.map((row, index) => ({
-              key: `invite-${index}-${row.unit_number}`,
-              unit_number: String(row.unit_number ?? "").trim(),
+            lockedInviteUnits.map((unitNumber, index) => ({
+              key: `invite-${index}-${unitNumber}`,
+              unit_number: unitNumber,
               locked: true,
               is_new_unit: false,
               residence_type: isPlaceholderResidenceType(rawResidence) ? "" : rawResidence,

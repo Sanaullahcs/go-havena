@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Community;
 use App\Models\Region;
 use App\Models\User;
+use Database\Seeders\SystemAdminSeeder;
 use App\Services\CommunityBillingService;
 use App\Services\UnitAssignmentService;
 use App\Services\UnitRegistrationPackageService;
@@ -396,6 +397,29 @@ class MultiUnitResidentTest extends TestCase
                 $community->id,
             ),
         );
+    }
+
+    public function test_system_admin_can_invite_a_resident_without_a_unit(): void
+    {
+        ['community' => $community] = $this->seedCommunityWithAdmin();
+        $this->seed(SystemAdminSeeder::class);
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
+        Sanctum::actingAs($systemAdmin);
+
+        $response = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Open Unit Resident',
+            'email' => 'open.unit@havena.test',
+            'phone' => '+12025550193',
+            'role' => 'member',
+            'community_id' => $community->id,
+        ]);
+
+        $response->assertCreated();
+        $userId = (int) $response->json('data.id');
+        $this->assertDatabaseMissing('invite_unit_assignments', [
+            'user_id' => $userId,
+            'community_id' => $community->id,
+        ]);
     }
 
     public function test_admin_invite_requires_a_unit_and_stores_several(): void

@@ -212,7 +212,7 @@ class MultiCommunityResidentTest extends TestCase
             ->assertJsonPath('data.active_context_community_id', $world['communityA']->id)
             ->assertJsonPath('data.pending_unit_package', false)
             ->assertJsonPath('data.has_full_unit_access', true)
-            ->assertJsonPath('data.can_switch_communities', true);
+            ->assertJsonPath('data.can_switch_communities', false);
 
         $this->getJson('/api/v1/units/mine')
             ->assertOk()
@@ -222,10 +222,33 @@ class MultiCommunityResidentTest extends TestCase
         $this->putJson('/api/v1/me/active-context', [
             'community_id' => $world['communityB']->id,
         ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['community_id']);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $world['resident']->id,
+            'active_context_community_id' => $world['communityA']->id,
+        ]);
+
+        $packageId = (int) DB::table('unit_registration_packages')
+            ->where('user_id', $world['resident']->id)
+            ->where('community_id', $world['communityB']->id)
+            ->where('kind', 'initial')
+            ->value('id');
+
+        app(UnitRegistrationPackageService::class)->approvePackage($packageId, (int) $world['adminB']->id);
+
+        $this->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.can_switch_communities', true);
+
+        $this->putJson('/api/v1/me/active-context', [
+            'community_id' => $world['communityB']->id,
+        ])
             ->assertOk()
             ->assertJsonPath('data.active_context_community_id', $world['communityB']->id)
-            ->assertJsonPath('data.pending_unit_package', true)
-            ->assertJsonPath('data.has_full_unit_access', false);
+            ->assertJsonPath('data.pending_unit_package', false)
+            ->assertJsonPath('data.has_full_unit_access', true);
 
         $this->assertDatabaseHas('community_memberships', [
             'user_id' => $world['resident']->id,
@@ -235,8 +258,8 @@ class MultiCommunityResidentTest extends TestCase
 
         $this->getJson('/api/v1/units/mine')
             ->assertOk()
-            ->assertJsonPath('meta.unit_count', 0)
-            ->assertJsonPath('meta.has_full_access', false);
+            ->assertJsonPath('meta.unit_count', 1)
+            ->assertJsonPath('units.0.unit_number', '202');
     }
 
     public function test_approving_second_membership_does_not_auto_switch_active_community(): void
@@ -261,7 +284,13 @@ class MultiCommunityResidentTest extends TestCase
         $this->getJson('/api/v1/me')
             ->assertOk()
             ->assertJsonPath('data.active_context_community_id', $world['communityA']->id)
-            ->assertJsonPath('data.can_switch_communities', true);
+            ->assertJsonPath('data.can_switch_communities', false);
+
+        $this->putJson('/api/v1/me/active-context', [
+            'community_id' => $world['communityB']->id,
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['community_id']);
 
         $this->getJson('/api/v1/units/mine')
             ->assertOk()
@@ -705,6 +734,47 @@ class MultiCommunityResidentTest extends TestCase
         );
     }
 
+    public function test_second_community_invite_stays_inaccessible_until_onboarding_units(): void
+    {
+        $world = $this->seedTwoCommunitiesWithResident();
+        $resident = $world['resident']->fresh();
+
+        Sanctum::actingAs($world['adminB']);
+        $invite = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Multi Community Resident',
+            'email' => $resident->email,
+            'phone' => '+12025550999',
+            'unit_number' => 'B-12',
+        ])->assertCreated();
+
+        Sanctum::actingAs($resident->fresh());
+        $this->postJson('/api/v1/communities/join-by-invite', [
+            'invite_code' => $invite->json('data.invite_code'),
+        ])->assertSuccessful();
+
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $resident->id,
+            'community_id' => $world['communityB']->id,
+            'status' => 'pending',
+        ]);
+
+        $this->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.can_switch_communities', true)
+            ->assertJsonPath('data.active_context_community_id', $world['communityA']->id);
+
+        $communities = collect($this->getJson('/api/v1/me/communities')->assertOk()->json('data'));
+        $this->assertTrue((bool) $communities->firstWhere('community_id', $world['communityB']->id)['needs_units']);
+        $this->assertFalse((bool) $communities->firstWhere('community_id', $world['communityA']->id)['needs_units']);
+
+        $this->putJson('/api/v1/me/active-context', [
+            'community_id' => $world['communityB']->id,
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['community_id'])
+            ->assertJsonPath('errors.community_id.0', 'Add your unit details for this community before switching.');
+    }
+
     public function test_invited_second_community_auto_approves_admin_unit_and_queues_extra_units(): void
     {
         $world = $this->seedTwoCommunitiesWithResident();
@@ -752,8 +822,14 @@ class MultiCommunityResidentTest extends TestCase
         $this->assertDatabaseHas('community_memberships', [
             'user_id' => $resident->id,
             'community_id' => $world['communityB']->id,
-            'status' => 'approved',
+            'status' => 'pending',
         ]);
+
+        $this->putJson('/api/v1/me/active-context', [
+            'community_id' => $world['communityB']->id,
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['community_id']);
 
         $this->postJson('/api/v1/units/mine/onboarding-units', [
             'community_id' => $world['communityB']->id,
@@ -774,6 +850,12 @@ class MultiCommunityResidentTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('data.mode', 'invite');
+
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $resident->id,
+            'community_id' => $world['communityB']->id,
+            'status' => 'approved',
+        ]);
 
         $this->assertDatabaseHas('unit_residents', [
             'user_id' => $resident->id,
@@ -964,6 +1046,25 @@ class MultiCommunityResidentTest extends TestCase
             ],
         ]);
 
+        app(UnitAssignmentService::class)->assignUserToUnitNumber(
+            $world['communityB']->id,
+            $world['resident']->id,
+            'B-201',
+            false,
+            false,
+            'active',
+            'package',
+        );
+        app(UnitAssignmentService::class)->assignUserToUnitNumber(
+            $communityC->id,
+            $world['resident']->id,
+            'C-301',
+            false,
+            false,
+            'active',
+            'package',
+        );
+
         Sanctum::actingAs($world['adminA']);
         $this->patchJson("/api/v1/admin/members/{$world['resident']->id}/suspend", [
             'community_id' => $world['communityA']->id,
@@ -1032,6 +1133,15 @@ class MultiCommunityResidentTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        app(UnitAssignmentService::class)->assignUserToUnitNumber(
+            $world['communityB']->id,
+            $world['resident']->id,
+            'B-201',
+            false,
+            false,
+            'active',
+            'package',
+        );
         DB::table('community_memberships')
             ->where('user_id', $world['resident']->id)
             ->where('community_id', $world['communityA']->id)

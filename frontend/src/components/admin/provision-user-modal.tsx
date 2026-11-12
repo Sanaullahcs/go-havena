@@ -3,7 +3,8 @@
 import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { UserPlus, Users, X } from "lucide-react";
+import { ArrowLeft, UserPlus, Users, X } from "lucide-react";
+import { ResidentInviteProfileNotice } from "@/components/admin/resident-invite-profile-notice";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { CommunityAssignmentPicker } from "@/components/admin/community-assignment-picker";
 import { ThemedSelect } from "@/components/ui/themed-select";
@@ -13,7 +14,9 @@ import { apiError } from "@/lib/api/client";
 import { fetchRegions, type Region } from "@/lib/api/regions";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { AdminBadge } from "@/components/admin/ui";
-import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
+import { useResidentInviteEmailStep } from "@/lib/admin/use-resident-invite-email-step";
+import { lookupResidentForInvite, type MemberInviteResult } from "@/lib/api/members";
+import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
 import {
   hasProvisionErrors,
   provisionInputClass,
@@ -80,12 +83,14 @@ export function ProvisionUserModal({
   open,
   onClose,
   onCreated,
+  onResidentInvited,
   presetCommunity,
 }: {
   type: ProvisionUserType;
   open: boolean;
   onClose: () => void;
   onCreated?: (user: ProvisionedUser) => void;
+  onResidentInvited?: (result: MemberInviteResult) => void;
   presetCommunity?: PresetCommunityAssignment | null;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -105,6 +110,25 @@ export function ProvisionUserModal({
   const [existingAdmins, setExistingAdmins] = useState<CommunityAdminApplicant[]>([]);
   const [loadingExistingAdmins, setLoadingExistingAdmins] = useState(false);
   const [selectedExistingId, setSelectedExistingId] = useState<number | null>(null);
+  const [residentPhoneE164, setResidentPhoneE164] = useState("");
+  const [residentEmailStepError, setResidentEmailStepError] = useState<string | null>(null);
+
+  const residentLookupCommunityId = useMemo(() => {
+    if (type !== "resident") return null;
+    if (residentForm.community_id) return Number(residentForm.community_id);
+    if (presetCommunity?.id) return presetCommunity.id;
+    return null;
+  }, [type, residentForm.community_id, presetCommunity?.id]);
+
+  const {
+    step: residentInviteStep,
+    setStep: setResidentInviteStep,
+    lookupLoading: residentLookupLoading,
+    profileLocked: residentProfileLocked,
+    lookupNotice: residentLookupNotice,
+    resetInviteSteps: resetResidentInviteSteps,
+    continueWithEmail: continueResidentWithEmail,
+  } = useResidentInviteEmailStep(residentLookupCommunityId);
 
   const isPresetAssign = type === "community_admin" && Boolean(presetCommunity);
 
@@ -162,6 +186,9 @@ export function ProvisionUserModal({
       setAssignmentSource("create");
       setExistingAdmins([]);
       setSelectedExistingId(null);
+      setResidentPhoneE164("");
+      setResidentEmailStepError(null);
+      resetResidentInviteSteps();
       return;
     }
 
@@ -182,7 +209,44 @@ export function ProvisionUserModal({
         community_id: presetCommunity.id,
       });
     }
-  }, [open, type, presetCommunity]);
+  }, [open, type, presetCommunity, resetResidentInviteSteps]);
+
+  useEffect(() => {
+    if (
+      !open
+      || type !== "resident"
+      || residentInviteStep !== "details"
+      || !residentForm.email.trim()
+      || !residentForm.community_id
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+  void lookupResidentForInvite(residentForm.email.trim(), Number(residentForm.community_id)).then((data) => {
+    if (cancelled) return;
+    if (data.invitable === false && data.message) {
+      setErrors((prev) => ({ ...prev, community_id: data.message }));
+    } else {
+      setErrors((prev) => {
+        if (!prev.community_id) return prev;
+        const next = { ...prev };
+        delete next.community_id;
+        return next;
+      });
+    }
+    if (data.auto_fill && data.name && data.phone) {
+      setResidentForm((f) => ({ ...f, name: data.name! }));
+      const nextPhone = phoneFieldFromE164(data.phone);
+      setResidentPhone(nextPhone);
+      setResidentPhoneE164(data.phone);
+    }
+  });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, type, residentInviteStep, residentForm.community_id, residentForm.email]);
 
   useEffect(() => {
     if (!open || !isPresetAssign) return;
@@ -406,6 +470,19 @@ export function ProvisionUserModal({
         toastSuccess(res.message);
         onCreated?.(res.data);
         onClose();
+        if (res.data.invite_code) {
+          onResidentInvited?.({
+            id: res.data.id,
+            invite_code: res.data.invite_code,
+            invite_qr_value: res.data.invite_qr_value || res.data.invite_code,
+            community_name: res.data.community_name || res.data.community?.name,
+            temp_password: res.data.temp_password ?? undefined,
+            expires_at: res.data.expires_at ?? undefined,
+            member_name: res.data.member_name || res.data.name,
+            member_email: res.data.member_email || res.data.email,
+            email_sent: res.data.email_sent,
+          });
+        }
       }
     } catch (err) {
       await alertError("Could not create user", apiError(err));
@@ -417,6 +494,22 @@ export function ProvisionUserModal({
   const liveErrors = useMemo(() => collectLiveErrors(), [collectLiveErrors]);
 
   const canSubmit = !hasProvisionErrors(liveErrors);
+
+  const handleResidentEmailContinue = async () => {
+    setResidentEmailStepError(null);
+    const result = await continueResidentWithEmail(residentForm.email.trim());
+    if (!result.ok) {
+      setResidentEmailStepError(result.error);
+      return;
+    }
+    setResidentForm((f) => ({
+      ...f,
+      email: f.email.trim(),
+      name: result.name || f.name,
+    }));
+    setResidentPhone(result.phone);
+    setResidentPhoneE164(result.phone.e164);
+  };
 
   const regionOptions = useMemo(
     () =>
@@ -438,12 +531,14 @@ export function ProvisionUserModal({
     ? "Assign Community Admin"
     : type === "community_admin"
       ? "Create Community Admin"
-      : "Create Resident";
+      : "Invite Resident";
   const subtitle = isPresetAssign
     ? "Create a new community admin for this community, or assign an existing unassigned account."
     : type === "community_admin"
       ? "Assign this admin to an available community, or create a new one in the selected region."
-      : "Add a resident to an existing community with phone and email.";
+      : residentInviteStep === "email"
+        ? "Start with the resident’s email address."
+        : "Add a resident to an existing community.";
 
   const nameValue = type === "community_admin" ? adminForm.name : residentForm.name;
   const emailValue = type === "community_admin" ? adminForm.email : residentForm.email;
@@ -481,12 +576,44 @@ export function ProvisionUserModal({
           </button>
         </div>
 
+        {type === "resident" && residentInviteStep === "email" ? (
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
+            <Field label="Email address" required error={residentEmailStepError ?? undefined}>
+              <ClearableInput
+                data-field="email"
+                type="email"
+                autoFocus
+                className={provisionInputClass(residentEmailStepError ?? undefined)}
+                value={residentForm.email}
+                maxLength={255}
+                onChange={(e) => {
+                  setResidentEmailStepError(null);
+                  setResidentForm((f) => ({ ...f, email: e.target.value }));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleResidentEmailContinue();
+                  }
+                }}
+                placeholder="user@example.com"
+              />
+            </Field>
+            <p className="text-[12px] leading-relaxed text-slate-500">
+              If they already belong to another community, we&apos;ll load their name and phone on the next step.
+            </p>
+          </div>
+        ) : null}
+
         <form
           id="provision-user-form"
           ref={formRef}
           onSubmit={handleSubmit}
           noValidate
-          className="min-h-0 flex-1 overflow-y-auto px-6 py-5"
+          className={[
+            "min-h-0 flex-1 overflow-y-auto px-6 py-5",
+            type === "resident" && residentInviteStep === "email" ? "hidden" : "",
+          ].join(" ")}
         >
           {isPresetAssign && presetCommunity ? (
             <div className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:grid-cols-2">
@@ -552,6 +679,26 @@ export function ProvisionUserModal({
             />
           ) : (
           <>
+          {type === "resident" ? (
+            <div className="mb-4 space-y-3">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-600 hover:text-slate-900"
+                onClick={() => {
+                  setResidentInviteStep("email");
+                  setResidentEmailStepError(null);
+                  setSubmitAttempted(false);
+                }}
+              >
+                <ArrowLeft className="h-4 w-4" strokeWidth={2} aria-hidden />
+                Change email
+              </button>
+              <p className="text-[12px] text-slate-500">{residentForm.email}</p>
+              {residentLookupNotice && residentProfileLocked ? (
+                <ResidentInviteProfileNotice message={residentLookupNotice} />
+              ) : null}
+            </div>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Full name" required error={liveErrors.name}>
               <ClearableInput
@@ -567,7 +714,9 @@ export function ProvisionUserModal({
                       : validateResidentForm(residentForm, residentPhone);
                   setErrors((prev) => ({ ...prev, name: next.name }));
                 }}
+                readOnly={type === "resident" && residentProfileLocked}
                 onChange={(e) => {
+                  if (type === "resident" && residentProfileLocked) return;
                   if (type === "community_admin") {
                     setAdminForm((f) => ({ ...f, name: e.target.value }));
                   } else {
@@ -577,6 +726,7 @@ export function ProvisionUserModal({
                 placeholder="e.g. Ahmed Hassan"
               />
             </Field>
+            {type === "community_admin" ? (
             <Field label="Email address" required error={showError("email") ? errors.email : undefined}>
               <ClearableInput
                 data-field="email"
@@ -586,38 +736,36 @@ export function ProvisionUserModal({
                 maxLength={255}
                 onBlur={() => {
                   touch("email");
-                  const next =
-                    type === "community_admin"
-                      ? validateCommunityAdminForm(adminForm, adminPhone)
-                      : validateResidentForm(residentForm, residentPhone);
+                  const next = validateCommunityAdminForm(adminForm, adminPhone);
                   setErrors((prev) => ({ ...prev, email: next.email }));
                 }}
                 onChange={(e) => {
                   clearFieldError("email");
-                  if (type === "community_admin") {
-                    setAdminForm((f) => ({ ...f, email: e.target.value }));
-                  } else {
-                    setResidentForm((f) => ({ ...f, email: e.target.value }));
-                  }
+                  setAdminForm((f) => ({ ...f, email: e.target.value }));
                 }}
                 placeholder="user@example.com"
               />
             </Field>
+            ) : null}
             <Field
               label="Phone number"
               required
               className="sm:col-span-2"
             >
               <AdminPhoneInput
-                resetKey={`${type}-${open}-${assignmentSource}`}
+                resetKey={`${type}-${open}-${assignmentSource}-${residentPhoneE164}`}
+                value={type === "resident" ? residentPhoneE164 : ""}
                 required
+                disabled={type === "resident" && residentProfileLocked}
                 showError={showError("phone")}
                 onChange={(state) => {
+                  if (type === "resident" && residentProfileLocked) return;
                   clearFieldError("phone");
                   if (type === "community_admin") {
                     setAdminPhone(state);
                   } else {
                     setResidentPhone(state);
+                    setResidentPhoneE164(state.e164);
                   }
                 }}
                 onBlur={() => {
@@ -767,7 +915,7 @@ export function ProvisionUserModal({
                       longitude: adminForm.longitude ?? null,
                     }}
                     inputClassName={provisionInputClass(showError("community_address") ? errors.community_address : undefined)}
-                    placeholder="Street address"
+                    placeholder="Community address"
                     onBlur={() => {
                       touch("community_address");
                       const next = validateCommunityAdminForm(
@@ -860,24 +1008,35 @@ export function ProvisionUserModal({
           <button type="button" onClick={onClose} className="nl-btn-secondary">
             Cancel
           </button>
-          <button
-            type="submit"
-            form="provision-user-form"
-            disabled={submitting || (!isPresetAssign && loadingRegions) || !canSubmit}
-            className="nl-btn-primary disabled:opacity-60"
-          >
-            {submitting
-              ? isPresetAssign
-                ? "Saving…"
-                : "Creating…"
-              : isPresetAssign
-                ? assignmentSource === "existing"
-                  ? "Assign admin"
-                  : "Create Community Admin"
-                : type === "community_admin"
-                  ? "Create Community Admin"
-                  : "Create Resident"}
-          </button>
+          {type === "resident" && residentInviteStep === "email" ? (
+            <button
+              type="button"
+              className="nl-btn-primary disabled:opacity-60"
+              disabled={residentLookupLoading || !residentForm.email.trim()}
+              onClick={() => void handleResidentEmailContinue()}
+            >
+              {residentLookupLoading ? "Checking…" : "Continue"}
+            </button>
+          ) : (
+            <button
+              type="submit"
+              form="provision-user-form"
+              disabled={submitting || (!isPresetAssign && loadingRegions) || !canSubmit}
+              className="nl-btn-primary disabled:opacity-60"
+            >
+              {submitting
+                ? isPresetAssign
+                  ? "Saving…"
+                  : "Creating…"
+                : isPresetAssign
+                  ? assignmentSource === "existing"
+                    ? "Assign admin"
+                    : "Create Community Admin"
+                  : type === "community_admin"
+                    ? "Create Community Admin"
+                    : "Invite Resident"}
+            </button>
+          )}
         </div>
       </div>
     </div>

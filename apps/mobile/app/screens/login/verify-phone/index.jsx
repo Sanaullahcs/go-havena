@@ -29,7 +29,7 @@ import { extractOtpRateLimitFromResponse } from "../../../../utils/otp-rate-limi
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
 import AuthSuccessOverlay from "../../../../components/ui/auth-success-overlay";
 import {
-  openHomeAfterLogin,
+  continueAfterEmailLogin,
 } from "../../../../constants/onboarding-routes";
 import { decodeRouteEmail, paramString } from "../../../../utils/route-params";
 import { ScreenBrand as B } from "../../../../constants/screen-brand";
@@ -224,7 +224,7 @@ export default function VerifyPhoneScreen() {
         subtitle={successSubtitle}
         onComplete={() => {
           setShowSuccess(false);
-          openHomeAfterLogin(router, verifiedUser);
+          continueAfterEmailLogin(router, verifiedUser);
         }}
       />
 

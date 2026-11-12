@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -17,7 +18,8 @@ class OsmGeocodingService
     }
 
     /**
-     * Photon address suggestions. Do not typeahead against Nominatim.
+     * Address suggestions via Nominatim. Photon is not used: it times out from
+     * this host and blocks the dev server long enough to drop later searches.
      *
      * @return list<array{label: string, address: string, latitude: float, longitude: float}>
      */
@@ -28,9 +30,29 @@ class OsmGeocodingService
             return [];
         }
 
+        $cacheKey = 'osm.suggest.'.md5(mb_strtolower($query).'|'.$limit);
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $out = $this->suggestNominatim($query, $limit);
+
+        if ($out !== []) {
+            Cache::put($cacheKey, $out, now()->addMinutes(10));
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{label: string, address: string, latitude: float, longitude: float}>
+     */
+    private function suggestPhoton(string $query, int $limit): array
+    {
         try {
             $response = Http::withHeaders($this->headers())
-                ->timeout(6)
+                ->timeout((int) config('osm.photon_timeout', 3))
                 ->get((string) config('osm.photon_url'), [
                     'q' => $query,
                     'limit' => $limit,
@@ -66,6 +88,50 @@ class OsmGeocodingService
     }
 
     /**
+     * @return list<array{label: string, address: string, latitude: float, longitude: float}>
+     */
+    private function suggestNominatim(string $query, int $limit): array
+    {
+        try {
+            $response = Http::withHeaders($this->headers())
+                ->timeout((int) config('osm.nominatim_timeout', 12))
+                ->get((string) config('osm.nominatim_url'), [
+                    'q' => $query,
+                    'format' => 'json',
+                    'limit' => $limit,
+                    'addressdetails' => 1,
+                    'accept-language' => 'en',
+                ]);
+        } catch (\Throwable $e) {
+            Log::warning('Nominatim suggest failed', ['error' => $e->getMessage()]);
+
+            return [];
+        }
+
+        if (! $response->successful()) {
+            return [];
+        }
+
+        $rows = $response->json();
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $mapped = $this->mapNominatimSearchResult($row);
+            if ($mapped) {
+                $out[] = $mapped;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * One-shot Nominatim geocode when the user typed an address but never picked a suggestion.
      *
      * @return array{latitude: float, longitude: float}|null
@@ -79,12 +145,13 @@ class OsmGeocodingService
 
         try {
             $response = Http::withHeaders($this->headers())
-                ->timeout(8)
+                ->timeout((int) config('osm.nominatim_timeout', 12))
                 ->get((string) config('osm.nominatim_url'), [
                     'q' => $address,
                     'format' => 'json',
                     'limit' => 1,
                     'addressdetails' => 0,
+                    'accept-language' => 'en',
                 ]);
         } catch (\Throwable $e) {
             Log::warning('Nominatim geocode failed', ['error' => $e->getMessage()]);
@@ -124,7 +191,7 @@ class OsmGeocodingService
 
         try {
             $response = Http::withHeaders($this->headers())
-                ->timeout(8)
+                ->timeout((int) config('osm.nominatim_timeout', 12))
                 ->get((string) config('osm.nominatim_reverse_url'), [
                     'lat' => $latitude,
                     'lon' => $longitude,
@@ -221,6 +288,44 @@ class OsmGeocodingService
         }
 
         return implode(', ', $unique);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array{label: string, address: string, latitude: float, longitude: float}|null
+     */
+    private function mapNominatimSearchResult(array $row): ?array
+    {
+        if (! isset($row['lat'], $row['lon'])) {
+            return null;
+        }
+
+        $lat = (float) $row['lat'];
+        $lng = (float) $row['lon'];
+        if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
+            return null;
+        }
+
+        $formatted = $this->formatNominatimAddress($row);
+        if ($formatted === '') {
+            $formatted = trim((string) ($row['display_name'] ?? ''));
+        }
+
+        $name = trim((string) ($row['name'] ?? ''));
+        $label = $name !== '' && $formatted !== '' && ! str_starts_with($formatted, $name)
+            ? $name.', '.$formatted
+            : ($formatted !== '' ? $formatted : $name);
+
+        if ($label === '') {
+            return null;
+        }
+
+        return [
+            'label' => $label,
+            'address' => $formatted !== '' ? $formatted : $label,
+            'latitude' => round($lat, 7),
+            'longitude' => round($lng, 7),
+        ];
     }
 
     /** @param  array<string, mixed>  $payload */

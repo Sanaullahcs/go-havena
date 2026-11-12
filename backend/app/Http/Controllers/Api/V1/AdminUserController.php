@@ -74,7 +74,7 @@ class AdminUserController extends Controller
         }
 
         $restorableUser = $this->findRestorableUser($phone, $validated['email']);
-        if (! $restorableUser) {
+        if (! $restorableUser && $validated['type'] !== 'resident') {
             ContactIdentityService::assertAvailableForRegistration($validated['email'], $phone);
         }
 
@@ -382,6 +382,12 @@ class AdminUserController extends Controller
             'status' => MemberLifecycleStatus::INVITATION_SENT,
             'region_id' => $user->profile?->region_id,
             'invite_code' => $invite['invite_code'] ?? null,
+            'invite_qr_value' => $invite['invite_qr_value'] ?? null,
+            'temp_password' => $invite['temp_password'] ?? null,
+            'expires_at' => $invite['expires_at'] ?? null,
+            'member_name' => $invite['member_name'] ?? $user->name,
+            'member_email' => $invite['member_email'] ?? $user->email,
+            'community_name' => $invite['community_name'] ?? $community->name,
             'membership' => null,
             'community' => [
                 'id' => $community->id,

@@ -82,6 +82,7 @@ export function inviteMemberUnitsFieldError(units: string[]): string | null {
 export function validateInviteMemberForm(
   form: InviteMemberForm,
   phone: PhoneFieldState,
+  options?: { requireUnits?: boolean },
 ): FieldErrors {
   const errors: FieldErrors = {};
 
@@ -97,9 +98,11 @@ export function validateInviteMemberForm(
     errors.phone = getPhoneValidationError(phone.digits, phone.country) ?? "Enter a valid phone number.";
   }
 
-  const unitNumbers = collectInviteUnitNumbers(form);
-  const unitsError = inviteMemberUnitsFieldError(unitNumbers);
-  if (unitsError) errors.unit = unitsError;
+  if (options?.requireUnits !== false) {
+    const unitNumbers = collectInviteUnitNumbers(form);
+    const unitsError = inviteMemberUnitsFieldError(unitNumbers);
+    if (unitsError) errors.unit = unitsError;
+  }
 
   return errors;
 }
@@ -111,8 +114,9 @@ export type SystemMemberInviteForm = InviteMemberForm & {
 export function validateSystemMemberInviteForm(
   form: SystemMemberInviteForm,
   phone: PhoneFieldState,
+  options?: { requireUnits?: boolean },
 ): FieldErrors {
-  const errors = validateInviteMemberForm(form, phone);
+  const errors = validateInviteMemberForm(form, phone, options);
 
   if (!form.communityId) {
     errors.communityId = "Select a community.";

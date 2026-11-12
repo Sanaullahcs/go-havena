@@ -8,8 +8,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * Pre-membership resident stages for Community Admin → Members.
  *
- * Invitation Sent: admin invited the resident; they have not signed up yet.
- * Onboarding (Onboarding - Pending): resident signed in and/or redeemed an invite but has not finished profile setup.
+ * Invitation Sent: admin invited the resident and the invite code has not been submitted yet.
+ * Onboarding: the resident submitted the invite code but has not finished profile or unit setup.
  * Active: membership status `approved` after profile is complete.
  */
 class MemberLifecycleStatus
@@ -27,7 +27,7 @@ class MemberLifecycleStatus
 
     public static function statusWithoutMembership(bool $startedSignup, bool $hasAssignedUnusedInvite): string
     {
-        if ($hasAssignedUnusedInvite && ! $startedSignup) {
+        if ($hasAssignedUnusedInvite) {
             return self::INVITATION_SENT;
         }
 
@@ -189,15 +189,16 @@ class MemberLifecycleStatus
     }
 
     /**
-     * Invitation Sent includes unused invites that have not been signed in yet,
-     * unused invites for residents who already belong to another community,
-     * and invites the resident rejected.
+     * Invitation Sent includes unused invites until the code is submitted,
+     * including after the resident signs in, plus rejected invites.
      */
     public static function applyInvitationSentAudience($query, string $usersAlias = 'users', ?int $communityId = null): void
     {
         $query->where(function ($q) use ($usersAlias, $communityId) {
             $q->where(function ($notStarted) use ($usersAlias) {
                 self::applyNotStartedSignup($notStarted, $usersAlias);
+            })->orWhere(function ($awaitingCode) use ($usersAlias, $communityId) {
+                self::applyAssignedUnusedInviteExists($awaitingCode, $usersAlias, $communityId);
             })->orWhereExists(function ($sub) use ($usersAlias, $communityId) {
                 $sub->from('community_memberships as cm_other')
                     ->whereColumn('cm_other.user_id', "{$usersAlias}.id");
@@ -219,13 +220,7 @@ class MemberLifecycleStatus
     public static function countOnboarding(?int $communityId, ?string $search = null): int
     {
         $query = self::preMembershipResidentsQuery($communityId);
-        $query->where(function ($q) use ($communityId) {
-            $q->where(function ($started) {
-                self::applyStartedSignup($started);
-            })->orWhere(function ($noInvite) use ($communityId) {
-                self::applyNoAssignedUnusedInvite($noInvite, 'users', $communityId);
-            });
-        });
+        self::applyNoAssignedUnusedInvite($query, 'users', $communityId);
         self::applySearch($query, $search);
 
         return (int) $query->count() + self::countOnboardingPendingMemberships($communityId, $search);
@@ -249,12 +244,9 @@ class MemberLifecycleStatus
             ->where('users.role', 'resident')
             ->where('users.status', '!=', 'deleted')
             ->where('cm.status', 'pending')
-            ->whereNotNull('cm.invite_code_used')
-            ->where(function ($q) {
-                $q->whereNull('profiles.display_name')
-                    ->orWhereNull('profiles.unit_number')
-                    ->orWhereNull('profiles.residence_type');
-            });
+            ->whereNotNull('cm.invite_code_used');
+
+        self::applyInviteMembershipOnboardingScope($query);
 
         if ($communityId) {
             $query->where('cm.community_id', $communityId);
@@ -263,6 +255,148 @@ class MemberLifecycleStatus
         self::applySearch($query, $search, 'users', $communityId === null);
 
         return (int) $query->count();
+    }
+
+    public static function countPendingApprovalMemberships(
+        ?int $communityId,
+        ?string $search = null,
+        bool $distinctResidents = false,
+    ): int {
+        $query = DB::table('community_memberships as cm')
+            ->join('users', 'users.id', '=', 'cm.user_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->leftJoin('communities', 'communities.id', '=', 'cm.community_id')
+            ->where('users.role', 'resident')
+            ->where('users.status', '!=', 'deleted')
+            ->where('cm.role', '!=', 'guest')
+            ->where('cm.status', 'pending');
+
+        self::applyPendingApprovalMembershipScope($query);
+
+        if ($communityId) {
+            $query->where('cm.community_id', $communityId);
+        }
+
+        self::applySearch($query, $search, 'users', $communityId === null);
+
+        if ($distinctResidents) {
+            return (int) $query->distinct('users.id')->count('users.id');
+        }
+
+        return (int) $query->count();
+    }
+
+    /**
+     * Invite redemption still in resident onboarding (profile and/or unit enrollment incomplete).
+     */
+    public static function applyInviteMembershipOnboardingScope(
+        $query,
+        string $profilesAlias = 'profiles',
+        string $usersAlias = 'users',
+        string $cmAlias = 'cm',
+    ): void {
+        $query->where(function ($onboarding) use ($profilesAlias, $usersAlias, $cmAlias) {
+            self::applyOnboardingPendingMembershipScope($onboarding, $profilesAlias);
+            $onboarding->orWhere(function ($enrollment) use ($profilesAlias, $usersAlias, $cmAlias) {
+                $enrollment->whereNotNull("{$profilesAlias}.display_name")
+                    ->whereNotNull("{$profilesAlias}.unit_number")
+                    ->whereNotNull("{$profilesAlias}.residence_type");
+                self::applyInviteEnrollmentIncompleteScope($enrollment, $usersAlias, $cmAlias);
+            });
+        });
+    }
+
+    /**
+     * Admin review queue: join requests and enrollments submitted for approval.
+     */
+    public static function applyPendingApprovalMembershipScope(
+        $query,
+        string $profilesAlias = 'profiles',
+        string $usersAlias = 'users',
+        string $cmAlias = 'cm',
+    ): void {
+        $query->where(function ($pending) use ($profilesAlias, $usersAlias, $cmAlias) {
+            $pending->whereNull("{$cmAlias}.invite_code_used")
+                ->orWhere(function ($invite) use ($profilesAlias, $usersAlias, $cmAlias) {
+                    $invite->whereNotNull("{$cmAlias}.invite_code_used")
+                        ->whereNotNull("{$profilesAlias}.display_name")
+                        ->whereNotNull("{$profilesAlias}.unit_number")
+                        ->whereNotNull("{$profilesAlias}.residence_type")
+                        ->where(function ($submitted) use ($usersAlias, $cmAlias) {
+                            $submitted->whereExists(function ($sub) use ($usersAlias, $cmAlias) {
+                                $sub->from('unit_registration_packages as pkg')
+                                    ->whereColumn('pkg.user_id', "{$usersAlias}.id")
+                                    ->whereColumn('pkg.community_id', "{$cmAlias}.community_id")
+                                    ->where('pkg.kind', UnitRegistrationPackageService::KIND_INITIAL)
+                                    ->where('pkg.status', UnitRegistrationPackageService::STATUS_PENDING);
+                            })->orWhereExists(function ($sub) use ($usersAlias, $cmAlias) {
+                                $sub->from('unit_residents as ur')
+                                    ->whereColumn('ur.user_id', "{$usersAlias}.id")
+                                    ->whereColumn('ur.community_id', "{$cmAlias}.community_id")
+                                    ->where('ur.status', UnitAssignmentService::RESIDENT_PENDING);
+                            });
+                        });
+                });
+        });
+    }
+
+    /** Accepted invite with no linked/submitted units yet for this community. */
+    public static function applyInviteEnrollmentIncompleteScope(
+        $query,
+        string $usersAlias = 'users',
+        string $cmAlias = 'cm',
+    ): void {
+        $query->whereNotExists(function ($sub) use ($usersAlias, $cmAlias) {
+            $sub->from('unit_residents as ur')
+                ->whereColumn('ur.user_id', "{$usersAlias}.id")
+                ->whereColumn('ur.community_id', "{$cmAlias}.community_id")
+                ->whereIn('ur.status', [UnitAssignmentService::RESIDENT_ACTIVE, UnitAssignmentService::RESIDENT_PENDING]);
+        })->whereNotExists(function ($sub) use ($usersAlias, $cmAlias) {
+            $sub->from('unit_registration_packages as pkg')
+                ->whereColumn('pkg.user_id', "{$usersAlias}.id")
+                ->whereColumn('pkg.community_id', "{$cmAlias}.community_id")
+                ->where('pkg.kind', UnitRegistrationPackageService::KIND_INITIAL)
+                ->whereIn('pkg.status', [
+                    UnitRegistrationPackageService::STATUS_PENDING,
+                    UnitRegistrationPackageService::STATUS_APPROVED,
+                ]);
+        });
+    }
+
+    public static function inviteMembershipIsOnboarding(object $member): bool
+    {
+        if (($member->status ?? '') !== 'pending' || ! filled($member->invite_code_used ?? null)) {
+            return false;
+        }
+
+        if (! self::residentProfileCompleteFromRow($member)) {
+            return true;
+        }
+
+        $userId = (int) ($member->id ?? 0);
+        $communityId = (int) ($member->community_id ?? 0);
+        if ($userId < 1 || $communityId < 1) {
+            return true;
+        }
+
+        if (DB::table('unit_registration_packages')
+            ->where('user_id', $userId)
+            ->where('community_id', $communityId)
+            ->where('kind', UnitRegistrationPackageService::KIND_INITIAL)
+            ->where('status', UnitRegistrationPackageService::STATUS_PENDING)
+            ->exists()) {
+            return false;
+        }
+
+        if (DB::table('unit_residents')
+            ->where('user_id', $userId)
+            ->where('community_id', $communityId)
+            ->whereIn('status', [UnitAssignmentService::RESIDENT_ACTIVE, UnitAssignmentService::RESIDENT_PENDING])
+            ->exists()) {
+            return false;
+        }
+
+        return true;
     }
 
     public static function applyOnboardingPendingMembershipScope($query, string $profilesAlias = 'profiles'): void

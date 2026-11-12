@@ -313,6 +313,15 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="screens/choose-login-community/index"
+          options={{
+            headerShown: false,
+            gestureEnabled: false,
+            animation: "fade",
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
+          }}
+        />
+        <Stack.Screen
           name="screens/community-welcome/index"
           options={{
             headerShown: false,

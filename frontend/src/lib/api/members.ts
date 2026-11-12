@@ -294,6 +294,28 @@ export async function commitMemberBatch(file: File) {
   return res.data as { data: MemberBatchResult; message: string };
 }
 
+export type ResidentInviteLookup = {
+  found: boolean;
+  enrolled: boolean;
+  auto_fill: boolean;
+  invitable: boolean;
+  user_id: number | null;
+  name: string | null;
+  phone: string | null;
+  phone_display: string | null;
+  message: string | null;
+};
+
+export async function lookupResidentForInvite(email: string, communityId?: number) {
+  const res = await api.get("/v1/admin/members/invite-lookup", {
+    params: {
+      email: email.trim(),
+      ...(communityId ? { community_id: communityId } : {}),
+    },
+  });
+  return res.data.data as ResidentInviteLookup;
+}
+
 export async function inviteMember(data: {
   name: string;
   email: string;

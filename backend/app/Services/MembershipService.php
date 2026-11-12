@@ -41,17 +41,25 @@ class MembershipService
         return 'pending';
     }
 
-    /** Upgrade pending invite memberships after the resident finishes Complete Profile. */
+    /**
+     * Upgrade pending invite memberships when the resident has earned access
+     * (first-home profile completion, or at least one linked unit in that community).
+     */
     public static function approvePendingForActiveCommunities(User $user, bool $afterProfileSave = false): void
     {
         if (! self::hasCompleteProfile($user)) {
             return;
         }
 
-        $query = CommunityMembership::query()
+        $pending = CommunityMembership::query()
             ->where('user_id', $user->id)
             ->where('status', 'pending')
-            ->whereNotNull('invite_code_used');
+            ->whereNotNull('invite_code_used')
+            ->get();
+
+        if ($pending->isEmpty()) {
+            return;
+        }
 
         if (! $afterProfileSave) {
             // GET /me must not auto-approve a second-community invite just because
@@ -65,10 +73,40 @@ class MembershipService
             }
         }
 
-        $query->update([
-            'status' => 'approved',
-            'updated_at' => now(),
-        ]);
+        $hasOtherApproved = CommunityMembership::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->exists();
+
+        $packages = app(UnitRegistrationPackageService::class);
+
+        foreach ($pending as $membership) {
+            $communityId = (int) $membership->community_id;
+            if ($packages->hasApprovedInitialOrActiveUnit((int) $user->id, $communityId)) {
+                self::approvePendingInviteForCommunity((int) $user->id, $communityId);
+
+                continue;
+            }
+
+            // First home: profile save is followed by unit sync for the sole pending invite.
+            if ($afterProfileSave && ! $hasOtherApproved) {
+                self::approvePendingInviteForCommunity((int) $user->id, $communityId);
+            }
+        }
+    }
+
+    /** Approve a pending invite membership once unit enrollment is complete for that community. */
+    public static function approvePendingInviteForCommunity(int $userId, int $communityId): void
+    {
+        CommunityMembership::query()
+            ->where('user_id', $userId)
+            ->where('community_id', $communityId)
+            ->where('status', 'pending')
+            ->whereNotNull('invite_code_used')
+            ->update([
+                'status' => 'approved',
+                'updated_at' => now(),
+            ]);
     }
 
     public static function residentProfileFieldsComplete(

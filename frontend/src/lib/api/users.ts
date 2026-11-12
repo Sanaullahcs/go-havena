@@ -26,6 +26,13 @@ export interface ProvisionedUser {
   status: string;
   region_id: number | null;
   email_sent?: boolean;
+  invite_code?: string | null;
+  invite_qr_value?: string | null;
+  temp_password?: string | null;
+  expires_at?: string | null;
+  member_name?: string | null;
+  member_email?: string | null;
+  community_name?: string | null;
   membership: {
     community_id: number;
     role: string;

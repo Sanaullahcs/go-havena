@@ -43,15 +43,56 @@ export default function JoinCommunityUnitsScreen() {
   const { dialog, showFailure, showSuccess } = useApiAction();
   const { submitting, run } = useSubmitLock();
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
-  const { communityId, communityName = "", returnTo, joinAnother } = useLocalSearchParams();
+  const { communityId, communityName = "", returnTo, joinAnother, switchAfter } = useLocalSearchParams();
   const numericCommunityId = Number(communityId);
   const name = String(communityName || t("community.myCommunity"));
+  const shouldSwitchAfter = switchAfter === "1" || switchAfter === true;
   const isJoinAnother =
-    joinAnother === "1" || joinAnother === true || returnTo === "my-community";
+    !shouldSwitchAfter &&
+    (joinAnother === "1" || joinAnother === true || returnTo === "my-community");
 
   const [unitEntries, setUnitEntries] = useState(() => [emptyEntry()]);
   const scrollRef = useRef(null);
   const homeCommunityIdRef = useRef(null);
+  const inviteUnitsLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!numericCommunityId || inviteUnitsLoadedRef.current) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const user = await fetchMe({ inviteCommunityId: numericCommunityId });
+        if (cancelled) return;
+        const inviteUnits = Array.isArray(user?.invite_units) ? user.invite_units : [];
+        const membership = membershipForCommunity(user, numericCommunityId);
+        const residenceType = String(user?.profile?.residence_type ?? user?.residence_type ?? "").trim();
+        const lockedInviteUnits = inviteUnits
+          .map((row) => ({
+            unit_number: String(row?.unit_number ?? "").trim(),
+            locked: row?.locked !== false,
+          }))
+          .filter((row) => row.unit_number !== "");
+        if (lockedInviteUnits.length > 0 && membership?.status === "pending") {
+          inviteUnitsLoadedRef.current = true;
+          setUnitEntries(
+            lockedInviteUnits.map((row, index) => ({
+              key: `invite-${index}-${row.unit_number}`,
+              unit_number: row.unit_number,
+              locked: row.locked,
+              is_new_unit: false,
+              residence_type: residenceType,
+              utilityFile: null,
+            })),
+          );
+        }
+      } catch {
+        // keep default empty entry
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [numericCommunityId]);
 
   useEffect(() => {
     if (!isJoinAnother) return;
@@ -208,6 +249,15 @@ export default function JoinCommunityUnitsScreen() {
         });
 
         const latest = await fetchMe().catch(() => getUser());
+        if (shouldSwitchAfter) {
+          const switched = await switchActiveCommunity(numericCommunityId);
+          await showSuccess(
+            t("nav.switchedCommunityTitle"),
+            t("nav.switchedCommunityBody", { name }),
+          );
+          navigateAfterAuth(router, switched ?? latest, { mode: "login" });
+          return;
+        }
         if (isJoinAnother) {
           await exitAfterJoinAnother(latest);
           return;

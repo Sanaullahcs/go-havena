@@ -21,6 +21,25 @@ class GeoController extends Controller
         ]);
     }
 
+    /** GET /v1/geo/address-geocode?q= */
+    public function geocode(Request $request, OsmGeocodingService $geocoding): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['required', 'string', 'min:3', 'max:200'],
+        ]);
+
+        $query = trim($validated['q']);
+        $coords = $geocoding->geocode($query);
+
+        return response()->json([
+            'data' => $coords ? [
+                'address' => $query,
+                'latitude' => $coords['latitude'],
+                'longitude' => $coords['longitude'],
+            ] : null,
+        ]);
+    }
+
     /** GET /v1/geo/address-reverse?lat=&lng= */
     public function reverse(Request $request, OsmGeocodingService $geocoding): JsonResponse
     {

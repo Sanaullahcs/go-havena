@@ -290,6 +290,7 @@ class AdminUserCreationTest extends TestCase
             'phone' => '+14155552676',
             'region_id' => $region->id,
             'community_id' => $community->id,
+            'unit_number' => 'A-1204',
         ]);
 
         $response->assertCreated()
@@ -314,6 +315,12 @@ class AdminUserCreationTest extends TestCase
         $this->assertDatabaseHas('invite_codes', [
             'invited_user_id' => $userId,
             'community_id' => $community->id,
+        ]);
+
+        $this->assertDatabaseHas('invite_unit_assignments', [
+            'user_id' => $userId,
+            'community_id' => $community->id,
+            'unit_number' => 'A-1204',
         ]);
     }
 

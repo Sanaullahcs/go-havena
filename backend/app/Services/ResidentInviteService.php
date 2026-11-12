@@ -154,6 +154,7 @@ class ResidentInviteService
             $email,
             $role,
             $password,
+            $this->normalizedInviteUnitNumbers([$unitNumber]),
         );
     }
 
@@ -208,10 +209,29 @@ class ResidentInviteService
             (string) $invitee->email,
             $role,
             null,
+            $this->normalizedInviteUnitNumbers([$unitNumber]),
         );
     }
 
     /**
+     * @param  list<string|null|mixed>  $unitNumbers
+     * @return list<string>
+     */
+    private function normalizedInviteUnitNumbers(array $unitNumbers): array
+    {
+        $out = [];
+        foreach ($unitNumbers as $raw) {
+            $trimmed = trim((string) $raw);
+            if ($trimmed !== '') {
+                $out[] = $trimmed;
+            }
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * @param  list<string>  $unitNumbers
      * @return array<string, mixed>
      */
     private function finalizeInvitation(
@@ -222,6 +242,7 @@ class ResidentInviteService
         string $email,
         string $role,
         ?string $tempPassword,
+        array $unitNumbers = [],
     ): array {
         $billing = app(CommunityBillingService::class);
 
@@ -235,6 +256,14 @@ class ResidentInviteService
 
         if ($role !== 'admin') {
             $billing->reserveSeatForInvite($communityId, $userId, $invite);
+        }
+
+        if ($unitNumbers !== []) {
+            app(UnitAssignmentService::class)->storeInviteUnitAssignments(
+                $communityId,
+                $userId,
+                $unitNumbers,
+            );
         }
 
         $communityName = Community::query()->where('id', $communityId)->value('name') ?? 'your community';

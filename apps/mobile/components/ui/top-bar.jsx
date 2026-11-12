@@ -15,6 +15,10 @@ import {
   isGuestUser,
 } from "../../services/community-access";
 import { fetchMe, fetchMyCommunities, switchActiveCommunity } from "../../services/profile-api";
+import {
+  promptAddUnitsBeforeSwitch,
+  showSwitchCommunityFailure,
+} from "../../utils/switch-community-errors";
 import { getCommunityId, getUser, setCommunityId, subscribeSessionUser } from "../../services/auth-session";
 import { HeaderShell } from "../layout/header-chrome";
 import { sw, sf } from "../../utils/responsive";
@@ -89,6 +93,7 @@ export default function TopBar({ onMenuPress }) {
       const payload = await fetchMyCommunities();
       const currentId = payload.activeCommunityId ?? activeCommunityId;
       const rows = (payload.communities || []).filter((row) => {
+        if (row.needs_units) return Number(row.community_id) !== Number(currentId);
         if (String(row.status || "").toLowerCase() !== "approved") return false;
         if (Number(row.community_id) === Number(currentId)) return false;
         const community = row.community;
@@ -118,6 +123,13 @@ export default function TopBar({ onMenuPress }) {
     async (row) => {
       const name = row.community?.name || t("community.myCommunity");
       setSwitchOpen(false);
+      if (row.needs_units) {
+        await promptAddUnitsBeforeSwitch(dialog, router, {
+          communityId: row.community_id,
+          communityName: name,
+        });
+        return;
+      }
       const choice = await dialog.showConfirm(
         t("nav.switchCommunityTitle"),
         t("nav.switchCommunityBody", { name }),
@@ -137,12 +149,21 @@ export default function TopBar({ onMenuPress }) {
         setActiveCommunityId(row.community_id);
         navigateAfterAuth(router, next, { mode: "login" });
       } catch (err) {
-        await showFailure(t("nav.couldNotSwitchCommunity"), err);
+        await showSwitchCommunityFailure(
+          dialog,
+          router,
+          t("nav.couldNotSwitchCommunity"),
+          err,
+          {
+            communityId: row.community_id,
+            communityName: row.community?.name,
+          },
+        );
       } finally {
         setSwitching(false);
       }
     },
-    [dialog, router, showFailure, t],
+    [dialog, router, t],
   );
 
   useEffect(() => subscribeSessionUser((next) => {

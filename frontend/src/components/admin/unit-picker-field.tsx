@@ -81,7 +81,8 @@ export function UnitPickerField(props: UnitPickerFieldProps) {
       : [];
 
   const wrapRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -124,6 +125,8 @@ export function UnitPickerField(props: UnitPickerFieldProps) {
       return;
     }
     void refreshUnits();
+    const frame = requestAnimationFrame(() => searchInputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
   }, [open, refreshUnits]);
 
   useEffect(() => {
@@ -231,36 +234,82 @@ export function UnitPickerField(props: UnitPickerFieldProps) {
         : `${selected.length} units selected`
     : selected[0] || placeholder;
 
+  const searchPlaceholder = multiple ? "Search or select units…" : "Search or select a unit…";
+
+  const openPicker = () => {
+    if (disabled) return;
+    setOpen(true);
+  };
+
   return (
     <div className="min-w-0 w-full" ref={wrapRef}>
       <div className="nl-picker-wrap min-w-0 w-full">
-        <button
-          ref={triggerRef}
-          id={id}
-          type="button"
-          data-field={dataField}
-          aria-expanded={open}
-          aria-haspopup="listbox"
-          disabled={disabled}
-          onClick={() => !disabled && setOpen((v) => !v)}
-          className={[
-            "nl-picker-trigger h-11 w-full",
-            selected.length > 0 ? "has-value" : "",
-            error ? "border-red-300 ring-1 ring-red-100" : "",
-            open ? "nl-picker-trigger-open" : "",
-            disabled ? "cursor-not-allowed bg-slate-50 opacity-70" : "",
-          ].join(" ")}
-        >
-          <span className={["nl-picker-text flex-1 text-left", selected.length > 0 ? "" : "is-placeholder"].join(" ")}>
-            {triggerLabel}
-          </span>
-          <ChevronDown
-            className={`nl-picker-chevron ${open ? "nl-picker-chevron-open" : ""}`}
-            size={14}
-            strokeWidth={2}
-            aria-hidden
-          />
-        </button>
+        <div ref={triggerRef} className="min-w-0 w-full">
+          {open ? (
+            <div
+              id={id}
+              data-field={dataField}
+              className={[
+                "nl-picker-trigger h-11 w-full !cursor-text gap-2",
+                selected.length > 0 ? "has-value" : "",
+                error ? "border-red-300 ring-1 ring-red-100" : "",
+                "nl-picker-trigger-open",
+              ].join(" ")}
+            >
+              <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+              <input
+                ref={searchInputRef}
+                type="search"
+                value={search}
+                disabled={disabled}
+                aria-expanded={open}
+                aria-haspopup="listbox"
+                placeholder={searchPlaceholder}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setOpen(false);
+                    onBlur?.();
+                  }
+                }}
+                className="min-w-0 flex-1 border-0 bg-transparent text-[13px] text-slate-800 outline-none placeholder:text-slate-400"
+              />
+              <button
+                type="button"
+                aria-label="Close unit list"
+                disabled={disabled}
+                onClick={() => {
+                  setOpen(false);
+                  onBlur?.();
+                }}
+                className="shrink-0 text-slate-400 transition hover:text-slate-600"
+              >
+                <ChevronDown className="nl-picker-chevron nl-picker-chevron-open" size={14} strokeWidth={2} />
+              </button>
+            </div>
+          ) : (
+            <button
+              id={id}
+              type="button"
+              data-field={dataField}
+              aria-expanded={open}
+              aria-haspopup="listbox"
+              disabled={disabled}
+              onClick={openPicker}
+              className={[
+                "nl-picker-trigger h-11 w-full",
+                selected.length > 0 ? "has-value" : "",
+                error ? "border-red-300 ring-1 ring-red-100" : "",
+                disabled ? "cursor-not-allowed bg-slate-50 opacity-70" : "",
+              ].join(" ")}
+            >
+              <span className={["nl-picker-text flex-1 text-left", selected.length > 0 ? "" : "is-placeholder"].join(" ")}>
+                {triggerLabel}
+              </span>
+              <ChevronDown className="nl-picker-chevron" size={14} strokeWidth={2} aria-hidden />
+            </button>
+          )}
+        </div>
 
         {multiple && selected.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -295,24 +344,11 @@ export function UnitPickerField(props: UnitPickerFieldProps) {
                 role="listbox"
                 aria-multiselectable={multiple || undefined}
               >
-                <div className="shrink-0 border-b border-slate-100 px-3 py-2.5">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="search"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search units…"
-                      className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-[13px] text-slate-800 outline-none placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/15"
-                      autoFocus
-                    />
-                  </div>
-                  {multiple ? (
-                    <p className="mt-2 text-[11.5px] text-slate-500">
-                      Select one or more units. Click again to deselect.
-                    </p>
-                  ) : null}
-                </div>
+                {multiple ? (
+                  <p className="shrink-0 border-b border-slate-100 px-3 py-2 text-[11.5px] text-slate-500">
+                    Select one or more units. Click again to deselect.
+                  </p>
+                ) : null}
 
                 <div className="grid shrink-0 grid-cols-[1fr_auto] gap-2 border-b border-slate-100 bg-slate-50/90 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                   <span>Unit</span>
