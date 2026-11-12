@@ -262,6 +262,11 @@ export function AmenityFormModal({
   }, [step, visibleSteps]);
 
   useEffect(() => {
+    if (!open || step !== "review") return;
+    if (liveErrors.name || liveErrors.floor) setStep("details");
+  }, [open, step, liveErrors.name, liveErrors.floor]);
+
+  useEffect(() => {
     if (!open) return;
 
     const html = document.documentElement;
@@ -378,6 +383,8 @@ export function AmenityFormModal({
   const currentIndex = Math.max(0, visibleSteps.indexOf(step));
   const isFirst = currentIndex <= 0;
   const isLast = step === "review";
+  const currentStepInvalid = !isLast && hasFieldErrors(amenityFormStepErrors(form, step, showSharedBilling));
+  const formInvalid = hasFieldErrors(liveErrors);
 
   const goBack = () => {
     if (isFirst || submitting) return;
@@ -1082,8 +1089,8 @@ export function AmenityFormModal({
               <button
                 type="button"
                 onClick={() => void handleSubmit()}
-                disabled={submitting}
-                className="rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#163e6c] disabled:opacity-60"
+                disabled={submitting || formInvalid}
+                className="rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#163e6c] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? "Saving…" : mode === "edit" ? "Save changes" : "Create amenity"}
               </button>
@@ -1091,8 +1098,8 @@ export function AmenityFormModal({
               <button
                 type="button"
                 onClick={goNext}
-                disabled={submitting}
-                className="rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#163e6c] disabled:opacity-60"
+                disabled={submitting || currentStepInvalid}
+                className="rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#163e6c] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Next
               </button>

@@ -39,6 +39,11 @@ class AppUrls
         return self::appBase().'/resident-login';
     }
 
+    public static function agreementReview(int $documentId): string
+    {
+        return 'havena://screens/property-management/documents/document-detail?documentId='.$documentId;
+    }
+
     public static function supportEmail(): string
     {
         return (string) config('mail.brand.support', config('mail.from.address', 'hello@gohavena.com'));

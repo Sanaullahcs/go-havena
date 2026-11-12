@@ -154,7 +154,7 @@ console.log("\nWeb amenity form validation");
     validateAmenityForm({ ...valid, name: "Wi-Fi Lounge" }).name === undefined,
     "accepts a hyphen in the name",
   );
-  for (const name of ["Pool?", ",Pool", "Pool--House", "Pool&&Spa", "Pool''s", "?Pool"]) {
+  for (const name of ["Pool?", ",Pool", "Pool--House", "Pool&&Spa", "Pool''s", "?Pool", "././..???", "12345", "---", "???"]) {
     assert(
       validateAmenityForm({ ...valid, name }).name === "Please enter a valid amenity name.",
       `rejects amenity name ${JSON.stringify(name)}`,
@@ -168,7 +168,7 @@ console.log("\nWeb amenity form validation");
     validateAmenityForm({ ...valid, floor: "  Bldg A, #4 / Floor 2.  " }).floor === undefined,
     "trims and accepts a normal location",
   );
-  for (const floor of ["Floor?", ", Floor 2", "A//B", "Floor,,2", "Main St#", "??"]) {
+  for (const floor of ["Floor?", ", Floor 2", "A//B", "Floor,,2", "Main St#", "??", "????>/..?./.", "123", "---", "..."]) {
     assert(
       validateAmenityForm({ ...valid, floor }).floor === "Please enter a valid location.",
       `rejects location ${JSON.stringify(floor)}`,

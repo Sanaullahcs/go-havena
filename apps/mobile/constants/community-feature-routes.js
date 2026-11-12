@@ -40,6 +40,7 @@ export function isFeaturePathAllowed(pathname, user) {
   const path = String(pathname ?? "");
   if (!user || !path) return true;
   if (isCommunityUpdatesBoard(path)) return true;
+  if (/complaints\/(?:chat|report-chat)(?:\/|$|\?)/.test(path)) return true;
   const rule = FEATURE_PATH_RULES.find((item) => item.pattern.test(path));
   if (!rule) return true;
   return anyResidentFeatureEnabled(user, rule.keys);

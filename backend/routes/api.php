@@ -37,8 +37,11 @@ use App\Http\Controllers\Api\V1\AdminCommunityController;
 use App\Http\Controllers\Api\V1\AdminCommunityAdminController;
 use App\Http\Controllers\Api\V1\AdminUserController;
 use App\Http\Controllers\Api\V1\ContactController;
+use App\Http\Controllers\Api\V1\AdminComplaintController;
+use App\Http\Controllers\Api\V1\ComplaintController;
 use App\Http\Controllers\Api\V1\CommunityRuleController;
 use App\Http\Controllers\Api\V1\CommunityDocumentController;
+use App\Http\Controllers\Api\V1\AgreementController;
 use App\Http\Controllers\Api\V1\GuestAccessController;
 use App\Http\Controllers\Api\V1\GuestController;
 use App\Http\Controllers\Api\V1\ResidentGuestController;
@@ -120,6 +123,8 @@ Route::prefix('v1')->group(function () {
     Route::post('/locations/resolve', [GeographyController::class, 'resolveLocation']);
     Route::get('/regions', [RegionController::class, 'index']);
     Route::post('/contact', [ContactController::class, 'store']);
+    Route::get('/documents/signed-files/{assignment}', [AgreementController::class, 'downloadSigned'])
+        ->whereNumber('assignment');
 
     /* ── Authenticated ── */
     Route::middleware(['auth:sanctum', 'guest.access', 'account.access'])->group(function () {
@@ -450,6 +455,17 @@ Route::prefix('v1')->group(function () {
                 Route::post('/app-version/send-update-notification', [AppVersionController::class, 'sendUpdateNotification']);
             });
 
+            /* Complaints stay available when the maintenance feature flag is off. */
+            Route::middleware('community.admin')->group(function () {
+                Route::get('/complaints', [AdminComplaintController::class, 'index']);
+                Route::get('/complaints/{id}/assignees', [AdminComplaintController::class, 'assignees'])->whereNumber('id');
+                Route::get('/complaints/{id}', [AdminComplaintController::class, 'show'])->whereNumber('id');
+                Route::post('/complaints/{id}/messages', [AdminComplaintController::class, 'message'])->whereNumber('id');
+                Route::post('/complaints/{id}/status', [AdminComplaintController::class, 'status'])->whereNumber('id');
+                Route::post('/complaints/{id}/assign', [AdminComplaintController::class, 'assign'])->whereNumber('id');
+                Route::get('/complaints/{id}/attachments/{attachment}', [AdminComplaintController::class, 'download'])->whereNumber('id')->whereNumber('attachment');
+            });
+
             /* Community admin (+ system admin override) */
             Route::middleware(['community.admin', 'admin.feature'])->group(function () {
                 Route::get('/resident-features', [CommunityFeatureController::class, 'showMine']);
@@ -468,8 +484,23 @@ Route::prefix('v1')->group(function () {
                 Route::post('/community-rules/{id}/delete', [CommunityRuleController::class, 'destroy']);
 
                 /* Community Documents — admin CRUD */
+                Route::get('/documents/agreements/options', [AgreementController::class, 'options']);
+                Route::get('/documents/agreements', [AgreementController::class, 'index']);
+                Route::post('/documents/agreements', [AgreementController::class, 'store']);
+                Route::get('/documents/agreements/{id}', [AgreementController::class, 'show'])->whereNumber('id');
+                Route::post('/documents/agreements/{id}/publish', [AgreementController::class, 'publish'])->whereNumber('id');
+                Route::post('/documents/agreements/{id}/remind', [AgreementController::class, 'remind'])->whereNumber('id');
+                Route::post('/documents/agreements/{id}/versions', [AgreementController::class, 'newVersion'])->whereNumber('id');
+                Route::post('/documents/agreements/{id}/archive', [AgreementController::class, 'archive'])->whereNumber('id');
+                Route::post('/documents/agreements/{id}/revoke', [AgreementController::class, 'revoke'])->whereNumber('id');
+                Route::get('/documents/agreements/{id}/export', [AgreementController::class, 'export'])->whereNumber('id');
                 Route::get('/documents',                   [CommunityDocumentController::class, 'adminIndex']);
                 Route::post('/documents',                  [CommunityDocumentController::class, 'store']);
+                Route::get('/documents/signature-tracking', [CommunityDocumentController::class, 'signatureTracking']);
+                Route::post('/documents/{id}/remind',      [CommunityDocumentController::class, 'remind'])->whereNumber('id');
+                Route::post('/documents/{id}/archive',     [CommunityDocumentController::class, 'archive'])->whereNumber('id');
+                Route::post('/documents/{id}/restore',     [CommunityDocumentController::class, 'restore'])->whereNumber('id');
+                Route::post('/documents/{id}/deadline',    [CommunityDocumentController::class, 'extendDeadline'])->whereNumber('id');
                 Route::post('/documents/categories',       [CommunityDocumentController::class, 'storeCategory']);
                 Route::delete('/documents/categories',     [CommunityDocumentController::class, 'destroyCategory']);
                 Route::match(['patch', 'post'],'/documents/{id}',            [CommunityDocumentController::class, 'update']);
@@ -663,7 +694,21 @@ Route::prefix('v1')->group(function () {
             Route::get('/documents',                                [CommunityDocumentController::class, 'index']);
             Route::get('/documents/{id}',                           [CommunityDocumentController::class, 'show']);
             Route::post('/documents/{id}/download',                 [CommunityDocumentController::class, 'recordDownload']);
+            Route::post('/documents/{id}/sign',                     [AgreementController::class, 'sign'])->whereNumber('id');
+            Route::post('/documents/{id}/decline',                  [AgreementController::class, 'decline'])->whereNumber('id');
+            Route::get('/documents/{id}/signed-link',               [AgreementController::class, 'signedLink'])->whereNumber('id');
         });
+
+        /* Complaints and technical support. Not gated by the maintenance feature flag. */
+        Route::get('/complaints/units', [ComplaintController::class, 'units']);
+        Route::get('/complaints', [ComplaintController::class, 'index']);
+        Route::post('/complaints', [ComplaintController::class, 'store']);
+        Route::get('/complaints/{id}', [ComplaintController::class, 'show'])->whereNumber('id');
+        Route::post('/complaints/{id}/messages', [ComplaintController::class, 'message'])->whereNumber('id');
+        Route::post('/complaints/{id}/attachments', [ComplaintController::class, 'attachment'])->whereNumber('id');
+        Route::post('/complaints/{id}/status', [ComplaintController::class, 'status'])->whereNumber('id');
+        Route::post('/complaints/{id}/feedback', [ComplaintController::class, 'feedback'])->whereNumber('id');
+        Route::get('/complaints/{id}/attachments/{attachment}', [ComplaintController::class, 'download'])->whereNumber('id')->whereNumber('attachment');
 
         /* Resident report filing */
         Route::post('/reports', [ReportController::class, 'store']);

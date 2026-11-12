@@ -15,7 +15,7 @@ import {
 import { getPushNotificationsEnabled } from "../../services/notification-preferences";
 import { getCachedUser, getToken, subscribeSessionUser } from "../../services/auth-session";
 import { currentCommunityId, isCommunityAdmin, isResidentMode } from "../../services/community-access";
-import { fetchNotificationUnreadCount } from "../../services/notifications-api";
+import { fetchNotificationUnreadCount, isAdminAgreementSignedNotification, openAdminSignedAgreement } from "../../services/notifications-api";
 import { emitMessageUnreadRefresh, emitNotificationRefresh } from "../../services/notification-events";
 
 async function refreshUnreadBadge() {
@@ -43,7 +43,28 @@ function shouldShowCommunityAdminBanner(data) {
   return allowed != null && Number(allowed) === incoming;
 }
 
-function navigateFromNotificationResponse(response) {
+async function navigateFromNotificationResponse(response) {
+  const content = response?.notification?.request?.content;
+  const data = content?.data ?? {};
+  const signedNotification = {
+    title: content?.title ?? data.title ?? "",
+    description: content?.body ?? data.body ?? "",
+    actionUrl: data.action_url ?? data.actionUrl ?? null,
+    kind: data.kind ?? null,
+    type: data.type ?? null,
+    documentId: data.document_id ?? data.documentId ?? null,
+    assignmentId: data.assignment_id ?? data.assignmentId ?? null,
+    openSignedPdf: data.open_signed === true || data.open_signed === 1 || data.open_signed === "1" || data.open_signed === "true",
+  };
+  if (isAdminAgreementSignedNotification(signedNotification)) {
+    try {
+      if (await openAdminSignedAgreement(signedNotification)) return;
+    } catch {
+      return;
+    }
+    return;
+  }
+
   const route = handleNotificationResponse(response);
   if (!route?.pathname) return;
 

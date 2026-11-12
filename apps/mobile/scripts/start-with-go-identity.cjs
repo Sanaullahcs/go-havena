@@ -7,6 +7,7 @@ const crypto = require("crypto");
 const path = require("path");
 
 require("./patch-expo-go-manifest.cjs");
+require("./patch-expo-go-reload.cjs");
 const { identity } = require("./expo-go-manifest-identity.cjs");
 
 const projectRoot = path.resolve(__dirname, "..");

@@ -1,43 +1,38 @@
-export const DOCUMENT_OTHER_CATEGORY = "Other";
+export const DOCUMENT_OTHER_CATEGORY = "Others";
 
-/** @deprecated Kept for reference — not shown in the document form. */
 export const DOCUMENT_PRESET_CATEGORIES = [
   "Rules & Policies",
-  "Forms",
-  "Guidelines",
-  "Safety",
-  "Maps & Diagrams",
+  "Maintenance",
   "Financial",
-  DOCUMENT_OTHER_CATEGORY,
+  "Property",
 ] as const;
 
 /** @deprecated Use DOCUMENT_PRESET_CATEGORIES */
 export const PRESET_DOCUMENT_CATEGORIES = DOCUMENT_PRESET_CATEGORIES;
 
-/**
- * Form options = community-managed categories only + Other.
- * Hardcoded presets are NOT merged.
- */
-export function buildDocumentCategoryOptions(managedNames: string[]): string[] {
-  const seen = new Set<string>();
-  const options: string[] = [];
+export function isPresetDocumentCategory(value: string): boolean {
+  const key = value.trim().toLowerCase();
+  return DOCUMENT_PRESET_CATEGORIES.some((name) => name.toLowerCase() === key);
+}
 
-  for (const name of managedNames) {
-    const trimmed = name.trim();
-    if (!trimmed || trimmed.toLowerCase() === DOCUMENT_OTHER_CATEGORY.toLowerCase()) continue;
-    const key = trimmed.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    options.push(trimmed);
-  }
+export function isDocumentOtherCategory(value: string): boolean {
+  const key = value.trim().toLowerCase();
+  return key === "other" || key === "others";
+}
 
-  options.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  options.push(DOCUMENT_OTHER_CATEGORY);
-  return options;
+/** The four named categories, then Others for a custom name. */
+export function buildDocumentCategoryOptions(_managedNames: string[] = []): string[] {
+  return [...DOCUMENT_PRESET_CATEGORIES, DOCUMENT_OTHER_CATEGORY];
+}
+
+export function documentMatchesCategory(category: string, filter: string): boolean {
+  if (!filter || filter === "all") return true;
+  if (isDocumentOtherCategory(filter)) return !isPresetDocumentCategory(category);
+  return category.trim().toLowerCase() === filter.trim().toLowerCase();
 }
 
 export function resolveDocumentCategory(selection: string, customName: string): string {
-  if (selection === DOCUMENT_OTHER_CATEGORY) return customName.trim();
+  if (isDocumentOtherCategory(selection)) return customName.trim();
   return selection.trim();
 }
 
@@ -46,9 +41,9 @@ export function splitDocumentCategory(
   managedNames: string[] = [],
 ): { selection: string; customName: string } {
   const value = stored.trim();
-  const exact = managedNames.find((n) => n.trim().toLowerCase() === value.toLowerCase());
-  if (exact) {
-    return { selection: exact, customName: "" };
-  }
+  if (!value) return { selection: "", customName: "" };
+  const known = buildDocumentCategoryOptions(managedNames).filter((name) => !isDocumentOtherCategory(name));
+  const exact = known.find((name) => name.toLowerCase() === value.toLowerCase());
+  if (exact) return { selection: exact, customName: "" };
   return { selection: DOCUMENT_OTHER_CATEGORY, customName: value };
 }

@@ -434,6 +434,34 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="screens/admin-complaints/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-complaints/detail"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-complaints/chat"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-complaints/report"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-complaints/report-detail"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-complaints/report-chat"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/complaints"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="screens/admin-amenities/index"
           options={{ headerShown: false }}
         />
@@ -479,6 +507,14 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="screens/property-management/documents/document-form"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/documents/agreement-form"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/documents/sign-agreement"
           options={{ headerShown: false }}
         />
         <Stack.Screen

@@ -68,6 +68,7 @@ export const ADMIN_FEATURE_ROUTES: Array<{ prefix: string; key: string }> = [
   { prefix: "/admin/alerts", key: "alerts" },
   { prefix: "/admin/community-rules", key: "community_rules" },
   { prefix: "/admin/documents", key: "documents" },
+  { prefix: "/admin/agreements", key: "documents" },
   { prefix: "/admin/amenities", key: "amenities" },
   { prefix: "/admin/amenity-bills", key: "amenities" },
   { prefix: "/admin/bookings", key: "bookings" },

@@ -1,5 +1,50 @@
 import api, { isProxyMethodBlocked } from "./client";
 
+export interface DocumentRecipient {
+  id: number;
+  user_id: number;
+  resident_name: string;
+  unit_label: string | null;
+  display_status: string;
+  signature_status: string;
+  signed_at: string | null;
+  signed_file_url: string | null;
+  signature_status?: string;
+}
+
+export interface DocumentActivity {
+  id: number;
+  event: string;
+  meta: Record<string, unknown> | null;
+  created_at: string | null;
+  actor_name: string | null;
+}
+
+export interface SignatureSummary {
+  required: number;
+  signed: number;
+  pending: number;
+  overdue: number;
+}
+
+export interface SignatureTracking {
+  required: number;
+  signed: number;
+  pending: number;
+  overdue: number;
+  documents: Array<{
+    id: number;
+    title: string;
+    due_at: string | null;
+    expires_at: string | null;
+    required: number;
+    signed: number;
+    pending: number;
+    overdue: number;
+    signature_status: string | null;
+  }>;
+}
+
 export interface CommunityDocument {
   id: number;
   community_id: number;
@@ -13,9 +58,26 @@ export interface CommunityDocument {
   mime_type: string | null;
   download_count: number;
   status: "active" | "inactive";
+  publication_status?: "draft" | "published" | string;
+  signature_required?: boolean;
+  due_at?: string | null;
+  expires_at?: string | null;
+  assignment_scope?: "all" | "residents" | null;
+  lifecycle?: "draft" | "published" | "archived" | "overdue" | string;
+  signature_status?: "pending" | "signed" | "overdue" | null;
+  signature_summary?: SignatureSummary;
+  assigned_count?: number;
+  activity?: DocumentActivity[];
   created_by: number;
   created_at: string;
   updated_at: string;
+  stats?: {
+    recipients: number;
+    signed: number;
+    pending: number;
+    overdue: number;
+  };
+  recipients?: DocumentRecipient[];
 }
 
 export interface DocumentCategory {
@@ -29,6 +91,13 @@ export type DocumentForm = {
   description: string;
   status: "active" | "inactive";
   file?: File | null;
+  publication_status?: "draft" | "published";
+  signature_required?: boolean;
+  due_at?: string;
+  expires_at?: string;
+  assignment_scope?: "all" | "residents";
+  user_ids?: number[];
+  notify?: boolean;
 };
 
 export {
@@ -36,6 +105,8 @@ export {
   DOCUMENT_PRESET_CATEGORIES,
   PRESET_DOCUMENT_CATEGORIES,
   buildDocumentCategoryOptions,
+  documentMatchesCategory,
+  isDocumentOtherCategory,
   resolveDocumentCategory,
   splitDocumentCategory,
 } from "@/lib/admin/document-categories";
@@ -59,8 +130,45 @@ function buildDocumentFormData(payload: DocumentForm, file?: File | null) {
   form.append("category", payload.category);
   if (payload.description.trim()) form.append("description", payload.description.trim());
   form.append("status", payload.status);
+  if (payload.publication_status) form.append("publication_status", payload.publication_status);
+  if (payload.assignment_scope) form.append("assignment_scope", payload.assignment_scope);
+  form.append("signature_required", payload.signature_required ? "1" : "0");
+  form.append("notify", payload.notify === false ? "0" : "1");
+  if (payload.due_at) form.append("due_at", payload.due_at);
+  form.append("expires_at", payload.expires_at ?? "");
+  (payload.user_ids ?? []).forEach((id) => form.append("user_ids[]", String(id)));
   if (file) form.append("file", file);
   return form;
+}
+
+export async function fetchDocument(id: number): Promise<CommunityDocument> {
+  const res = await api.get(`/v1/documents/${id}`);
+  return res.data.data as CommunityDocument;
+}
+
+export async function fetchSignatureTracking(): Promise<SignatureTracking> {
+  const res = await api.get("/v1/admin/documents/signature-tracking");
+  return res.data as SignatureTracking;
+}
+
+export async function archiveDocument(id: number): Promise<CommunityDocument> {
+  const res = await api.post(`/v1/admin/documents/${id}/archive`);
+  return res.data.data as CommunityDocument;
+}
+
+export async function restoreDocument(id: number): Promise<CommunityDocument> {
+  const res = await api.post(`/v1/admin/documents/${id}/restore`);
+  return res.data.data as CommunityDocument;
+}
+
+export async function extendDocumentDeadline(id: number, dueAt: string): Promise<CommunityDocument> {
+  const res = await api.post(`/v1/admin/documents/${id}/deadline`, { due_at: dueAt });
+  return res.data.data as CommunityDocument;
+}
+
+export async function remindDocument(id: number, assignmentId?: number): Promise<{ sent: number }> {
+  const res = await api.post(`/v1/admin/documents/${id}/remind`, assignmentId ? { assignment_id: assignmentId } : {});
+  return res.data as { sent: number };
 }
 
 export async function createDocument(payload: DocumentForm, file: File): Promise<CommunityDocument> {
@@ -75,8 +183,22 @@ export async function updateDocument(
   id: number,
   payload: DocumentForm,
   file?: File | null,
+  options?: { removeFile?: boolean },
 ): Promise<CommunityDocument> {
   const form = buildDocumentFormData(payload, file);
+  if (options?.removeFile) form.append("remove_file", "1");
+  const res = await api.post(`/v1/admin/documents/${id}`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data.data as CommunityDocument;
+}
+
+export async function setDocumentStatus(
+  id: number,
+  status: "active" | "inactive",
+): Promise<CommunityDocument> {
+  const form = new FormData();
+  form.append("status", status);
   const res = await api.post(`/v1/admin/documents/${id}`, form, {
     headers: { "Content-Type": "multipart/form-data" },
   });

@@ -3,7 +3,7 @@ import { AppState } from "react-native";
 import { router } from "expo-router";
 import { getToken } from "../../services/auth-session";
 import { fetchAccountPushPreference } from "../../services/devices-api";
-import { fetchNotifications } from "../../services/notifications-api";
+import { fetchNotifications, isAdminAgreementSignedNotification, openAdminSignedAgreement } from "../../services/notifications-api";
 import {
   getPushNotificationsEnabled,
   setPushNotificationsEnabled,
@@ -83,11 +83,16 @@ export default function InAppNotificationMonitor() {
         if (latest.kind === "message") {
           emitMessageUnreadRefresh();
         }
-        const route = resolvePushNotificationRoute({
-          actionUrl: latest.actionUrl,
-          title: latest.title,
-          body: latest.description,
-        });
+        const route = isAdminAgreementSignedNotification(latest)
+          ? null
+          : resolvePushNotificationRoute({
+              actionUrl: latest.actionUrl,
+              title: latest.title,
+              body: latest.description,
+              kind: latest.kind,
+              type: latest.type,
+              documentId: latest.documentId,
+            });
 
         emitNotificationBanner({
           id: latest.id ? String(latest.id) : undefined,
@@ -96,12 +101,16 @@ export default function InAppNotificationMonitor() {
           kind: latest.kind,
           type: latest.type,
           actionUrl: latest.actionUrl,
-          onPress: route?.pathname
+          onPress: isAdminAgreementSignedNotification(latest)
             ? () => {
-                if (router.canDismiss?.()) router.dismissAll();
-                router.push(route);
+                openAdminSignedAgreement(latest).catch(() => {});
               }
-            : undefined,
+            : route?.pathname
+              ? () => {
+                  if (router.canDismiss?.()) router.dismissAll();
+                  router.push(route);
+                }
+              : undefined,
         });
 
         if (unread > 0) {

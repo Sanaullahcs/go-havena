@@ -17,9 +17,13 @@ export const PropertyManagementRoutes = {
   DOCUMENTS: "/(tabs)/services/documents",
   DOCUMENT_DETAIL: "/(tabs)/services/documents/document-detail",
   DOCUMENT_FORM: "/(tabs)/services/documents/document-form",
+  AGREEMENT_FORM: "/(tabs)/services/documents/agreement-form",
+  SIGN_AGREEMENT: "/(tabs)/services/documents/sign-agreement",
   DOCUMENTS_SCREEN: "/screens/property-management/documents",
   DOCUMENT_DETAIL_SCREEN: "/screens/property-management/documents/document-detail",
   DOCUMENT_FORM_SCREEN: "/screens/property-management/documents/document-form",
+  AGREEMENT_FORM_SCREEN: "/screens/property-management/documents/agreement-form",
+  SIGN_AGREEMENT_SCREEN: "/screens/property-management/documents/sign-agreement",
   MY_BOOKING: "/(tabs)/services/my-booking",
   /** Root-stack copies so Home quick actions can push and Back returns to Home. */
   AMENITY_SCREEN: "/screens/property-management/amenity",
@@ -64,6 +68,8 @@ export function amenityFlowRoutes(pathname) {
       myBooking: PropertyManagementRoutes.MY_BOOKING_SCREEN,
       documentDetail: PropertyManagementRoutes.DOCUMENT_DETAIL_SCREEN,
       documentForm: PropertyManagementRoutes.DOCUMENT_FORM_SCREEN,
+      agreementForm: PropertyManagementRoutes.AGREEMENT_FORM_SCREEN,
+      signAgreement: PropertyManagementRoutes.SIGN_AGREEMENT_SCREEN,
     };
   }
   return {
@@ -73,6 +79,8 @@ export function amenityFlowRoutes(pathname) {
     myBooking: PropertyManagementRoutes.MY_BOOKING,
     documentDetail: PropertyManagementRoutes.DOCUMENT_DETAIL,
     documentForm: PropertyManagementRoutes.DOCUMENT_FORM,
+    agreementForm: PropertyManagementRoutes.AGREEMENT_FORM,
+    signAgreement: PropertyManagementRoutes.SIGN_AGREEMENT,
   };
 }
 

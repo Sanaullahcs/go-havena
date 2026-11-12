@@ -1,52 +1,54 @@
-export const DOCUMENT_OTHER_CATEGORY = "Other";
+export const DOCUMENT_OTHER_CATEGORY = "Others";
 
-/** @deprecated Not shown in the form — use community-managed categories from the API. */
 export const DOCUMENT_PRESET_CATEGORIES = [
   "Rules & Policies",
-  "Forms",
-  "Guidelines",
-  "Safety",
-  "Maps & Diagrams",
+  "Maintenance",
+  "Legal",
   "Financial",
-  DOCUMENT_OTHER_CATEGORY,
+  "Property",
+  "Community Notices",
+  "Consent Forms",
+  "Agreements",
 ];
 
 /** @deprecated Use DOCUMENT_PRESET_CATEGORIES */
 export const PRESET_DOCUMENT_CATEGORIES = DOCUMENT_PRESET_CATEGORIES;
 
+export function isDocumentOtherCategory(value) {
+  const key = String(value ?? "").trim().toLowerCase();
+  return key === "other" || key === "others";
+}
+
 /**
- * Form options = community-managed categories only + Other.
+ * Preset categories, then any extra names already used by the community, then Others.
  */
 export function buildDocumentCategoryOptions(managedNames = []) {
-  const seen = new Set();
-  const options = [];
+  const seen = new Set(DOCUMENT_PRESET_CATEGORIES.map((name) => name.toLowerCase()));
+  const extras = [];
 
   for (const name of managedNames) {
     const trimmed = String(name ?? "").trim();
-    if (!trimmed || trimmed.toLowerCase() === DOCUMENT_OTHER_CATEGORY.toLowerCase()) continue;
+    if (!trimmed || isDocumentOtherCategory(trimmed)) continue;
     const key = trimmed.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    options.push(trimmed);
+    extras.push(trimmed);
   }
 
-  options.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  options.push(DOCUMENT_OTHER_CATEGORY);
-  return options;
+  extras.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  return [...DOCUMENT_PRESET_CATEGORIES, ...extras, DOCUMENT_OTHER_CATEGORY];
 }
 
 export function resolveDocumentCategory(selection, customName) {
-  if (selection === DOCUMENT_OTHER_CATEGORY) return String(customName ?? "").trim();
+  if (isDocumentOtherCategory(selection)) return String(customName ?? "").trim();
   return String(selection ?? "").trim();
 }
 
 export function splitDocumentCategory(stored, managedNames = []) {
   const value = String(stored ?? "").trim();
-  const exact = managedNames.find(
-    (n) => String(n ?? "").trim().toLowerCase() === value.toLowerCase(),
-  );
-  if (exact) {
-    return { selection: exact, customName: "" };
-  }
+  if (!value) return { selection: "", customName: "" };
+  const known = buildDocumentCategoryOptions(managedNames).filter((name) => !isDocumentOtherCategory(name));
+  const exact = known.find((name) => name.toLowerCase() === value.toLowerCase());
+  if (exact) return { selection: exact, customName: "" };
   return { selection: DOCUMENT_OTHER_CATEGORY, customName: value };
 }

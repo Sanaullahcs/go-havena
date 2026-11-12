@@ -105,6 +105,9 @@ export async function updateCommunityDocument(id, payload, fileAsset = null) {
       category: payload.category,
       description: payload.description ?? "",
       status: payload.status ?? "active",
+      due_at: payload.due_at,
+      effective_at: payload.effective_at,
+      expires_at: payload.expires_at,
     },
     fileAsset,
   });
@@ -116,10 +119,74 @@ export async function deleteCommunityDocument(id) {
   await apiRequest(`/admin/documents/${id}`, { method: "DELETE" });
 }
 
+export async function fetchAdminAgreements() {
+  const res = await apiRequest("/admin/documents/agreements?per_page=50");
+  return res.data ?? [];
+}
+
+export async function fetchAgreementOptions(search = "") {
+  const p = new URLSearchParams();
+  if (search.trim()) p.set("search", search.trim());
+  return apiRequest(`/admin/documents/agreements/options?${p.toString()}`);
+}
+
+export async function createAgreementDraft(payload, fileAsset) {
+  const body = await multipartRequest("/admin/documents/agreements", {
+    method: "POST",
+    fields: {
+      title: payload.title,
+      category: payload.category,
+      description: payload.description ?? "",
+      due_at: payload.due_at ?? "",
+      effective_at: payload.effective_at ?? "",
+      expires_at: payload.expires_at ?? "",
+    },
+    fileAsset,
+  });
+  return body.data;
+}
+
+export async function publishAgreement(id, payload) {
+  return apiRequest(`/admin/documents/agreements/${id}/publish`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function fetchAgreementDetail(id) {
+  const res = await apiRequest(`/admin/documents/agreements/${id}`);
+  return res.data;
+}
+
+export async function remindAgreement(id, assignmentId) {
+  return apiRequest(`/admin/documents/agreements/${id}/remind`, {
+    method: "POST",
+    body: { assignment_id: assignmentId ?? null },
+  });
+}
+
+export async function remindDocument(id, assignmentId) {
+  return apiRequest(`/admin/documents/${id}/remind`, {
+    method: "POST",
+    body: { assignment_id: assignmentId ?? null },
+  });
+}
+
+export async function signAgreement(id, payload) {
+  return apiRequest(`/documents/${id}/sign`, { method: "POST", body: payload });
+}
+
+export async function fetchSignedAgreementLink(id, assignmentId) {
+  const res = await apiRequest(`/documents/${id}/signed-link?assignment_id=${assignmentId}`);
+  return res.url;
+}
+
 export {
   DOCUMENT_OTHER_CATEGORY,
   DOCUMENT_PRESET_CATEGORIES,
   PRESET_DOCUMENT_CATEGORIES,
+  buildDocumentCategoryOptions,
+  isDocumentOtherCategory,
   resolveDocumentCategory,
   splitDocumentCategory,
 } from "../constants/document-categories";

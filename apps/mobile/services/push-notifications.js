@@ -1,5 +1,6 @@
 import i18n from "../i18n";
 import Constants from "expo-constants";
+import { requireOptionalNativeModule } from "expo";
 import { isExpoGo } from "../utils/expo-runtime";
 import * as Device from "expo-device";
 import { AppState, Linking, Platform } from "react-native";
@@ -35,11 +36,22 @@ export function isAppActiveForPush() {
   return appIsActive;
 }
 
+function notificationsNativeReady() {
+  try {
+    // expo-notifications imports expo-application at load time. That file
+    // throws if this Expo Go build does not ship ExpoApplication.
+    return Boolean(requireOptionalNativeModule("ExpoApplication"));
+  } catch {
+    return false;
+  }
+}
+
 export function isRemotePushSupported() {
   if (Platform.OS === "web") return false;
   // Expo Go cannot register this project's remote push token on Android or iOS.
   if (isExpoGo()) return false;
   if (!Device.isDevice) return false;
+  if (!notificationsNativeReady()) return false;
   return true;
 }
 
@@ -78,7 +90,11 @@ async function loadNotificationsModule() {
 
   if (!notificationsModulePromise) {
     notificationsModulePromise = import("expo-notifications")
-      .then((mod) => mod)
+      .then((mod) => {
+        const api = typeof mod?.getPermissionsAsync === "function" ? mod : mod?.default;
+        if (!api || typeof api.getPermissionsAsync !== "function") return null;
+        return api;
+      })
       .catch((err) => {
         console.warn("[push] expo-notifications unavailable", err);
         notificationsModulePromise = null;
@@ -102,6 +118,8 @@ export async function configurePushNotificationHandler() {
 
   const Notifications = await loadNotificationsModule();
   if (!Notifications) return;
+
+  if (typeof Notifications.setNotificationHandler !== "function") return;
 
   handlerConfigured = true;
   Notifications.setNotificationHandler({
@@ -139,8 +157,15 @@ export async function getNotificationPermissionStatus() {
   const Notifications = await loadNotificationsModule();
   if (!Notifications) return "unsupported";
 
-  const { status } = await Notifications.getPermissionsAsync();
-  return status;
+  if (typeof Notifications.getPermissionsAsync !== "function") return "unsupported";
+
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status ?? "undetermined";
+  } catch (err) {
+    console.warn("[push] permission status unavailable", err);
+    return "unsupported";
+  }
 }
 
 export async function requestNotificationPermission() {
@@ -151,8 +176,15 @@ export async function requestNotificationPermission() {
   const Notifications = await loadNotificationsModule();
   if (!Notifications) return "unsupported";
 
-  const { status } = await Notifications.requestPermissionsAsync();
-  return status;
+  if (typeof Notifications.requestPermissionsAsync !== "function") return "unsupported";
+
+  try {
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status ?? "undetermined";
+  } catch (err) {
+    console.warn("[push] permission request failed", err);
+    return "unsupported";
+  }
 }
 
 export async function getExpoPushToken() {
@@ -427,6 +459,9 @@ export function resolvePushNotificationRoute(data = {}) {
       title: data.title ?? "",
       description: data.body ?? "",
       category: data.category ?? null,
+      kind: data.kind ?? null,
+      type: data.type ?? null,
+      documentId: data.document_id ?? data.documentId ?? null,
     });
     if (route?.pathname) return route;
   }

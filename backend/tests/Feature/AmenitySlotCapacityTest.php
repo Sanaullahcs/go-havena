@@ -404,7 +404,7 @@ class AmenitySlotCapacityTest extends TestCase
             'start_time' => '09:00',
             'end_time' => '18:00',
             'slot_duration_minutes' => 60,
-            'floor' => '2',
+            'floor' => 'Floor 2',
         ], [
             'X-Community-Id' => (string) $community->id,
         ])

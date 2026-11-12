@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getUser, isPakistanCommunityRegion, isSystemAdminUser } from "@/lib/auth/session";
+import { getUser, isPakistanCommunityRegion, isSystemAdminUser, SESSION_PATCHED_EVENT } from "@/lib/auth/session";
 import { FEATURES_UPDATED_EVENT } from "@/components/auth/feature-settings-sync";
 import { adminFeatureForPath, isResidentFeatureEnabled } from "@/lib/resident-features";
 import { isPlaidAvailable } from "@/lib/plaid-eligibility";
@@ -21,8 +21,10 @@ import {
   FileText,
   Home,
   Gift,
+  Headset,
   HeartPulse,
   Landmark,
+  LifeBuoy,
   LayoutDashboard,
   MapPin,
   Megaphone,
@@ -65,6 +67,7 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/kuickpay-oversight", label: "KuickPay Oversight", icon: Wallet },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/app-version", label: "App Version", icon: Smartphone },
+  { href: "/admin/support-complaints", label: "Complaints & Support", icon: Headset },
   { href: "/admin/activity", label: "Activity Logs", icon: Activity },
   { href: "/admin/feature-requests", label: "Feature Requests", icon: Settings },
 ];
@@ -81,6 +84,7 @@ const communityContentNav: NavItem[] = [
   { href: "/admin/alerts", label: "Alerts", icon: TriangleAlert },
   { href: "/admin/community-rules", label: "Community Rules", icon: Scale },
   { href: "/admin/documents", label: "Documents", icon: FileText },
+  { href: "/admin/complaints", label: "Complaints", icon: LifeBuoy },
   { href: "/admin/feed", label: "Feed Moderation", icon: Newspaper },
 ];
 
@@ -177,7 +181,7 @@ function NavSection({
             >
               <Icon className="h-4 w-4" strokeWidth={2} aria-hidden />
             </span>
-            <span className="truncate">{item.label}</span>
+            <span className="min-w-0 leading-4">{item.label}</span>
             {item.badge && item.badge > 0 ? (
               <span
                 className={[
@@ -234,14 +238,16 @@ function SidebarInner({
     const syncUser = () => setUser(getUser());
     syncUser();
     window.addEventListener("nbr-session-updated", syncUser);
+    window.addEventListener(SESSION_PATCHED_EVENT, syncUser);
     window.addEventListener(FEATURES_UPDATED_EVENT, syncUser);
     window.addEventListener("storage", syncUser);
     return () => {
       window.removeEventListener("nbr-session-updated", syncUser);
+      window.removeEventListener(SESSION_PATCHED_EVENT, syncUser);
       window.removeEventListener(FEATURES_UPDATED_EVENT, syncUser);
       window.removeEventListener("storage", syncUser);
     };
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     if (isSystemAdmin) return;
@@ -282,6 +288,8 @@ function SidebarInner({
         .filter((item) => !(item.href === "/admin/kuickpay" && !isPakistanCommunityRegion(user)))
         .filter((item) => !(hideReferAndEarn && item.href === "/admin/refer-and-earn"))
         .filter((item) => {
+          const path = item.href.split("?")[0] ?? item.href;
+          if (path === "/admin/complaints" || path === "/admin/support-complaints") return true;
           const featureKey = adminFeatureForPath(item.href);
           return !featureKey || isResidentFeatureEnabled(user?.resident_features, featureKey);
         })

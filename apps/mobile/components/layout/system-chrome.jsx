@@ -20,13 +20,23 @@ export function setAppChrome({ color, barStyle, edgeToEdge = false }) {
     return;
   }
 
-  statusBarTranslucent = edgeToEdge;
-  if (edgeToEdge) {
-    StatusBar.setTranslucent(true);
-    StatusBar.setBackgroundColor("transparent");
+  // React Native 0.88 removed StatusBar.setTranslucent and setBackgroundColor.
+  // Android stays edge-to-edge, so the inset fallback must stay on. The window
+  // background set above still fills the status-bar area.
+  const canControlAndroidBar =
+    typeof StatusBar.setTranslucent === "function" &&
+    typeof StatusBar.setBackgroundColor === "function";
+  if (canControlAndroidBar) {
+    statusBarTranslucent = edgeToEdge;
+    if (edgeToEdge) {
+      StatusBar.setTranslucent(true);
+      StatusBar.setBackgroundColor("transparent");
+    } else {
+      StatusBar.setTranslucent(false);
+      StatusBar.setBackgroundColor(color);
+    }
   } else {
-    StatusBar.setTranslucent(false);
-    StatusBar.setBackgroundColor(color);
+    statusBarTranslucent = true;
   }
 
   StatusBar.setBarStyle(barStyle);

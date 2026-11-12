@@ -205,6 +205,7 @@ export function DataTable<K extends string>({
   activeSecondary,
   onSecondary,
   toolbar,
+  beforeSearch,
   filterAccessory,
   children,
   empty = "No records match your filters.",
@@ -230,6 +231,8 @@ export function DataTable<K extends string>({
   activeSecondary?: string;
   onSecondary?: (k: string) => void;
   toolbar?: ReactNode;
+  /** Control rendered immediately to the left of the search field. */
+  beforeSearch?: ReactNode;
   /** Optional control rendered beside the All filter tab. */
   filterAccessory?: ReactNode;
   children: ReactNode;
@@ -248,7 +251,7 @@ export function DataTable<K extends string>({
     <section className="nl-panel overflow-hidden">
       {/* ── Top toolbar ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <h3 className="text-[15px] font-semibold text-slate-900">{title}</h3>
           {totalCount != null && visibleCount != null ? (
             <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-slate-500">
@@ -257,8 +260,9 @@ export function DataTable<K extends string>({
           ) : null}
         </div>
         <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
+          {beforeSearch}
           {/* Search */}
-          <div className="relative min-w-0 w-full sm:w-auto">
+          <div className="relative min-w-0 flex-1 sm:w-auto sm:flex-none">
             <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
                 <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />

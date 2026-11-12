@@ -538,6 +538,7 @@ export default function AdminDashboardScreen() {
     { icon: "calendar", label: t("admin.communityEvents"), color: "#7C3AED", route: "/screens/admin-community-events", feature: "events" },
     { icon: "grid", label: t("admin.amenities"), color: "#0891B2", route: "/screens/admin-amenities", feature: "amenities" },
     { icon: "calendar", label: t("admin.amenityBookings"), badge: stats?.pending_bookings, color: "#7C3AED", route: "/screens/admin-bookings", feature: "bookings" },
+    { icon: "life-buoy", label: "Complaints", color: "#1B4F8A", route: "/screens/admin-complaints" },
     { icon: "shopping-bag", label: t("admin.marketplaceListings"), badge: stats?.pending_listings, color: "#059669", route: "/screens/admin-listings", feature: "marketplace" },
     { icon: "briefcase", label: t("admin.businesses"), badge: stats?.pending_businesses, color: "#D97706", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "businesses" }) }, feature: "marketplace" },
     { icon: "tag", label: t("admin.deals"), color: "#E11D48", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "deals" }) }, feature: "marketplace" },
