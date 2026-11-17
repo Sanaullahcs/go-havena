@@ -97,6 +97,16 @@ export function getCategoryTheme(category) {
   return CATEGORY_THEME[category] ?? DEFAULT_THEME;
 }
 
+/** Published/created instant on a normalized notice — never event schedule fields. */
+export function noticePublishedAt(notice) {
+  return notice?.publishedAt ?? notice?.createdAt ?? null;
+}
+
+/** Relative/clock label that follows the current app language (not fetch-time cache). */
+export function formatNoticeRelativeTime(notice) {
+  return formatNoticeDate(noticePublishedAt(notice));
+}
+
 export function formatNoticeDate(dateStr) {
   if (!dateStr) return "";
   try {
@@ -414,16 +424,20 @@ export function formatEventRsvpLabel(notice) {
   return `${count} ${goingLabel}${waitingSuffix}`;
 }
 
-/** "09:00:00" or "09:00" → "9:00 AM" */
-export function formatDisplayTime12h(timeStr) {
+/** "09:00:00" or "09:00" → locale-aware 12h time (e.g. 9:00 AM / ٩:٠٠ ص). */
+export function formatDisplayTime12h(timeStr, lang = i18n.language) {
   if (!timeStr) return "";
   const parts = String(timeStr).trim().split(":");
   if (parts.length < 2) return timeStr;
-  let hour = Number(parts[0]);
-  const minute = parts[1].slice(0, 2);
-  const suffix = hour >= 12 ? "PM" : "AM";
-  hour = hour % 12 || 12;
-  return `${hour}:${minute} ${suffix}`;
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1].slice(0, 2));
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return timeStr;
+  try {
+    const date = new Date(2000, 0, 1, hour, minute, 0);
+    return date.toLocaleTimeString(getLocaleForLang(lang), { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return timeStr;
+  }
 }
 
 /**

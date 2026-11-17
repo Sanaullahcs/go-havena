@@ -145,6 +145,13 @@
     "addProfilePhoto": "Add profile photo",
     "mainMenu": "MAIN MENU",
     "wellnessPrograms": "WELLNESS PROGRAMS",
+    "wellnessProgramsMenu": "Wellness Programs",
+    "peopleAccess": "People & Access",
+    "guest": "Guest",
+    "resources": "Resources",
+    "utilityBills": "My unit bill",
+    "myUnitBill": "My unit bill",
+    "serviceHub": "All services",
     "wellnessComingSoon": "Wellness coming soon",
     "wellnessComingSoonMsg": "Programs from your community will show up here once they go live.",
     "browseWellness": "Browse wellness",
@@ -165,6 +172,31 @@
     "addDocumentSub": "Upload a file for residents",
     "notice": "Notice",
     "noticeSub": "Community notices & alerts"
+  },
+  "complaints": {
+    "title": "My Complaints",
+    "new": "New complaint",
+    "search": "Search complaint",
+    "clearSearch": "Clear search",
+    "loadError": "Could not load complaints",
+    "tryAgain": "Try again",
+    "noMatches": "No matching complaints",
+    "noMatchesBody": "Try another search or status.",
+    "empty": "No complaints yet",
+    "emptyBody": "Submit a maintenance request or a technical support ticket.",
+    "newAction": "New Complaint",
+    "unit": "Unit {{number}}",
+    "status": {
+      "all": "All",
+      "submitted": "Submitted",
+      "in_review": "In Review",
+      "in_progress": "In Progress",
+      "waiting_on_resident": "Waiting",
+      "resolved": "Resolved",
+      "reopened": "Reopened",
+      "closed": "Closed",
+      "cancelled": "Cancelled"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -3200,6 +3232,11 @@
     }
   },
   "notifications": {
+    "inbox": "Inbox",
+    "closeInbox": "Close inbox",
+    "messages": "Messages",
+    "messagesSub": "Conversations & chats",
+    "sub": "Updates & alerts",
     "title": "Notifications",
     "subtitle": "Stay up to date",
     "markAllRead": "Mark all read",

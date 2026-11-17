@@ -35,7 +35,7 @@ import {
 } from "../components/layout/system-chrome";
 import { registerScreenChrome } from "../components/layout/chrome-manager";
 import BootSplash from "../components/layout/boot-splash";
-import { fontMapForLanguage } from "../constants/font-map";
+import { BRAND_FONTS } from "../constants/font-map";
 import { getSavedLanguage } from "../i18n";
 import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
 import { isArabicLanguage } from "../constants/font";
@@ -48,7 +48,7 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [bootLang, setBootLang] = useState(null);
 
-  // Resolve language before fonts so Arabic loads Noto under the Poppins-* keys.
+  // Resolve the saved language before first paint. Both font families are already loading.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -71,9 +71,7 @@ export default function RootLayout() {
     };
   }, []);
 
-  const [fontsLoaded, fontError] = useFonts(
-    bootLang ? fontMapForLanguage(bootLang) : {},
-  );
+  const [fontsLoaded, fontError] = useFonts(BRAND_FONTS);
 
   useEffect(() => {
     applySplashChrome();

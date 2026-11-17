@@ -14,30 +14,30 @@ import {
   NotoSansArabic_600SemiBold,
   NotoSansArabic_700Bold,
 } from "@expo-google-fonts/noto-sans-arabic";
-import { isArabicLanguage } from "../constants/font";
 
 const WORDMARK = {
   "Quicksand-SemiBold": Quicksand_600SemiBold,
   "Quicksand-Bold": Quicksand_700Bold,
 };
 
-/** Register Poppins (LTR) or Noto Sans Arabic (RTL), plus Quicksand for the Havena wordmark. */
-export function fontMapForLanguage(lang) {
-  if (isArabicLanguage(lang)) {
-    return {
-      "Poppins-Regular": NotoSansArabic_400Regular,
-      "Poppins-Medium": NotoSansArabic_500Medium,
-      "Poppins-SemiBold": NotoSansArabic_600SemiBold,
-      "Poppins-Bold": NotoSansArabic_700Bold,
-      ...WORDMARK,
-    };
-  }
+/**
+ * Both families stay registered for the whole session.
+ * Swapping Noto in under the Poppins-* names mid-session changes glyph metrics
+ * and is what shifts layout after a language change.
+ */
+export const BRAND_FONTS = {
+  "Poppins-Regular": Poppins_400Regular,
+  "Poppins-Medium": Poppins_500Medium,
+  "Poppins-SemiBold": Poppins_600SemiBold,
+  "Poppins-Bold": Poppins_700Bold,
+  "NotoSansArabic-Regular": NotoSansArabic_400Regular,
+  "NotoSansArabic-Medium": NotoSansArabic_500Medium,
+  "NotoSansArabic-SemiBold": NotoSansArabic_600SemiBold,
+  "NotoSansArabic-Bold": NotoSansArabic_700Bold,
+  ...WORDMARK,
+};
 
-  return {
-    "Poppins-Regular": Poppins_400Regular,
-    "Poppins-Medium": Poppins_500Medium,
-    "Poppins-SemiBold": Poppins_600SemiBold,
-    "Poppins-Bold": Poppins_700Bold,
-    ...WORDMARK,
-  };
+/** @deprecated Language no longer picks a single family. Both are loaded at boot. */
+export function fontMapForLanguage() {
+  return BRAND_FONTS;
 }

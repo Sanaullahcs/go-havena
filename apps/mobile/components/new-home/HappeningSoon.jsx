@@ -13,6 +13,7 @@ import {
   formatEventRsvpLabel,
   formatEventTimeRange,
   formatLongDate,
+  formatNoticeRelativeTime,
   getNoticeDetailRoute,
 } from "../../services/notices-api";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
@@ -37,7 +38,7 @@ function mapEventToCard(notice, lang) {
     title: localizedField(notice, "title") || notice.title || "",
     date: notice.eventDate
       ? formatLongDate(notice.eventDate)
-      : notice.eventSchedule ?? notice.timeLabel ?? "",
+      : notice.eventSchedule ?? formatNoticeRelativeTime(notice),
     time: formatEventTimeRange(notice),
     location: notice.location ?? "",
     rsvp: formatEventRsvpLabel(notice),

@@ -108,7 +108,7 @@ export default function InboxMenu({
   return (
     <Modal transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.modalRoot}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t("notifications.closeInbox", "Close inbox")} />
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t("notifications.closeInbox")} />
 
       <Animated.View
         pointerEvents="box-none"
@@ -131,18 +131,18 @@ export default function InboxMenu({
       <View style={styles.panel} collapsable={false}>
         <View style={styles.header}>
           <View style={styles.headerCopy}>
-            <Text style={styles.headerTitle}>{t("notifications.inbox", "Inbox")}</Text>
+            <Text style={styles.headerTitle}>{t("notifications.inbox")}</Text>
             <Text style={styles.headerSub}>
               {headerUnread > 0
-                ? t("notifications.unreadCount", { count: headerUnread, defaultValue: "{{count}} unread" })
-                : t("notifications.allCaughtUp", "All caught up")}
+                ? t("notifications.unreadCount", { count: headerUnread })
+                : t("notifications.allCaughtUp")}
             </Text>
           </View>
           <Pressable
             style={({ pressed }) => [styles.closeBtn, pressed && styles.closeBtnPressed]}
             onPress={onClose}
             accessibilityRole="button"
-            accessibilityLabel={t("notifications.closeInbox", "Close inbox")}
+            accessibilityLabel={t("notifications.closeInbox")}
             hitSlop={8}
           >
             <Feather name="x" size={sf(20)} color={T.navy} />
@@ -157,8 +157,8 @@ export default function InboxMenu({
               icon="message-circle"
               iconColor={T.deepTeal}
               iconBg={T.mint}
-              title={t("notifications.messages", "Messages")}
-              subtitle={t("notifications.messagesSub", "Conversations & chats")}
+              title={t("notifications.messages")}
+              subtitle={t("notifications.messagesSub")}
               count={messageUnread}
               onPress={onMessagesPress}
             />
@@ -170,8 +170,8 @@ export default function InboxMenu({
             icon="bell"
             iconColor={T.navy}
             iconBg="#E8F0F8"
-            title={t("notifications.title", "Notifications")}
-            subtitle={t("notifications.sub", "Updates & alerts")}
+            title={t("notifications.title")}
+            subtitle={t("notifications.sub")}
             count={notificationUnread}
             onPress={onNotificationsPress}
           />

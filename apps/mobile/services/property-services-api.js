@@ -116,6 +116,32 @@ export function viewerIsBillingContact(unit, userId) {
 const BILLING_ACCESS_TTL_MS = 60_000;
 let billingAccessCache = { value: null, at: 0, inflight: null };
 
+/** Billing-contact access already stored on the signed-in user. Null when the session has no unit payload yet. */
+export function billingAccessFromUser(user) {
+  if (!user || typeof user !== "object") return null;
+  const hasUnits = Array.isArray(user.units);
+  const hasFlag = user.is_billing_contact === true || user.is_billing_contact === false;
+  if (!hasUnits && !hasFlag) return null;
+
+  const units = hasUnits ? user.units : [];
+  const active = units.filter((row) => (row?.association_status || "active") === "active");
+  const billingUnits = active.filter((row) => viewerIsBillingContact(row, user.id));
+  const isBillingContact = hasUnits ? billingUnits.length > 0 : user.is_billing_contact === true;
+  const unit = billingUnits[0] || active[0] || user.unit || null;
+
+  return {
+    unit,
+    units: active,
+    billingUnits,
+    isBillingContact,
+    contactName: unit?.billing_contact?.name || "",
+    meta: {
+      unit_count: active.length,
+      billing_contact_unit_count: billingUnits.length,
+    },
+  };
+}
+
 export function getCachedViewerBillingAccess() {
   if (!billingAccessCache.value) return null;
   if (Date.now() - billingAccessCache.at > BILLING_ACCESS_TTL_MS) return null;
@@ -135,6 +161,8 @@ export async function resolveViewerBillingAccess({ force = false } = {}) {
   if (!force) {
     const cached = getCachedViewerBillingAccess();
     if (cached) return cached;
+    const fromSession = billingAccessFromUser(await getUser());
+    if (fromSession) return rememberViewerBillingAccess(fromSession);
     if (billingAccessCache.inflight) return billingAccessCache.inflight;
   }
 

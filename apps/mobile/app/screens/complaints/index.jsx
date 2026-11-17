@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import { HeaderIconSlot } from "../../../components/layout/header-chrome";
@@ -46,6 +47,7 @@ const searchFieldText = {
 };
 
 export default function MyComplaintsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const goBack = useSafeModeBack();
   useResidentComplaintMode();
@@ -71,13 +73,13 @@ export default function MyComplaintsScreen() {
       setCounts(result.meta?.counts ?? {});
       if (quiet) setError("");
     } catch (err) {
-      if (!quiet) setError(err?.message || "Could not load complaints.");
+      if (!quiet) setError(err?.message || t("complaints.loadError"));
     } finally {
       hasLoaded.current = true;
       setLoading(false);
       setRefreshing(false);
     }
-  }, [search, status]);
+  }, [search, status, t]);
 
   useFocusEffect(useCallback(() => {
     const y = scrollY.current;
@@ -93,10 +95,10 @@ export default function MyComplaintsScreen() {
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
         dense
-        title="My Complaints"
+        title={t("complaints.title")}
         onBack={goBack}
         right={(
-          <Pressable accessibilityLabel="New complaint" onPress={openCreate} hitSlop={8}>
+          <Pressable accessibilityLabel={t("complaints.new")} onPress={openCreate} hitSlop={8}>
             <HeaderIconSlot>
               <Feather name="plus" size={sf(18)} color="#1B4F8A" />
             </HeaderIconSlot>
@@ -110,7 +112,7 @@ export default function MyComplaintsScreen() {
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Search complaint"
+          placeholder={t("complaints.search")}
           placeholderTextColor="#94A3B8"
           style={searchFieldText}
           returnKeyType="search"
@@ -118,7 +120,7 @@ export default function MyComplaintsScreen() {
           textAlignVertical="center"
         />
         {search ? (
-          <Pressable accessibilityLabel="Clear search" onPress={() => setSearch("")} hitSlop={8} style={styles.clearBtn}>
+          <Pressable accessibilityLabel={t("complaints.clearSearch")} onPress={() => setSearch("")} hitSlop={8} style={styles.clearBtn}>
             <Feather name="x" size={sf(14)} color="#64748B" />
           </Pressable>
         ) : null}
@@ -134,7 +136,7 @@ export default function MyComplaintsScreen() {
           return (
             <ChoiceChip
               key={item.id}
-              label={item.label}
+              label={t(`complaints.status.${item.id}`, { defaultValue: item.label })}
               count={count ?? 0}
               active={status === item.id}
               onPress={() => setStatus(item.id)}
@@ -147,9 +149,9 @@ export default function MyComplaintsScreen() {
       ) : error ? (
         <EmptyState
           icon="alert-circle"
-          title="Could not load complaints"
+          title={t("complaints.loadError")}
           body={error}
-          actionLabel="Try again"
+          actionLabel={t("complaints.tryAgain")}
           actionIcon="refresh-cw"
           onAction={() => void load()}
         />
@@ -166,9 +168,9 @@ export default function MyComplaintsScreen() {
           {rows.length === 0 ? (
             <EmptyState
               icon="inbox"
-              title={search || status !== "all" ? "No matching complaints" : "No complaints yet"}
-              body={search || status !== "all" ? "Try another search or status." : "Submit a maintenance request or a technical support ticket."}
-              actionLabel="New Complaint"
+              title={search || status !== "all" ? t("complaints.noMatches") : t("complaints.empty")}
+              body={search || status !== "all" ? t("complaints.noMatchesBody") : t("complaints.emptyBody")}
+              actionLabel={t("complaints.newAction")}
               onAction={openCreate}
             />
           ) : rows.map((row) => (
@@ -182,12 +184,14 @@ export default function MyComplaintsScreen() {
                 <View style={styles.cardTop}>
                   <Text style={styles.ref}>{row.reference}</Text>
                   <View style={[styles.badge, { backgroundColor: `${statusColor(row.status)}16` }]}>
-                    <Text style={[styles.badgeText, { color: statusColor(row.status) }]}>{row.status_label}</Text>
+                    <Text style={[styles.badgeText, { color: statusColor(row.status) }]}>
+                      {t(`complaints.status.${row.status}`, { defaultValue: row.status_label })}
+                    </Text>
                   </View>
                 </View>
                 <Text style={styles.title} numberOfLines={2}>{row.title}</Text>
                 <Text style={styles.meta} numberOfLines={1}>
-                  {row.category_label}{row.unit_number ? ` · Unit ${row.unit_number}` : ""} · {row.support_team}
+                  {row.category_label}{row.unit_number ? ` · ${t("complaints.unit", { number: row.unit_number })}` : ""} · {row.support_team}
                 </Text>
                 <View style={styles.cardFoot}>
                   <Text style={styles.date}>{formatWhen(row.created_at) || " "}</Text>

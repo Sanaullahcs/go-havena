@@ -34,6 +34,7 @@ import { rnShadow } from "../../../../utils/shadow";
 import { billListFields, buildBillDocument, canPayBill, sortBills, summarizeBills } from "../../../../utils/bill-document";
 import {
   acknowledgeServiceBill,
+  billingAccessFromUser,
   fetchServiceBills,
   resolveViewerBillingAccess,
   submitServiceBillProof,
@@ -156,6 +157,8 @@ export default function UnitBillsScreen() {
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
+      const known = billingAccessFromUser(sessionUser);
+      const billsPromise = known?.isBillingContact ? fetchServiceBills() : null;
       const {
         unit,
         billingUnits: contactUnits,
@@ -170,14 +173,14 @@ export default function UnitBillsScreen() {
         setBills([]);
         return;
       }
-      setBills(await fetchServiceBills());
+      setBills(await (billsPromise ?? fetchServiceBills()));
     } catch (error) {
       await showFailure(t("services.unitBillsTitle"), error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showFailure, t]);
+  }, [sessionUser, showFailure, t]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 

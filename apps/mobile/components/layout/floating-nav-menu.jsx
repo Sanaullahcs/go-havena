@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useSegments, usePathname, useNavigation } from "expo-router";
+import { useRouter, useSegments, usePathname } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTranslation } from "react-i18next";
@@ -24,7 +24,7 @@ import { guestCanAccessFeature } from "../../constants/guest-permissions";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { useKeyboardVisible } from "./keyboard-safe-screen";
 import { shouldHideTabBar } from "../../constants/tab-bar-visibility";
-import { openServicesHub } from "../../constants/property-management-routes";
+import { isPropertyManagementRootPath } from "../../constants/property-management-routes";
 import { rnShadow } from "../../utils/shadow";
 
 
@@ -133,7 +133,6 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
   const fabSize = homeSize(48, screenWidth);
   const fabRadius = homeSize(15, screenWidth);
   const router = useRouter();
-  const navigation = useNavigation();
   const segments = useSegments();
   const pathname = usePathname();
 
@@ -200,12 +199,25 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
       }
       // Always land on the Services hub, not a leftover amenity/booking screen.
       if (item.name === "services") {
-        openServicesHub(navigation, router, pathname);
+        const path = String(pathname ?? "");
+        const insideServices =
+          path.includes("/services/") ||
+          /\/services$/.test(path) ||
+          isPropertyManagementRootPath(path);
+        if (insideServices && path !== "/services" && !path.endsWith("/services/index")) {
+          try {
+            router.dismissTo("/(tabs)/services");
+            return;
+          } catch {
+            // The hub is not in this stack. Open the tab directly.
+          }
+        }
+        navigateAppRoute(router, item.href);
         return;
       }
       navigateAppRoute(router, item.href);
     },
-    [haptic, router, navigation, pathname],
+    [haptic, router, pathname],
   );
 
   const onCenterPress = useCallback(() => {

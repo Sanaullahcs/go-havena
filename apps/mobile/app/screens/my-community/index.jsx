@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from "react-native";
 import {
@@ -42,7 +41,7 @@ import {
   showSwitchCommunityFailure,
 } from "../../../utils/switch-community-errors";
 import { chevronForward } from "../../../utils/rtl";
-import { SCREEN_WIDTH, sf, sw } from "../../../utils/responsive";
+import { sf, sw } from "../../../utils/responsive";
 import { rnShadow } from "../../../utils/shadow";
 
 const FILTERS = [
@@ -427,12 +426,7 @@ export default function MyCommunityScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
   const loadedOnce = useRef(false);
-  const joinLabelWidth = Math.max(
-    140,
-    (windowWidth || SCREEN_WIDTH) - sw(16) * 2 - sw(18) * 2 - sw(22) - sw(8),
-  );
   const { dialog, showFailure, showSuccess, runAction } = useApiAction();
   const [tab, setTab] = useState("communities");
   const [filter, setFilter] = useState("all");
@@ -786,19 +780,12 @@ export default function MyCommunityScreen() {
               accessibilityLabel={t("myCommunity.joinAnother")}
               style={styles.joinBtn}
             >
-              <View style={styles.joinRow}>
-                <View style={styles.joinIcon}>
-                  <Feather name="plus" size={sf(14)} color="#FFFFFF" />
-                </View>
-                <Text
-                  style={[styles.joinBtnText, { width: joinLabelWidth }]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.82}
-                >
-                  {t("myCommunity.joinAnother")}
-                </Text>
+              <View style={styles.joinIcon}>
+                <Feather name="plus" size={sf(14)} color="#FFFFFF" />
               </View>
+              <Text style={styles.joinBtnText} numberOfLines={1}>
+                {t("myCommunity.joinAnother")}
+              </Text>
             </TouchableOpacity>
 
             {canShowSwitch ? (
@@ -1014,23 +1001,18 @@ const styles = StyleSheet.create({
     paddingTop: sw(12),
   },
   joinBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     width: "100%",
     height: sw(52),
     paddingHorizontal: sw(16),
-    alignItems: "center",
-    justifyContent: "center",
+    gap: sw(8),
     backgroundColor: "#1B4F8A",
     borderRadius: sw(14),
     borderWidth: 1,
     borderColor: "#163F6E",
     marginBottom: sw(10),
-  },
-  joinRow: {
-    flexDirection: "row",
-    flexWrap: "nowrap",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: sw(8),
   },
   joinIcon: {
     width: sw(20),
@@ -1041,11 +1023,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.18)",
   },
   joinBtnText: {
-    flexGrow: 0,
-    flexShrink: 0,
+    flexShrink: 1,
     fontFamily: Fonts.bold,
     fontSize: sf(15),
     color: "#FFFFFF",
+    textAlign: "center",
     includeFontPadding: false,
   },
   switchBtn: {

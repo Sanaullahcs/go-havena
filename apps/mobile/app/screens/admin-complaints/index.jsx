@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import { HeaderIconSlot } from "../../../components/layout/header-chrome";
@@ -54,6 +55,7 @@ const searchFieldText = {
 };
 
 export default function AdminComplaintsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const goBack = useSafeModeBack();
   useAdminComplaintMode();
@@ -116,7 +118,7 @@ export default function AdminComplaintsScreen() {
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
         dense
-        title="Complaints"
+        title={t("nav.complaints")}
         subtitle="Community maintenance"
         onBack={goBack}
         right={(
@@ -174,7 +176,7 @@ export default function AdminComplaintsScreen() {
             {COMPLAINT_STATUSES.map((item) => (
               <ChoiceChip
                 key={item.id}
-                label={item.label}
+                label={t(`complaints.status.${item.id}`, { defaultValue: item.label })}
                 count={item.id === "all" ? countOf(counts, "all") : countOf(counts, item.id)}
                 active={status === item.id}
                 onPress={() => {

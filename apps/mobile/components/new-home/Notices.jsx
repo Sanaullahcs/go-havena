@@ -24,6 +24,7 @@ import { homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
 import {
   formatDisplayTime12h,
+  formatNoticeRelativeTime,
   formatShortDate,
   getCategoryTheme,
   getNoticeDetailRoute,
@@ -83,7 +84,7 @@ function mapNoticeToHero(notice, t) {
     title: localizedField(notice, "title") || notice.title || "",
     dateLabel: notice.eventDate
       ? formatShortDate(notice.eventDate)
-      : notice.timeLabel ?? "",
+      : formatNoticeRelativeTime(notice),
     timeStart: notice.eventTime ? formatDisplayTime12h(notice.eventTime) : "",
     timeEnd: notice.eventTimeEnd ? formatDisplayTime12h(notice.eventTimeEnd) : "",
     imageUrl: notice.imageUrl,
