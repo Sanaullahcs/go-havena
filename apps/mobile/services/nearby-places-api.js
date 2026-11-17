@@ -26,6 +26,9 @@ const BUNDLE_CATEGORIES = [...NEARBY_PLACE_CATEGORIES, "burial_places"];
 
 export const DISCOVER_RADIUS_OPTIONS = Array.from({ length: 20 }, (_, index) => (index + 1) * 500);
 export const DEFAULT_DISCOVER_RADIUS_METERS = 3000;
+export const DISCOVER_RADIUS_MAX = 50;
+const MIN_RADIUS_METERS = 500;
+const MAX_RADIUS_METERS = 80500;
 
 export function formatDiscoverRadius(meters) {
   const km = Number(meters) / 1000;
@@ -35,8 +38,11 @@ export function formatDiscoverRadius(meters) {
 }
 
 export function normalizeDiscoverRadius(meters) {
-  const value = Number(meters);
-  return DISCOVER_RADIUS_OPTIONS.includes(value) ? value : DEFAULT_DISCOVER_RADIUS_METERS;
+  const value = Math.round(Number(meters));
+  if (!Number.isFinite(value) || value < MIN_RADIUS_METERS || value > MAX_RADIUS_METERS) {
+    return DEFAULT_DISCOVER_RADIUS_METERS;
+  }
+  return value;
 }
 
 function nearbyPlaceHasPhone(place) {

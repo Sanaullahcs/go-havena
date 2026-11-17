@@ -5,17 +5,19 @@ import {
   StyleSheet,
   Pressable,
   ActivityIndicator,
-  Linking,
-  ScrollView,
+  Share,
   KeyboardAvoidingView,
   Keyboard,
   Platform,
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useNavigation, usePathname, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Haptics from "expo-haptics";
+import * as Sharing from "expo-sharing";
 import Svg, { Polyline } from "react-native-svg";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import { useTranslation } from "react-i18next";
@@ -25,7 +27,8 @@ import InternalScreenHeader from "../../../../components/layout/internal-screen-
 import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { Fonts } from "../../../../constants/font";
 import { sw, sf } from "../../../../utils/responsive";
-import { fetchCommunityDocument, signAgreement } from "../../../../services/documents-api";
+import { fetchCommunityDocument, fetchSignedAgreementLink, signAgreement } from "../../../../services/documents-api";
+import { PropertyManagementRoutes } from "../../../../constants/property-management-routes";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { useAppDialog } from "../../../../providers/app-dialog-provider";
 
@@ -53,7 +56,7 @@ function bytesToBase64(bytes) {
   return global.btoa(binary);
 }
 
-function viewerHtml(base64) {
+export function viewerHtml(base64) {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -61,27 +64,34 @@ function viewerHtml(base64) {
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <style>
   html, body { margin: 0; height: 100%; overflow: auto; background: #F3F6FA; -webkit-overflow-scrolling: touch; }
-  #wrap { display: flex; justify-content: center; padding: 12px; box-sizing: border-box; min-height: 100%; }
+  #wrap { display: flex; justify-content: center; padding: 8px 10px; box-sizing: border-box; min-height: 100%; }
   #stage { position: relative; display: inline-block; }
-  canvas { display: block; background: #fff; box-shadow: 0 8px 24px rgba(16,24,40,.08); }
+  canvas { display: block; background: #fff; box-shadow: 0 8px 24px rgba(16,24,40,.08); image-rendering: auto; }
   #sig {
-    display: none; position: absolute; box-sizing: border-box; left: 48%; top: 58%; width: 36%; height: 14%;
-    border: 1.5px dashed #3B82F6; border-radius: 6px; background: rgba(255,255,255,.9);
+    display: none; position: absolute; box-sizing: border-box; left: 30%; top: 74%; width: 40%; height: 12%;
+    border: 1.5px dashed #3B82F6; border-radius: 6px; background: rgba(255,255,255,.94);
     touch-action: none; z-index: 2;
   }
-  #sigBody { width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
+  #sigBody { position: absolute; left: 2px; right: 2px; top: 1px; bottom: 11px; overflow: hidden; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+  #sigStamp {
+    position: absolute; left: 4px; right: 4px; bottom: 1px; height: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 7px; font-weight: 500; letter-spacing: 0;
+    color: #64748B; pointer-events: none; white-space: nowrap;
+  }
   #sigBar {
-    position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%);
-    display: flex; align-items: center; gap: 2px; background: #111827; border-radius: 8px; padding: 3px; z-index: 3;
+    position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%);
+    display: flex; align-items: center; gap: 0; background: #111827; border-radius: 7px; padding: 1px; z-index: 3;
   }
   #sigBar span, #sigBar button {
-    width: 28px; height: 26px; border: 0; background: transparent; color: #fff;
-    font-size: 14px; line-height: 26px; text-align: center; padding: 0;
+    width: 22px; height: 20px; border: 0; background: transparent; color: #fff;
+    font-size: 12px; line-height: 20px; text-align: center; padding: 0;
   }
   #sig svg { width: 100%; height: 100%; display: block; }
   #sig .name {
-    height: 100%; display: flex; align-items: center; justify-content: center;
-    font-family: "Times New Roman", Times, serif; font-style: italic; font-size: 22px;
+    max-width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    font-family: "Times New Roman", Times, serif; font-style: italic; line-height: 1;
     color: #111827; padding: 0 8px; white-space: nowrap;
   }
   .handle {
@@ -103,6 +113,7 @@ function viewerHtml(base64) {
 <div id="sig">
   <div id="sigBar"><span>✥</span><button id="sigClear" type="button">✕</button></div>
   <div id="sigBody"></div>
+  <div id="sigStamp"></div>
   <span class="handle nw" data-h="nw"></span>
   <span class="handle n" data-h="n"></span>
   <span class="handle ne" data-h="ne"></span>
@@ -116,7 +127,7 @@ function viewerHtml(base64) {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
   const send = (value) => { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(value); };
-  let pdf = null, page = 1, zoom = 1, ready = false, mode = null, handle = null, start = null, grabX = 0, grabY = 0, frame = 0, pending = null;
+  let pdf = null, page = 1, zoom = 1, ready = false, mode = null, handle = null, start = null, grabX = 0, grabY = 0, frame = 0, pending = null, renderTask = null;
   const sig = document.getElementById("sig");
   const body = document.getElementById("sigBody");
   const stage = document.getElementById("stage");
@@ -129,8 +140,8 @@ function viewerHtml(base64) {
     };
   }
   function applyBox(next) {
-    const w = Math.max(18, Math.min(90, next.w));
-    const h = Math.max(8, Math.min(50, next.h));
+    const w = Math.max(28, Math.min(88, next.w));
+    const h = Math.max(10, Math.min(28, next.h));
     const x = Math.max(0, Math.min(100 - w, next.x));
     const y = Math.max(0, Math.min(100 - h, next.y));
     sig.style.left = x + "%";
@@ -146,12 +157,27 @@ function viewerHtml(base64) {
   function paint() {
     pdf.getPage(page).then((item) => {
       const base = item.getViewport({ scale: 1 });
-      const maxW = Math.max((document.getElementById("wrap").clientWidth || base.width) - 24, 120);
-      const viewport = item.getViewport({ scale: (maxW / base.width) * zoom });
+      const wrap = document.getElementById("wrap");
+      const maxW = Math.max((wrap.clientWidth || base.width) - 24, 120);
+      const cssWidth = maxW * zoom;
+      const ratio = Math.min(Math.max(window.devicePixelRatio || 1, 2), 3);
+      const viewport = item.getViewport({ scale: cssWidth / base.width });
       const canvas = document.getElementById("page");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      item.render({ canvasContext: canvas.getContext("2d"), viewport });
+      const context = canvas.getContext("2d", { alpha: false });
+      canvas.width = Math.floor(viewport.width * ratio);
+      canvas.height = Math.floor(viewport.height * ratio);
+      canvas.style.width = Math.floor(viewport.width) + "px";
+      canvas.style.height = Math.floor(viewport.height) + "px";
+      if (renderTask) {
+        try { renderTask.cancel(); } catch (err) {}
+        renderTask = null;
+      }
+      renderTask = item.render({
+        canvasContext: context,
+        viewport: viewport,
+        transform: [ratio, 0, 0, ratio, 0, 0],
+      });
+      renderTask.promise.catch(() => {});
       send("page:" + page + ":" + pdf.numPages);
       send("zoom:" + Math.round(zoom * 100));
       sendPlace();
@@ -162,8 +188,9 @@ function viewerHtml(base64) {
   window.havenaZoom = (delta) => { zoom = Math.min(2.5, Math.max(0.75, Math.round((zoom + delta) * 100) / 100)); if (pdf) paint(); };
   window.havenaFit = () => { zoom = 1; if (pdf) paint(); };
   window.havenaSignature = (payload) => {
-    if (!payload || !payload.visible) { sig.style.display = "none"; body.innerHTML = ""; return; }
-    if (!sig.style.left) applyBox({ x: 48, y: 58, w: 36, h: 14 });
+    const stamp = document.getElementById("sigStamp");
+    if (!payload || !payload.visible) { sig.style.display = "none"; body.innerHTML = ""; if (stamp) stamp.textContent = ""; return; }
+    if (!sig.style.left) applyBox({ x: 30, y: 74, w: 40, h: 12 });
     sig.style.display = "block";
     if (payload.method === "type") {
       body.innerHTML = "";
@@ -171,13 +198,22 @@ function viewerHtml(base64) {
       name.className = "name";
       name.textContent = payload.name || "";
       body.appendChild(name);
+      const box = body.getBoundingClientRect();
+      let size = Math.max(16, Math.floor(box.height * 0.62));
+      name.style.fontSize = size + "px";
+      const max = Math.max(box.width * 0.92, 40);
+      while (size > 12 && name.scrollWidth > max) {
+        size -= 1;
+        name.style.fontSize = size + "px";
+      }
     } else {
       const paths = (payload.strokes || []).map((path) => {
         const points = path.map((point) => (Number(point.x) * 100) + "," + (Number(point.y) * 100)).join(" ");
-        return '<polyline points="' + points + '" fill="none" stroke="#111827" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />';
+        return '<polyline points="' + points + '" fill="none" stroke="#111827" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />';
       }).join("");
-      body.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">' + paths + "</svg>";
+      body.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%">' + paths + "</svg>";
     }
+    if (stamp) stamp.textContent = payload.stamp || "";
     sendPlace();
   };
   function moveSig(clientX, clientY) {
@@ -261,7 +297,7 @@ function viewerHtml(base64) {
 }
 
 function signaturePadHeight(windowHeight) {
-  return Math.min(280, Math.max(220, Math.round(windowHeight * 0.28)));
+  return Math.min(240, Math.max(180, Math.round(windowHeight * 0.24)));
 }
 
 function clampUnit(value, size) {
@@ -368,22 +404,29 @@ function SignaturePad({ strokes, onCommit, scrollGesture, hint, height }) {
 function Progress({ index }) {
   const { t } = useTranslation();
   const steps = [t("propertyMgmt.reviewStep"), t("propertyMgmt.signStep"), t("propertyMgmt.completeStep")];
+  const dot = sw(36);
   return (
     <View style={styles.progress}>
+      <View pointerEvents="none" style={[styles.progressRail, { top: (dot - 2) / 2 }]}>
+        <View style={styles.progressRailBase} />
+        <View style={[styles.progressRailFill, { width: index <= 1 ? "0%" : index === 2 ? "50%" : "100%" }]} />
+      </View>
       {steps.map((label, position) => {
         const step = position + 1;
         const done = index > step;
         const current = index === step;
+        const active = done || current;
         return (
-          <React.Fragment key={label}>
-            {position > 0 ? <View style={[styles.progressLine, (done || current) && styles.progressLineOn]} /> : null}
-            <View style={styles.progressStep}>
-              <View style={[styles.progressDot, (done || current) && styles.progressDotOn]}>
-                {done ? <Feather name="check" size={sf(10)} color="#FFFFFF" /> : <Text style={[styles.progressNum, current && styles.progressNumOn]}>{step}</Text>}
-              </View>
-              <Text style={[styles.progressLabel, current && styles.progressLabelOn]}>{label}</Text>
+          <View key={label} style={styles.progressStep}>
+            <View style={[styles.progressDot, { width: dot, height: dot, borderRadius: dot / 2 }, active && styles.progressDotOn]}>
+              {done ? (
+                <Feather name="check" size={sf(15)} color="#FFFFFF" />
+              ) : (
+                <Text style={[styles.progressNum, active && styles.progressNumOn]}>{step}</Text>
+              )}
             </View>
-          </React.Fragment>
+            <Text style={[styles.progressLabel, current && styles.progressLabelOn]} numberOfLines={1}>{label}</Text>
+          </View>
         );
       })}
     </View>
@@ -393,8 +436,10 @@ function Progress({ index }) {
 export default function SignAgreement() {
   const { t } = useTranslation();
   const router = useRouter();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const { documentId, assignmentId } = useLocalSearchParams();
+  const { height: windowHeight } = useWindowDimensions();
+  const { documentId, assignmentId, mode, source } = useLocalSearchParams();
   const { showFailure } = useApiAction();
   const dialog = useAppDialog();
   const [doc, setDoc] = useState(null);
@@ -407,16 +452,28 @@ export default function SignAgreement() {
   const [method, setMethod] = useState("draw");
   const [typedName, setTypedName] = useState("");
   const [strokes, setStrokes] = useState([]);
-  const [placement, setPlacement] = useState({ page: 1, x: 0.48, y: 0.58, width: 0.36, height: 0.14 });
+  const [placement, setPlacement] = useState({ page: 1, x: 0.3, y: 0.74, width: 0.4, height: 0.12 });
   const [zoomLabel, setZoomLabel] = useState("100%");
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
+  const [copyBusy, setCopyBusy] = useState(null);
   const webRef = useRef(null);
   const lock = useRef(false);
   const typeInputRef = useRef(null);
   const typeBoxRef = useRef(null);
   const typeBoxFrame = useRef(null);
+  const viewOnly = mode === "view";
+  const viewingSigned = viewOnly && source === "signed";
+
+  const loadPdfUrl = useCallback(async (url) => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("pdf");
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength > PDF_LIMIT) throw new Error("large");
+    setViewer(viewerHtml(bytesToBase64(new Uint8Array(buffer))));
+    setPdfError(false);
+  }, []);
 
   useFocusEffect(useCallback(() => {
     setConsent(false);
@@ -445,12 +502,13 @@ export default function SignAgreement() {
 
   useEffect(() => {
     if (!doc) return undefined;
-    if (assignment?.signature_status === "signed") {
-      setResult({
-        signed_file_url: assignment.signed_file_url,
-        signature: { signed_at: assignment.signed_at },
+    if (viewingSigned || (!viewOnly && assignment?.signature_status === "signed")) {
+      setResult((current) => current ?? {
+        replayed: true,
+        signed_file_url: assignment?.signed_file_url,
+        signature: { signed_at: assignment?.signed_at },
       });
-      setStep("success");
+      setStep("signed");
       return undefined;
     }
     let cancelled = false;
@@ -460,11 +518,7 @@ export default function SignAgreement() {
         return;
       }
       try {
-        const response = await fetch(doc.file_url);
-        if (!response.ok) throw new Error("pdf");
-        const buffer = await response.arrayBuffer();
-        if (buffer.byteLength > PDF_LIMIT) throw new Error("large");
-        if (!cancelled) setViewer(viewerHtml(bytesToBase64(new Uint8Array(buffer))));
+        await loadPdfUrl(doc.file_url);
       } catch {
         if (!cancelled) setPdfError(true);
       }
@@ -472,7 +526,7 @@ export default function SignAgreement() {
     return () => {
       cancelled = true;
     };
-  }, [doc?.id]);
+  }, [doc?.id, doc?.file_url, viewOnly, viewingSigned, assignment?.signature_status, assignment?.signed_file_url, loadPdfUrl]);
 
   const commitStroke = useCallback((path) => {
     setStrokes((current) => [...current, path]);
@@ -490,6 +544,26 @@ export default function SignAgreement() {
   const hasSignature = method === "draw" ? strokes.length > 0 : typedName.trim().length >= 2;
   const canSubmit = Boolean(assignment?.can_sign) && reviewed && hasSignature && consent && !submitting;
 
+  const downloadOriginal = async () => {
+    if (!doc?.file_url || copyBusy) return;
+    setCopyBusy("download");
+    try {
+      const file = await FileSystem.downloadAsync(doc.file_url, `${FileSystem.cacheDirectory}agreement-${doc.id}.pdf`);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: "application/pdf",
+          UTI: "com.adobe.pdf",
+          dialogTitle: t("propertyMgmt.downloadPdf"),
+        });
+      }
+    } catch (err) {
+      if (err?.message && /cancel|did not share/i.test(String(err.message))) return;
+      await showFailure(t("propertyMgmt.downloadPdf"), err);
+    } finally {
+      setCopyBusy(null);
+    }
+  };
+
   const openPdf = async () => {
     if (!doc?.file_url) {
       setPdfError(true);
@@ -497,14 +571,46 @@ export default function SignAgreement() {
       return;
     }
     try {
-      await Linking.openURL(doc.file_url);
-      setPdfError(false);
+      await loadPdfUrl(doc.file_url);
       setReviewed(true);
     } catch {
       setPdfError(true);
       setReviewed(false);
     }
   };
+
+  const keepViewerInside = (request) => !/\.pdf($|\?)/i.test(request?.url ?? "");
+
+  useEffect(() => {
+    if (step !== "signed" || !doc) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        let url = result?.signed_file_url || assignment?.signed_file_url || null;
+        if (doc.id && assignment?.assignment_id) {
+          try {
+            const fresh = await fetchSignedAgreementLink(doc.id, assignment.assignment_id);
+            if (fresh) url = fresh;
+          } catch {
+            // The link returned with the signature is still valid for a few minutes.
+          }
+        }
+        if (!url) throw new Error("missing");
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("pdf");
+        const buffer = await response.arrayBuffer();
+        if (cancelled) return;
+        if (buffer.byteLength > PDF_LIMIT) throw new Error("large");
+        setViewer(viewerHtml(bytesToBase64(new Uint8Array(buffer))));
+        setPdfError(false);
+      } catch {
+        if (!cancelled) setPdfError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [step, doc?.id, assignment?.assignment_id, assignment?.signed_file_url, result?.signed_file_url]);
 
   const onViewerMessage = (event) => {
     const message = event.nativeEvent.data;
@@ -565,6 +671,12 @@ export default function SignAgreement() {
     method,
     name: typedName.trim(),
     strokes: method === "draw" ? strokes : [],
+    stamp: new Date().toLocaleString(getLocaleForLang(i18n.language), {
+      day: "numeric",
+      month: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    }),
   };
   const signaturePreviewKey = JSON.stringify(signaturePreview);
 
@@ -592,7 +704,11 @@ export default function SignAgreement() {
         ...(viewer && !pdfError ? { placement } : {}),
       });
       setResult(response.data);
-      setStep("success");
+      setViewer(null);
+      setPageLabel("");
+      setPdfError(false);
+      setStep("signed");
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (err) {
       await showFailure(t("propertyMgmt.signAgreement"), err);
     } finally {
@@ -614,6 +730,7 @@ export default function SignAgreement() {
   };
 
   const footerPad = { paddingBottom: Math.max(insets.bottom, sw(12)) };
+  const signPadHeight = Math.min(118, Math.max(104, Math.round(windowHeight * 0.13)));
 
   const rememberTypeBox = useCallback(() => {
     typeBoxRef.current?.measureInWindow((x, y, width, height) => {
@@ -652,32 +769,113 @@ export default function SignAgreement() {
     );
   }
 
-  if (step === "success") {
+  if (step === "signed") {
     const signedAt = formatWhen(result?.signature?.signed_at);
+    const signature = result?.signature;
+    const reference = signature?.checksum ? String(signature.checksum).slice(0, 8).toUpperCase() : null;
+
+    const signedUrl = async () => {
+      try {
+        if (doc?.id && assignment?.assignment_id) {
+          const url = await fetchSignedAgreementLink(doc.id, assignment.assignment_id);
+          if (url) return url;
+        }
+      } catch {
+        // The link from the sign response is still valid for a few minutes.
+      }
+      return result?.signed_file_url ?? null;
+    };
+
+    const saveSignedCopy = async (kind) => {
+      if (copyBusy) return;
+      setCopyBusy(kind);
+      try {
+        const url = await signedUrl();
+        if (!url) throw new Error("missing");
+        const downloadUrl = url.includes("download=") ? url : `${url}${url.includes("?") ? "&" : "?"}download=1`;
+        const safeName = `signed-agreement-${doc?.id ?? "copy"}.pdf`;
+        const file = await FileSystem.downloadAsync(downloadUrl, `${FileSystem.cacheDirectory}${safeName}`);
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(file.uri, {
+            mimeType: "application/pdf",
+            UTI: "com.adobe.pdf",
+            dialogTitle: kind === "download" ? t("propertyMgmt.downloadPdf") : t("propertyMgmt.shareSignedCopy"),
+          });
+          return;
+        }
+        await Share.share({ url: file.uri, message: doc?.title || "" });
+      } catch (err) {
+        if (err?.message && /cancel|did not share/i.test(String(err.message))) return;
+        await showFailure(kind === "download" ? t("propertyMgmt.downloadPdf") : t("propertyMgmt.shareSignedCopy"), err?.message === "missing" ? { message: t("propertyMgmt.couldNotOpenSigned") } : err);
+      } finally {
+        setCopyBusy(null);
+      }
+    };
+
+    const backToDocuments = () => {
+      const documents = pathname.includes("/screens/property-management")
+        ? PropertyManagementRoutes.DOCUMENTS_SCREEN
+        : PropertyManagementRoutes.DOCUMENTS;
+      if (typeof router.dismissTo === "function") router.dismissTo(documents);
+      else router.replace(documents);
+    };
+
     return (
       <SafeAreaView style={styles.screen} edges={["left", "right"]}>
-        <InternalScreenHeader title={t("propertyMgmt.agreementDetails")} />
-        <ScrollView contentContainerStyle={styles.successScroll}>
-          <Progress index={3} />
-          <View style={styles.successIcon}><Feather name="check" size={sf(26)} color="#0F766E" /></View>
-          <Text style={styles.successTitle}>{t("propertyMgmt.agreementSigned")}</Text>
-          <Text style={styles.successBody}>{t("propertyMgmt.agreementSignedBody")}</Text>
-          <View style={styles.successCard}>
-            <Text style={styles.successName}>{doc?.title}</Text>
-            <Text style={styles.metaLine}>{doc?.community_name}{assignment?.unit_label ? ` · ${assignment.unit_label}` : ""}</Text>
-            {signedAt ? <Text style={styles.metaLine}>{t("propertyMgmt.signedOn", { date: signedAt })}</Text> : null}
+        <InternalScreenHeader title={doc?.title || t("propertyMgmt.agreementSigned")} />
+        <View style={styles.signedBanner}>
+          <View style={styles.signedCheck}><Feather name="check" size={sf(14)} color="#FFFFFF" /></View>
+          <View style={styles.docHeadText}>
+            <Text style={styles.signedBannerTitle}>{t("propertyMgmt.agreementSigned")}</Text>
+            <Text style={styles.signedBannerBody} numberOfLines={2}>
+              {result?.replayed ? t("propertyMgmt.agreementAlreadySignedBody") : t("propertyMgmt.signedOpenHint")}
+            </Text>
           </View>
-        </ScrollView>
+        </View>
+        {viewer && !pdfError ? (
+          <WebView
+            ref={webRef}
+            source={{ html: viewer }}
+            style={styles.web}
+            originWhitelist={["*"]}
+            scalesPageToFit={false}
+            androidLayerType="hardware"
+            javaScriptEnabled
+            domStorageEnabled
+            setSupportMultipleWindows={false}
+            onShouldStartLoadWithRequest={keepViewerInside}
+            onMessage={onViewerMessage}
+          />
+        ) : (
+          <View style={styles.fallback}>
+            {pdfError ? <Text style={styles.error}>{t("propertyMgmt.pdfFailed")}</Text> : <ActivityIndicator color="#1B4F8A" />}
+          </View>
+        )}
+        {pageLabel ? (
+          <View style={styles.pageBar}>
+            <Pressable style={styles.pageBtn} onPress={() => inject("window.havenaPrev()")}>
+              <Feather name="chevron-left" size={sf(18)} color="#1B4F8A" />
+            </Pressable>
+            <Text style={styles.pageLabel}>{pageLabel}</Text>
+            <Pressable style={styles.pageBtn} onPress={() => inject("window.havenaNext()")}>
+              <Feather name="chevron-right" size={sf(18)} color="#1B4F8A" />
+            </Pressable>
+          </View>
+        ) : null}
+        {reference ? <Text style={styles.signedRef}>{t("propertyMgmt.signatureReference")} {reference}{signedAt ? ` · ${signedAt}` : ""}</Text> : null}
         <View style={[styles.footer, footerPad]}>
-          <Pressable
-            style={styles.primary}
-            onPress={() => result?.signed_file_url && Linking.openURL(result.signed_file_url)}
-          >
-            <Feather name="file-text" size={sf(16)} color="#FFFFFF" />
-            <Text style={styles.primaryText}>{t("propertyMgmt.viewSignedCopy")}</Text>
-          </Pressable>
-          <Pressable style={styles.secondary} onPress={() => router.dismiss(2)}>
-            <Text style={styles.secondaryText}>{t("propertyMgmt.backToDocuments")}</Text>
+          <View style={styles.footerRow}>
+            <Pressable style={[styles.secondary, styles.footerHalf, copyBusy && styles.disabled]} disabled={Boolean(copyBusy)} onPress={() => void saveSignedCopy("share")}>
+              {copyBusy === "share" ? <ActivityIndicator color="#1B4F8A" /> : <Feather name="share-2" size={sf(15)} color="#1B4F8A" />}
+              <Text style={styles.secondaryText}>{t("propertyMgmt.shareSignedCopy")}</Text>
+            </Pressable>
+            <Pressable style={[styles.primary, styles.footerHalf, copyBusy && styles.disabled]} disabled={Boolean(copyBusy)} onPress={() => void saveSignedCopy("download")}>
+              {copyBusy === "download" ? <ActivityIndicator color="#FFFFFF" /> : <Feather name="download" size={sf(16)} color="#FFFFFF" />}
+              <Text style={styles.primaryText}>{t("propertyMgmt.downloadPdf")}</Text>
+            </Pressable>
+          </View>
+          <Pressable style={styles.linkBtn} onPress={backToDocuments}>
+            <Text style={styles.linkText}>{t("propertyMgmt.backToDocuments")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -708,9 +906,12 @@ export default function SignAgreement() {
                 source={{ html: viewer }}
                 style={styles.web}
                 originWhitelist={["*"]}
+                scalesPageToFit={false}
+                androidLayerType="hardware"
                 javaScriptEnabled
                 domStorageEnabled
                 setSupportMultipleWindows={false}
+                onShouldStartLoadWithRequest={keepViewerInside}
                 onMessage={onViewerMessage}
                 onError={() => { setReviewed(false); setPdfError(true); }}
               />
@@ -743,16 +944,28 @@ export default function SignAgreement() {
             </View>
           )}
           <View style={[styles.footer, footerPad]}>
-            <Pressable
-              style={[styles.primary, !reviewed && styles.disabled]}
-              disabled={!reviewed}
-              onPress={() => {
-                setConsent(false);
-                setStep("sign");
-              }}
-            >
-              <Text style={styles.primaryText}>{t("propertyMgmt.continueToSign")}</Text>
-            </Pressable>
+            {viewOnly ? (
+              <View style={styles.footerRow}>
+                <Pressable style={[styles.secondary, styles.footerHalf, copyBusy && styles.disabled]} disabled={Boolean(copyBusy)} onPress={() => void downloadOriginal()}>
+                  {copyBusy === "download" ? <ActivityIndicator color="#1B4F8A" /> : <Feather name="download" size={sf(16)} color="#1B4F8A" />}
+                  <Text style={styles.secondaryText}>{t("propertyMgmt.downloadPdf")}</Text>
+                </Pressable>
+                <Pressable style={[styles.primary, styles.footerHalf]} onPress={() => router.back()}>
+                  <Text style={styles.primaryText}>{t("propertyMgmt.backToDocuments")}</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                style={[styles.primary, !reviewed && styles.disabled]}
+                disabled={!reviewed}
+                onPress={() => {
+                  setConsent(false);
+                  setStep("sign");
+                }}
+              >
+                <Text style={styles.primaryText}>{t("propertyMgmt.continueToSign")}</Text>
+              </Pressable>
+            )}
           </View>
         </View>
       ) : (
@@ -760,25 +973,27 @@ export default function SignAgreement() {
           {pdfError ? <Text style={styles.error}>{t("propertyMgmt.pdfFailed")}</Text> : null}
           <View style={styles.docCard}>
             <View style={styles.docHead}>
-              <View style={styles.pdfBadge}>
-                <Feather name="file-text" size={sf(14)} color="#DC2626" />
-              </View>
-              <View style={styles.docHeadText}>
-                <Text numberOfLines={1} style={styles.docTitle}>{doc?.title}</Text>
-                {fileMeta ? <Text numberOfLines={1} style={styles.docMeta}>{fileMeta}</Text> : null}
-              </View>
+              <Text numberOfLines={1} style={styles.docTitle}>{doc?.title}</Text>
               <View style={styles.pageChip}>
-                <Pressable hitSlop={6} onPress={() => inject("window.havenaPrev()")}>
-                  <Feather name="chevron-left" size={sf(14)} color="#475569" />
+                <Pressable hitSlop={8} onPress={() => inject("window.havenaPrev()")} accessibilityLabel="Previous page">
+                  <Feather name="chevron-left" size={sf(15)} color="#1B4F8A" />
                 </Pressable>
                 <Text style={styles.pageChipText}>{pageLabel || t("propertyMgmt.pageOf", { page: 1, total: doc?.page_count || 1 })}</Text>
-                <Pressable hitSlop={6} onPress={() => inject("window.havenaNext()")}>
-                  <Feather name="chevron-right" size={sf(14)} color="#475569" />
+                <Pressable hitSlop={8} onPress={() => inject("window.havenaNext()")} accessibilityLabel="Next page">
+                  <Feather name="chevron-right" size={sf(15)} color="#1B4F8A" />
                 </Pressable>
               </View>
-              <Pressable style={styles.expandBtn} hitSlop={8} onPress={() => inject("window.havenaFit()")}>
-                <Feather name="maximize-2" size={sf(14)} color="#475569" />
-              </Pressable>
+              <View style={styles.zoomChip}>
+                <Pressable hitSlop={8} onPress={() => inject("window.havenaZoom(-0.25)")} accessibilityLabel="Zoom out">
+                  <Feather name="minus" size={sf(14)} color="#1B4F8A" />
+                </Pressable>
+                <Pressable hitSlop={6} onPress={() => inject("window.havenaFit()")}>
+                  <Text style={styles.zoomText}>{zoomLabel}</Text>
+                </Pressable>
+                <Pressable hitSlop={8} onPress={() => inject("window.havenaZoom(0.25)")} accessibilityLabel="Zoom in">
+                  <Feather name="plus" size={sf(14)} color="#1B4F8A" />
+                </Pressable>
+              </View>
             </View>
             <View style={styles.docStage}>
               {viewer && !pdfError ? (
@@ -787,9 +1002,12 @@ export default function SignAgreement() {
                   source={{ html: viewer }}
                   style={styles.web}
                   originWhitelist={["*"]}
+                  scalesPageToFit={false}
+                  androidLayerType="hardware"
                   javaScriptEnabled
                   domStorageEnabled
                   setSupportMultipleWindows={false}
+                  onShouldStartLoadWithRequest={keepViewerInside}
                   scrollEnabled
                   nestedScrollEnabled
                   bounces
@@ -811,26 +1029,15 @@ export default function SignAgreement() {
                   )}
                 </View>
               )}
-              {viewer && !pdfError ? (
-                <View style={styles.zoomRail} pointerEvents="box-none">
-                  <Pressable style={styles.zoomBtn} onPress={() => inject("window.havenaZoom(0.25)")}>
-                    <Feather name="plus" size={sf(14)} color="#1B4F8A" />
-                  </Pressable>
-                  <Text style={styles.zoomText}>{zoomLabel}</Text>
-                  <Pressable style={styles.zoomBtn} onPress={() => inject("window.havenaZoom(-0.25)")}>
-                    <Feather name="minus" size={sf(14)} color="#1B4F8A" />
-                  </Pressable>
-                </View>
-              ) : null}
             </View>
           </View>
           <View style={styles.toolRow}>
             <Pressable onPress={() => setMethod("draw")} style={[styles.tool, method === "draw" && styles.toolOn]}>
-              <Feather name="edit-2" size={sf(14)} color={method === "draw" ? "#FFFFFF" : "#334155"} />
+              <Feather name="edit-3" size={sf(14)} color={method === "draw" ? "#FFFFFF" : "#334155"} />
               <Text style={[styles.toolText, method === "draw" && styles.toolTextOn]}>{t("propertyMgmt.signatureTool")}</Text>
             </Pressable>
             <Pressable onPress={() => setMethod("type")} style={[styles.tool, method === "type" && styles.toolOn]}>
-              <Text style={[styles.toolMark, method === "type" && styles.toolTextOn]}>Aa</Text>
+              <Feather name="type" size={sf(14)} color={method === "type" ? "#FFFFFF" : "#334155"} />
               <Text style={[styles.toolText, method === "type" && styles.toolTextOn]}>{t("propertyMgmt.typeSignature")}</Text>
             </Pressable>
             <Pressable
@@ -847,7 +1054,7 @@ export default function SignAgreement() {
                 strokes={strokes}
                 onCommit={commitStroke}
                 hint={t("propertyMgmt.drawHere")}
-                height={112}
+                height={signPadHeight}
               />
             </View>
           ) : (
@@ -911,20 +1118,37 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F6F8FB" },
   flex: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  progressWrap: { paddingHorizontal: sw(16), paddingBottom: sw(8) },
+  progressWrap: { paddingTop: sw(20), paddingHorizontal: sw(24), paddingBottom: sw(18) },
   progress: { flexDirection: "row", alignItems: "flex-start" },
-  progressStep: { alignItems: "center", width: sw(72) },
-  progressDot: {
-    width: sw(22), height: sw(22), borderRadius: sw(11),
-    backgroundColor: "#E8EDF3", alignItems: "center", justifyContent: "center",
+  progressRail: {
+    position: "absolute", left: "16.666%", right: "16.666%", height: 2,
   },
-  progressDotOn: { backgroundColor: "#1B4F8A" },
-  progressNum: { fontFamily: Fonts.bold, fontSize: sf(11), color: "#64748B" },
+  progressRailBase: { ...StyleSheet.absoluteFillObject, backgroundColor: "#E2E8F0", borderRadius: 1 },
+  progressRailFill: { position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: "#1B4F8A", borderRadius: 1 },
+  progressStep: { flex: 1, alignItems: "center" },
+  progressDot: {
+    backgroundColor: "#FFFFFF", borderWidth: 1.5, borderColor: "#D5DEE8",
+    alignItems: "center", justifyContent: "center",
+  },
+  progressDotOn: { backgroundColor: "#1B4F8A", borderColor: "#1B4F8A" },
+  progressNum: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(15),
+    lineHeight: sf(18),
+    height: sf(18),
+    color: "#475569",
+    textAlign: "center",
+    textAlignVertical: "center",
+    includeFontPadding: false,
+    fontVariant: ["tabular-nums"],
+    marginTop: Platform.OS === "ios" ? 1 : 0,
+  },
   progressNumOn: { color: "#FFFFFF" },
-  progressLabel: { marginTop: sw(4), fontFamily: Fonts.medium, fontSize: sf(11), color: "#94A3B8" },
-  progressLabelOn: { color: "#1B4F8A" },
-  progressLine: { flex: 1, height: 1, backgroundColor: "#E6EBF1", marginTop: sw(11) },
-  progressLineOn: { backgroundColor: "#1B4F8A" },
+  progressLabel: {
+    marginTop: sw(10), fontFamily: Fonts.medium, fontSize: sf(12), lineHeight: sf(16),
+    color: "#94A3B8", textAlign: "center",
+  },
+  progressLabelOn: { color: "#1B4F8A", fontFamily: Fonts.semiBold },
   web: { flex: 1, backgroundColor: "#F4F7FB" },
   pageBar: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
@@ -939,14 +1163,46 @@ const styles = StyleSheet.create({
   fallback: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: sw(18) },
   error: { color: "#B91C1C", fontFamily: Fonts.regular, fontSize: sf(13), marginHorizontal: sw(16), marginBottom: sw(8) },
   footer: { paddingHorizontal: sw(16), paddingTop: sw(10), gap: sw(8), backgroundColor: "#FFFFFF" },
+  footerRow: { flexDirection: "row", gap: sw(8) },
+  footerHalf: { flex: 1 },
+  signedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(10),
+    marginHorizontal: sw(12),
+    marginBottom: sw(8),
+    padding: sw(10),
+    borderRadius: sw(14),
+    backgroundColor: "#F0FDFA",
+  },
+  signedCheck: {
+    width: sw(28),
+    height: sw(28),
+    borderRadius: sw(14),
+    backgroundColor: "#0F766E",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  signedBannerTitle: { fontFamily: Fonts.bold, fontSize: sf(14), color: "#115E59" },
+  signedBannerBody: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(16), color: "#0F766E" },
+  signedRef: {
+    paddingHorizontal: sw(16),
+    paddingVertical: sw(6),
+    fontFamily: Fonts.medium,
+    fontSize: sf(11),
+    color: "#64748B",
+    backgroundColor: "#FFFFFF",
+  },
   primary: {
     flexDirection: "row", backgroundColor: "#1B4F8A", borderRadius: sw(14),
     paddingVertical: sw(14), alignItems: "center", justifyContent: "center", gap: sw(8),
   },
   primaryText: { color: "#FFFFFF", fontFamily: Fonts.bold, fontSize: sf(15) },
   secondary: {
+    flexDirection: "row",
+    gap: sw(8),
     borderWidth: 1, borderColor: "#D7DEE8", borderRadius: sw(14),
-    paddingVertical: sw(13), alignItems: "center", backgroundColor: "#FFFFFF",
+    paddingVertical: sw(13), alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF",
   },
   secondaryText: { color: "#1B4F8A", fontFamily: Fonts.bold, fontSize: sf(15) },
   disabled: { opacity: 0.45 },
@@ -964,8 +1220,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: sw(8),
-    paddingHorizontal: sw(12),
-    paddingVertical: sw(10),
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(6),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#E6EBF1",
   },
@@ -978,7 +1234,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   docHeadText: { flex: 1, minWidth: 0 },
-  docTitle: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#101828" },
+  docTitle: { flex: 1, minWidth: 0, fontFamily: Fonts.semiBold, fontSize: sf(12), color: "#101828" },
   docMeta: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(11), color: "#64748B" },
   pageChip: {
     flexDirection: "row",
@@ -989,41 +1245,31 @@ const styles = StyleSheet.create({
     borderRadius: sw(999),
     backgroundColor: "#F4F7FB",
   },
-  pageChipText: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#334155" },
-  expandBtn: {
-    width: sw(30),
-    height: sw(30),
-    borderRadius: sw(8),
+  pageChipText: { minWidth: sw(64), textAlign: "center", fontFamily: Fonts.semiBold, fontSize: sf(12), color: "#1B4F8A" },
+  docToolbar: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    gap: sw(8),
+    paddingHorizontal: sw(10),
+    paddingBottom: sw(8),
+  },
+  zoomChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(8),
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(4),
+    borderRadius: sw(999),
     backgroundColor: "#F4F7FB",
   },
   docStage: { flex: 1, backgroundColor: "#F3F6FA" },
-  zoomRail: {
-    position: "absolute",
-    left: sw(8),
-    top: "36%",
-    alignItems: "center",
-    gap: sw(4),
-    paddingVertical: sw(6),
-    paddingHorizontal: sw(4),
-    borderRadius: sw(12),
-    backgroundColor: "#FFFFFF",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#E6EBF1",
-  },
-  zoomBtn: {
-    width: sw(28),
-    height: sw(28),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  zoomText: { fontFamily: Fonts.medium, fontSize: sf(10), color: "#334155" },
+  zoomText: { minWidth: sw(40), textAlign: "center", fontFamily: Fonts.semiBold, fontSize: sf(12), color: "#1B4F8A" },
   toolRow: {
     flexDirection: "row",
     gap: sw(8),
     paddingHorizontal: sw(12),
-    paddingTop: sw(10),
+    paddingTop: sw(6),
   },
   tool: {
     flex: 1,
@@ -1031,7 +1277,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: sw(6),
-    paddingVertical: sw(10),
+    paddingVertical: sw(7),
     borderRadius: sw(999),
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
@@ -1107,24 +1353,67 @@ const styles = StyleSheet.create({
   placeWeb: { flex: 1, backgroundColor: "#F4F7FB" },
   clearBtn: { alignSelf: "flex-end", marginTop: sw(6), paddingVertical: sw(2) },
   clear: { color: "#1B4F8A", fontFamily: Fonts.bold, fontSize: sf(14) },
-  consentRow: { flexDirection: "row", gap: sw(10), alignItems: "flex-start", marginTop: sw(10), marginHorizontal: sw(16) },
+  consentRow: { flexDirection: "row", gap: sw(10), alignItems: "flex-start", marginTop: sw(6), marginHorizontal: sw(16) },
   box: {
     width: sw(22), height: sw(22), borderRadius: sw(6), marginTop: sw(1),
     borderWidth: 1, borderColor: "#CBD5E1", alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF",
   },
   boxOn: { backgroundColor: "#1B4F8A", borderColor: "#1B4F8A" },
   consentText: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(13), color: "#334155", lineHeight: sf(18) },
-  successScroll: { paddingHorizontal: sw(20), paddingTop: sw(20), alignItems: "center" },
+  successScroll: { paddingHorizontal: sw(20), paddingTop: sw(16), paddingBottom: sw(24), alignItems: "center" },
+  successRing: {
+    width: sw(84),
+    height: sw(84),
+    borderRadius: sw(42),
+    backgroundColor: "#CCFBF1",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: sw(16),
+    marginBottom: sw(14),
+  },
   successIcon: {
-    width: sw(64), height: sw(64), borderRadius: sw(32), backgroundColor: "#CCFBF1",
-    alignItems: "center", justifyContent: "center", marginTop: sw(18), marginBottom: sw(14),
+    width: sw(58),
+    height: sw(58),
+    borderRadius: sw(29),
+    backgroundColor: "#0F766E",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  successTitle: { fontFamily: Fonts.bold, fontSize: sf(22), color: "#101828" },
-  successBody: { fontFamily: Fonts.regular, fontSize: sf(14), lineHeight: sf(20), color: "#64748B", textAlign: "center", marginTop: sw(6), marginBottom: sw(16) },
+  successTitle: { fontFamily: Fonts.bold, fontSize: sf(22), color: "#101828", textAlign: "center" },
+  successBody: { fontFamily: Fonts.regular, fontSize: sf(14), lineHeight: sf(21), color: "#64748B", textAlign: "center", marginTop: sw(8), marginBottom: sw(16) },
   successCard: {
-    alignSelf: "stretch", backgroundColor: "#FFFFFF", borderRadius: sw(16),
-    borderWidth: StyleSheet.hairlineWidth, borderColor: "#E6EBF1", padding: sw(14),
+    alignSelf: "stretch",
+    backgroundColor: "#FFFFFF",
+    borderRadius: sw(16),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#E6EBF1",
+    paddingHorizontal: sw(14),
+    paddingTop: sw(14),
+    paddingBottom: sw(6),
   },
-  successName: { fontFamily: Fonts.bold, fontSize: sf(16), color: "#101828" },
+  successName: { fontFamily: Fonts.bold, fontSize: sf(16), color: "#101828", marginBottom: sw(8) },
+  successRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: sw(12),
+    paddingVertical: sw(10),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E6EBF1",
+  },
+  successLabel: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#64748B" },
+  successValue: { flex: 1, fontFamily: Fonts.semiBold, fontSize: sf(13), color: "#101828", textAlign: "right" },
+  successNote: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    gap: sw(8),
+    alignItems: "flex-start",
+    marginTop: sw(12),
+    padding: sw(12),
+    borderRadius: sw(12),
+    backgroundColor: "#F0FDFA",
+  },
+  successNoteText: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(18), color: "#115E59" },
+  linkBtn: { alignItems: "center", paddingVertical: sw(6) },
+  linkText: { fontFamily: Fonts.semiBold, fontSize: sf(14), color: "#1B4F8A" },
   metaLine: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#64748B", marginTop: sw(4) },
 });

@@ -156,6 +156,8 @@ export default function SideMenu({ visible, onClose }) {
   );
 }
 
+const profileLineText = { includeFontPadding: false, overflow: "hidden" };
+
 function getRoleLabelKey(user) {
   if (!user) return "roles.resident";
   if (isGuestUser(user)) return "roles.guest";
@@ -529,18 +531,26 @@ function SideMenuPanel({ visible, onClose }) {
                 </View>
 
                 <View style={styles.profileInfo}>
-                  <Text style={styles.profileName} numberOfLines={2}>
-                    {profile.displayName || profile.displayPhone || t("nav.welcome")}
-                  </Text>
-                  <Text style={styles.profileAddress} numberOfLines={2}>
-                    {unitLabel
-                      ? `${profile.communityName} · ${unitLabel}`
-                      : profile.communityName}
-                  </Text>
-                  {!isNewProfile ? (
-                    <Text style={styles.profileRole} numberOfLines={2}>
-                      {t(roleLabelKey)}
+                  <View style={styles.profileLine}>
+                    <Text style={[styles.profileName, profileLineText]} numberOfLines={1}>
+                      {profile.displayName || profile.displayPhone || t("nav.welcome")}
                     </Text>
+                  </View>
+                  {profile.communityName ? (
+                    <View style={styles.profileLine}>
+                      <Text style={[styles.profileAddress, profileLineText]} numberOfLines={1}>
+                        {unitLabel
+                          ? `${profile.communityName} · ${unitLabel}`
+                          : profile.communityName}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {!isNewProfile ? (
+                    <View style={styles.profileLine}>
+                      <Text style={[styles.profileRole, profileLineText]} numberOfLines={1}>
+                        {t(roleLabelKey)}
+                      </Text>
+                    </View>
                   ) : null}
                 </View>
 
@@ -843,7 +853,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 16,
-    padding: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
   },
   profileAvatarWrapper: {
     marginEnd: 12,
@@ -852,37 +863,35 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     alignItems: "flex-start",
+    justifyContent: "center",
+    gap: 4,
+  },
+  profileLine: {
+    alignSelf: "stretch",
+    overflow: "hidden",
   },
   profileName: {
     fontFamily: Fonts.bold,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
     color: "#0F172A",
-    lineHeight: 22,
-    flexShrink: 1,
-    includeFontPadding: true,
+    lineHeight: 24,
   },
   profileAddress: {
     fontFamily: Fonts.medium,
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     fontWeight: "500",
-    lineHeight: 18,
-    marginTop: 2,
-    flexShrink: 1,
-    includeFontPadding: true,
+    lineHeight: 20,
   },
   profileRole: {
-    marginTop: 2,
     fontFamily: Fonts.semiBold,
-    fontSize: 10,
+    fontSize: 11,
     color: "#1B4F8A",
     fontWeight: "600",
-    lineHeight: 16,
+    lineHeight: 18,
     textTransform: "uppercase",
-    letterSpacing: 0,
-    flexShrink: 1,
-    includeFontPadding: true,
+    letterSpacing: 0.4,
   },
   sectionTitle: {
     fontFamily: Fonts.bold,

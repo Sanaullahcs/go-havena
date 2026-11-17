@@ -197,8 +197,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: Fonts.bold,
-    fontSize: sf(13),
-    lineHeight: sf(17),
+    fontSize: sf(14),
+    lineHeight: sf(22),
     color: T.navy,
     fontWeight: "700",
     writingDirection: "auto",
@@ -206,8 +206,8 @@ const styles = StyleSheet.create({
   },
   sub: {
     fontFamily: Fonts.regular,
-    fontSize: sf(10.5),
-    lineHeight: sf(14),
+    fontSize: sf(12),
+    lineHeight: sf(18),
     color: T.gray,
     marginTop: sw(2),
     writingDirection: "auto",

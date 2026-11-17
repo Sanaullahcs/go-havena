@@ -85,6 +85,14 @@ class UtilityBillVerificationPipeline
         UtilityBillDocumentVerdict $middleware,
         UtilityBillDocumentVerdict $ocr,
     ): UtilityBillDocumentVerdict {
+        if ($middleware->shouldReject()) {
+            if ($ocr->reviewStatus === UtilityBillDocumentVerdict::LIKELY) {
+                return UtilityBillDocumentVerdict::likely('ocr_confirmed');
+            }
+
+            return $middleware;
+        }
+
         if ($middleware->reviewStatus === UtilityBillDocumentVerdict::LIKELY
             && $ocr->reviewStatus === UtilityBillDocumentVerdict::LIKELY) {
             return UtilityBillDocumentVerdict::likely('middleware_and_ocr');

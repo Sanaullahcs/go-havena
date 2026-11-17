@@ -1,5 +1,11 @@
 import { apiRequest } from "./api-client";
 
+/** Online Pay Now stays off until checkout is ready. */
+export const PAY_NOW_ENABLED = false;
+
+/** Resident Pay bills hub stays closed until billing is ready in every country. */
+export const PAY_BILLS_ENABLED = false;
+
 /** KuickPay (Pakistan) resident payments and utility bills. */
 
 export const PAYABLE = {

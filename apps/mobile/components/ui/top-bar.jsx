@@ -13,6 +13,7 @@ import {
   getPrimaryMembership,
   isCommunityAdmin,
   isGuestUser,
+  membershipForCommunity,
 } from "../../services/community-access";
 import { fetchMe, fetchMyCommunities, switchActiveCommunity } from "../../services/profile-api";
 import {
@@ -33,6 +34,7 @@ import CommunityLocationMenu from "./community-location-menu";
 import LocationPickerSheet from "./location-picker-sheet";
 import SwitchCommunitySheet from "./switch-community-sheet";
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
+import { communityUsesMiles } from "../../utils/community-language";
 
 export default function TopBar({ onMenuPress }) {
   const router = useRouter();
@@ -199,7 +201,11 @@ export default function TopBar({ onMenuPress }) {
   const roleLabel = getRoleLabel(user);
   const hasCommunity = Boolean(user?.memberships?.some((m) => m?.community?.name));
   const title = hasCommunity ? communityName : t("topBar.chooseYourCommunity");
-  const rangeLabel = t("topBar.compactKm", { count: 3 });
+  const activeCommunity = membershipForCommunity(user, activeCommunityId)?.community
+    ?? getPrimaryMembership(user)?.community;
+  const range = communityUsesMiles(activeCommunity, user)
+    ? { value: "2", unit: t("topBar.miUnit") }
+    : { value: "3", unit: t("topBar.kmUnit") };
   const showNearby = isResidentFeatureEnabled(user, "nearby_places");
   // Community admins manage one community; switch is residents-only when multi-approved.
   const showSwitch = !guestUser && !adminUser && canSwitchCommunities(user);
@@ -251,8 +257,14 @@ export default function TopBar({ onMenuPress }) {
                   <Text style={styles.rolePillText}>{roleLabel}</Text>
                 </View>
               ) : showNearby ? (
-                <View style={styles.rangeChip}>
-                  <Text style={styles.rangeChipText}>{rangeLabel}</Text>
+                <View style={styles.rangeChip} accessibilityLabel={`${range.value} ${range.unit}`}>
+                  <Text style={styles.rangeValue} numberOfLines={1}>{range.value}</Text>
+                  <Text
+                    style={[styles.rangeUnit, /[\u0600-\u06FF]/.test(range.unit) && styles.rangeUnitAr]}
+                    numberOfLines={1}
+                  >
+                    {range.unit}
+                  </Text>
                 </View>
               ) : null}
               {showLocationMenu ? <Feather name="chevron-down" size={sf(14)} color={T.navy} /> : null}
@@ -357,24 +369,41 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    lineHeight: sf(18),
+    lineHeight: sf(22),
     color: T.navy,
     fontWeight: "700",
     includeFontPadding: false,
   },
   rangeChip: {
+    flexDirection: "row",
+    direction: "ltr",
+    alignItems: "center",
+    flexWrap: "nowrap",
     flexShrink: 0,
+    gap: sw(3),
     paddingHorizontal: sw(7),
-    paddingVertical: sw(2),
+    paddingVertical: sw(3),
     borderRadius: 999,
     backgroundColor: T.mint,
   },
-  rangeChipText: {
+  rangeValue: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(11),
+    lineHeight: sf(16),
+    color: T.deepTeal,
+    fontWeight: "700",
+    includeFontPadding: false,
+    writingDirection: "ltr",
+  },
+  rangeUnit: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(11),
-    lineHeight: sf(14),
+    lineHeight: sf(16),
     color: T.deepTeal,
     includeFontPadding: false,
+  },
+  rangeUnitAr: {
+    writingDirection: "rtl",
   },
   rolePill: {
     flexShrink: 0,

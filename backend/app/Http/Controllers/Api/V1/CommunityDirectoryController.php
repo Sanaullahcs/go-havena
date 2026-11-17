@@ -22,7 +22,7 @@ class CommunityDirectoryController extends Controller
     public function essentials(Request $request, OsmNearbyPlacesService $places, OsmGeocodingService $geocoder): JsonResponse
     {
         $validated = $request->validate([
-            'radius_meters' => ['nullable', 'integer', Rule::in(OsmNearbyPlacesService::allowedRadiusMeters())],
+            'radius_meters' => ['nullable', 'integer', 'min:500', 'max:'.OsmNearbyPlacesService::maxRadiusMeters()],
             'include_places' => ['sometimes', 'boolean'],
         ]);
         $radius = OsmNearbyPlacesService::normalizeRadiusMeters($validated['radius_meters'] ?? null);

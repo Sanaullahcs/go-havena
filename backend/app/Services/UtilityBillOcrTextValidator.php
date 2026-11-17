@@ -29,10 +29,6 @@ class UtilityBillOcrTextValidator
             return UtilityBillDocumentVerdict::review('ocr_weak_document_terms');
         }
 
-        if ($signals['words'] >= 8) {
-            return UtilityBillDocumentVerdict::reject('ocr_no_document_terms');
-        }
-
-        return UtilityBillDocumentVerdict::review('ocr_weak_document_terms');
+        return UtilityBillDocumentVerdict::reject('ocr_no_document_terms');
     }
 }

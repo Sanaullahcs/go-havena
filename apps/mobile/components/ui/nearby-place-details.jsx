@@ -15,7 +15,10 @@ import ScreenHeader from "../layout/screen-header";
 import NearbyMap from "../discover/nearby-map";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
-import { formatKmLabel } from "../../constants/location-radius";
+import { formatPlaceDistance } from "../../constants/location-radius";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { currentCommunityId, membershipForCommunity } from "../../services/community-access";
+import { communityUsesMiles } from "../../utils/community-language";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 import {
   callPlace,
@@ -55,33 +58,48 @@ function serviceSummary(place, t) {
   return parts.join(" · ");
 }
 
-function FactRow({ icon, label, value, trailing }) {
-  if (!value) return null;
-  return (
-    <View style={styles.fact}>
+const factText = { includeFontPadding: false };
+
+function FactRow({ icon, label, value, trailing, onPress, last }) {
+  const text = typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+  if (!text || text === "[object Object]") return null;
+  const row = (
+    <View style={[styles.fact, !last && styles.factDivider]}>
       <Feather name={icon} size={sf(16)} color="#94A3B8" style={styles.factIcon} />
       <View style={styles.factCopy}>
-        <Text style={styles.factLabel}>{label}</Text>
-        <Text style={styles.factValue}>{value}</Text>
+        <Text style={[styles.factLabel, factText]} numberOfLines={1}>{label}</Text>
+        <Text style={[styles.factValue, factText]}>{text}</Text>
       </View>
       {trailing}
     </View>
+  );
+  if (!onPress) return row;
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+      {row}
+    </Pressable>
   );
 }
 
 export default function NearbyPlaceDetails({ place }) {
   const { t } = useTranslation();
   const { showError } = useAppDialog();
+  const sessionUser = useSessionUser();
   const [menuOpen, setMenuOpen] = useState(false);
   const located = place;
   const canCall = Boolean(telUrl(located?.phone));
-  const distance = located ? formatKmLabel(located.distanceMeters) : "";
+  const activeCommunity = membershipForCommunity(sessionUser, currentCommunityId(sessionUser))?.community;
+  const distance = located ? formatPlaceDistance(located.distanceMeters, communityUsesMiles(activeCommunity, sessionUser)) : "";
   const categoryLabel = located?.category
     ? t(`topBar.category${capitalize(located.category)}`, { defaultValue: formatTag(located.category) })
     : "";
   const cuisine = formatTag(located?.cuisine);
   const subtitle = [categoryLabel, cuisine || located?.brand].filter(Boolean).join(" · ");
   const services = located ? serviceSummary(located, t) : "";
+  const hasDetails = Boolean(
+    located?.address || located?.phone || located?.hours || located?.website || located?.email
+    || cuisine || services || located?.brand || located?.operator || located?.description,
+  );
   const hasMap = Number.isFinite(Number(located?.latitude)) && Number.isFinite(Number(located?.longitude));
   const menuItems = [
     canCall ? { key: "call", label: t("topBar.call"), icon: "phone" } : null,
@@ -170,7 +188,7 @@ export default function NearbyPlaceDetails({ place }) {
         <View style={styles.hero}>
           <PlaceCategoryIcon category={located.category} />
           <View style={styles.heroCopy}>
-            <Text style={styles.name}>{located.name}</Text>
+            <Text style={styles.name} numberOfLines={2}>{located.name}</Text>
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
             {distance ? (
               <View style={styles.away}>
@@ -181,6 +199,47 @@ export default function NearbyPlaceDetails({ place }) {
           </View>
         </View>
 
+        {hasDetails ? (
+          <View style={styles.card}>
+            {[
+              {
+                key: "address",
+                icon: "map-pin",
+                label: t("topBar.placeAddress"),
+                value: located.address,
+                trailing: located.address ? (
+                  <Pressable
+                    onPress={() => Clipboard.setStringAsync(String(located.address))}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("topBar.copyAddress")}
+                  >
+                    <Feather name="copy" size={sf(16)} color="#94A3B8" />
+                  </Pressable>
+                ) : null,
+              },
+              { key: "phone", icon: "phone", label: t("topBar.placePhone"), value: located.phone, onPress: canCall ? onCall : undefined },
+              { key: "hours", icon: "clock", label: t("topBar.openingHours"), value: located.hours },
+              { key: "web", icon: "globe", label: t("topBar.website"), value: located.website, onPress: located.website ? () => openExternal(located.website) : undefined },
+              { key: "mail", icon: "mail", label: t("topBar.placeEmail"), value: located.email, onPress: located.email ? () => openExternal(`mailto:${located.email}`) : undefined },
+              { key: "cuisine", icon: "coffee", label: t("topBar.placeCuisine"), value: cuisine },
+              { key: "service", icon: "shopping-bag", label: t("topBar.placeService"), value: services },
+              { key: "brand", icon: "award", label: t("topBar.placeBrand"), value: located.brand || located.operator },
+              { key: "about", icon: "info", label: t("topBar.placeDescription"), value: located.description },
+            ].filter((row) => row.value).map((row, index, rows) => (
+              <FactRow
+                key={row.key}
+                icon={row.icon}
+                label={row.label}
+                value={row.value}
+                trailing={row.trailing}
+                onPress={row.onPress}
+                last={index === rows.length - 1}
+              />
+            ))}
+          </View>
+        ) : null}
+
         {hasMap ? (
           <View style={styles.mapWrap}>
             <NearbyMap latitude={located.latitude} longitude={located.longitude} places={[located]} height={sw(168)} />
@@ -190,31 +249,6 @@ export default function NearbyPlaceDetails({ place }) {
             </Pressable>
           </View>
         ) : null}
-
-        <Text style={styles.section}>{t("topBar.aboutThisPlace")}</Text>
-        <FactRow
-          icon="map-pin"
-          label={t("topBar.placeAddress")}
-          value={located.address}
-          trailing={located.address ? (
-            <Pressable
-              onPress={() => Clipboard.setStringAsync(String(located.address))}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t("topBar.copyAddress")}
-            >
-              <Feather name="copy" size={sf(16)} color="#94A3B8" />
-            </Pressable>
-          ) : null}
-        />
-        <FactRow icon="coffee" label={t("topBar.placeCuisine")} value={cuisine} />
-        <FactRow icon="shopping-bag" label={t("topBar.placeService")} value={services} />
-        <FactRow icon="phone" label={t("topBar.placePhone")} value={located.phone} />
-        <FactRow icon="clock" label={t("topBar.openingHours")} value={located.hours} />
-        <FactRow icon="globe" label={t("topBar.website")} value={located.website} />
-        <FactRow icon="mail" label={t("topBar.placeEmail")} value={located.email} />
-        <FactRow icon="award" label={t("topBar.placeBrand")} value={located.brand} />
-        <FactRow icon="info" label={t("topBar.placeDescription")} value={located.description} />
       </ScrollView>
 
       <View style={styles.footer}>
@@ -254,11 +288,18 @@ const styles = StyleSheet.create({
   more: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   hero: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 4, paddingBottom: 14 },
   heroCopy: { flex: 1, minWidth: 0 },
-  name: { fontFamily: Fonts.bold, fontSize: sf(22), color: "#0B1220" },
-  subtitle: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(13), color: "#64748B" },
+  name: { fontFamily: Fonts.bold, fontSize: sf(22), lineHeight: sf(28), color: "#0B1220" },
+  subtitle: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(13), lineHeight: sf(18), color: "#64748B" },
   away: { marginTop: 6, flexDirection: "row", alignItems: "center", gap: 4 },
   awayText: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#64748B" },
-  mapWrap: { borderRadius: 16, overflow: "hidden" },
+  mapWrap: { marginTop: 16, borderRadius: 16, overflow: "hidden" },
+  card: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#E6EBEF",
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
   viewMap: {
     position: "absolute",
     right: 10,
@@ -277,11 +318,11 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   viewMapText: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: T.deepTeal },
-  section: { marginTop: 20, marginBottom: 6, fontFamily: Fonts.bold, fontSize: sf(18), color: "#0B1220" },
-  fact: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 12 },
+  fact: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  factDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EEF2F6" },
   factIcon: { marginTop: 2 },
   factCopy: { flex: 1, minWidth: 0 },
-  factLabel: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#94A3B8" },
+  factLabel: { fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(16), color: "#94A3B8" },
   factValue: { marginTop: 2, fontFamily: Fonts.medium, fontSize: sf(14), lineHeight: sf(20), color: "#0F172A" },
   footer: { flexDirection: "row", gap: 10, paddingHorizontal: sw(16), paddingTop: 8, paddingBottom: sw(16), backgroundColor: "#fff" },
   call: {

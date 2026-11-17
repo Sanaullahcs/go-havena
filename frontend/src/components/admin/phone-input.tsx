@@ -60,18 +60,19 @@ export function AdminPhoneInput({
   const [touched, setTouched] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
   const [countryQuery, setCountryQuery] = useState("");
+  const appliedResetKey = useRef(resetKey);
 
   useEffect(() => {
-    // Parent often passes E.164 only — don't wipe in-progress digits when value is still empty.
-    if (!value) {
-      if (resetKey !== undefined && resetKey !== "") {
-        setField(phoneFieldFromE164(""));
-        setTouched(false);
-      }
+    // An invalid or in-progress number has an empty E.164. Only a new resetKey
+    // may clear the digits and return the country to the default.
+    if (appliedResetKey.current !== resetKey) {
+      appliedResetKey.current = resetKey;
+      setField(phoneFieldFromE164(value));
+      setTouched(false);
       return;
     }
-    setField(phoneFieldFromE164(value));
-    setTouched(false);
+    if (!value) return;
+    setField((current) => (current.e164 === value ? current : phoneFieldFromE164(value)));
   }, [value, resetKey]);
 
   useEffect(() => {

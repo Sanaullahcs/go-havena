@@ -186,6 +186,7 @@ export type DtFilter<K extends string = string> = {
   key: K;
   label: string;
   count?: number;
+  icon?: ReactNode;
 };
 
 export function DataTable<K extends string>({
@@ -311,6 +312,7 @@ export function DataTable<K extends string>({
                   : "border-transparent text-slate-500 hover:text-slate-700",
               ].join(" ")}
             >
+              {f.icon ? <span className="[&_svg]:h-3.5 [&_svg]:w-3.5" aria-hidden>{f.icon}</span> : null}
               {f.label}
               {f.count !== undefined && (
                 <span className={[

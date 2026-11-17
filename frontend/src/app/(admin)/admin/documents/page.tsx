@@ -5,21 +5,30 @@ import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import {
   Archive,
+  BadgeCheck,
+  Bell,
+  CheckCircle2,
   ChevronDown,
   Clock3,
-  Download,
+  ExternalLink,
+  FilePlus,
   FileText,
+  Files,
   FolderOpen,
-  Plus,
+  Image as ImageIcon,
+  PenLine,
   Search,
   Upload,
+  Users,
   X,
 } from "lucide-react";
 import { CharCount } from "@/components/admin/char-count";
 import { AgreementsPanel } from "@/components/admin/agreements-panel";
 import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
+import { ThemedDatePicker } from "@/components/ui/themed-date-picker";
 import { ThemedSelect } from "@/components/ui/themed-select";
+import { ThemedTimePicker } from "@/components/ui/themed-time-picker";
 import { confirmAction, confirmDelete, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import { PageLoader, PageError } from "@/components/shared/page-states";
@@ -369,6 +378,29 @@ function ResidentMultiSelect({
       ) : null}
     </div>
   );
+}
+
+function documentKind(doc: CommunityDocument): "pdf" | "image" | "word" | "file" {
+  const mime = (doc.mime_type ?? "").toLowerCase();
+  const ext = doc.file_name.split(".").pop()?.toLowerCase() ?? "";
+  if (mime === "application/pdf" || ext === "pdf") return "pdf";
+  if (mime.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "gif"].includes(ext)) return "image";
+  if (mime.includes("word") || ext === "doc" || ext === "docx") return "word";
+  return "file";
+}
+
+const DOCUMENT_KIND_STYLE: Record<ReturnType<typeof documentKind>, string> = {
+  pdf: "bg-rose-50 text-rose-600 ring-rose-100",
+  image: "bg-violet-50 text-violet-600 ring-violet-100",
+  word: "bg-sky-50 text-sky-700 ring-sky-100",
+  file: "bg-slate-50 text-slate-600 ring-slate-200",
+};
+
+function statusIcon(label: string) {
+  if (label === "Published" || label === "Signed") return CheckCircle2;
+  if (label === "Archived") return Archive;
+  if (label === "Overdue") return Clock3;
+  return FileText;
 }
 
 function fileTypeLabel(doc: CommunityDocument) {
@@ -737,41 +769,45 @@ export default function DocumentsPage() {
           <p className="mt-1 text-sm text-slate-500">
             {section === "documents"
               ? "Upload and organize community documents by category. Residents can browse and download from the mobile app."
-              : "Create and share agreements with residents to establish community rules, policies, and responsibilities, and collect their signatures for acknowledgment and consent."}
+              : "Send a PDF, choose who signs it, and follow the signatures in one list."}
           </p>
         </div>
         {section === "documents" ? (
           <button type="button" onClick={openCreate} className="nl-btn-primary shrink-0">
-            <Plus className="h-4 w-4" />
+            <FilePlus className="h-4 w-4" strokeWidth={2.25} />
             Add Document
           </button>
         ) : (
           <button type="button" onClick={() => openAgreementCreate.current?.()} className="nl-btn-primary shrink-0">
-            <Plus className="h-4 w-4" />
+            <PenLine className="h-4 w-4" strokeWidth={2.25} />
             Create Agreement
           </button>
         )}
       </div>
 
       <div className="flex w-fit gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Documents and agreements">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={section === "documents"}
-          onClick={() => showSection("documents")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${section === "documents" ? "bg-[#1B4F8A] text-white" : "text-slate-600 hover:bg-white"}`}
-        >
-          Documents
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={section === "agreements"}
-          onClick={() => showSection("agreements")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${section === "agreements" ? "bg-[#1B4F8A] text-white" : "text-slate-600 hover:bg-white"}`}
-        >
-          Agreements
-        </button>
+        {([
+          { key: "documents" as const, label: "Documents", icon: FileText },
+          { key: "agreements" as const, label: "Agreements", icon: PenLine },
+        ]).map((tab) => {
+          const active = section === tab.key;
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => showSection(tab.key)}
+              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${active ? "bg-[#1B4F8A] text-white shadow-sm" : "text-slate-600 hover:bg-white"}`}
+            >
+              <span className={`flex h-5 w-5 items-center justify-center rounded-md ${active ? "bg-white/15 text-white" : "bg-white text-[#1B4F8A] shadow-sm"}`}>
+                <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+              </span>
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {section === "agreements" ? (
@@ -790,9 +826,9 @@ export default function DocumentsPage() {
           title={tableTitle}
           search={search}
           filters={[
-            { key: "all", label: "All Documents", count: tabCounts.all },
-            { key: "published", label: "Published", count: tabCounts.published },
-            { key: "archived", label: "Archived", count: tabCounts.archived },
+            { key: "all", label: "All Documents", count: tabCounts.all, icon: <Files strokeWidth={2.25} /> },
+            { key: "published", label: "Published", count: tabCounts.published, icon: <BadgeCheck strokeWidth={2.25} /> },
+            { key: "archived", label: "Archived", count: tabCounts.archived, icon: <Archive strokeWidth={2.25} /> },
           ]}
           activeFilter={docTab}
           onFilter={(key) => startTransition(() => setDocTab(key))}
@@ -800,20 +836,17 @@ export default function DocumentsPage() {
           searchPlaceholder="Search title, category…"
           searchClassName="min-w-0 w-full sm:w-56"
           beforeSearch={
-            <div className="relative shrink-0">
-              <select
-                aria-label="Category"
+            <div className="w-52 shrink-0">
+              <ThemedSelect
                 value={filterCat}
-                onChange={(event) => startTransition(() => setFilterCat(event.target.value))}
-                className="h-8 w-44 appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-9 text-[12.5px] font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:w-52"
-              >
-                <option value="all">All categories</option>
-                {DOCUMENT_PRESET_CATEGORIES.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-                <option value={DOCUMENT_OTHER_CATEGORY}>{DOCUMENT_OTHER_CATEGORY}</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+                placeholder="All categories"
+                options={[
+                  { value: "all", label: "All categories" },
+                  ...DOCUMENT_PRESET_CATEGORIES.map((name) => ({ value: name, label: name })),
+                  { value: DOCUMENT_OTHER_CATEGORY, label: DOCUMENT_OTHER_CATEGORY },
+                ]}
+                onChange={(value) => startTransition(() => setFilterCat(value))}
+              />
             </div>
           }
           loading={adminTableBusy(refreshing, submitting, isPending)}
@@ -845,6 +878,9 @@ export default function DocumentsPage() {
               <tbody>
                 {pagedDocuments.map((doc) => {
                   const badge = statusBadge(doc);
+                  const StatusIcon = statusIcon(badge.label);
+                  const kind = documentKind(doc);
+                  const KindIcon = kind === "image" ? ImageIcon : FileText;
                   const life = documentLifecycle(doc);
                   const summary = doc.signature_summary;
                   const openSignatures = (summary?.pending ?? 0) + (summary?.overdue ?? 0);
@@ -855,12 +891,27 @@ export default function DocumentsPage() {
                   return (
                   <tr key={doc.id} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="max-w-0 overflow-hidden py-3 pl-5 pr-4">
-                      <div className="w-fit max-w-[min(32ch,100%)] truncate font-semibold text-slate-900" title={doc.title}>{doc.title}</div>
-                      <div className="truncate text-xs text-slate-400" title={`${fileTypeLabel(doc)} · ${doc.file_size_label} · ${doc.category}`}>{fileTypeLabel(doc)} · {doc.file_size_label} · {doc.category}</div>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ${DOCUMENT_KIND_STYLE[kind]}`} aria-hidden>
+                          <KindIcon className="h-4 w-4" strokeWidth={2.25} />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="w-fit max-w-[min(32ch,100%)] truncate font-semibold text-slate-900" title={doc.title}>{doc.title}</div>
+                          <div className="truncate text-xs text-slate-400" title={`${fileTypeLabel(doc)} · ${doc.file_size_label} · ${doc.category}`}>{fileTypeLabel(doc)} · {doc.file_size_label} · {doc.category}</div>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{assignedLabel(doc)}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 shrink-0 text-slate-400" strokeWidth={2.25} aria-hidden />
+                        {assignedLabel(doc)}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
-                      <AdminBadge tone={badge.tone}>{badge.label}</AdminBadge>
+                      <AdminBadge tone={badge.tone}>
+                        <StatusIcon className="mr-1 h-3 w-3" strokeWidth={2.25} aria-hidden />
+                        {badge.label}
+                      </AdminBadge>
                       {partial ? <p className="mt-1 text-[11px] text-slate-400">{signedCount} of {requiredCount} signed</p> : null}
                     </td>
                     <td className="whitespace-nowrap py-3 pl-4 pr-5 text-right">
@@ -943,12 +994,21 @@ export default function DocumentsPage() {
               </dl>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-6 py-4">
-              <button type="button" onClick={() => setViewing(null)} className="nl-btn-secondary">Close</button>
+              <button type="button" onClick={() => setViewing(null)} className="nl-btn-secondary">
+                <X className="h-4 w-4" strokeWidth={2.25} />
+                Close
+              </button>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {viewing.signature_required && (viewing.stats?.pending || viewing.stats?.overdue) ? (
-                  <button type="button" onClick={() => void sendReminders(viewing)} className="nl-btn-secondary">Send reminders</button>
+                  <button type="button" onClick={() => void sendReminders(viewing)} className="nl-btn-secondary">
+                    <Bell className="h-4 w-4" strokeWidth={2.25} />
+                    Send reminders
+                  </button>
                 ) : null}
-                <a href={viewing.file_url} target="_blank" rel="noopener noreferrer" className="nl-btn-primary inline-flex items-center gap-1.5"><Download className="h-3.5 w-3.5" />Open File</a>
+                <a href={viewing.file_url} target="_blank" rel="noopener noreferrer" className="nl-btn-primary inline-flex items-center gap-1.5">
+                  <ExternalLink className="h-4 w-4" strokeWidth={2.25} />
+                  Open File
+                </a>
               </div>
             </div>
           </div>
@@ -960,11 +1020,38 @@ export default function DocumentsPage() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-slate-200">
             <h3 className="text-lg font-bold text-slate-900">Extend deadline</h3>
             <p className="mt-1 text-sm text-slate-500">The new signature deadline applies to residents who have not signed {extending.title}.</p>
-            <label className="mb-1.5 mt-4 block text-[13px] font-medium text-slate-700">Signature deadline</label>
-            <ClearableInput type="datetime-local" min={localDateTimeValue(new Date())} className="nl-input" value={deadlineDraft} onChange={(event) => setDeadlineDraft(event.target.value)} />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <ThemedDatePicker
+                label="Deadline date"
+                placeholder="Select date"
+                value={deadlineDraft.slice(0, 10)}
+                min={localDateTimeValue(new Date()).slice(0, 10)}
+                onChange={(value) => {
+                  const time = deadlineDraft.slice(11, 16) || "23:59";
+                  setDeadlineDraft(value ? `${value}T${time}` : "");
+                }}
+              />
+              <ThemedTimePicker
+                label="Deadline time"
+                placeholder="Select time"
+                value={deadlineDraft.slice(11, 16)}
+                minTime={deadlineDraft.slice(0, 10) === localDateTimeValue(new Date()).slice(0, 10) ? localDateTimeValue(new Date()).slice(11, 16) : undefined}
+                onChange={(value) => {
+                  const date = deadlineDraft.slice(0, 10);
+                  if (!date) return;
+                  setDeadlineDraft(`${date}T${value}`);
+                }}
+              />
+            </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setExtending(null)} className="nl-btn-secondary">Cancel</button>
-              <button type="button" disabled={submitting} onClick={() => void saveDeadline()} className="nl-btn-primary">Save deadline</button>
+              <button type="button" onClick={() => setExtending(null)} className="nl-btn-secondary">
+                <X className="h-4 w-4" strokeWidth={2.25} />
+                Cancel
+              </button>
+              <button type="button" disabled={submitting} onClick={() => void saveDeadline()} className="nl-btn-primary">
+                <Clock3 className="h-4 w-4" strokeWidth={2.25} />
+                Save deadline
+              </button>
             </div>
           </div>
         </div>
@@ -1043,7 +1130,7 @@ export default function DocumentsPage() {
                   style={{ resize: "none" }}
                   value={form.description}
                   maxLength={5000}
-                  rows={4}
+                  rows={3}
                   onChange={(e) => setF("description", e.target.value)}
                   onBlur={() => touch("description")}
                   placeholder="Optional notes about this document"
@@ -1079,7 +1166,7 @@ export default function DocumentsPage() {
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">{keptExistingFile ? "Replace File (optional)" : "File *"}</label>
                 <ClearableInput ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { setSelectedFile(e.target.files?.[0] ?? null); touch("file"); clearError("file"); }} />
-                <button type="button" onClick={() => fileInputRef.current?.click()} className={inputClass(showError("file", liveErrors), "flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50/50")}>
+                <button type="button" onClick={() => fileInputRef.current?.click()} className={inputClass(showError("file", liveErrors), "flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50/50")}>
                   <Upload className="h-4 w-4" />
                   {selectedFile || keptExistingFile ? "Choose a new file to replace" : "Choose PDF, Word, or image file (max 10 MB)"}
                 </button>
@@ -1102,8 +1189,12 @@ export default function DocumentsPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-6 py-4">
-              <button type="button" onClick={closeForm} disabled={submitting} className="nl-btn-secondary">Close</button>
+              <button type="button" onClick={closeForm} disabled={submitting} className="nl-btn-secondary">
+                <X className="h-4 w-4" strokeWidth={2.25} />
+                Close
+              </button>
               <button type="button" onClick={() => void handleSubmit("published")} disabled={submitting || hasFieldErrors(editingPublication === "published" ? draftErrors : publishErrors)} className="nl-btn-primary disabled:opacity-60">
+                {editingPublication === "published" ? <CheckCircle2 className="h-4 w-4" strokeWidth={2.25} /> : <BadgeCheck className="h-4 w-4" strokeWidth={2.25} />}
                 {submitting ? "Saving…" : editingPublication === "published" ? "Save changes" : "Publish Document"}
               </button>
             </div>

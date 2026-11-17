@@ -17,7 +17,7 @@ import InternalScreenHeader from "../../../../components/layout/internal-screen-
 import AmenityPaymentProofModal from "../../../../components/property/amenity-payment-proof-modal";
 import AmenityIcon from "../../../../components/property/amenity-icon";
 import KuickpayPaySheet from "../../../../components/payments/kuickpay-pay-sheet";
-import { PAYABLE } from "../../../../services/payments-api";
+import { PAY_NOW_ENABLED, PAYABLE } from "../../../../services/payments-api";
 import { PAYMENT_RESULT_ROUTE } from "../../../../hooks/use-kuickpay-pay";
 import { propertyStyles } from "../../../../constants/property-styles";
 import { PropertyHubTheme } from "../../../../constants/property-management-theme";
@@ -93,6 +93,12 @@ function bookingStatusMeta(booking, t) {
 function payActionLabel(bill, t) {
   if (bill.online_payment?.available) return t("bills.list.payNow");
   return String(bill.status ?? "").toLowerCase() === "rejected" ? t("bills.list.resubmitProof") : t("bills.list.uploadProof");
+}
+
+function showPayAction(bill) {
+  if (!canPayBill(bill)) return false;
+  if (PAY_NOW_ENABLED) return true;
+  return !bill.online_payment?.available;
 }
 
 function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onApprovePayment, onRejectPayment, onViewReceipt, t }) {
@@ -429,7 +435,7 @@ export default function MyAmenityBillsScreen() {
                 title={fields.title || t("services.myAmenityBillsTitle")}
                 subtitle={fields.subtitle}
                 payLabel={payActionLabel(bill, t)}
-                onPay={() => startPayment(bill)}
+                onPay={showPayAction(bill) ? () => startPayment(bill) : undefined}
                 onPress={() => {
                   const active = bill.online_payment?.active_payment;
                   if (active?.status === "processing") {
@@ -491,7 +497,7 @@ export default function MyAmenityBillsScreen() {
       <BillDetailSheet
         visible={Boolean(detailFor)}
         doc={detailDoc}
-        primaryLabel={detailFor && canPayBill(detailFor) ? payActionLabel(detailFor, t) : null}
+        primaryLabel={detailFor && showPayAction(detailFor) ? payActionLabel(detailFor, t) : null}
         onPrimary={() => detailFor && startPayment(detailFor)}
         onClose={() => setDetailFor(null)}
       />

@@ -112,6 +112,10 @@ class AmenitySlotsTest extends TestCase
         $this->assertSame('8:00 PM - 12:00 AM', AmenitySlots::formatHoursDisplay('20:00', '00:00'));
         $this->assertSame('10:00 PM - 2:00 AM', AmenitySlots::formatHoursDisplay('22:00', '02:00'));
         $this->assertSame('8:00 AM - 6:00 PM', AmenitySlots::formatHoursDisplay('08:00', '18:00'));
+        $this->assertSame(
+            '٦:٠٠ صباحاً - ٩:٠٠ مساءً',
+            AmenitySlots::formatHoursDisplay('06:00', '21:00', '٦:٠٠ صباحاً – ٩:٠٠ مساءً'),
+        );
     }
 
     public function test_slot_labels_match_hyphen_and_en_dash(): void

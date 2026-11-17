@@ -20,19 +20,20 @@ import NearbyMap from "../../../components/discover/nearby-map";
 import SuggestPlaceSheet from "../../../components/discover/suggest-place-sheet";
 import { HomeTheme as T } from "../../../constants/home-theme";
 import { Fonts } from "../../../constants/font";
-import { formatKmLabel } from "../../../constants/location-radius";
+import { formatPlaceDistance } from "../../../constants/location-radius";
 import {
   DEFAULT_DISCOVER_RADIUS_METERS,
-  DISCOVER_RADIUS_OPTIONS,
+  DISCOVER_RADIUS_MAX,
+  compareNearbyPlacesByPhoneThenDistance,
   fetchNearbyPlacesBundle,
-  formatDiscoverRadius,
   mergeNearbyPlaces,
   NEARBY_PLACE_CATEGORIES,
 } from "../../../services/nearby-places-api";
+import { communityUsesMiles } from "../../../utils/community-language";
 import { listingCategoryLabel } from "../../../components/discover/category-picker";
 import { fetchEssentials } from "../../../services/community-directory-api";
 import { getCachedUser, subscribeSessionUser } from "../../../services/auth-session";
-import { isCommunityAdmin } from "../../../services/community-access";
+import { currentCommunityId, isCommunityAdmin, membershipForCommunity } from "../../../services/community-access";
 import { setNearbyPlaceDraft } from "../../../services/nearby-place-draft";
 import { sf, sw } from "../../../utils/responsive";
 import { useNow } from "../../../hooks/use-now";
@@ -76,7 +77,7 @@ export default function DiscoverScreen() {
   const { t } = useTranslation();
   const now = useNow();
   const router = useRouter();
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const [tab, setTab] = useState("nearby");
   const [category, setCategory] = useState("all");
   const [query, setQuery] = useState("");
@@ -91,6 +92,8 @@ export default function DiscoverScreen() {
   const [radiusMeters, setRadiusMeters] = useState(DEFAULT_DISCOVER_RADIUS_METERS);
   const [resultsRadius, setResultsRadius] = useState(null);
   const [radiusOpen, setRadiusOpen] = useState(false);
+  const [radiusMenu, setRadiusMenu] = useState(null);
+  const radiusBtnRef = useRef(null);
   const [mapOpen, setMapOpen] = useState(false);
   const [sort, setSort] = useState("nearest");
   const [sortOpen, setSortOpen] = useState(false);
@@ -101,7 +104,38 @@ export default function DiscoverScreen() {
   bundleRef.current = bundle;
   useEffect(() => subscribeSessionUser(setSessionUser), []);
 
-  const radiusLabel = formatDiscoverRadius(radiusMeters);
+  const activeCommunity = membershipForCommunity(sessionUser, currentCommunityId(sessionUser))?.community;
+  const useMiles = communityUsesMiles(activeCommunity, sessionUser);
+  const radiusDefaulted = useRef(false);
+  useEffect(() => {
+    if (radiusDefaulted.current || !sessionUser) return;
+    radiusDefaulted.current = true;
+    if (useMiles) setRadiusMeters(Math.round(2 * 1609.344));
+  }, [sessionUser, useMiles]);
+  const radiusUnit = useMiles ? 1609.344 : 1000;
+  const radiusAmount = Math.max(1, Math.min(DISCOVER_RADIUS_MAX, Math.round(radiusMeters / radiusUnit)));
+  const radiusUnitLabel = useMiles ? t("topBar.miUnit") : t("topBar.kmUnit");
+  const radiusLabel = `${radiusAmount} ${radiusUnitLabel}`;
+  const radiusChoices = useMemo(
+    () => Array.from({ length: DISCOVER_RADIUS_MAX }, (_, index) => index + 1),
+    [],
+  );
+
+  const openRadiusMenu = () => {
+    radiusBtnRef.current?.measureInWindow((x, y, width, height) => {
+      const menuWidth = Math.min(Math.max(width, sw(176)), windowWidth - sw(24));
+      const left = Math.max(sw(12), Math.min(x, windowWidth - menuWidth - sw(12)));
+      const below = y + height + sw(6);
+      const space = windowHeight - below - sw(20);
+      setRadiusMenu({
+        left,
+        top: below,
+        width: menuWidth,
+        maxHeight: Math.min(sw(280), Math.max(sw(180), space)),
+      });
+      setRadiusOpen(true);
+    });
+  };
   const nearbyPending = resultsRadius !== radiusMeters;
 
   const load = useCallback(async (silent) => {
@@ -169,7 +203,7 @@ export default function DiscoverScreen() {
     if (sort === "name") {
       rows.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
     } else {
-      rows.sort((a, b) => (a.distanceMeters ?? Number.MAX_SAFE_INTEGER) - (b.distanceMeters ?? Number.MAX_SAFE_INTEGER));
+      rows.sort(compareNearbyPlacesByPhoneThenDistance);
     }
     return rows;
   }, [places, sort]);
@@ -275,16 +309,18 @@ export default function DiscoverScreen() {
         {tab === "nearby" ? (
           <View style={styles.toolbar}>
             <Pressable
-              style={styles.radius}
+              ref={radiusBtnRef}
+              style={[styles.radius, radiusOpen && styles.radiusOpen]}
               android_ripple={{ color: "rgba(15, 23, 42, 0.06)", borderless: false }}
-              onPress={() => setRadiusOpen(true)}
+              onPress={() => (radiusOpen ? setRadiusOpen(false) : openRadiusMenu())}
               accessibilityRole="button"
+              accessibilityState={{ expanded: radiusOpen }}
               accessibilityLabel={t("topBar.discoverRadiusTitle")}
             >
               <Text style={styles.radiusText} numberOfLines={1}>
                 {t("topBar.discoverRadiusWithin", { distance: radiusLabel })}
               </Text>
-              <Feather name="chevron-down" size={sf(15)} color="#6B7280" />
+              <Feather name={radiusOpen ? "chevron-up" : "chevron-down"} size={sf(15)} color="#6B7280" />
             </Pressable>
             <View style={styles.suggestClip}>
               <Pressable
@@ -387,7 +423,15 @@ export default function DiscoverScreen() {
                 </View>
               ) : (
                 <View style={styles.list}>
-                  {shownPlaces.map((place, index) => (
+                  {shownPlaces.map((place, index) => {
+                    const phone = String(place.phone || "").trim();
+                    const hours = String(place.hours || "").trim();
+                    const website = String(place.website || "").trim().replace(/^https?:\/\//i, "").replace(/\/$/, "");
+                    const note = String(place.description || "").trim();
+                    const cuisine = String(place.cuisine || "").replace(/_/g, " ").trim();
+                    const extra = [note, cuisine].find((line) => line && line.toLowerCase() !== String(place.address || "").trim().toLowerCase()) || "";
+                    const distance = formatPlaceDistance(place.distanceMeters, useMiles);
+                    return (
                     <Pressable
                       key={place.id}
                       style={[styles.row, index < shownPlaces.length - 1 && styles.rowDivider]}
@@ -397,18 +441,40 @@ export default function DiscoverScreen() {
                       <PlaceCategoryIcon category={place.category} />
                       <View style={styles.rowCopy}>
                         <Text style={styles.rowName} numberOfLines={1}>{place.name}</Text>
-                        <Text style={styles.rowMeta} numberOfLines={1}>
+                        <Text style={styles.rowMeta} numberOfLines={2}>
                           {place.address || t(`topBar.category${capitalize(place.category)}`, { defaultValue: place.category })}
                         </Text>
+                        {phone ? (
+                          <View style={styles.detailLine}>
+                            <Feather name="phone" size={sf(12)} color={T.deepTeal} />
+                            <Text style={styles.detailPhone} numberOfLines={1}>{phone}</Text>
+                          </View>
+                        ) : null}
+                        {hours ? (
+                          <View style={styles.detailLine}>
+                            <Feather name="clock" size={sf(12)} color="#64748B" />
+                            <Text style={styles.detailMuted} numberOfLines={1}>{hours}</Text>
+                          </View>
+                        ) : null}
+                        {website ? (
+                          <View style={styles.detailLine}>
+                            <Feather name="globe" size={sf(12)} color="#64748B" />
+                            <Text style={styles.detailMuted} numberOfLines={1}>{website}</Text>
+                          </View>
+                        ) : null}
+                        {extra ? (
+                          <Text style={styles.detailNote} numberOfLines={1}>{extra}</Text>
+                        ) : null}
                       </View>
                       <View style={styles.rowEnd}>
-                        {place.distanceMeters ? (
-                          <Text style={styles.distance}>{formatKmLabel(place.distanceMeters)}</Text>
+                        {distance ? (
+                          <Text style={styles.distance} numberOfLines={1}>{distance}</Text>
                         ) : null}
                         <Feather name="chevron-right" size={sf(16)} color="#C5CDD6" />
                       </View>
                     </Pressable>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
               {loadingMore ? (
@@ -528,49 +594,53 @@ export default function DiscoverScreen() {
           )}
         </ScrollView>
       )}
-      <Modal visible={radiusOpen} transparent animationType="slide" onRequestClose={() => setRadiusOpen(false)}>
-        <View style={styles.radiusBackdrop}>
+      <Modal visible={radiusOpen} transparent animationType="fade" onRequestClose={() => setRadiusOpen(false)}>
+        <View style={styles.menuRoot}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setRadiusOpen(false)} />
-          <View style={styles.radiusSheet}>
-            <View style={styles.grabber} />
-            <View style={styles.radiusHead}>
-              <View style={styles.radiusCopy}>
-                <Text style={styles.radiusTitle}>{t("topBar.discoverRadiusTitle")}</Text>
-                <Text style={styles.radiusSub}>{t("topBar.discoverRadiusSub")}</Text>
-              </View>
-              <Pressable
-                onPress={() => setRadiusOpen(false)}
-                hitSlop={10}
-                style={styles.radiusClose}
-                accessibilityRole="button"
-                accessibilityLabel={t("common.close", { defaultValue: "Close" })}
+          {radiusMenu ? (
+            <View
+              style={[
+                styles.radiusMenu,
+                {
+                  top: radiusMenu.top,
+                  left: radiusMenu.left,
+                  width: radiusMenu.width,
+                  maxHeight: radiusMenu.maxHeight,
+                },
+              ]}
+            >
+              <ScrollView
+                style={{ maxHeight: radiusMenu.maxHeight }}
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled
               >
-                <Feather name="x" size={sf(18)} color="#64748B" />
-              </Pressable>
+                {radiusChoices.map((amount) => {
+                  const selected = amount === radiusAmount;
+                  return (
+                    <Pressable
+                      key={amount}
+                      style={[styles.menuRow, selected && styles.menuRowOn]}
+                      android_ripple={{ color: T.mint }}
+                      onPress={() => {
+                        const meters = Math.round(amount * radiusUnit);
+                        setRadiusOpen(false);
+                        if (meters !== radiusMeters) setRadiusMeters(meters);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                    >
+                      <View style={styles.menuValueRow}>
+                        <Text style={[styles.menuValue, selected && styles.menuValueOn]}>{amount}</Text>
+                        <Text style={[styles.menuUnit, selected && styles.menuValueOn]}>{radiusUnitLabel}</Text>
+                      </View>
+                      {selected ? <Feather name="check" size={sf(15)} color={T.deepTeal} /> : <View style={styles.menuCheck} />}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </View>
-            <View style={styles.radiusGrid}>
-              {DISCOVER_RADIUS_OPTIONS.map((meters) => {
-                const selected = meters === radiusMeters;
-                return (
-                  <Pressable
-                    key={meters}
-                    style={[styles.radiusChip, selected && styles.radiusChipOn]}
-                    android_ripple={{ color: T.mint }}
-                    onPress={() => {
-                      setRadiusOpen(false);
-                      if (meters !== radiusMeters) setRadiusMeters(meters);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                  >
-                    <Text style={[styles.radiusChipText, selected && styles.radiusChipTextOn]}>
-                      {formatDiscoverRadius(meters)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
+          ) : null}
         </View>
       </Modal>
       <Modal visible={mapOpen} animationType="slide" onRequestClose={() => setMapOpen(false)}>
@@ -664,6 +734,7 @@ const styles = StyleSheet.create({
   radius: {
     overflow: "hidden",
     minHeight: sw(38),
+    maxWidth: "58%",
     paddingHorizontal: 14,
     borderRadius: 999,
     backgroundColor: "#F3F4F6",
@@ -671,7 +742,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
-  radiusText: { fontFamily: Fonts.medium, fontSize: sf(13), color: "#111827" },
+  radiusOpen: { backgroundColor: "#E7F6F4" },
+  radiusText: { flexShrink: 1, fontFamily: Fonts.medium, fontSize: sf(13), color: "#111827" },
   suggestClip: {
     borderRadius: 999,
     overflow: "hidden",
@@ -713,36 +785,36 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   radiusBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.4)", justifyContent: "flex-end" },
-  radiusSheet: {
-    backgroundColor: T.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: sw(20),
-    paddingTop: 10,
-    paddingBottom: sw(28),
-  },
-  grabber: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "#E2E8F0", marginBottom: 14 },
-  radiusHead: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 16 },
-  radiusCopy: { flex: 1 },
-  radiusTitle: { fontFamily: Fonts.bold, fontSize: sf(17), color: "#0F172A" },
-  radiusSub: { marginTop: 4, fontFamily: Fonts.regular, fontSize: sf(12), color: "#64748B" },
-  radiusClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
-  radiusGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  radiusChip: {
-    width: "23%",
-    flexGrow: 1,
+  menuRoot: { flex: 1 },
+  radiusMenu: {
+    position: "absolute",
     overflow: "hidden",
-    minHeight: 40,
-    borderRadius: 12,
+    borderRadius: 16,
+    backgroundColor: T.white,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
+    borderColor: "#E6EBEF",
+    paddingVertical: 6,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
-  radiusChipOn: { backgroundColor: T.deepTeal, borderColor: T.deepTeal },
-  radiusChipText: { fontFamily: Fonts.medium, fontSize: sf(13), color: "#334155" },
-  radiusChipTextOn: { fontFamily: Fonts.semiBold, color: "#fff" },
+  menuRow: {
+    minHeight: sw(40),
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  menuRowOn: { backgroundColor: "#E7F6F4" },
+  menuValueRow: { flexDirection: "row", alignItems: "center", gap: 4, direction: "ltr" },
+  menuValue: { fontFamily: Fonts.medium, fontSize: sf(14), color: "#0F172A" },
+  menuUnit: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#64748B" },
+  menuValueOn: { fontFamily: Fonts.semiBold, color: T.deepTeal },
+  menuCheck: { width: sf(15), height: sf(15) },
+  grabber: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "#E2E8F0", marginBottom: 14 },
+  radiusClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
   scroll: { paddingHorizontal: sw(16), paddingBottom: sw(40) },
   cats: { gap: sw(4), paddingTop: sw(8), paddingBottom: sw(14), paddingRight: sw(12) },
   cat: { width: sw(78), alignItems: "center", backgroundColor: "transparent", paddingVertical: 4 },
@@ -834,12 +906,16 @@ const styles = StyleSheet.create({
   sortOptionText: { fontFamily: Fonts.medium, fontSize: sf(15), color: "#0F172A" },
   sortOptionTextOn: { fontFamily: Fonts.semiBold, color: T.deepTeal },
   list: { backgroundColor: "transparent" },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14 },
+  row: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 14 },
   rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EEF1F4" },
   rowCopy: { flex: 1, minWidth: 0 },
-  rowEnd: { flexDirection: "row", alignItems: "center", gap: 2 },
-  rowName: { fontFamily: Fonts.semiBold, fontSize: sf(15), color: "#0B1220" },
-  rowMeta: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(12), color: "#9CA3AF" },
+  rowEnd: { flexDirection: "row", alignItems: "center", flexShrink: 0, gap: 2, paddingTop: 2 },
+  rowName: { fontFamily: Fonts.semiBold, fontSize: sf(15), lineHeight: sf(20), color: "#0B1220" },
+  rowMeta: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(17), color: "#6B7280" },
+  detailLine: { marginTop: 4, flexDirection: "row", alignItems: "center", gap: 6 },
+  detailPhone: { flex: 1, fontFamily: Fonts.medium, fontSize: sf(12), lineHeight: sf(16), color: T.deepTeal },
+  detailMuted: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(16), color: "#64748B" },
+  detailNote: { marginTop: 4, fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(16), color: "#64748B" },
   distance: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#6B7280" },
   emptyCard: {
     alignItems: "center",

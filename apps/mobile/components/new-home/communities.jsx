@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
   bodyText: {
     fontFamily: Fonts.regular,
     fontSize: sf(12.5),
-    lineHeight: sf(17),
+    lineHeight: sf(20),
     color: T.navy,
     marginBottom: sw(8),
     flexShrink: 1,

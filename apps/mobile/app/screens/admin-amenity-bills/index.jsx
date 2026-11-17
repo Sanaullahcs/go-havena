@@ -41,6 +41,7 @@ import {
   rejectAmenityResidentPayment,
 } from "../../../services/amenity-api";
 import { getUser } from "../../../services/auth-session";
+import { PAY_NOW_ENABLED } from "../../../services/payments-api";
 import { formatCommunityMoney } from "../../../utils/money";
 import { billListFields, buildBillDocument, sortBills, summarizeBills } from "../../../utils/bill-document";
 import BillDetailSheet from "../../../components/payments/bill-detail-sheet";
@@ -616,7 +617,7 @@ export default function AdminAmenityBillsScreen() {
                         title={fields.title || bill.amenity_name || t("services.amenityBillsTitle")}
                         subtitle={fields.subtitle}
                         payLabel={rejected ? t("services.myAmenityBillsResubmitPay") : t("bills.list.payNow")}
-                        onPay={() => setProofFor(bill)}
+                        onPay={PAY_NOW_ENABLED || rejected ? () => setProofFor(bill) : undefined}
                       />
                     );
                   })

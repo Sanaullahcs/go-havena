@@ -8,6 +8,9 @@ import { fontMapForLanguage } from "../constants/font-map";
 import { setNativeAppLocale } from "../utils/native-app-locale";
 import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
 import { isExpoGo } from "../utils/expo-runtime";
+import { subscribeSessionUser } from "../services/auth-session";
+import { currentCommunityId } from "../services/community-access";
+import { communityPrefersArabic } from "../utils/community-language";
 
 const LanguageContext = createContext({
   language: "en",
@@ -85,6 +88,11 @@ export default function LanguageProvider({ children }) {
     };
   }, []);
 
+  const languageRef = React.useRef(language);
+  languageRef.current = language;
+  const seenCommunityRef = React.useRef(null);
+  const restoreLangRef = React.useRef(null);
+
   const changeLanguage = useCallback(async (lng) => {
     if (!SUPPORTED.includes(lng) || lng === language) return;
 
@@ -102,6 +110,31 @@ export default function LanguageProvider({ children }) {
       // Fonts already registered, or Expo Go cannot swap families mid-session.
     }
   }, [language]);
+
+  useEffect(() => {
+    return subscribeSessionUser((user) => {
+      const id = currentCommunityId(user);
+      if (!id) return;
+      const membership = (user?.memberships || []).find(
+        (row) => Number(row?.community_id) === Number(id),
+      );
+      const community = membership?.community;
+      if (!community || seenCommunityRef.current === id) return;
+      const previousId = seenCommunityRef.current;
+      seenCommunityRef.current = id;
+      const arabicHome = communityPrefersArabic(community);
+      if (arabicHome && languageRef.current !== "ar") {
+        restoreLangRef.current = languageRef.current;
+        void changeLanguage("ar");
+        return;
+      }
+      if (!arabicHome && previousId != null && restoreLangRef.current && languageRef.current === "ar") {
+        const restore = restoreLangRef.current;
+        restoreLangRef.current = null;
+        void changeLanguage(restore);
+      }
+    });
+  }, [changeLanguage]);
 
   return (
     <LanguageContext.Provider value={{ language, isRTL, changeLanguage, ready }}>
@@ -121,6 +154,7 @@ export default function LanguageProvider({ children }) {
 const styles = StyleSheet.create({
   directionRoot: {
     flex: 1,
+    direction: "ltr",
   },
   boot: {
     flex: 1,

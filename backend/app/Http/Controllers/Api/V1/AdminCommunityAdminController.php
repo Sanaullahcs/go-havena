@@ -11,6 +11,7 @@ use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\NotificationService;
 use App\Services\ReferralService;
+use App\Services\UtilityBillStorage;
 use App\Services\UtilityBillUploadService;
 use App\Support\CommunityAdminRecordStatus;
 use App\Support\PhoneNormalizer;
@@ -103,6 +104,11 @@ class AdminCommunityAdminController extends Controller
             'utility_bill.max' => 'File must be 10 MB or smaller.',
         ]);
 
+        $utilityUpload = null;
+        if ($request->hasFile('utility_bill')) {
+            $utilityUpload = app(UtilityBillUploadService::class)->storeVerified($request->file('utility_bill'));
+        }
+
         $user->loadMissing('profile');
         $before = [
             'name' => $user->name,
@@ -138,10 +144,9 @@ class AdminCommunityAdminController extends Controller
             $profileData['unit_number'] = null;
             $profileData['residence_type'] = null;
         }
-        if ($request->hasFile('utility_bill')) {
-            $upload = app(UtilityBillUploadService::class)->storeVerified($request->file('utility_bill'));
-            $profileData['utility_bill_url'] = $upload['url'];
-            $profileData['utility_bill_review_status'] = $upload['utility_bill_review_status'];
+        if ($utilityUpload) {
+            $profileData['utility_bill_url'] = $utilityUpload['url'];
+            $profileData['utility_bill_review_status'] = $utilityUpload['utility_bill_review_status'];
         }
 
         if ($profileData !== []) {

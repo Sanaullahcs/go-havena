@@ -18,12 +18,13 @@ import NearbyMap from "../../../components/discover/nearby-map";
 import SuggestPlaceSheet from "../../../components/discover/suggest-place-sheet";
 import { HomeTheme as T } from "../../../constants/home-theme";
 import { Fonts } from "../../../constants/font";
-import { formatKmLabel } from "../../../constants/location-radius";
+import { formatPlaceDistance } from "../../../constants/location-radius";
+import { communityUsesMiles } from "../../../utils/community-language";
 import { fetchEssentials } from "../../../services/community-directory-api";
 import { listingCategoryLabel } from "../../../components/discover/category-picker";
 import { setNearbyPlaceDraft } from "../../../services/nearby-place-draft";
 import { getCachedUser, subscribeSessionUser } from "../../../services/auth-session";
-import { isCommunityAdmin } from "../../../services/community-access";
+import { currentCommunityId, isCommunityAdmin, membershipForCommunity } from "../../../services/community-access";
 import { sf, sw } from "../../../utils/responsive";
 
 const SECTION_ICONS = {
@@ -70,6 +71,8 @@ export default function DiscoverEssentialScreen() {
   const [mapOpen, setMapOpen] = useState(false);
   const [sessionUser, setSessionUser] = useState(() => getCachedUser());
   const creatingPlace = isCommunityAdmin(sessionUser);
+  const activeCommunity = membershipForCommunity(sessionUser, currentCommunityId(sessionUser))?.community;
+  const useMiles = communityUsesMiles(activeCommunity, sessionUser);
 
   React.useEffect(() => subscribeSessionUser(setSessionUser), []);
 
@@ -183,7 +186,7 @@ export default function DiscoverEssentialScreen() {
           ) : (
             <View style={styles.listCard}>
               {entries.map((entry, index) => {
-                const distance = entry.distance_meters ? formatKmLabel(entry.distance_meters) : "";
+                const distance = formatPlaceDistance(entry.distance_meters, useMiles);
                 return (
                   <Pressable
                     key={entry.id}
@@ -200,11 +203,26 @@ export default function DiscoverEssentialScreen() {
                     </View>
                     <View style={styles.rowCopy}>
                       <Text style={styles.rowName} numberOfLines={1}>{entry.title}</Text>
-                      <Text style={styles.rowMeta} numberOfLines={1}>
-                        {t("topBar.essentialListingArea", {
-                          category: listingCategoryLabel(sectionKey, t, current.label),
-                        })}
-                      </Text>
+                      {entry.address ? (
+                        <Text style={styles.rowMeta} numberOfLines={2}>{entry.address}</Text>
+                      ) : (
+                        <Text style={styles.rowMeta} numberOfLines={1}>
+                          {t("topBar.essentialListingArea", {
+                            category: listingCategoryLabel(sectionKey, t, current.label),
+                          })}
+                        </Text>
+                      )}
+                      {entry.phone ? (
+                        <View style={styles.detailLine}>
+                          <Feather name="phone" size={sf(12)} color={T.deepTeal} />
+                          <Text style={styles.detailPhone} numberOfLines={1}>{entry.phone}</Text>
+                        </View>
+                      ) : null}
+                      {entry.description || entry.body ? (
+                        <Text style={styles.detailNote} numberOfLines={2}>
+                          {entry.description || entry.body}
+                        </Text>
+                      ) : null}
                       {distance ? (
                         <Text style={styles.rowDistance}>
                           {t("topBar.approxDistanceAway", { distance })}
@@ -217,7 +235,7 @@ export default function DiscoverEssentialScreen() {
                         </View>
                       ) : null}
                     </View>
-                    <Feather name="chevron-right" size={sf(18)} color="#C5CDD6" />
+                    <Feather name="chevron-right" size={sf(18)} color="#C5CDD6" style={styles.rowChevron} />
                   </Pressable>
                 );
               })}
@@ -319,7 +337,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: sw(12),
     paddingHorizontal: sw(14),
     paddingVertical: sw(14),
@@ -334,8 +352,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   rowCopy: { flex: 1, minWidth: 0 },
+  rowChevron: { marginTop: 2 },
   rowName: { fontFamily: Fonts.bold, fontSize: sf(15), color: "#0B1220" },
-  rowMeta: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(12), color: "#9CA3AF" },
+  rowMeta: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(16), color: "#6B7280" },
+  detailLine: { marginTop: 4, flexDirection: "row", alignItems: "center", gap: 6 },
+  detailPhone: { flex: 1, fontFamily: Fonts.medium, fontSize: sf(12), lineHeight: sf(16), color: T.deepTeal },
+  detailNote: { marginTop: 4, fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(16), color: "#64748B" },
   rowDistance: { marginTop: 4, fontFamily: Fonts.regular, fontSize: sf(12), color: "#6B7280" },
   badge: {
     marginTop: 8,

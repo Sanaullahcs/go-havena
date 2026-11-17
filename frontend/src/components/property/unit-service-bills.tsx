@@ -17,6 +17,7 @@ import {
 } from "@/lib/api/property-services";
 import { AmenityPaymentProofModal } from "@/components/property/amenity-payment-proof-modal";
 import { KuickpayPayButton } from "@/components/payments/kuickpay-pay-button";
+import { PAY_NOW_ENABLED } from "@/lib/payments-visibility";
 
 export function UnitServiceWorkspace() {
   const [bills, setBills] = useState<UnitServiceBill[]>([]);
@@ -100,7 +101,7 @@ export function UnitServiceWorkspace() {
                     </button>
                   ) : null}
                 </div>
-              ) : bill.can_submit_proof ? (
+              ) : bill.can_submit_proof && PAY_NOW_ENABLED ? (
                 <button type="button" className="mt-2 ml-3 text-xs font-semibold text-slate-800" onClick={() => setProofFor(bill)}>
                   Pay now
                 </button>

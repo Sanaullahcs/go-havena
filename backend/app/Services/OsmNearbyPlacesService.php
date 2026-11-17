@@ -174,10 +174,15 @@ class OsmNearbyPlacesService
         return range(500, 10000, 500);
     }
 
+    public static function maxRadiusMeters(): int
+    {
+        return 80500;
+    }
+
     public static function normalizeRadiusMeters(mixed $meters): int
     {
         $value = (int) $meters;
-        if (in_array($value, self::allowedRadiusMeters(), true)) {
+        if ($value >= 500 && $value <= self::maxRadiusMeters()) {
             return $value;
         }
 

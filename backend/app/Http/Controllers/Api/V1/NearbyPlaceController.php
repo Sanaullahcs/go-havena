@@ -23,7 +23,7 @@ class NearbyPlaceController extends Controller
             'category' => ['nullable', 'string', Rule::in(OsmPlaceCategories::KEYS)],
             'all' => ['sometimes', 'boolean'],
             'community_id' => ['nullable', 'integer'],
-            'radius_meters' => ['nullable', 'integer', Rule::in(OsmNearbyPlacesService::allowedRadiusMeters())],
+            'radius_meters' => ['nullable', 'integer', 'min:500', 'max:'.OsmNearbyPlacesService::maxRadiusMeters()],
             'page' => ['nullable', 'integer', 'min:1', 'max:20'],
         ]);
 

@@ -49,6 +49,18 @@ export function formatKmLabel(meters) {
   return `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
 }
 
+/** Distance for a place card. US communities use miles; everywhere else stays metric. */
+export function formatPlaceDistance(meters, useMiles) {
+  const value = Number(meters);
+  if (!Number.isFinite(value) || value <= 0) return "";
+  if (!useMiles) return formatKmLabel(value);
+  const miles = value / 1609.344;
+  if (miles < 0.1) return `${Math.max(1, Math.round(value * 3.28084))} ft`;
+  const shown = miles < 10 ? Math.round(miles * 10) / 10 : Math.round(miles);
+  const text = Number.isInteger(shown) ? String(shown) : shown.toFixed(1);
+  return `${text} mi`;
+}
+
 /** Smallest saved radius that still includes this distance. */
 export function coveringRadius(miles) {
   const value = Number(miles);

@@ -15,7 +15,7 @@ class AgreementPdf
      * @param  list<list<array{x: float, y: float}>>  $strokes
      * @param  array{page?: int, x: float, y: float, width: float, height: float}|null  $placement
      */
-    public static function stamp(string $sourcePath, array $lines, array $strokes, ?string $typedName, ?array $placement = null): string
+    public static function stamp(string $sourcePath, array $lines, array $strokes, ?string $typedName, ?array $placement = null, ?string $signedStamp = null): string
     {
         if (! is_file($sourcePath)) {
             throw new RuntimeException('The agreement file is missing.');
@@ -50,7 +50,7 @@ class AgreementPdf
             $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
             $pdf->useTemplate($template);
             if ($placedOn === $pageNo) {
-                self::paintOnPage($pdf, (float) $size['width'], (float) $size['height'], $placement, $strokes, $typedName);
+                self::paintOnPage($pdf, (float) $size['width'], (float) $size['height'], $placement, $strokes, $typedName, $signedStamp);
             }
         }
 
@@ -68,7 +68,7 @@ class AgreementPdf
         }
 
         if ($placedOn === null) {
-            self::paintFixedRecord($pdf, $strokes, $typedName);
+            self::paintFixedRecord($pdf, $strokes, $typedName, $signedStamp);
         } else {
             $pdf->SetX(18);
             $pdf->MultiCell(174, 6, 'Signature placed on page '.$placedOn.'.');
@@ -81,7 +81,7 @@ class AgreementPdf
      * @param  array{x: float, y: float, width: float, height: float}  $placement
      * @param  list<list<array{x: float, y: float}>>  $strokes
      */
-    private static function paintOnPage(Fpdi $pdf, float $pageWidth, float $pageHeight, array $placement, array $strokes, ?string $typedName): void
+    private static function paintOnPage(Fpdi $pdf, float $pageWidth, float $pageHeight, array $placement, array $strokes, ?string $typedName, ?string $signedStamp = null): void
     {
         $width = max(8.0, self::unit($placement['width']) * $pageWidth);
         $height = max(6.0, self::unit($placement['height']) * $pageHeight);
@@ -94,13 +94,13 @@ class AgreementPdf
             $y = max(0, $pageHeight - $height);
         }
 
-        self::paintMark($pdf, $x, $y, $width, $height, $strokes, $typedName);
+        self::paintMark($pdf, $x, $y, $width, $height, $strokes, $typedName, $signedStamp);
     }
 
     /**
      * @param  list<list<array{x: float, y: float}>>  $strokes
      */
-    private static function paintFixedRecord(Fpdi $pdf, array $strokes, ?string $typedName): void
+    private static function paintFixedRecord(Fpdi $pdf, array $strokes, ?string $typedName, ?string $signedStamp = null): void
     {
         $boxTop = max(120, $pdf->GetY() + 8);
         $pdf->SetDrawColor(27, 79, 138);
@@ -110,17 +110,20 @@ class AgreementPdf
         $pdf->SetTextColor(27, 79, 138);
         $pdf->SetXY(22, $boxTop + 2);
         $pdf->Cell(80, 5, 'Signature', 0, 1);
-        self::paintMark($pdf, 24, $boxTop + 10, 116, 28, $strokes, $typedName);
+        self::paintMark($pdf, 24, $boxTop + 10, 116, 28, $strokes, $typedName, $signedStamp);
     }
 
     /**
      * @param  list<list<array{x: float, y: float}>>  $strokes
      */
-    private static function paintMark(Fpdi $pdf, float $x, float $y, float $width, float $height, array $strokes, ?string $typedName): void
+    private static function paintMark(Fpdi $pdf, float $x, float $y, float $width, float $height, array $strokes, ?string $typedName, ?string $signedStamp = null): void
     {
+        $caption = $signedStamp ? min(5.5, max(3.6, $height * 0.22)) : 0.0;
+        $markHeight = max(4.0, $height - $caption);
+
         if ($typedName !== null && trim($typedName) !== '') {
             $name = self::ascii($typedName);
-            $font = max(10, min(36, (int) round(($height / 0.3528) * 0.62)));
+            $font = max(10, min(36, (int) round(($markHeight / 0.3528) * 0.62)));
             $pdf->SetFont('Times', 'I', $font);
             $pdf->SetTextColor(16, 24, 40);
             while ($font > 8 && $pdf->GetStringWidth($name) > $width * 0.92) {
@@ -128,8 +131,19 @@ class AgreementPdf
                 $pdf->SetFont('Times', 'I', $font);
             }
             $textHeight = $font * 0.3528;
-            $pdf->SetXY($x, $y + max(0, ($height - $textHeight) / 2));
+            $pdf->SetXY($x, $y + max(0, ($markHeight - $textHeight) / 2));
             $pdf->Cell($width, $textHeight, $name, 0, 0, 'C');
+        }
+
+        if ($signedStamp) {
+            $pdf->SetDrawColor(148, 163, 184);
+            $pdf->SetLineWidth(0.15);
+            $ruleY = $y + $markHeight + 0.4;
+            $pdf->Line($x + 1.5, $ruleY, $x + $width - 1.5, $ruleY);
+            $pdf->SetFont('Helvetica', '', max(5.5, min(8, $width / 24)));
+            $pdf->SetTextColor(100, 116, 139);
+            $pdf->SetXY($x, $ruleY + 0.5);
+            $pdf->Cell($width, max(2.6, $caption - 1.2), self::ascii($signedStamp), 0, 0, 'C');
         }
 
         if ($strokes === []) {
@@ -137,12 +151,12 @@ class AgreementPdf
         }
 
         $pdf->SetDrawColor(17, 24, 39);
-        $pdf->SetLineWidth(max(0.2, min(1.1, $height * 0.018)));
+        $pdf->SetLineWidth(max(0.2, min(1.1, $markHeight * 0.018)));
         foreach ($strokes as $path) {
             $previous = null;
             foreach ($path as $point) {
                 $px = $x + self::unit($point['x'] ?? 0) * $width;
-                $py = $y + self::unit($point['y'] ?? 0) * $height;
+                $py = $y + self::unit($point['y'] ?? 0) * $markHeight;
                 if ($previous !== null) {
                     $pdf->Line($previous[0], $previous[1], $px, $py);
                 }

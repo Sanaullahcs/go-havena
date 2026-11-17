@@ -242,7 +242,12 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
         accessibilityLabel={label}
       >
         <NavIcon item={item} focused={focused} />
-        <Text style={[styles.label, focused && styles.labelActive]} numberOfLines={1}>
+        <Text
+          style={[styles.label, focused && styles.labelActive]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.72}
+        >
           {label}
         </Text>
       </Pressable>
@@ -331,7 +336,7 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
     fontFamily: Fonts.medium,
     fontSize: LABEL_SIZE,
-    lineHeight: sf(13),
+    lineHeight: sf(16),
     color: INACTIVE,
     fontWeight: "500",
     textAlign: "center",

@@ -49,6 +49,11 @@ class UtilityBillUploadTest extends TestCase
         $this->assertRejected($this->lightDecorativeImage());
     }
 
+    public function test_rejects_simple_logo(): void
+    {
+        $this->assertRejected($this->simpleLogoImage());
+    }
+
     public function test_accepts_utility_bill_image_without_marking_verified(): void
     {
         $user = $this->actingResident();
@@ -348,6 +353,24 @@ class UtilityBillUploadTest extends TestCase
             }
             $y += $font >= 5 ? 42 : 36;
         }
+    }
+
+    private function simpleLogoImage(): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'logo').'.png';
+        $image = imagecreatetruecolor(640, 640);
+        $white = imagecolorallocate($image, 255, 255, 255);
+        $blue = imagecolorallocate($image, 27, 79, 138);
+        $navy = imagecolorallocate($image, 15, 40, 80);
+        imagefilledrectangle($image, 0, 0, 639, 639, $white);
+        imagefilledellipse($image, 320, 230, 200, 200, $blue);
+        imagefilledellipse($image, 320, 230, 110, 110, $white);
+        imagestring($image, 5, 255, 400, 'HAVENA', $navy);
+        imagefilledrectangle($image, 180, 440, 460, 468, $navy);
+        imagepng($image, $path);
+        imagedestroy($image);
+
+        return new UploadedFile($path, 'havena-logo.png', 'image/png', null, true);
     }
 
     private function lightDecorativeImage(): UploadedFile
