@@ -247,6 +247,9 @@ export default function AdminBookingsPage() {
     try {
       await approveBooking(booking.id);
       toastSuccess("Booking approved.");
+      if (viewingBooking?.id === booking.id) {
+        setViewingBooking({ ...viewingBooking, status: "confirmed" });
+      }
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -580,7 +583,21 @@ export default function AdminBookingsPage() {
         )}
       </DataTable>
 
-      <BookingInfoModal booking={viewingBooking} onClose={() => setViewingBooking(null)} />
+      <BookingInfoModal
+        booking={viewingBooking}
+        onClose={() => setViewingBooking(null)}
+        actionBusy={viewingBooking != null && busyId === viewingBooking.id}
+        onApprove={
+          viewingBooking?.status === "pending"
+            ? (row) => void handleApproveBooking(row)
+            : undefined
+        }
+        onReject={
+          viewingBooking?.status === "pending"
+            ? (row) => void handleRejectBooking(row)
+            : undefined
+        }
+      />
 
       {viewingSubscription ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 sm:items-center">

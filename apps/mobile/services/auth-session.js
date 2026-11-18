@@ -125,12 +125,20 @@ export async function getUser({ reload = false } = {}) {
   }
 }
 
+function patchWouldChange(user, patch) {
+  return Object.keys(patch).some(
+    (key) => JSON.stringify(user[key] ?? null) !== JSON.stringify(patch[key] ?? null),
+  );
+}
+
 /** Merge fields into the cached session user without replacing the auth token. */
 export async function patchCachedUser(patch) {
   if (!patch || typeof patch !== "object") return null;
 
   const user = await getUser({ reload: true });
   if (!user) return null;
+
+  if (!patchWouldChange(user, patch)) return user;
 
   const next = { ...user, ...patch };
   emitSessionUser(next);

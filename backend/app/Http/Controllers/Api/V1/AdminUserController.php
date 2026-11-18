@@ -13,10 +13,12 @@ use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\LifecycleMailService;
 use App\Services\MemberLifecycleStatus;
+use App\Services\LocationCatalog;
 use App\Services\OsmGeocodingService;
 use App\Services\ResidentInviteService;
 use App\Support\CommunityLocation;
 use App\Support\CommunityNameUniqueness;
+use App\Support\RegionHierarchy;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -78,7 +80,14 @@ class AdminUserController extends Controller
             ContactIdentityService::assertAvailableForRegistration($validated['email'], $phone);
         }
 
-        $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
+        $region = Region::query()
+            ->where('status', 'active')
+            ->with('stateRecord.country')
+            ->findOrFail($validated['region_id']);
+        RegionHierarchy::assertCityLevelForCommunity($region);
+        if ($region->stateRecord) {
+            $region = app(LocationCatalog::class)->ensureCityRegion($region->stateRecord, (string) $region->area);
+        }
         $displayName = trim($validated['name'] ?? '') ?: 'Neighbor';
         $actor = $request->user();
 

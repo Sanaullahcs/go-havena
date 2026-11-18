@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Community;
+use App\Models\Country;
 use App\Models\Region;
+use App\Models\State;
 use App\Models\User;
+use App\Services\LocationCatalog;
 use App\Support\CommunityNameUniqueness;
 use Database\Seeders\SystemAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -22,22 +25,25 @@ class CommunityNameUniquenessTest extends TestCase
         return User::query()->where('email', 'admin@havena.app')->firstOrFail();
     }
 
-    private function region(string $title): Region
+    private function region(string $city, string $stateName = 'Florida', string $countryCode = 'US'): Region
     {
-        return Region::query()->create([
-            'title' => $title,
-            'area' => $title,
-            'users_label' => '0 users',
-            'sort_order' => 1,
-            'status' => 'active',
-        ]);
+        $country = Country::query()->firstOrCreate(
+            ['code' => $countryCode],
+            ['name' => 'United States', 'billing_policy' => 'required', 'sort_order' => 1, 'status' => 'active'],
+        );
+        $state = State::query()->firstOrCreate(
+            ['country_id' => $country->id, 'name' => $stateName],
+            ['status' => 'active'],
+        );
+
+        return app(LocationCatalog::class)->ensureCityRegion($state, $city);
     }
 
     public function test_rejects_case_insensitive_duplicate_in_same_region(): void
     {
         Sanctum::actingAs($this->systemAdmin());
 
-        $region = $this->region('Florida');
+        $region = $this->region('Miami');
 
         $this->postJson('/api/v1/admin/communities', [
             'name' => 'Green Valley',
@@ -60,7 +66,7 @@ class CommunityNameUniquenessTest extends TestCase
     {
         Sanctum::actingAs($this->systemAdmin());
 
-        $region = $this->region('Florida');
+        $region = $this->region('Miami');
 
         $this->postJson('/api/v1/admin/communities', [
             'name' => '  Harbor Point  ',
@@ -89,8 +95,8 @@ class CommunityNameUniquenessTest extends TestCase
     {
         Sanctum::actingAs($this->systemAdmin());
 
-        $florida = $this->region('Florida');
-        $texas = $this->region('Texas');
+        $florida = $this->region('Miami', 'Florida');
+        $texas = $this->region('Austin', 'Texas');
 
         $this->postJson('/api/v1/admin/communities', [
             'name' => 'Green Valley Residence',
@@ -111,7 +117,7 @@ class CommunityNameUniquenessTest extends TestCase
 
     public function test_self_serve_rejects_pending_duplicate_in_same_region(): void
     {
-        $region = $this->region('Florida');
+        $region = $this->region('Miami');
 
         Community::query()->create([
             'name' => 'Green Valley',
@@ -132,6 +138,7 @@ class CommunityNameUniquenessTest extends TestCase
             'community_name' => 'GREEN VALLEY',
             'address' => '200 Green Valley Rd, Miami, FL',
             'region_id' => $region->id,
+            'city' => 'Miami',
         ])->assertStatus(422)
             ->assertJsonValidationErrors(['community_name']);
     }
@@ -140,7 +147,7 @@ class CommunityNameUniquenessTest extends TestCase
     {
         Sanctum::actingAs($this->systemAdmin());
 
-        $region = $this->region('Florida');
+        $region = $this->region('Miami');
 
         $existing = Community::query()->create([
             'name' => 'Green Valley',

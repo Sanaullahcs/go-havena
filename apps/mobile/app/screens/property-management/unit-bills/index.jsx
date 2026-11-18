@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -34,8 +34,8 @@ import { rnShadow } from "../../../../utils/shadow";
 import { billListFields, buildBillDocument, canPayBill, sortBills, summarizeBills } from "../../../../utils/bill-document";
 import {
   acknowledgeServiceBill,
-  billingAccessFromUser,
   fetchServiceBills,
+  invalidateViewerBillingAccessCache,
   resolveViewerBillingAccess,
   submitServiceBillProof,
 } from "../../../../services/property-services-api";
@@ -119,6 +119,7 @@ export default function UnitBillsScreen() {
   const [contactName, setContactName] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
   const [billingUnits, setBillingUnits] = useState([]);
+  const [activeUnits, setActiveUnits] = useState([]);
   const [unitFilterId, setUnitFilterId] = useState("all");
   const [busyId, setBusyId] = useState(null);
   const [filter, setFilter] = useState(null);
@@ -137,14 +138,32 @@ export default function UnitBillsScreen() {
       : null),
     [detailFor, sessionUser, t, unitNumber],
   );
-  const showUnitFilter = billingUnits.length > 1;
+  const unitFilterOptions = useMemo(() => {
+    const billUnitIds = new Set(bills.map((bill) => String(bill.unit_id)));
+    const merged = new Map();
+    for (const unit of [...billingUnits, ...activeUnits]) {
+      const id = unit?.id;
+      if (id == null) continue;
+      const isContact =
+        unit.is_billing_contact === true
+        || (sessionUser?.id != null && Number(unit.billing_contact_user_id) === Number(sessionUser.id));
+      if (isContact || billUnitIds.has(String(id))) {
+        merged.set(String(id), unit);
+      }
+    }
+    return [...merged.values()].sort((a, b) =>
+      String(a.unit_number || "").localeCompare(String(b.unit_number || ""), undefined, { numeric: true }),
+    );
+  }, [activeUnits, billingUnits, bills, sessionUser?.id]);
+
+  const showUnitFilter = unitFilterOptions.length > 1;
   const unitBillCounts = useMemo(() => {
     const counts = { all: bills.length };
-    for (const unit of billingUnits) {
+    for (const unit of unitFilterOptions) {
       counts[String(unit.id)] = bills.filter((bill) => String(bill.unit_id) === String(unit.id)).length;
     }
     return counts;
-  }, [bills, billingUnits]);
+  }, [bills, unitFilterOptions]);
   const emptyTitle =
     bills.length > 0 && unitFilterId !== "all"
       ? t("services.unitBillsFilterEmptyTitle")
@@ -154,35 +173,41 @@ export default function UnitBillsScreen() {
       ? t("services.unitBillsFilterEmptyBody")
       : t("services.unitBillsEmptyBody");
 
-  const load = useCallback(async ({ silent = false } = {}) => {
+  const load = useCallback(async ({ silent = false, force = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const known = billingAccessFromUser(sessionUser);
-      const billsPromise = known?.isBillingContact ? fetchServiceBills() : null;
       const {
         unit,
+        units: communityUnits,
         billingUnits: contactUnits,
         isBillingContact,
         contactName: billingContactName,
-      } = await resolveViewerBillingAccess();
+      } = await resolveViewerBillingAccess({ force });
       setIsContact(isBillingContact);
       setContactName(billingContactName);
+      setActiveUnits(communityUnits || []);
       setBillingUnits(contactUnits || []);
       setUnitNumber(unit?.unit_number || "");
       if (!isBillingContact) {
         setBills([]);
         return;
       }
-      setBills(await (billsPromise ?? fetchServiceBills()));
+      setBills(await fetchServiceBills());
     } catch (error) {
       await showFailure(t("services.unitBillsTitle"), error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [sessionUser, showFailure, t]);
+  }, [showFailure, t]);
 
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  const focusedOnceRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      void load({ silent: focusedOnceRef.current, force: false });
+      focusedOnceRef.current = true;
+    }, [load]),
+  );
 
   function openPayment(bill) {
     setDetailFor(null);
@@ -226,8 +251,8 @@ export default function UnitBillsScreen() {
     openPayment(bill);
   }
 
-  const headerSubtitle = billingUnits.length > 1
-    ? t("myUnits.count", { count: billingUnits.length })
+  const headerSubtitle = unitFilterOptions.length > 1
+    ? t("myUnits.count", { count: unitFilterOptions.length })
     : unitNumber
       ? t("services.billingContact.unitLabel", { number: unitNumber })
       : t("services.unitBillsSub");
@@ -265,14 +290,18 @@ export default function UnitBillsScreen() {
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
-                  onRefresh={() => { setRefreshing(true); void load({ silent: true }); }}
+                  onRefresh={() => {
+                    setRefreshing(true);
+                    invalidateViewerBillingAccessCache();
+                    void load({ silent: true, force: true });
+                  }}
                   tintColor={PropertyHubTheme.teal}
                 />
               }
             >
               {showUnitFilter ? (
                 <UnitFilterMenu
-                  units={billingUnits}
+                  units={unitFilterOptions}
                   value={unitFilterId}
                   onChange={(next) => {
                     setUnitFilterId(next);
@@ -298,7 +327,7 @@ export default function UnitBillsScreen() {
               chromeExtra={
                 showUnitFilter ? (
                   <UnitFilterMenu
-                    units={billingUnits}
+                    units={unitFilterOptions}
                     value={unitFilterId}
                     onChange={(next) => {
                       setUnitFilterId(next);
@@ -311,7 +340,11 @@ export default function UnitBillsScreen() {
               }
               t={t}
               refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); void load({ silent: true }); }}
+              onRefresh={() => {
+                setRefreshing(true);
+                invalidateViewerBillingAccessCache();
+                void load({ silent: true, force: true });
+              }}
               data={visible}
               keyExtractor={(bill) => String(bill.id)}
               renderItem={({ item: bill }) => {
@@ -324,7 +357,7 @@ export default function UnitBillsScreen() {
                     icon={<Feather name="home" size={sf(18)} color={PropertyHubTheme.deepTeal} />}
                     title={fields.title}
                     subtitle={
-                      billingUnits.length > 1 && bill.unit_number
+                      unitFilterOptions.length > 1 && bill.unit_number
                         ? `${bill.unit_number} · ${fields.subtitle || ""}`.replace(/\s·\s$/, "")
                         : fields.subtitle
                     }

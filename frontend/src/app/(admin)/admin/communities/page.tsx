@@ -192,7 +192,7 @@ export default function CommunitiesPage() {
     (liveErrors.name === DUPLICATE_COMMUNITY_NAME_MESSAGE ? liveErrors.name : undefined);
 
   useEffect(() => {
-    fetchRegions({ status: "active", per_page: 100 })
+    fetchRegions({ status: "active", per_page: 100, city_level: 1 })
       .then((res) => setRegions(res.data.filter((r) => r.status === "active")))
       .catch(() => setRegions([]));
   }, []);
@@ -736,7 +736,7 @@ export default function CommunitiesPage() {
                   <option value="">Select region…</option>
                   {regions.map((r) => (
                     <option key={r.id} value={r.id}>
-                      {r.title}{r.area ? ` · ${r.area}` : ""}
+                      {r.hierarchy_label ?? r.title}{r.area && !(r.hierarchy_label ?? "").includes(r.area) ? ` · ${r.area}` : ""}
                     </option>
                   ))}
                 </select>
@@ -897,7 +897,9 @@ export default function CommunitiesPage() {
                 >
                   <option value="">Select region…</option>
                   {regions.map((r) => (
-                    <option key={r.id} value={r.id}>{r.title}{r.area ? ` · ${r.area}` : ""}</option>
+                    <option key={r.id} value={r.id}>
+                      {r.hierarchy_label ?? r.title}
+                    </option>
                   ))}
                 </select>
               </div>

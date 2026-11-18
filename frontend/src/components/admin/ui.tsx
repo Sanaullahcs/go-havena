@@ -197,6 +197,7 @@ export function DataTable<K extends string>({
   onSearch,
   searchPlaceholder = "Search…",
   searchClassName,
+  searchDisabled = false,
   searching = false,
   loading,
   filters,
@@ -225,6 +226,8 @@ export function DataTable<K extends string>({
   searchPlaceholder?: string;
   /** Replaces the default search width when a longer placeholder must stay visible. */
   searchClassName?: string;
+  /** While a modal owns keyboard focus, keep the table search inert so typing does not filter the list. */
+  searchDisabled?: boolean;
   searching?: boolean;
   /** Preferred name — same as `searching`. Shows progress overlay on the table body. */
   loading?: boolean;
@@ -270,11 +273,15 @@ export function DataTable<K extends string>({
               placeholder={searchPlaceholder}
               value={search}
               hideClear={showProgress}
+              disabled={searchDisabled}
+              readOnly={searchDisabled}
+              tabIndex={searchDisabled ? -1 : undefined}
               onChange={(e) => onSearch(e.target.value)}
               className={[
                 stacked
                   ? "h-9 w-full max-w-none rounded-lg border border-slate-200 bg-white py-1.5 pl-[1.875rem] pr-8 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#E8F1FA] transition"
                   : "h-8 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-[1.875rem] pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition",
+                searchDisabled ? "pointer-events-none opacity-60" : "",
                 stacked ? "" : (searchClassName ?? "min-w-[14rem] max-w-[18rem] sm:w-64"),
               ].join(" ")}
             />

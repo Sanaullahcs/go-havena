@@ -440,7 +440,7 @@ export async function requestCommunity({ communityName, address, description, re
         address,
         description: description || undefined,
         region_id: regionId,
-        city: city || undefined,
+        city: city?.trim() || undefined,
         latitude: latitude ?? null,
         longitude: longitude ?? null,
       },

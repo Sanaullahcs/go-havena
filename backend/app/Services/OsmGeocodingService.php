@@ -174,6 +174,158 @@ class OsmGeocodingService
         ];
     }
 
+    public function cityFromAddress(string $address): ?string
+    {
+        $place = $this->placeFromAddress($address);
+
+        return $place['city'] ?? null;
+    }
+
+    /**
+     * @return array{country_code?: string, country_name?: string, state_name?: string, city?: string}|null
+     */
+    public function placeFromAddress(string $address): ?array
+    {
+        $address = trim($address);
+        if ($address === '' || ! $this->shouldCallRemote()) {
+            return null;
+        }
+
+        try {
+            $response = Http::withHeaders($this->headers())
+                ->timeout((int) config('osm.nominatim_timeout', 12))
+                ->get((string) config('osm.nominatim_url'), [
+                    'q' => $address,
+                    'format' => 'json',
+                    'limit' => 1,
+                    'addressdetails' => 1,
+                    'accept-language' => 'en',
+                ]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $first = $response->json('0');
+        if (! is_array($first)) {
+            return null;
+        }
+
+        return $this->placeFromNominatim($first);
+    }
+
+    public function cityFromCoordinates(float $latitude, float $longitude): ?string
+    {
+        if (! $this->shouldCallRemote()) {
+            return null;
+        }
+
+        try {
+            $response = Http::withHeaders($this->headers())
+                ->timeout((int) config('osm.nominatim_timeout', 12))
+                ->get((string) config('osm.nominatim_reverse_url'), [
+                    'lat' => $latitude,
+                    'lon' => $longitude,
+                    'format' => 'json',
+                    'addressdetails' => 1,
+                    'zoom' => 12,
+                    'accept-language' => 'en',
+                ]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $payload = $response->json();
+        if (! is_array($payload)) {
+            return null;
+        }
+
+        $place = $this->placeFromNominatim($payload);
+
+        return $place['city'] ?? null;
+    }
+
+    /**
+     * @return array{country_code?: string, country_name?: string, state_name?: string, city?: string}|null
+     */
+    public function placeFromCoordinates(float $latitude, float $longitude): ?array
+    {
+        if (! $this->shouldCallRemote()) {
+            return null;
+        }
+
+        try {
+            $response = Http::withHeaders($this->headers())
+                ->timeout((int) config('osm.nominatim_timeout', 12))
+                ->get((string) config('osm.nominatim_reverse_url'), [
+                    'lat' => $latitude,
+                    'lon' => $longitude,
+                    'format' => 'json',
+                    'addressdetails' => 1,
+                    'zoom' => 12,
+                    'accept-language' => 'en',
+                ]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $payload = $response->json();
+        if (! is_array($payload)) {
+            return null;
+        }
+
+        return $this->placeFromNominatim($payload);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{country_code?: string, country_name?: string, state_name?: string, city?: string}|null
+     */
+    private function placeFromNominatim(array $payload): ?array
+    {
+        $addr = is_array($payload['address'] ?? null) ? $payload['address'] : [];
+        $city = $this->localityFromNominatimAddress($payload);
+        $state = trim((string) ($addr['state'] ?? $addr['region'] ?? $addr['state_district'] ?? ''));
+        $countryCode = strtoupper(trim((string) ($addr['country_code'] ?? '')));
+        $countryName = trim((string) ($addr['country'] ?? ''));
+
+        if ($countryCode === '' && $countryName === '' && $state === '' && ! $city) {
+            return null;
+        }
+
+        return array_filter([
+            'country_code' => $countryCode !== '' ? $countryCode : null,
+            'country_name' => $countryName !== '' ? $countryName : null,
+            'state_name' => $state !== '' ? $state : null,
+            'city' => $city,
+        ], fn ($v) => filled($v));
+    }
+
+    /** @param  array<string, mixed>  $payload */
+    private function localityFromNominatimAddress(array $payload): ?string
+    {
+        $addr = is_array($payload['address'] ?? null) ? $payload['address'] : [];
+        foreach (['city', 'town', 'village', 'municipality', 'county', 'state_district'] as $key) {
+            $value = trim((string) ($addr[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * One-shot Nominatim reverse geocode when the user moves the map pin.
      *

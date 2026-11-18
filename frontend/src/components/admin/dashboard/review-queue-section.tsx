@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -19,6 +20,8 @@ import type { AdminDashboardPendingAction } from "@/lib/api/dashboard";
 import { actionTypeLabel, PendingActionUnits } from "@/components/admin/dashboard/dashboard-shared";
 import type { DashboardTone } from "@/components/admin/dashboard/dashboard-shared";
 import { formatPhonesInText } from "@/lib/phone/format";
+import { DtPagination } from "@/components/admin/ui";
+import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 
 const TYPE_META: Record<
   AdminDashboardPendingAction["type"],
@@ -151,6 +154,18 @@ export default function ReviewQueueSection({
   onApprove: (action: AdminDashboardPendingAction) => void;
   onReject: (action: AdminDashboardPendingAction) => void;
 }) {
+  const [page, setPage] = useState(1);
+  const lastPage = Math.max(1, Math.ceil(items.length / ADMIN_TABLE_PAGE_SIZE));
+
+  useEffect(() => {
+    if (page > lastPage) setPage(lastPage);
+  }, [page, lastPage]);
+
+  const pageItems = useMemo(() => {
+    const start = (page - 1) * ADMIN_TABLE_PAGE_SIZE;
+    return items.slice(start, start + ADMIN_TABLE_PAGE_SIZE);
+  }, [items, page]);
+
   return (
     <section
       id={ADMIN_REVIEW_QUEUE_ID}
@@ -178,19 +193,29 @@ export default function ReviewQueueSection({
           <p className="text-[13px] font-medium text-slate-600">Nothing needs your attention right now.</p>
         </div>
       ) : (
-        <div className="flex flex-col">
-          {items.map((action) => (
-            <ReviewQueueRow
-              key={`${action.type}-${action.id}`}
-              action={action}
-              relTime={relTime(action.created_at)}
-              busy={actionId === action.id}
-              canInline={inlineTypes.has(action.type)}
-              onApprove={() => onApprove(action)}
-              onReject={() => onReject(action)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="flex flex-col">
+            {pageItems.map((action) => (
+              <ReviewQueueRow
+                key={`${action.type}-${action.id}`}
+                action={action}
+                relTime={relTime(action.created_at)}
+                busy={actionId === action.id}
+                canInline={inlineTypes.has(action.type)}
+                onApprove={() => onApprove(action)}
+                onReject={() => onReject(action)}
+              />
+            ))}
+          </div>
+          <DtPagination
+            showing={pageItems.length}
+            total={items.length}
+            page={page}
+            lastPage={lastPage}
+            pageSize={ADMIN_TABLE_PAGE_SIZE}
+            onPageChange={setPage}
+          />
+        </>
       )}
     </section>
   );

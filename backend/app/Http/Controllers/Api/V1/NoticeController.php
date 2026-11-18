@@ -12,6 +12,7 @@ use App\Services\NoticeAudienceService;
 use App\Services\NotificationService;
 use App\Services\ScheduledNoticeService;
 use App\Services\AmenitySharedBillService;
+use App\Services\GuestAccessService;
 use App\Services\UnitServiceBillService;
 use App\Services\UserActingContextService;
 use App\Services\UserBlockService;
@@ -68,6 +69,11 @@ class NoticeController extends Controller
 
         $isAdmin = $this->isCommunityAdmin($user);
         $mine = $request->boolean('mine');
+
+        if (! $mine && ! $this->isPlatformAdmin($user) && ! GuestAccessService::isGuest($user)) {
+            app(UnitServiceBillService::class)->prepareResidentFinanceNotices($communityId, (int) $user->id);
+            app(AmenitySharedBillService::class)->backfillFinanceNoticesForResident($communityId, (int) $user->id);
+        }
 
         if ($mine) {
             app(\App\Services\CommunityFeatureService::class)->assertResidentCanAccess(

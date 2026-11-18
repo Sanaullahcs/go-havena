@@ -671,11 +671,11 @@ class AmenityOwnershipTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_create_amenity_with_25_character_location(): void
+    public function test_admin_can_create_amenity_with_40_character_location(): void
     {
         ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
         Sanctum::actingAs($admin);
-        $floor = str_repeat('A', 25);
+        $floor = str_repeat('A', 40);
 
         $this->postJson('/api/v1/admin/amenities', [
             'name' => 'Clubhouse',
@@ -699,7 +699,7 @@ class AmenityOwnershipTest extends TestCase
             'name' => 'Too Long Location',
             'status' => 'open',
             'capacity' => 10,
-            'floor' => str_repeat('B', 26),
+            'floor' => str_repeat('B', 41),
             'icon_key' => 'hall',
             'start_time' => '06:00',
             'end_time' => '22:00',

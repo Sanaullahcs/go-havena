@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "../constants/api-config";
 import { apiRequest, ApiError } from "./api-client";
-import { getCommunityId, getToken, getUser } from "./auth-session";
+import { getCommunityId, getToken, getUser, patchCachedUser } from "./auth-session";
 import { persistUploadAsset, uploadMultipartFile } from "../utils/upload-form-data";
 import i18n from "../i18n";
 import { buildPaymentRejectionBody } from "../constants/payment-rejection";
@@ -116,6 +116,29 @@ export function viewerIsBillingContact(unit, userId) {
 const BILLING_ACCESS_TTL_MS = 60_000;
 let billingAccessCache = { value: null, at: 0, inflight: null };
 
+function activeUnitsFromRows(units) {
+  return (units || []).filter((row) => (row?.association_status || "active") === "active");
+}
+
+/** True when cached auth user is missing units the API last reported for this community. */
+export function sessionUnitsLookIncomplete(user) {
+  if (!user || typeof user !== "object" || !Array.isArray(user.units)) return true;
+
+  const meta = user.units_meta && typeof user.units_meta === "object" ? user.units_meta : {};
+  const expectedAssociations = Number(meta.association_count ?? 0);
+  const expectedActive = Number(meta.unit_count ?? 0);
+  const sessionRows = user.units;
+
+  if (expectedAssociations > 0 && sessionRows.length < expectedAssociations) {
+    return true;
+  }
+  if (expectedActive > 0 && activeUnitsFromRows(sessionRows).length < expectedActive) {
+    return true;
+  }
+
+  return false;
+}
+
 /** Billing-contact access already stored on the signed-in user. Null when the session has no unit payload yet. */
 export function billingAccessFromUser(user) {
   if (!user || typeof user !== "object") return null;
@@ -124,9 +147,13 @@ export function billingAccessFromUser(user) {
   if (!hasUnits && !hasFlag) return null;
 
   const units = hasUnits ? user.units : [];
-  const active = units.filter((row) => (row?.association_status || "active") === "active");
+  const active = activeUnitsFromRows(units);
   const billingUnits = active.filter((row) => viewerIsBillingContact(row, user.id));
-  const isBillingContact = hasUnits ? billingUnits.length > 0 : user.is_billing_contact === true;
+  const meta = user.units_meta && typeof user.units_meta === "object" ? user.units_meta : {};
+  const billingCountFromMeta = Number(meta.billing_contact_unit_count ?? 0);
+  const isBillingContact = hasUnits
+    ? billingUnits.length > 0
+    : user.is_billing_contact === true || billingCountFromMeta > 0;
   const unit = billingUnits[0] || active[0] || user.unit || null;
 
   return {
@@ -136,8 +163,9 @@ export function billingAccessFromUser(user) {
     isBillingContact,
     contactName: unit?.billing_contact?.name || "",
     meta: {
-      unit_count: active.length,
-      billing_contact_unit_count: billingUnits.length,
+      unit_count: Number(meta.unit_count ?? active.length),
+      association_count: Number(meta.association_count ?? units.length),
+      billing_contact_unit_count: billingUnits.length || billingCountFromMeta,
     },
   };
 }
@@ -161,8 +189,11 @@ export async function resolveViewerBillingAccess({ force = false } = {}) {
   if (!force) {
     const cached = getCachedViewerBillingAccess();
     if (cached) return cached;
-    const fromSession = billingAccessFromUser(await getUser());
-    if (fromSession) return rememberViewerBillingAccess(fromSession);
+    const user = await getUser();
+    const fromSession = billingAccessFromUser(user);
+    if (fromSession && !sessionUnitsLookIncomplete(user)) {
+      return rememberViewerBillingAccess(fromSession);
+    }
     if (billingAccessCache.inflight) return billingAccessCache.inflight;
   }
 
@@ -172,11 +203,26 @@ export async function resolveViewerBillingAccess({ force = false } = {}) {
       getUser(),
     ]);
 
-    const active = (payload.units || []).filter(
-      (row) => (row.association_status || "active") === "active",
-    );
+    const active = activeUnitsFromRows(payload.units);
     const billingUnits = active.filter((row) => viewerIsBillingContact(row, user?.id));
     const unit = billingUnits[0] || payload.unit || active[0] || null;
+    const meta = {
+      unit_count: Number(payload.meta?.unit_count ?? active.length),
+      association_count: Number(payload.meta?.association_count ?? (payload.units || []).length),
+      billing_contact_unit_count: Number(
+        payload.meta?.billing_contact_unit_count ?? billingUnits.length,
+      ),
+    };
+
+    if (user && Array.isArray(payload.units) && payload.units.length > 0) {
+      const isBillingContact = billingUnits.length > 0;
+      await patchCachedUser({
+        units: payload.units,
+        unit: unit || payload.unit || null,
+        units_meta: meta,
+        is_billing_contact: isBillingContact,
+      });
+    }
 
     return rememberViewerBillingAccess({
       unit,
@@ -184,7 +230,7 @@ export async function resolveViewerBillingAccess({ force = false } = {}) {
       billingUnits,
       isBillingContact: billingUnits.length > 0,
       contactName: unit?.billing_contact?.name || "",
-      meta: payload.meta || {},
+      meta,
     });
   })();
 

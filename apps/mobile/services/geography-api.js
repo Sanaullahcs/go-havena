@@ -53,21 +53,28 @@ export async function fetchCountryStates(countryId) {
   return asPlaces(result.data);
 }
 
-export async function resolveLocation({ countryId, stateId, city }) {
+/** Find an existing city region for filters — does not create regions. */
+export async function findCityRegion({ countryId, stateId, city }) {
   const resolvedStateId = Number(stateId);
-  if (!Number.isFinite(resolvedStateId) || resolvedStateId <= 0) return null;
   const cityName = String(city ?? "").trim();
-  const result = await apiRequest("/locations/resolve", {
-    method: "POST",
+  if (!Number.isFinite(resolvedStateId) || resolvedStateId <= 0 || !cityName) return null;
+
+  const params = new URLSearchParams();
+  params.set("state_id", String(resolvedStateId));
+  params.set("city", cityName);
+  if (Number(countryId) > 0) params.set("country_id", String(countryId));
+
+  const result = await apiRequest(`/regions?${params.toString()}`, {
     auth: false,
     community: false,
-    body: {
-      ...(Number(countryId) > 0 ? { country_id: Number(countryId) } : {}),
-      state_id: resolvedStateId,
-      ...(cityName ? { city: cityName } : {}),
-    },
   });
-  return result.data ?? null;
+  const list = Array.isArray(result.data) ? result.data : [];
+  return list.find((item) => item?.type === "region") ?? null;
+}
+
+/** @deprecated Use findCityRegion — retained as alias for older screens. */
+export async function resolveLocation(args) {
+  return findCityRegion(args);
 }
 
 export async function fetchStateCities(stateId, query) {

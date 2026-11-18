@@ -117,6 +117,7 @@ export default function RequestForCommunityScreen() {
           address: address.trim(),
           description: description.trim(),
           regionId: selectedRegionId,
+          city: selectedRegion?.area?.trim() || undefined,
           latitude,
           longitude,
         });

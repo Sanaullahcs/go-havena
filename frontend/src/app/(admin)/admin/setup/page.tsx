@@ -10,7 +10,7 @@ import {
   fetchPublicCountries,
   fetchPublicCountryStates,
   fetchPublicStateCities,
-  resolvePublicLocation,
+  searchPublicCityRegion,
   type City,
   type Country,
   type State,
@@ -123,16 +123,16 @@ function SetupInner() {
 
     let cancelled = false;
     setRegionsLoaded(false);
-    void resolvePublicLocation({
+    void searchPublicCityRegion({
       ...(countryFilter?.id ? { country_id: countryFilter.id } : {}),
       state_id: stateFilter.id,
-      ...(cityFilter?.name ? { city: cityFilter.name } : {}),
+      city: cityFilter.name,
     })
       .then((res) => {
         if (cancelled || !res.data) return;
         setRegions([{
           id: res.data.id,
-          title: res.data.title,
+          title: res.data.hierarchy_label ?? res.data.title,
           area: res.data.area,
           state_id: res.data.state_id,
           state_name: res.data.state_name,
@@ -142,7 +142,10 @@ function SetupInner() {
         }]);
       })
       .catch(() => {
-        if (!cancelled) setFormError("Could not open that location. Try again.");
+        if (!cancelled) {
+          setRegions([]);
+          setFormError("No communities are set up for this city yet. Try another city or contact support.");
+        }
       })
       .finally(() => {
         if (!cancelled) setRegionsLoaded(true);
@@ -224,6 +227,7 @@ function SetupInner() {
         address: address.trim(),
         description: description.trim() || undefined,
         region_id: selectedRegion.id,
+        city: (cityFilter?.name ?? selectedRegion.area ?? "").trim() || undefined,
         latitude,
         longitude,
       });
@@ -714,8 +718,10 @@ function RegionList({
         : !city
           ? `Now choose a city in ${state.name}.`
           : loading
-            ? "Pinning this city…"
-            : "";
+            ? "Searching this city…"
+            : readyRegion
+              ? ""
+              : "No region in this city yet.";
 
   const fields = [
     {

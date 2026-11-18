@@ -71,7 +71,32 @@ class GeographyLocationsTest extends TestCase
         ]);
     }
 
-    public function test_resolve_location_opens_a_city_region(): void
+    public function test_resolve_location_finds_existing_city_region_without_creating(): void
+    {
+        $country = Country::query()->where('code', 'US')->firstOrFail();
+        $state = State::query()->firstOrCreate(
+            ['country_id' => $country->id, 'name' => 'Delaware'],
+            ['status' => 'active'],
+        );
+
+        app(\App\Services\LocationCatalog::class)->ensureCityRegion($state, 'Wilmington');
+
+        $this->postJson('/api/v1/locations/resolve', [
+            'country_id' => $country->id,
+            'state_id' => $state->id,
+            'city' => 'Wilmington',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.title', 'United States - Delaware - Wilmington')
+            ->assertJsonPath('data.area', 'Wilmington');
+
+        $this->assertSame(
+            1,
+            Region::query()->where('state_id', $state->id)->whereRaw('LOWER(area) = ?', ['wilmington'])->count(),
+        );
+    }
+
+    public function test_resolve_location_does_not_create_missing_city_region(): void
     {
         $country = Country::query()->where('code', 'US')->firstOrFail();
         $state = State::query()->firstOrCreate(
@@ -83,16 +108,9 @@ class GeographyLocationsTest extends TestCase
             'country_id' => $country->id,
             'state_id' => $state->id,
             'city' => 'Wilmington',
-        ])
-            ->assertOk()
-            ->assertJsonPath('data.title', 'Delaware - Wilmington')
-            ->assertJsonPath('data.area', 'Wilmington');
+        ])->assertStatus(422);
 
-        $this->assertDatabaseHas('regions', [
-            'state_id' => $state->id,
-            'title' => 'Delaware - Wilmington',
-            'status' => 'active',
-        ]);
+        $this->assertSame(0, Region::query()->where('state_id', $state->id)->count());
     }
 
     public function test_resolve_location_reuses_seeded_pakistan_city_region(): void
@@ -101,7 +119,7 @@ class GeographyLocationsTest extends TestCase
         $state = State::query()->where('country_id', $country->id)->where('name', 'Punjab')->firstOrFail();
         $seeded = Region::query()->create([
             'state_id' => $state->id,
-            'title' => 'Pakistan - Lahore',
+            'title' => 'Pakistan - Punjab - Lahore',
             'area' => 'Lahore',
             'state' => 'Punjab',
             'users_label' => 'Open',
@@ -116,12 +134,12 @@ class GeographyLocationsTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('data.id', $seeded->id)
-            ->assertJsonPath('data.title', 'Pakistan - Lahore');
+            ->assertJsonPath('data.title', 'Pakistan - Punjab - Lahore');
 
         $this->assertSame(1, Region::query()->where('state_id', $state->id)->where('area', 'Lahore')->count());
     }
 
-    public function test_regions_index_creates_statewide_location_when_filtered(): void
+    public function test_regions_index_does_not_create_locations_when_filtered(): void
     {
         $country = Country::query()->create([
             'code' => 'QV',
@@ -140,6 +158,8 @@ class GeographyLocationsTest extends TestCase
 
         $this->getJson("/api/v1/regions?state_id={$state->id}")
             ->assertOk()
-            ->assertJsonFragment(['title' => 'United States - Delaware']);
+            ->assertJsonCount(0, 'data');
+
+        $this->assertSame(0, Region::query()->where('state_id', $state->id)->count());
     }
 }

@@ -15,10 +15,13 @@ use App\Services\ContactIdentityService;
 use App\Services\MembershipService;
 use App\Services\NotificationService;
 use App\Services\LifecycleMailService;
+use App\Services\LocationCatalog;
 use App\Services\OsmGeocodingService;
 use App\Services\ReferralService;
+use App\Support\CommunityGeography;
 use App\Support\CommunityLocation;
 use App\Support\CommunityNameUniqueness;
+use App\Support\RegionHierarchy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -112,6 +115,7 @@ class AdminCommunityController extends Controller
         $validated = $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'region_id'   => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
+            'city'        => ['nullable', 'string', 'min:2', 'max:150'],
             'address'     => ['required', 'string', 'min:5', 'max:500'],
             'description' => ['nullable', 'string', 'max:1000'],
             ...CommunityLocation::coordinateRules(),
@@ -119,7 +123,13 @@ class AdminCommunityController extends Controller
 
         $validated = CommunityLocation::applyOnCreate($validated, $geocoding);
         $validated['name'] = CommunityNameUniqueness::trim($validated['name']);
-        $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
+        $region = $this->resolveCommunityRegion(
+            (int) $validated['region_id'],
+            $validated['city'] ?? null,
+            $validated['address'] ?? null,
+            $validated['latitude'] ?? null,
+            $validated['longitude'] ?? null,
+        );
 
         CommunityNameUniqueness::assertUnique(
             $validated['name'],
@@ -202,8 +212,9 @@ class AdminCommunityController extends Controller
     /** PATCH /v1/admin/community-requests/{id}/approve */
     public function approve(int $id, Request $request): JsonResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
+            'city' => ['nullable', 'string', 'min:2', 'max:150'],
         ]);
 
         $community = Community::query()->findOrFail($id);
@@ -212,7 +223,13 @@ class AdminCommunityController extends Controller
             return response()->json(['message' => 'This community request is not pending review.'], 422);
         }
 
-        $region = Region::query()->where('status', 'active')->findOrFail($request->integer('region_id'));
+        $region = $this->resolveCommunityRegion(
+            (int) $validated['region_id'],
+            $validated['city'] ?? null,
+            $community->address,
+            $community->latitude,
+            $community->longitude,
+        );
 
         CommunityNameUniqueness::assertUniqueInRegion(
             $community->name,
@@ -371,13 +388,24 @@ class AdminCommunityController extends Controller
         $validated = $request->validate([
             'name'        => ['sometimes', 'string', 'max:255'],
             'region_id'   => ['sometimes', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
+            'city'        => ['nullable', 'string', 'min:2', 'max:150'],
             'address'     => ['sometimes', 'required', 'string', 'min:5', 'max:500'],
             'description' => ['nullable', 'string', 'max:1000'],
             ...CommunityLocation::coordinateRules(),
         ]);
 
         if (array_key_exists('region_id', $validated)) {
-            $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
+            $nextAddress = array_key_exists('address', $validated)
+                ? (string) $validated['address']
+                : (string) $community->address;
+            $region = $this->resolveCommunityRegion(
+                (int) $validated['region_id'],
+                $validated['city'] ?? null,
+                $nextAddress,
+                $validated['latitude'] ?? $community->latitude,
+                $validated['longitude'] ?? $community->longitude,
+            );
+            $validated['region_id'] = $region->id;
             $validated['region'] = $region->title;
         }
 
@@ -745,6 +773,7 @@ class AdminCommunityController extends Controller
             'region_detail'  => $community->regionRecord ? [
                 'id'    => $community->regionRecord->id,
                 'title' => $community->regionRecord->title,
+                'hierarchy_label' => RegionHierarchy::hierarchyLabel($community->regionRecord),
                 'area'  => $community->regionRecord->area,
                 'state' => $community->regionRecord->state,
             ] : null,
@@ -866,7 +895,9 @@ class AdminCommunityController extends Controller
             'longitude'      => $community->longitude,
             'region'         => $community->region,
             'region_id'      => $community->region_id,
-            'region_title'   => $community->regionRecord?->title ?? $community->region,
+            'region_title'   => $community->regionRecord
+                ? RegionHierarchy::hierarchyLabel($community->regionRecord)
+                : ($community->region ?? null),
             'currency'       => app(\App\Services\CommunityCurrencyService::class)->forCommunity($community),
             'status'         => $community->status,
             'review_status'  => $community->review_status,
@@ -902,5 +933,28 @@ class AdminCommunityController extends Controller
             : $community->plaidConnection()->first();
 
         return app(\App\Services\PlaidService::class)->publicStatusForCommunity($connection);
+    }
+
+    private function resolveCommunityRegion(
+        int $regionId,
+        ?string $city = null,
+        ?string $address = null,
+        mixed $latitude = null,
+        mixed $longitude = null,
+    ): Region {
+        $region = Region::query()
+            ->where('status', 'active')
+            ->with('stateRecord.country')
+            ->findOrFail($regionId);
+
+        return app(CommunityGeography::class)->resolveForCommunity(
+            $region,
+            $city,
+            $address,
+            $latitude,
+            $longitude,
+            app(LocationCatalog::class),
+            app(OsmGeocodingService::class),
+        );
     }
 }

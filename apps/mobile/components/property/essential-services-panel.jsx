@@ -1,225 +1,391 @@
-import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { useFocusEffect } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
+import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { getCurrentRole } from "../../constants/role-session";
-import ListingFormFields, { listingFormError } from "../discover/listing-form-fields";
-import { listingCategoryLabel, NEW_CATEGORY } from "../discover/category-picker";
+import { listingCategoryLabel } from "../discover/category-picker";
+import SuggestPlaceSheet from "../discover/suggest-place-sheet";
+import SearchInput from "../ui/search-input";
 import {
-  createEssentialEntry,
-  deleteEssentialEntry,
   fetchAdminEssentials,
   fetchEssentials,
-  reviewPlaceSuggestion,
-  updateEssentialEntry,
 } from "../../services/community-directory-api";
-import { DEFAULT_PHONE_COUNTRY } from "../../constants/phone-countries";
-import { toE164 } from "../../utils/phone";
+import { getCachedUser, subscribeSessionUser } from "../../services/auth-session";
+import { isCommunityAdmin } from "../../services/community-access";
+import { isResidentFeatureEnabled } from "../../constants/resident-features";
 import { sf, sw } from "../../utils/responsive";
 
-export default function EssentialServicesPanel() {
-  const { t } = useTranslation();
-  const isAdmin = getCurrentRole() === "admin";
-  const [entries, setEntries] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [category, setCategory] = useState("");
-  const [customCategory, setCustomCategory] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [address, setAddress] = useState({ address: "", latitude: null, longitude: null });
-  const [phoneDigits, setPhoneDigits] = useState("");
-  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
-  const [busy, setBusy] = useState(false);
+const DEFAULT_SECTION_KEYS = ["health", "burial", "parking", "clubs", "food"];
 
-  const load = useCallback(async () => {
+const SECTION_ICONS = {
+  health: "pulse-outline",
+  burial: "flower-outline",
+  parking: "car-outline",
+  clubs: "people-outline",
+  food: "restaurant-outline",
+  restaurants: "restaurant-outline",
+  shopping: "bag-handle-outline",
+  hospitals: "medical-outline",
+  pharmacies: "medkit-outline",
+};
+
+export default function EssentialServicesPanel({ onRefreshParent }) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const isAdmin = getCurrentRole() === "admin";
+  const [sessionUser, setSessionUser] = useState(() => getCachedUser());
+  const [payload, setPayload] = useState(null);
+  const [adminPayload, setAdminPayload] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [suggestOpen, setSuggestOpen] = useState(false);
+
+  const nearbyEnabled = isResidentFeatureEnabled(sessionUser, "nearby_places");
+  const creatingPlace = isCommunityAdmin(sessionUser);
+
+  React.useEffect(() => subscribeSessionUser(setSessionUser), []);
+
+  const sectionCopy = useMemo(
+    () => ({
+      health: { title: t("topBar.essentialHealth"), sub: t("topBar.essentialHealthListSub") },
+      burial: { title: t("topBar.essentialBurial"), sub: t("topBar.essentialBurialListSub") },
+      parking: { title: t("topBar.essentialParking"), sub: t("topBar.essentialParkingListSub") },
+      clubs: { title: t("topBar.essentialClubs"), sub: t("topBar.essentialClubsListSub") },
+      food: { title: t("topBar.essentialFood"), sub: t("topBar.essentialFoodListSub") },
+    }),
+    [t],
+  );
+
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError("");
     try {
       if (isAdmin) {
         const data = await fetchAdminEssentials();
-        setEntries(data.entries);
-        setSuggestions(data.suggestions);
-        setCategories(data.categories || []);
+        setAdminPayload(data);
+      } else if (!nearbyEnabled) {
+        setPayload(null);
       } else {
-        const data = await fetchEssentials();
-        setEntries(data.sections.flatMap((item) => item.entries || []));
-        setSuggestions(data.suggestions || []);
-        setCategories(data.categories || []);
+        const data = await fetchEssentials({ includePlaces: false });
+        setPayload(data);
       }
     } catch (err) {
       setError(err?.message || t("topBar.nearbyLoadFailed"));
+      setPayload(null);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [isAdmin, t]);
+  }, [isAdmin, nearbyEnabled, t]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  async function addEntry() {
-    const message = listingFormError({
-      title,
-      category,
-      customCategory,
-      phoneDigits,
-      phoneCountry,
-      address,
-    }, t);
-    if (message) {
-      setError(message);
-      return;
-    }
-    const chosen = category === NEW_CATEGORY ? customCategory.trim() : category;
-    setBusy(true);
-    setError("");
-    try {
-      await createEssentialEntry({
-        section: chosen,
-        title: title.trim(),
-        description: description.trim() || null,
-        body: description.trim() || null,
-        phone: phoneDigits ? toE164(phoneDigits, phoneCountry) : null,
-        address: address.address.trim() || null,
-        latitude: address.latitude,
-        longitude: address.longitude,
-        verified: true,
+  const displaySections = useMemo(() => {
+    const fromApi = payload?.sections || [];
+    const byKey = Object.fromEntries(fromApi.map((section) => [section.key, section]));
+    const keys = [...DEFAULT_SECTION_KEYS];
+    fromApi.forEach((section) => {
+      if (section?.key && !keys.includes(section.key)) keys.push(section.key);
+    });
+
+    const needle = query.trim().toLowerCase();
+    return keys
+      .map((key) => {
+        const row = byKey[key] || { key, label: "", entries: [] };
+        const count = (row.entries || []).length;
+        const title = sectionCopy[key]?.title || listingCategoryLabel(key, t, row.label);
+        const sub = sectionCopy[key]?.sub || t("topBar.localListingsOnly");
+        return { ...row, key, count, title, sub };
+      })
+      .filter((section) => {
+        if (!needle) return true;
+        return (
+          section.title.toLowerCase().includes(needle)
+          || section.sub.toLowerCase().includes(needle)
+        );
       });
-      setTitle("");
-      setCategory("");
-      setDescription("");
-      setPhoneDigits("");
-      setCustomCategory("");
-      setAddress({ address: "", latitude: null, longitude: null });
-      await load();
-    } catch (err) {
-      setError(err?.message || t("topBar.nearbyLoadFailed"));
-    } finally {
-      setBusy(false);
-    }
+  }, [payload?.sections, query, sectionCopy, t]);
+
+  const totalPublished = useMemo(
+    () => displaySections.reduce((sum, section) => sum + section.count, 0),
+    [displaySections],
+  );
+
+  function openSection(sectionKey) {
+    router.push({
+      pathname: "/screens/discover-essential",
+      params: { section: sectionKey },
+    });
   }
 
-  async function review(id, decision) {
-    setBusy(true);
-    try {
-      await reviewPlaceSuggestion(id, decision);
-      await load();
-    } catch (err) {
-      setError(err?.message || t("topBar.nearbyLoadFailed"));
-    } finally {
-      setBusy(false);
-    }
+  if (!nearbyEnabled && !isAdmin) {
+    return (
+      <View style={styles.emptyCard}>
+        <View style={styles.emptyIcon}>
+          <Ionicons name="layers-outline" size={sf(28)} color={PropertyHubTheme.teal} />
+        </View>
+        <Text style={styles.emptyTitle}>{t("topBar.essentialsEmptyTitle")}</Text>
+        <Text style={styles.emptyBody}>{t("topBar.noEssentialCategories")}</Text>
+      </View>
+    );
   }
 
-  if (loading) return <ActivityIndicator color={T.teal} style={{ marginTop: 24 }} />;
+  if (loading && !payload && !adminPayload) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={PropertyHubTheme.teal} />
+        <Text style={styles.loadingText}>{t("topBar.discoverLoadingEssentials")}</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.wrap}>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {isAdmin ? (
-        <>
-          <Text style={styles.heading}>{t("topBar.pendingSuggestions")}</Text>
-          {suggestions.length === 0 ? <Text style={styles.meta}>{t("topBar.noSuggestions")}</Text> : null}
-          {suggestions.map((item) => (
-            <View key={item.id} style={styles.card}>
-              <Text style={styles.title}>{item.name || t("topBar.reportUpdate")}</Text>
-              <Text style={styles.meta}>
-                {[
-                  listingCategoryLabel(item.essential_section || item.category, t),
-                  item.note || item.description || item.address,
-                ].filter(Boolean).join(" · ")}
-              </Text>
-              <View style={styles.actions}>
-                <Pressable style={styles.approve} disabled={busy} onPress={() => review(item.id, "approve")}>
-                  <Text style={styles.approveText}>{t("topBar.approve")}</Text>
-                </Pressable>
-                <Pressable style={styles.reject} disabled={busy} onPress={() => review(item.id, "reject")}>
-                  <Text style={styles.rejectText}>{t("topBar.reject")}</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))}
-          <Text style={styles.heading}>{t("services.essentialServicesAdd")}</Text>
-          <ListingFormFields
-            categories={categories}
-            category={category}
-            onCategory={setCategory}
-            customCategory={customCategory}
-            onCustomCategory={setCustomCategory}
-            title={title}
-            onTitle={setTitle}
-            address={address}
-            onAddress={setAddress}
-            phoneDigits={phoneDigits}
-            phoneCountry={phoneCountry}
-            onPhoneDigits={setPhoneDigits}
-            onPhoneCountry={setPhoneCountry}
-            description={description}
-            onDescription={setDescription}
+    <>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={(
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              void load({ silent: true }).then(() => onRefreshParent?.());
+            }}
+            tintColor={PropertyHubTheme.teal}
           />
-          <Pressable style={styles.approve} disabled={busy} onPress={addEntry}>
-            <Text style={styles.approveText}>{t("services.essentialServicesAdd")}</Text>
-          </Pressable>
-        </>
-      ) : null}
-      <Text style={styles.heading}>{t("services.essentialServicesTab")}</Text>
-      {entries.length === 0 ? <Text style={styles.meta}>{t("services.essentialServicesEmpty")}</Text> : null}
-      {entries.map((entry) => (
-        <View key={entry.id} style={styles.card}>
-          <Text style={styles.title}>{entry.title}</Text>
-          <Text style={styles.meta}>{listingCategoryLabel(entry.section, t)}{entry.phone ? ` · ${entry.phone}` : ""}</Text>
-          {entry.description || entry.body ? <Text style={styles.body}>{entry.description || entry.body}</Text> : null}
-          {entry.verified ? <Text style={styles.verified}>{t("topBar.verifiedByCommunity")}</Text> : null}
-          {isAdmin ? (
-            <View style={styles.actions}>
-              <Pressable onPress={() => updateEssentialEntry(entry.id, { verified: !entry.verified }).then(load)}>
-                <Text style={styles.link}>{entry.verified ? t("topBar.unverify") : t("topBar.verify")}</Text>
-              </Pressable>
-              <Pressable onPress={() => deleteEssentialEntry(entry.id).then(load)}>
-                <Text style={styles.rejectText}>{t("topBar.remove")}</Text>
-              </Pressable>
-            </View>
-          ) : null}
+        )}
+      >
+        <SearchInput
+          placeholder={t("topBar.discoverSearchEssentials")}
+          value={query}
+          onChangeText={setQuery}
+          imeSync={false}
+          containerStyle={styles.search}
+          placeholderTextColor="#9CA3AF"
+        />
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {isAdmin && adminPayload ? (
+          <View style={styles.adminBlock}>
+            <Text style={styles.adminHeading}>{t("topBar.pendingSuggestions")}</Text>
+            {(adminPayload.suggestions || []).length === 0 ? (
+              <Text style={styles.meta}>{t("topBar.noSuggestions")}</Text>
+            ) : (
+              (adminPayload.suggestions || []).map((item) => (
+                <View key={item.id} style={styles.adminCard}>
+                  <Text style={styles.adminTitle}>{item.name || t("topBar.reportUpdate")}</Text>
+                  <Text style={styles.meta}>{item.status}</Text>
+                </View>
+              ))
+            )}
+            <Pressable
+              style={styles.suggestBtn}
+              onPress={() => setSuggestOpen(true)}
+            >
+              <Feather name="plus" size={sf(15)} color="#fff" />
+              <Text style={styles.suggestBtnText}>{t("services.essentialServicesAdd")}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <View style={styles.resourcesHeader}>
+          <Text style={styles.resourcesTitle}>{t("topBar.communityResources")}</Text>
+          <Text style={styles.resourcesSub}>
+            {totalPublished > 0
+              ? t("topBar.essentialServicesCount", { count: totalPublished })
+              : t("topBar.communityResourcesSub")}
+          </Text>
         </View>
-      ))}
-      {!isAdmin && suggestions.length > 0 ? (
-        <>
-          <Text style={styles.heading}>{t("topBar.yourSuggestions")}</Text>
-          {suggestions.map((item) => (
-            <View key={item.id} style={styles.card}>
-              <Text style={styles.title}>{item.name || t("topBar.reportUpdate")}</Text>
-              <Text style={styles.meta}>{item.status}</Text>
-            </View>
+
+        {totalPublished === 0 && displaySections.length > 0 ? (
+          <View style={styles.emptyCardInline}>
+            <Text style={styles.emptyBody}>{t("topBar.essentialsEmptyBody")}</Text>
+            <Pressable style={styles.suggestOutline} onPress={() => setSuggestOpen(true)}>
+              <Text style={styles.suggestOutlineText}>
+                {creatingPlace ? t("topBar.createPlaceAction") : t("topBar.suggestServiceAction")}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <View style={styles.listCard}>
+          {displaySections.map((section, index) => (
+            <Pressable
+              key={section.key}
+              style={[styles.resourceRow, index < displaySections.length - 1 && styles.resourceRowDivider]}
+              onPress={() => openSection(section.key)}
+              accessibilityRole="button"
+            >
+              <View style={styles.resourceIcon}>
+                <Ionicons
+                  name={SECTION_ICONS[section.key] || "grid-outline"}
+                  size={sf(22)}
+                  color={PropertyHubTheme.deepTeal}
+                />
+              </View>
+              <View style={styles.rowCopy}>
+                <Text style={styles.resourceName} numberOfLines={1}>{section.title}</Text>
+                <Text style={styles.resourceSub} numberOfLines={2}>{section.sub}</Text>
+              </View>
+              <View style={styles.rowMeta}>
+                <Text style={styles.countBadge}>
+                  {t("topBar.essentialServicesCount", { count: section.count })}
+                </Text>
+                <Feather name="chevron-right" size={sf(16)} color="#C5CDD6" />
+              </View>
+            </Pressable>
           ))}
-        </>
-      ) : null}
-    </View>
+        </View>
+
+        {!isAdmin ? (
+          <Pressable style={styles.suggestOutlineWide} onPress={() => setSuggestOpen(true)}>
+            <Feather name="plus" size={sf(15)} color={PropertyHubTheme.deepTeal} />
+            <Text style={styles.suggestOutlineTextDark}>
+              {creatingPlace ? t("topBar.createPlaceAction") : t("topBar.suggestServiceAction")}
+            </Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
+
+      <SuggestPlaceSheet
+        visible={suggestOpen}
+        mode="suggest"
+        creating={creatingPlace}
+        onClose={() => setSuggestOpen(false)}
+        onSubmitted={() => {
+          setSuggestOpen(false);
+          void load({ silent: true });
+        }}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: sw(16), paddingBottom: sw(32) },
-  heading: { marginTop: sw(16), marginBottom: 8, fontFamily: Fonts.bold, fontSize: sf(16), color: "#0F172A" },
-  card: { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 12, marginBottom: 10 },
-  title: { fontFamily: Fonts.semiBold, fontSize: sf(14), color: "#0F172A" },
+  scroll: { paddingHorizontal: sw(16), paddingBottom: sw(32), paddingTop: sw(4) },
+  search: { marginBottom: sw(12) },
+  center: { alignItems: "center", paddingTop: sw(32), gap: 8 },
+  loadingText: { fontFamily: Fonts.regular, fontSize: sf(13), color: T.gray },
+  error: { color: "#B91C1C", fontFamily: Fonts.medium, marginBottom: 8 },
+  resourcesHeader: { marginBottom: sw(10) },
+  resourcesTitle: { fontFamily: Fonts.bold, fontSize: sf(16), color: "#0F172A" },
+  resourcesSub: { marginTop: 4, fontFamily: Fonts.regular, fontSize: sf(12), color: T.gray },
+  listCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: T.border,
+    overflow: "hidden",
+  },
+  resourceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  resourceRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: T.border },
+  resourceIcon: {
+    width: sw(44),
+    height: sw(44),
+    borderRadius: 12,
+    backgroundColor: "#E8F4F3",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rowCopy: { flex: 1, minWidth: 0 },
+  resourceName: { fontFamily: Fonts.semiBold, fontSize: sf(14), color: "#0F172A" },
+  resourceSub: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(12), color: T.gray },
+  rowMeta: { alignItems: "flex-end", gap: 4 },
+  countBadge: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#64748B" },
+  emptyCard: {
+    marginHorizontal: sw(16),
+    marginTop: sw(12),
+    padding: sw(24),
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: "#fff",
+    alignItems: "center",
+  },
+  emptyCardInline: {
+    marginBottom: sw(12),
+    padding: sw(14),
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+  emptyIcon: {
+    width: sw(52),
+    height: sw(52),
+    borderRadius: 14,
+    backgroundColor: "#E8F4F3",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  emptyTitle: { fontFamily: Fonts.bold, fontSize: sf(16), color: "#0F172A", textAlign: "center" },
+  emptyBody: { marginTop: 6, fontFamily: Fonts.regular, fontSize: sf(13), color: T.gray, textAlign: "center" },
+  suggestOutline: {
+    marginTop: 12,
+    alignSelf: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: PropertyHubTheme.teal,
+  },
+  suggestOutlineText: { color: "#fff", fontFamily: Fonts.semiBold, fontSize: sf(13) },
+  suggestOutlineWide: {
+    marginTop: sw(14),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.iconBorder,
+    backgroundColor: "#fff",
+  },
+  suggestOutlineTextDark: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: PropertyHubTheme.deepTeal },
+  adminBlock: { marginBottom: sw(16) },
+  adminHeading: { fontFamily: Fonts.bold, fontSize: sf(15), color: "#0F172A", marginBottom: 8 },
+  adminCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: T.border,
+    padding: 12,
+    marginBottom: 8,
+  },
+  adminTitle: { fontFamily: Fonts.semiBold, fontSize: sf(14), color: "#0F172A" },
   meta: { marginTop: 4, fontFamily: Fonts.regular, fontSize: sf(12), color: T.gray },
-  body: { marginTop: 6, fontFamily: Fonts.regular, fontSize: sf(13), color: "#334155" },
-  verified: { marginTop: 6, fontFamily: Fonts.medium, fontSize: sf(12), color: T.deepTeal },
-  actions: { flexDirection: "row", gap: 10, marginTop: 10 },
-  approve: { backgroundColor: T.teal, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, alignSelf: "flex-start" },
-  approveText: { color: "#fff", fontFamily: Fonts.semiBold, fontSize: sf(13) },
-  reject: { borderRadius: 10, borderWidth: 1, borderColor: "#FECACA", paddingHorizontal: 12, paddingVertical: 8 },
-  rejectText: { color: "#B91C1C", fontFamily: Fonts.semiBold, fontSize: sf(13) },
-  link: { color: T.navy, fontFamily: Fonts.semiBold, fontSize: sf(13) },
-  sectionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
-  pill: { borderRadius: 999, borderWidth: 1, borderColor: T.border, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#fff" },
-  pillOn: { backgroundColor: T.navy, borderColor: T.navy },
-  pillText: { fontFamily: Fonts.medium, fontSize: sf(12), color: T.navy },
-  pillTextOn: { color: "#fff" },
-  input: { borderWidth: 1, borderColor: T.border, borderRadius: 12, backgroundColor: "#fff", paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8, fontFamily: Fonts.regular, color: T.navy },
-  note: { minHeight: 72, textAlignVertical: "top" },
-  error: { color: "#B91C1C", fontFamily: Fonts.medium, marginTop: 8 },
-  nearbyToggle: { marginBottom: 10 },
+  suggestBtn: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "flex-start",
+    backgroundColor: PropertyHubTheme.teal,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  suggestBtnText: { color: "#fff", fontFamily: Fonts.semiBold, fontSize: sf(13) },
 });

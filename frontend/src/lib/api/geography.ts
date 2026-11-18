@@ -44,24 +44,64 @@ export async function fetchPublicStateCities(stateId: number, q?: string) {
   return res.data as { data: City[] };
 }
 
+export type PublicCityRegion = {
+  type?: "region";
+  id: number;
+  title: string;
+  hierarchy_label?: string;
+  area: string;
+  state_id: number | null;
+  state_name: string | null;
+  country_id: number | null;
+  country_name: string | null;
+  status: string;
+};
+
+/** Search an existing city region — does not create new regions. */
+export async function searchPublicCityRegion(payload: {
+  country_id?: number;
+  state_id: number;
+  city: string;
+}) {
+  const res = await api.get("/v1/regions", {
+    params: {
+      state_id: payload.state_id,
+      city: payload.city,
+      ...(payload.country_id ? { country_id: payload.country_id } : {}),
+    },
+  });
+  const match = (res.data.data as PublicCityRegion[]).find((row) => row.type === "region" || !("type" in row));
+  if (!match) {
+    const err = new Error("No service region exists for this city yet.");
+    (err as Error & { status?: number }).status = 404;
+    throw err;
+  }
+  return { data: match };
+}
+
+/** @deprecated Use searchPublicCityRegion — kept for older callers; find-only via POST. */
 export async function resolvePublicLocation(payload: {
   country_id?: number;
   state_id: number;
   city?: string;
 }) {
-  const res = await api.post("/v1/locations/resolve", payload);
-  return res.data as {
-    data: {
-      id: number;
-      title: string;
-      area: string;
-      state_id: number | null;
-      state_name: string | null;
-      country_id: number | null;
-      country_name: string | null;
-      status: string;
-    };
-  };
+  if (!payload.city?.trim()) {
+    throw new Error("City is required.");
+  }
+  try {
+    return await searchPublicCityRegion({
+      country_id: payload.country_id,
+      state_id: payload.state_id,
+      city: payload.city,
+    });
+  } catch {
+    const res = await api.post("/v1/locations/resolve", {
+      country_id: payload.country_id,
+      state_id: payload.state_id,
+      city: payload.city,
+    });
+    return res.data as { data: PublicCityRegion };
+  }
 }
 
 export async function fetchCountries(params?: { q?: string }) {

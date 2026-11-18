@@ -205,8 +205,9 @@ function QuickActionsRow() {
   const guest = isGuestUser(sessionUser);
   const { summary: bills, refresh: refreshBills } = useBillsSummary({ enabled: PAY_BILLS_ENABLED && !guest });
   useFocusEffect(useCallback(() => { void refreshBills(); }, [refreshBills]));
-  const billsDue = bills?.dueCount ?? 0;
-  const billsOverdue = (bills?.overdueCount ?? 0) > 0;
+  // Home badge: unit-service bills only (not amenity shared bills or utilities).
+  const billsDue = bills?.groups?.unit?.count ?? 0;
+  const billsOverdue = (bills?.groups?.unit?.overdue ?? 0) > 0;
   const actions = QUICK_ACTIONS.filter((item) => {
     if (!serverFeatureFlags(sessionUser)) return false;
     if (item.id === "bills") return !guest;

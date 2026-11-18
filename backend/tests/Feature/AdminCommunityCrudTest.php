@@ -4,8 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\Community;
 use App\Models\CommunityMembership;
+use App\Models\Country;
 use App\Models\Region;
+use App\Models\State;
 use App\Models\User;
+use App\Services\LocationCatalog;
+use App\Support\RegionHierarchy;
 use Database\Seeders\SystemAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -22,15 +26,23 @@ class AdminCommunityCrudTest extends TestCase
         return User::query()->where('email', 'admin@havena.app')->firstOrFail();
     }
 
+    private function cityRegion(string $city = 'Cairo'): Region
+    {
+        $country = Country::query()->firstOrCreate(
+            ['code' => 'EG'],
+            ['name' => 'Egypt', 'billing_policy' => 'required', 'sort_order' => 1, 'status' => 'active'],
+        );
+        $state = State::query()->firstOrCreate(
+            ['country_id' => $country->id, 'name' => 'Cairo Governorate'],
+            ['status' => 'active'],
+        );
+
+        return app(LocationCatalog::class)->ensureCityRegion($state, $city);
+    }
+
     private function approvedCommunity(): Community
     {
-        $region = Region::query()->create([
-            'title'       => 'Cairo Metro',
-            'area'        => 'Cairo',
-            'users_label' => '0 users',
-            'sort_order'  => 1,
-            'status'      => 'active',
-        ]);
+        $region = $this->cityRegion();
 
         return Community::query()->create([
             'name'          => 'Oak Valley',
@@ -47,13 +59,7 @@ class AdminCommunityCrudTest extends TestCase
     {
         Sanctum::actingAs($this->systemAdmin());
 
-        $region = Region::query()->create([
-            'title'       => 'Cairo Metro',
-            'area'        => 'Cairo',
-            'users_label' => '0 users',
-            'sort_order'  => 1,
-            'status'      => 'active',
-        ]);
+        $region = $this->cityRegion();
 
         $this->postJson('/api/v1/admin/communities', [
             'name'        => 'Oak Valley Residences',
@@ -75,13 +81,7 @@ class AdminCommunityCrudTest extends TestCase
     {
         Sanctum::actingAs($this->systemAdmin());
 
-        $region = Region::query()->create([
-            'title'       => 'Cairo Metro',
-            'area'        => 'Cairo',
-            'users_label' => '0 users',
-            'sort_order'  => 1,
-            'status'      => 'active',
-        ]);
+        $region = $this->cityRegion();
 
         $this->postJson('/api/v1/admin/communities', [
             'name'      => 'No Address Place',
@@ -95,13 +95,7 @@ class AdminCommunityCrudTest extends TestCase
         Sanctum::actingAs($this->systemAdmin());
 
         $community = $this->approvedCommunity();
-        $newRegion = Region::query()->create([
-            'title'       => 'Giza',
-            'area'        => 'Giza',
-            'users_label' => '0 users',
-            'sort_order'  => 2,
-            'status'      => 'active',
-        ]);
+        $newRegion = $this->cityRegion('Giza');
 
         $response = $this->putJson("/api/v1/admin/communities/{$community->id}", [
             'name'        => 'Oak Valley Residences',
@@ -113,14 +107,14 @@ class AdminCommunityCrudTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.name', 'Oak Valley Residences')
             ->assertJsonPath('data.region_id', $newRegion->id)
-            ->assertJsonPath('data.region_title', 'Giza')
+            ->assertJsonPath('data.region_title', RegionHierarchy::hierarchyLabel($newRegion))
             ->assertJsonPath('data.address', '456 Oak Ave')
             ->assertJsonPath('data.description', 'Updated notes');
 
         $this->assertDatabaseHas('communities', [
             'id'     => $community->id,
             'name'   => 'Oak Valley Residences',
-            'region' => 'Giza',
+            'region' => $newRegion->title,
         ]);
     }
 

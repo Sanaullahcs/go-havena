@@ -1108,7 +1108,7 @@ class AmenityController extends Controller
                 'nullable',
                 'string',
                 'min:2',
-                'max:25',
+                'max:40',
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if (! is_string($value) || trim($value) === '') {
                         return;
@@ -1195,7 +1195,7 @@ class AmenityController extends Controller
             'name.min' => 'Amenity Name must contain at least 2 characters.',
             'name.max' => 'Amenity Name must not exceed 100 characters.',
             'floor.min' => 'Use at least 2 characters.',
-            'floor.max' => 'Keep the location to 25 characters.',
+            'floor.max' => 'Keep the location under 40 characters.',
             'custom_category.min' => 'Use at least 2 characters.',
             'custom_category.max' => 'Keep the category to 25 characters.',
         ]);

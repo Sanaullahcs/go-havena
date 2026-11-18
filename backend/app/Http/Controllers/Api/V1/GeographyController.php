@@ -7,6 +7,7 @@ use App\Models\Country;
 use App\Models\State;
 use App\Services\LocationCatalog;
 use App\Services\OpenCityDirectory;
+use App\Support\RegionHierarchy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -59,31 +60,46 @@ class GeographyController extends Controller
         ]);
     }
 
-    /** POST /v1/locations/resolve — find or open a region for country/state/city */
+    /** POST /v1/locations/resolve — search for an existing city region (does not create regions). */
     public function resolveLocation(Request $request, LocationCatalog $catalog): JsonResponse
     {
         $validated = $request->validate([
             'country_id' => ['nullable', 'integer', 'exists:countries,id'],
             'state_id' => ['required', 'integer', 'exists:states,id'],
-            'city' => ['nullable', 'string', 'min:2', 'max:150'],
+            'city' => ['required', 'string', 'min:2', 'max:150'],
         ]);
 
-        $region = $catalog->resolve(
-            isset($validated['country_id']) ? (int) $validated['country_id'] : null,
-            (int) $validated['state_id'],
-            $validated['city'] ?? null,
-        );
+        $state = \App\Models\State::query()
+            ->where('status', 'active')
+            ->with('country')
+            ->findOrFail((int) $validated['state_id']);
+
+        if (isset($validated['country_id']) && (int) $state->country_id !== (int) $validated['country_id']) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'state_id' => ['State does not belong to the selected country.'],
+            ]);
+        }
+
+        $region = $catalog->findCityRegion($state, $validated['city']);
+        if (! $region) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'city' => ['No service region exists for this city yet. Choose another city or contact support.'],
+            ]);
+        }
+
         $region->load('stateRecord.country');
 
         return response()->json([
             'data' => [
                 'id' => $region->id,
                 'title' => $region->title,
+                'hierarchy_label' => RegionHierarchy::hierarchyLabel($region),
                 'area' => $region->area,
                 'state_id' => $region->state_id,
                 'state_name' => $region->stateRecord?->name ?? $region->state,
                 'country_id' => $region->stateRecord?->country?->id,
                 'country_name' => $region->stateRecord?->country?->name,
+                'is_city_level' => RegionHierarchy::isCityLevelRegion($region),
                 'status' => $region->status,
             ],
         ]);

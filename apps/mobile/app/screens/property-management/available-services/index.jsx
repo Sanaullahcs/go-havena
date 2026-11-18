@@ -20,14 +20,13 @@ import { sf, sw } from "../../../../utils/responsive";
 import { rnShadow } from "../../../../utils/shadow";
 import {
   fetchPropertyServices,
+  resolveViewerBillingAccess,
   serviceCategoryLabel,
   subscribeToPropertyService,
   unsubscribeFromPropertyService,
 } from "../../../../services/property-services-api";
 import { showApiFailure } from "../../../../utils/auth-errors";
 import { formatCommunityMoney } from "../../../../utils/money";
-import EssentialServicesPanel from "../../../../components/property/essential-services-panel";
-
 const CATEGORY_ICON = {
   electricity: "zap",
   electrical_maintenance: "zap",
@@ -360,6 +359,7 @@ export default function AvailableServicesScreen() {
   const { t } = useTranslation();
   const [services, setServices] = useState([]);
   const [billingUnits, setBillingUnits] = useState([]);
+  const [activeUnits, setActiveUnits] = useState([]);
   const [isContact, setIsContact] = useState(false);
   const [contactName, setContactName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -367,27 +367,33 @@ export default function AvailableServicesScreen() {
   const [busyId, setBusyId] = useState(null);
   const [picker, setPicker] = useState(null);
   const [selectedUnitIds, setSelectedUnitIds] = useState([]);
-  const [screenTab, setScreenTab] = useState("services");
-
   const headerSubtitle = useMemo(() => {
-    if (billingUnits.length > 1) {
-      return t("nav.multipleUnits", { defaultValue: "Multiple units" });
+    const unitCount = Math.max(activeUnits.length, billingUnits.length);
+    if (unitCount > 1) {
+      return t("myUnits.count", { count: unitCount });
     }
     if (billingUnits.length === 1) {
       return t("services.billingContact.unitLabel", { number: billingUnits[0].unit_number });
     }
+  if (activeUnits.length === 1) {
+      return t("services.billingContact.unitLabel", { number: activeUnits[0].unit_number });
+    }
     return t("services.availableServicesSub");
-  }, [billingUnits, t]);
+  }, [activeUnits, billingUnits, t]);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const result = await fetchPropertyServices();
+      const [result, access] = await Promise.all([
+        fetchPropertyServices(),
+        resolveViewerBillingAccess(),
+      ]);
       const units = Array.isArray(result.units) ? result.units : result.unit ? [result.unit] : [];
       setServices((result.services ?? []).filter((service) => service.application_type === "optional"));
-      setBillingUnits(units);
-      setIsContact(units.length > 0 || Boolean(result.unit?.is_billing_contact));
-      setContactName(result.unit?.billing_contact?.name || "");
+      setActiveUnits(access.units || []);
+      setBillingUnits(access.billingUnits?.length ? access.billingUnits : units);
+      setIsContact(Boolean(access.isBillingContact));
+      setContactName(access.contactName || result.unit?.billing_contact?.name || "");
     } catch (error) {
       showApiFailure(error, { title: t("services.availableServicesTitle") });
     } finally {
@@ -460,28 +466,7 @@ export default function AvailableServicesScreen() {
         title={t("services.availableServicesTitle")}
         subtitle={headerSubtitle}
       />
-      <View style={styles.screenTabs}>
-        {[
-          ["services", t("services.servicesTab")],
-          ["essentials", t("services.essentialServicesTab")],
-        ].map(([key, label]) => {
-          const active = screenTab === key;
-          return (
-            <Pressable
-              key={key}
-              onPress={() => setScreenTab(key)}
-              style={[styles.screenTab, active && styles.screenTabOn]}
-            >
-              <Text style={[styles.screenTabText, active && styles.screenTabTextOn]}>{label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      {screenTab === "essentials" ? (
-        <ScrollView contentContainerStyle={{ paddingTop: sw(8) }} showsVerticalScrollIndicator={false}>
-          <EssentialServicesPanel />
-        </ScrollView>
-      ) : loading && services.length === 0 ? (
+      {loading && services.length === 0 ? (
         <View style={styles.centered}>
           <ActivityIndicator color={PropertyHubTheme.teal} />
         </View>
@@ -556,11 +541,6 @@ export default function AvailableServicesScreen() {
 }
 
 const styles = {
-  screenTabs: { flexDirection: "row", gap: 8, paddingHorizontal: sw(16), paddingBottom: sw(8) },
-  screenTab: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E5E7EB" },
-  screenTabOn: { backgroundColor: PropertyHubTheme.deepTeal, borderColor: PropertyHubTheme.deepTeal },
-  screenTabText: { fontFamily: Fonts.medium, fontSize: sf(13), color: PropertyHubTheme.text },
-  screenTabTextOn: { color: "#fff" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   list: {
     paddingHorizontal: sw(16),

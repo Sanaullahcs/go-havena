@@ -8,9 +8,11 @@ use App\Models\Region;
 use App\Models\State;
 use App\Services\ActivityLogService;
 use App\Services\LocationCatalog;
+use App\Support\RegionHierarchy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class RegionController extends Controller
 {
@@ -22,20 +24,12 @@ class RegionController extends Controller
         $stateId = $request->integer('state_id') ?: null;
         $city = $request->string('city')->trim()->toString();
 
-        if ($stateId) {
-            $state = State::query()->where('status', 'active')->find($stateId);
-            if ($state) {
-                $catalog = app(LocationCatalog::class);
-                $catalog->ensureStateRegion($state);
-                if ($city !== '') {
-                    $catalog->ensureCityRegion($state, $city);
-                }
-            }
-        }
-
         $regionQuery = Region::query()
             ->with('stateRecord.country')
-            ->where('status', 'active');
+            ->where('regions.status', 'active')
+            ->whereRaw(
+                'LOWER(TRIM(regions.state)) = LOWER(TRIM((SELECT states.name FROM states WHERE states.id = regions.state_id LIMIT 1)))'
+            );
 
         if ($stateId) {
             $regionQuery->where('state_id', $stateId);
@@ -44,7 +38,8 @@ class RegionController extends Controller
         }
 
         if ($city !== '') {
-            $regionQuery->where('area', $city);
+            $regionQuery->cityLevel()
+                ->whereRaw('LOWER(TRIM(regions.area)) = ?', [mb_strtolower($city)]);
         }
 
         if ($q !== '') {
@@ -75,6 +70,12 @@ class RegionController extends Controller
             $communityQuery->whereHas('regionRecord', fn ($builder) => $builder->where('state_id', $stateId));
         } elseif ($countryId) {
             $communityQuery->whereHas('regionRecord.stateRecord', fn ($builder) => $builder->where('country_id', $countryId));
+        }
+
+        if ($city !== '') {
+            $normalizedCity = mb_strtolower($city);
+            $communityQuery->whereHas('regionRecord', fn ($builder) => $builder
+                ->whereRaw('LOWER(TRIM(area)) = ?', [$normalizedCity]));
         }
 
         if ($q !== '') {
@@ -115,8 +116,8 @@ class RegionController extends Controller
                 'per_page' => $regions->perPage(),
                 'stats' => [
                     'total' => (clone $statsQuery)->count(),
-                    'active' => (clone $statsQuery)->where('status', 'active')->count(),
-                    'inactive' => (clone $statsQuery)->where('status', 'inactive')->count(),
+                    'active' => (clone $statsQuery)->where('regions.status', 'active')->count(),
+                    'inactive' => (clone $statsQuery)->where('regions.status', 'inactive')->count(),
                 ],
             ],
         ]);
@@ -136,20 +137,34 @@ class RegionController extends Controller
         ]);
 
         $state = State::query()->findOrFail($validated['state_id']);
+        $catalog = app(LocationCatalog::class);
+        $area = trim($validated['area']);
 
-        $region = Region::query()->create([
-            'title' => $validated['title'],
-            'area' => $validated['area'],
-            'state_id' => $state->id,
-            'state' => $validated['state'] ?? $state->name,
-            'users_label' => $validated['users_label'] ?? '0 users',
-            'sort_order' => $validated['sort_order'] ?? 0,
-            'status' => $validated['status'] ?? 'active',
-        ]);
+        if (mb_strtolower($area) === mb_strtolower($state->name)) {
+            $region = $catalog->ensureStateRegion($state);
+        } else {
+            if ($catalog->findCityRegion($state, $area)) {
+                throw ValidationException::withMessages([
+                    'area' => ['A region already exists for this city in the selected state.'],
+                ]);
+            }
+
+            $region = $catalog->ensureCityRegion($state, $area);
+        }
+
+        if (isset($validated['users_label'])) {
+            $region->update(['users_label' => $validated['users_label']]);
+        }
+        if (isset($validated['sort_order'])) {
+            $region->update(['sort_order' => (int) $validated['sort_order']]);
+        }
+        if (isset($validated['status'])) {
+            $region->update(['status' => $validated['status']]);
+        }
 
         $region->load('stateRecord.country');
 
-        return response()->json(['data' => $this->transform($region), 'message' => 'Region created'], 201);
+        return response()->json(['data' => $this->transform($region->fresh(['stateRecord.country'])), 'message' => 'Region created'], 201);
     }
 
     /** PUT /v1/admin/regions/{id} */
@@ -170,6 +185,22 @@ class RegionController extends Controller
         if (isset($validated['state_id'])) {
             $state = State::query()->findOrFail($validated['state_id']);
             $validated['state'] = $validated['state'] ?? $state->name;
+        }
+
+        $nextStateId = (int) ($validated['state_id'] ?? $region->state_id);
+        $nextArea = trim((string) ($validated['area'] ?? $region->area));
+        if ($nextStateId && $nextArea !== '') {
+            $state = State::query()->findOrFail($nextStateId);
+            $catalog = app(LocationCatalog::class);
+            $duplicate = mb_strtolower($nextArea) === mb_strtolower($state->name)
+                ? $catalog->findStateRegion($state)
+                : $catalog->findCityRegion($state, $nextArea);
+
+            if ($duplicate && (int) $duplicate->id !== (int) $region->id) {
+                throw ValidationException::withMessages([
+                    'area' => ['A region already exists for this city in the selected state.'],
+                ]);
+            }
         }
 
         $fields = ['title', 'area', 'state', 'state_id', 'users_label', 'sort_order', 'status'];
@@ -205,7 +236,7 @@ class RegionController extends Controller
         if ($includeStatus) {
             $status = $request->string('status')->trim()->toString();
             if (in_array($status, ['active', 'inactive'], true)) {
-                $query->where('status', $status);
+                $query->where('regions.status', $status);
             }
         }
 
@@ -227,6 +258,13 @@ class RegionController extends Controller
                         ->orWhereHas('country', fn ($country) => $country->where('name', 'like', '%'.$q.'%')));
             });
         }
+
+        if ($request->boolean('city_level')) {
+            $query->cityLevel();
+            $query->whereRaw(
+                'LOWER(TRIM(regions.state)) = LOWER(TRIM((SELECT states.name FROM states WHERE states.id = regions.state_id LIMIT 1)))'
+            );
+        }
     }
 
     private function transform(Region $region): array
@@ -235,10 +273,15 @@ class RegionController extends Controller
         $state = $region->stateRecord;
         $country = $state?->country;
 
+        $cityLevel = RegionHierarchy::isCityLevelRegion($region);
+
         return [
             'type' => 'region',
             'id' => $region->id,
             'title' => $region->title,
+            'hierarchy_label' => RegionHierarchy::hierarchyLabel($region),
+            'is_city_level' => $cityLevel,
+            'level' => $cityLevel ? 'city' : 'state',
             'area' => $region->area,
             'state' => $state?->code ?: ($state?->name ?? $region->state),
             'state_id' => $region->state_id,

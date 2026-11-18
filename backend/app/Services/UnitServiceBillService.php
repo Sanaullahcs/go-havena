@@ -327,12 +327,30 @@ class UnitServiceBillService
         return $rows->map(fn ($row) => $this->formatAdminBill($row, $request))->all();
     }
 
-    public function listResidentBills(int $communityId, int $userId, Request $request): array
+    /** Bills due for this billing contact, plus finance notices for Home when missing. */
+    public function prepareResidentFinanceNotices(int $communityId, int $userId): void
     {
+        if ($communityId < 1 || $userId < 1) {
+            return;
+        }
+
+        if (! app(UnitAssignmentService::class)->isBillingContact($userId, $communityId)) {
+            $this->reconcilePaidServiceBillNotices($communityId, $userId);
+
+            return;
+        }
+
         $this->syncDueAutomaticBillsForBillingContact($communityId, $userId);
         $this->backfillMissingSubscriptionBills($communityId, $userId);
-        app(UnitServiceBillReminderService::class)->markOverdue($userId, $communityId);
         $this->attachCurrentBillingContacts($communityId);
+        $this->backfillFinanceNoticesForBillingContact($communityId, $userId);
+        $this->reconcilePaidServiceBillNotices($communityId, $userId);
+    }
+
+    public function listResidentBills(int $communityId, int $userId, Request $request): array
+    {
+        $this->prepareResidentFinanceNotices($communityId, $userId);
+        app(UnitServiceBillReminderService::class)->markOverdue($userId, $communityId);
 
         $rows = DB::table('unit_service_bills as usb')
             ->join('property_services as ps', 'ps.id', '=', 'usb.service_id')
@@ -1043,7 +1061,6 @@ class UnitServiceBillService
             ->where('community_id', $communityId)
             ->where('status', PropertyServiceCatalogService::STATUS_ACTIVE)
             ->where('application_type', PropertyServiceCatalogService::TYPE_AUTOMATIC)
-            ->where('auto_generate_bills', true)
             ->get();
 
         foreach ($services as $service) {
@@ -1322,7 +1339,9 @@ class UnitServiceBillService
 
     private function publishFinanceNotice(object $service, object $bill, int $authorId, string $unitNumber): void
     {
-        if (! $bill->billing_contact_user_id || ! ($service->send_notice ?? true)) {
+        // Home finance notices are always created when a bill exists for a billing contact.
+        // send_notice only controls optional custom copy on the service record, not carousel visibility.
+        if (! $bill->billing_contact_user_id) {
             return;
         }
 
@@ -1354,8 +1373,13 @@ class UnitServiceBillService
                 'notice_id' => $noticeId,
                 'updated_at' => now(),
             ]);
-        } catch (\Throwable) {
-            // Notice schema can vary slightly between environments; billing must still succeed.
+        } catch (\Throwable $e) {
+            // Billing must still succeed; log so missing Home notices are diagnosable.
+            \Illuminate\Support\Facades\Log::warning('publishFinanceNotice failed', [
+                'bill_id' => (int) ($bill->id ?? 0),
+                'service_id' => (int) ($service->id ?? 0),
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -1539,6 +1563,60 @@ class UnitServiceBillService
                 $row->acknowledged_by_user_name ?? null,
             ),
         ]);
+    }
+
+    private function reconcilePaidServiceBillNotices(int $communityId, int $userId): void
+    {
+        $paid = DB::table('unit_service_bills')
+            ->where('community_id', $communityId)
+            ->where('billing_contact_user_id', $userId)
+            ->where('status', self::STATUS_PAID)
+            ->whereNotNull('notice_id')
+            ->get();
+
+        foreach ($paid as $bill) {
+            $notice = DB::table('notices')->find((int) $bill->notice_id);
+            if (! $notice) {
+                continue;
+            }
+            $eventDate = isset($notice->event_date) ? trim((string) $notice->event_date) : '';
+            if ($eventDate === '') {
+                $this->hideFinanceNoticeFromHome($bill);
+            }
+        }
+    }
+
+    private function backfillFinanceNoticesForBillingContact(int $communityId, int $userId): void
+    {
+        $openStatuses = [
+            self::STATUS_UNPAID,
+            self::STATUS_OVERDUE,
+            self::STATUS_ACKNOWLEDGED,
+            self::STATUS_REJECTED,
+            self::STATUS_PENDING,
+        ];
+
+        $bills = DB::table('unit_service_bills as usb')
+            ->join('units', 'units.id', '=', 'usb.unit_id')
+            ->where('usb.community_id', $communityId)
+            ->where('usb.billing_contact_user_id', $userId)
+            ->whereNull('usb.notice_id')
+            ->whereIn('usb.status', $openStatuses)
+            ->select('usb.*', 'units.unit_number')
+            ->get();
+
+        foreach ($bills as $bill) {
+            $service = DB::table('property_services')->find($bill->service_id);
+            if (! $service) {
+                continue;
+            }
+            $this->publishFinanceNotice(
+                $service,
+                $bill,
+                (int) ($bill->created_by ?? $userId),
+                (string) ($bill->unit_number ?? ''),
+            );
+        }
     }
 
     private function attachCurrentBillingContacts(int $communityId): void

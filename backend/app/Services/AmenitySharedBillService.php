@@ -606,9 +606,93 @@ class AmenitySharedBillService
         })->all();
     }
 
+    /** Finance notices on Home: publish for open bills, hide when paid. */
+    public function backfillFinanceNoticesForResident(int $communityId, int $userId): void
+    {
+        if ($communityId < 1 || $userId < 1) {
+            return;
+        }
+
+        $this->reconcilePaidAmenityBillNotices($communityId, $userId);
+
+        if (! Schema::hasColumn('amenity_resident_bills', 'finance_notice_id')) {
+            return;
+        }
+
+        $openStatuses = [
+            self::RESIDENT_STATUS_UNPAID,
+            self::RESIDENT_STATUS_OVERDUE,
+            self::RESIDENT_STATUS_REJECTED,
+            self::RESIDENT_STATUS_PENDING,
+        ];
+
+        $rows = DB::table('amenity_resident_bills as rb')
+            ->join('amenity_monthly_bills as mb', 'mb.id', '=', 'rb.monthly_bill_id')
+            ->where('rb.community_id', $communityId)
+            ->where('rb.user_id', $userId)
+            ->where('mb.status', self::STATUS_PUBLISHED)
+            ->whereIn('rb.status', $openStatuses)
+            ->where(function ($query) {
+                $query->whereNull('rb.finance_notice_id')
+                    ->orWhere('rb.finance_notice_id', 0);
+            })
+            ->select('mb.id as monthly_bill_id', 'rb.user_id')
+            ->get()
+            ->groupBy('monthly_bill_id');
+
+        foreach ($rows as $monthlyBillId => $group) {
+            $monthlyBill = DB::table('amenity_monthly_bills')->find((int) $monthlyBillId);
+            if (! $monthlyBill) {
+                continue;
+            }
+            $amenity = DB::table('amenities')->find((int) $monthlyBill->amenity_id);
+            if (! $amenity) {
+                continue;
+            }
+            $residentIds = $group->pluck('user_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+            if ($residentIds === []) {
+                continue;
+            }
+            $this->publishFinanceNotices(
+                $amenity,
+                $monthlyBill,
+                $residentIds,
+                (int) ($monthlyBill->created_by ?? $userId),
+            );
+        }
+    }
+
+    private function reconcilePaidAmenityBillNotices(int $communityId, int $userId): void
+    {
+        if (! Schema::hasColumn('amenity_resident_bills', 'finance_notice_id')) {
+            return;
+        }
+
+        $paid = DB::table('amenity_resident_bills')
+            ->where('community_id', $communityId)
+            ->where('user_id', $userId)
+            ->where('status', self::RESIDENT_STATUS_PAID)
+            ->whereNotNull('finance_notice_id')
+            ->where('finance_notice_id', '>', 0)
+            ->get();
+
+        foreach ($paid as $bill) {
+            $noticeId = (int) $bill->finance_notice_id;
+            $stillRecipient = DB::table('notice_recipients')
+                ->where('notice_id', $noticeId)
+                ->where('user_id', $userId)
+                ->exists();
+            if ($stillRecipient) {
+                $this->hideFinanceNoticeForResident($noticeId, $userId);
+            }
+        }
+    }
+
     /** All published shared amenity bills for the signed-in resident across amenities. */
     public function listMyResidentBills(int $communityId, int $userId, Request $request): array
     {
+        $this->backfillFinanceNoticesForResident($communityId, $userId);
+
         $reminders = app(AmenityBillReminderService::class);
         $reminders->markOverdue(userId: $userId);
 

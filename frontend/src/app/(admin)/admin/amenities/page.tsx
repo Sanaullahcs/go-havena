@@ -420,6 +420,9 @@ export default function AdminAmenitiesPage() {
     try {
       await approveBooking(booking.id);
       toastSuccess("Booking confirmed.");
+      if (viewingBooking?.id === booking.id) {
+        setViewingBooking({ ...viewingBooking, status: "confirmed" });
+      }
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -1061,7 +1064,21 @@ export default function AdminAmenitiesPage() {
         </div>
       ) : null}
 
-      <BookingInfoModal booking={viewingBooking} onClose={() => setViewingBooking(null)} />
+      <BookingInfoModal
+        booking={viewingBooking}
+        onClose={() => setViewingBooking(null)}
+        actionBusy={viewingBooking != null && busyBookingId === viewingBooking.id}
+        onApprove={
+          viewingBooking?.status === "pending"
+            ? (row) => void handleApproveBooking(row)
+            : undefined
+        }
+        onReject={
+          viewingBooking?.status === "pending"
+            ? (row) => void handleRejectBooking(row)
+            : undefined
+        }
+      />
     </div>
   );
 }

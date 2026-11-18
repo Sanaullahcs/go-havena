@@ -81,10 +81,10 @@ console.log("\nWeb amenity form validation");
 
   const ok = validateAmenityForm(valid);
   assert(!hasFieldErrors(ok), "accepts valid form");
-  assert(!hasFieldErrors(validateAmenityForm({ ...valid, floor: "A".repeat(25) })), "accepts 25-character location");
+  assert(!hasFieldErrors(validateAmenityForm({ ...valid, floor: "A".repeat(40) })), "accepts 40-character location");
   assert(
-    validateAmenityForm({ ...valid, floor: "B".repeat(26) }).floor === "Keep the location to 25 characters.",
-    "rejects location over 25 characters",
+    validateAmenityForm({ ...valid, floor: "B".repeat(41) }).floor === "Keep location under 40 characters.",
+    "rejects location over 40 characters",
   );
   assert(
     validateAmenityForm({ ...valid, floor: "A" }).floor === "Use at least 2 characters.",

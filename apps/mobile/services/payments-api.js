@@ -1,10 +1,21 @@
+import { API_BASE_URL, isLocalDevApi } from "../constants/api-config";
 import { apiRequest } from "./api-client";
 
-/** Online Pay Now stays off until checkout is ready. */
-export const PAY_NOW_ENABLED = false;
+/**
+ * Production / UAT (HTTPS gohavena API): Pay Now + bills hub show "Coming soon".
+ * Local dev (LAN / emulator API): full billing, unit bills in Services, finance notices flow.
+ */
+const PAYMENTS_LIVE_FOR_RESIDENTS = isLocalDevApi(API_BASE_URL);
 
-/** Resident Pay bills hub stays closed until billing is ready in every country. */
-export const PAY_BILLS_ENABLED = false;
+/** Online checkout (KuickPay / card) — production off until launch. */
+export const PAY_NOW_ENABLED = PAYMENTS_LIVE_FOR_RESIDENTS;
+
+/** Bills hub, home quick action, and bill summaries — same environment split. */
+export const PAY_BILLS_ENABLED = PAYMENTS_LIVE_FOR_RESIDENTS;
+
+export function isResidentPaymentsComingSoon() {
+  return !PAYMENTS_LIVE_FOR_RESIDENTS;
+}
 
 /** KuickPay (Pakistan) resident payments and utility bills. */
 

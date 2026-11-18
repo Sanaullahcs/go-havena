@@ -16,14 +16,19 @@ class UserResource extends JsonResource
     public function toArray(Request $request): array
     {
         $profile = $this->profile;
-        $units = app(UnitAssignmentService::class)->userUnitsBrief($this->resource);
-        $isBillingContact = false;
-        foreach ($units as $row) {
-            if (($row['association_status'] ?? 'active') === 'active' && ! empty($row['is_billing_contact'])) {
-                $isBillingContact = true;
-                break;
-            }
-        }
+        $units = app(UnitAssignmentService::class)->userUnitsBrief(
+            $this->resource,
+            \App\Services\UserActingContextService::currentCommunityId($this->resource),
+        );
+        $activeUnits = array_values(array_filter(
+            $units,
+            fn (array $row) => ($row['association_status'] ?? 'active') === 'active',
+        ));
+        $billingContactUnitCount = count(array_values(array_filter(
+            $activeUnits,
+            fn (array $row) => ! empty($row['is_billing_contact']),
+        )));
+        $isBillingContact = $billingContactUnitCount > 0;
 
         return [
             'id' => $this->id,
@@ -77,8 +82,13 @@ class UserResource extends JsonResource
                     ] : null,
                 ]);
             }),
-            'unit' => $units[0] ?? null,
+            'unit' => $activeUnits[0] ?? $units[0] ?? null,
             'units' => $units,
+            'units_meta' => [
+                'unit_count' => count($activeUnits),
+                'association_count' => count($units),
+                'billing_contact_unit_count' => $billingContactUnitCount,
+            ],
             'is_billing_contact' => $isBillingContact,
             'invite_units' => $this->inviteUnitsPayload(),
             ...$this->unitAccessPayload(),

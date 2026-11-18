@@ -47,6 +47,12 @@ class Community extends Model
         // Every creation path (API, admin, seeders) should land with a currency
         // set, derived from the region's country unless one was passed in.
         static::creating(function (Community $community) {
+            $name = \App\Support\CommunityNameUniqueness::trim((string) $community->name);
+            if ($name !== '') {
+                \App\Support\CommunityNameUniqueness::assertUnique($name, field: 'name');
+                $community->name = $name;
+            }
+
             if (\App\Support\Currency::isSupported($community->currency)) {
                 $community->currency = \App\Support\Currency::normalize($community->currency);
 

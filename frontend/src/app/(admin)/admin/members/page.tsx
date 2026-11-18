@@ -768,7 +768,11 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
       <DataTable
         title={isSystemResidents ? "All Residents" : "All Members"}
         search={searchInput}
-        onSearch={setSearchInput}
+        onSearch={(value) => {
+          if (provisionOpen) return;
+          setSearchInput(value);
+        }}
+        searchDisabled={provisionOpen}
         searchPlaceholder="Search by name or email"
         filters={filters}
         activeFilter={filter}

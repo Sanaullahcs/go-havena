@@ -18,7 +18,7 @@ import { getCurrentRole } from "../../../constants/role-session";
 import { saveRegionSelection } from "../../../services/auth-api";
 import { ionChevronForward } from "../../../utils/rtl";
 import { normalizeRegion } from "../../../services/regions-api";
-import { prefetchCountries, resolveLocation } from "../../../services/geography-api";
+import { prefetchCountries, findCityRegion } from "../../../services/geography-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import BackButton from "../../../components/ui/back-button";
 import RegionFilterSheet, {
@@ -76,13 +76,25 @@ export default function RegionScreen() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    resolveLocation({
+    findCityRegion({
       countryId: countryFilter?.id,
       stateId: stateFilter.id,
       city: cityFilter.name,
     })
       .then((row) => {
-        if (!cancelled) setPinned(normalizeRegion(row));
+        if (!cancelled) {
+          if (row) {
+            setPinned(normalizeRegion(row));
+            setError(null);
+          } else {
+            setPinned(null);
+            setError(
+              t("region.noRegionForCity", {
+                defaultValue: "No communities are set up for this city yet. Try another city.",
+              }),
+            );
+          }
+        }
       })
       .catch((err) => {
         if (!cancelled) {

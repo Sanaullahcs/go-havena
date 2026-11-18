@@ -206,6 +206,48 @@ class PropertyServiceBillingTest extends TestCase
         $this->assertCount(0, $this->getJson('/api/v1/service-bills')->assertOk()->json('data'));
     }
 
+    public function test_resident_who_is_billing_contact_for_two_units_sees_both_automatic_bills(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity(520);
+        $units = app(UnitAssignmentService::class);
+        $units->assignUserToUnitNumber($community->id, $resident->id, '402', false, false, 'active', 'invite');
+
+        Sanctum::actingAs($admin);
+        $serviceId = $this->withHeaders($this->headers($community->id))
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'Electricity',
+                'category' => 'electricity',
+                'application_type' => 'automatic',
+                'amount' => 100,
+                'due_day' => 10,
+                'first_billing_month' => '2026-09',
+            ])->assertCreated()->json('data.id');
+
+        $this->assertSame(
+            2,
+            DB::table('unit_service_bills')
+                ->where('service_id', $serviceId)
+                ->where('billing_contact_user_id', $resident->id)
+                ->count(),
+        );
+
+        Sanctum::actingAs($resident);
+        $this->withHeaders($this->headers($community->id))
+            ->getJson('/api/v1/units/mine')
+            ->assertOk()
+            ->assertJsonPath('meta.unit_count', 2)
+            ->assertJsonPath('meta.billing_contact_unit_count', 2);
+
+        $bills = $this->withHeaders($this->headers($community->id))
+            ->getJson('/api/v1/service-bills')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertCount(2, $bills);
+        $this->assertSame(2, collect($bills)->pluck('unit_id')->unique()->count());
+        $this->assertDatabaseCount('notices', 2);
+    }
+
     public function test_automatic_service_with_future_first_month_does_not_bill_yet(): void
     {
         ['community' => $community, 'admin' => $admin, 'resident' => $ahmed] = $this->seedCommunity(270);
@@ -1643,7 +1685,7 @@ class PropertyServiceBillingTest extends TestCase
             ->assertJsonCount(0, 'data');
     }
 
-    public function test_service_with_send_notice_disabled_skips_finance_notice(): void
+    public function test_service_with_send_notice_disabled_still_creates_home_finance_notice(): void
     {
         ['community' => $community, 'admin' => $admin, 'resident' => $ahmed] = $this->seedCommunity(330);
         $headers = $this->headers($community->id);
@@ -1663,9 +1705,11 @@ class PropertyServiceBillingTest extends TestCase
 
         $bill = DB::table('unit_service_bills')->where('service_id', $serviceId)->first();
         $this->assertNotNull($bill);
-        $this->assertNull($bill->notice_id);
-        $this->assertDatabaseMissing('notices', [
+        $this->assertNotNull($bill->notice_id);
+        $this->assertDatabaseHas('notices', [
+            'id' => $bill->notice_id,
             'community_id' => $community->id,
+            'category' => 'finance',
             'title' => 'Silent Water — Unit 4B',
         ]);
         $this->assertDatabaseHas('app_notifications', [
@@ -1674,11 +1718,8 @@ class PropertyServiceBillingTest extends TestCase
         ]);
 
         Sanctum::actingAs($ahmed);
-        $homeIds = collect($this->getJson('/api/v1/notices')->assertOk()->json('data'))->pluck('id');
-        $this->assertFalse($homeIds->contains(fn ($id) => str_contains(
-            (string) DB::table('notices')->where('id', $id)->value('body'),
-            'Silent Water',
-        )));
+        $homeIds = collect($this->withHeaders($headers)->getJson('/api/v1/notices')->assertOk()->json('data'))->pluck('id');
+        $this->assertTrue($homeIds->contains((int) $bill->notice_id));
     }
 
     public function test_inactive_service_notice_rules_and_reactivation_notice_generation(): void
@@ -1763,6 +1804,84 @@ class PropertyServiceBillingTest extends TestCase
         $this->assertTrue($updatesIds->contains((int) $secondBill->notice_id));
 
         Carbon::setTestNow(Carbon::parse('2026-09-21 12:00:00'));
+    }
+
+    public function test_home_notices_feed_backfills_finance_notice_for_open_bill(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $ahmed] = $this->seedCommunity(528);
+
+        Sanctum::actingAs($admin);
+        $serviceId = $this->withHeaders($this->headers($community->id))
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'Electricity',
+                'category' => 'electricity',
+                'application_type' => 'automatic',
+                'amount' => 50,
+                'due_day' => 10,
+                'first_billing_month' => '2026-09',
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $bill = DB::table('unit_service_bills')->where('service_id', $serviceId)->first();
+        $this->assertNotNull($bill);
+        $this->assertNotNull($bill->notice_id);
+        DB::table('notice_recipients')->where('notice_id', $bill->notice_id)->delete();
+        DB::table('notices')->where('id', $bill->notice_id)->delete();
+        DB::table('unit_service_bills')->where('id', $bill->id)->update(['notice_id' => null]);
+
+        Sanctum::actingAs($ahmed);
+        $ids = collect($this->withHeaders($this->headers($community->id))
+            ->getJson('/api/v1/notices')
+            ->assertOk()
+            ->json('data'))
+            ->pluck('id');
+
+        $this->assertNotNull(DB::table('unit_service_bills')->where('id', $bill->id)->value('notice_id'));
+        $noticeId = (int) DB::table('unit_service_bills')->where('id', $bill->id)->value('notice_id');
+        $this->assertTrue($ids->contains($noticeId));
+        $this->assertDatabaseHas('notices', [
+            'id' => $noticeId,
+            'category' => 'finance',
+            'status' => 'published',
+        ]);
+        $this->assertNull(DB::table('notices')->where('id', $noticeId)->value('event_date'));
+    }
+
+    public function test_resident_list_syncs_automatic_bills_even_when_auto_generate_flag_is_false(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity(525);
+
+        Sanctum::actingAs($admin);
+        $serviceId = $this->withHeaders($this->headers($community->id))
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'Water Supply',
+                'category' => 'water',
+                'application_type' => 'automatic',
+                'billing_frequency' => 'monthly',
+                'amount' => 45,
+                'due_day' => 10,
+                'first_billing_month' => '2026-09',
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        DB::table('property_services')->where('id', $serviceId)->update(['auto_generate_bills' => false]);
+        DB::table('unit_service_bills')->where('service_id', $serviceId)->delete();
+
+        Sanctum::actingAs($resident);
+        $bills = $this->withHeaders($this->headers($community->id))
+            ->getJson('/api/v1/service-bills')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertTrue(collect($bills)->contains(
+            fn ($row) => (int) ($row['service_id'] ?? 0) === (int) $serviceId,
+        ));
+        $this->assertDatabaseHas('unit_service_bills', [
+            'service_id' => $serviceId,
+            'billing_contact_user_id' => $resident->id,
+        ]);
     }
 
     public function test_automatic_service_bill_backfills_when_residential_unit_is_assigned_after_publish(): void

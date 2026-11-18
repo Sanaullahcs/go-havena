@@ -11,7 +11,7 @@ import { ThemedSelect } from "@/components/ui/themed-select";
 import { assignCommunityAdmin, fetchAdminCommunitiesList, type AdminCommunity } from "@/lib/api/communities";
 import { fetchCommunityAdmins, type CommunityAdminApplicant } from "@/lib/api/community-admins";
 import { apiError } from "@/lib/api/client";
-import { fetchRegions, type Region } from "@/lib/api/regions";
+import { fetchActiveCityRegionsForPicker, type Region } from "@/lib/api/regions";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { AdminBadge } from "@/components/admin/ui";
 import { useResidentInviteEmailStep } from "@/lib/admin/use-resident-invite-email-step";
@@ -94,6 +94,7 @@ export function ProvisionUserModal({
   presetCommunity?: PresetCommunityAssignment | null;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const residentEmailRef = useRef<HTMLInputElement>(null);
   const [regions, setRegions] = useState<Region[]>([]);
   const [communities, setCommunities] = useState<AdminCommunity[]>([]);
   const [loadingRegions, setLoadingRegions] = useState(true);
@@ -135,11 +136,17 @@ export function ProvisionUserModal({
   useEffect(() => {
     if (!open) return;
     setLoadingRegions(true);
-    fetchRegions({ status: "active", per_page: 100 })
-      .then((res) => setRegions(res.data.filter((r) => r.status === "active")))
+    fetchActiveCityRegionsForPicker()
+      .then(setRegions)
       .catch(() => setRegions([]))
       .finally(() => setLoadingRegions(false));
   }, [open]);
+
+  useEffect(() => {
+    if (!open || type !== "resident" || residentInviteStep !== "email") return;
+    const timer = window.setTimeout(() => residentEmailRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [open, type, residentInviteStep]);
 
   const loadCommunities = useCallback(async (regionId: number) => {
     setLoadingCommunities(true);
@@ -210,43 +217,6 @@ export function ProvisionUserModal({
       });
     }
   }, [open, type, presetCommunity, resetResidentInviteSteps]);
-
-  useEffect(() => {
-    if (
-      !open
-      || type !== "resident"
-      || residentInviteStep !== "details"
-      || !residentForm.email.trim()
-      || !residentForm.community_id
-    ) {
-      return;
-    }
-
-    let cancelled = false;
-  void lookupResidentForInvite(residentForm.email.trim(), Number(residentForm.community_id)).then((data) => {
-    if (cancelled) return;
-    if (data.invitable === false && data.message) {
-      setErrors((prev) => ({ ...prev, community_id: data.message }));
-    } else {
-      setErrors((prev) => {
-        if (!prev.community_id) return prev;
-        const next = { ...prev };
-        delete next.community_id;
-        return next;
-      });
-    }
-    if (data.auto_fill && data.name && data.phone) {
-      setResidentForm((f) => ({ ...f, name: data.name! }));
-      const nextPhone = phoneFieldFromE164(data.phone);
-      setResidentPhone(nextPhone);
-      setResidentPhoneE164(data.phone);
-    }
-  });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, type, residentInviteStep, residentForm.community_id, residentForm.email]);
 
   useEffect(() => {
     if (!open || !isPresetAssign) return;
@@ -515,7 +485,7 @@ export function ProvisionUserModal({
     () =>
       regions.map((region) => ({
         value: String(region.id),
-        label: `${region.title}${region.area ? ` · ${region.area}` : ""}`,
+        label: region.hierarchy_label?.trim() || region.title,
       })),
     [regions],
   );
@@ -547,7 +517,11 @@ export function ProvisionUserModal({
   const HeaderIcon = type === "community_admin" ? UserPlus : Users;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="presentation"
+      onKeyDown={(e) => e.stopPropagation()}
+    >
       <button
         type="button"
         className="absolute inset-0 nl-modal-backdrop bg-slate-900/45 backdrop-blur-sm"
@@ -556,6 +530,9 @@ export function ProvisionUserModal({
       />
       <div
         data-popover-boundary
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="provision-user-modal-title"
         className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-modal-in"
       >
         <div className="flex shrink-0 items-start gap-4 border-b border-slate-100 px-6 py-5">
@@ -563,7 +540,9 @@ export function ProvisionUserModal({
             <HeaderIcon className="h-5 w-5" strokeWidth={2} aria-hidden />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+            <h3 id="provision-user-modal-title" className="text-lg font-bold text-slate-900">
+              {title}
+            </h3>
             <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>
           </div>
           <button
@@ -580,6 +559,7 @@ export function ProvisionUserModal({
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
             <Field label="Email address" required error={residentEmailStepError ?? undefined}>
               <ClearableInput
+                ref={residentEmailRef}
                 data-field="email"
                 type="email"
                 autoFocus
@@ -990,10 +970,27 @@ export function ProvisionUserModal({
                   options={communityOptions}
                   onChange={(value) => {
                     clearFieldError("community_id");
+                    const nextCommunityId = value ? Number(value) : "";
                     setResidentForm((f) => ({
                       ...f,
-                      community_id: value ? Number(value) : "",
+                      community_id: nextCommunityId,
                     }));
+                    if (nextCommunityId && residentForm.email.trim()) {
+                      void lookupResidentForInvite(residentForm.email.trim(), Number(nextCommunityId)).then(
+                        (data) => {
+                          if (data.invitable === false && data.message) {
+                            setErrors((prev) => ({ ...prev, community_id: data.message }));
+                          } else {
+                            setErrors((prev) => {
+                              if (!prev.community_id) return prev;
+                              const next = { ...prev };
+                              delete next.community_id;
+                              return next;
+                            });
+                          }
+                        },
+                      );
+                    }
                   }}
                 />
               </Field>
