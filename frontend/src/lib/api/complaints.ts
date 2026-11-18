@@ -72,6 +72,7 @@ export type ComplaintEvent = {
   from_status: string | null;
   to_status: string | null;
   note: string | null;
+  actor_name?: string | null;
   created_at: string;
 };
 

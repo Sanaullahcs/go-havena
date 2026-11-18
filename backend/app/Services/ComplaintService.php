@@ -202,7 +202,7 @@ class ComplaintService
         return $this->present($complaint, $user, $asAdmin && $this->isQueueAdmin($user, $complaint));
     }
 
-    public function addMessage(User $user, int $id, string $body, string $visibility, array $files = [], bool $asAdmin = false): array
+    public function addMessage(User $user, int $id, string $body, string $visibility, array $files = [], bool $asAdmin = false, string $mailKind = 'message'): array
     {
         $complaint = $this->visibleComplaint($user, $id);
         $admin = $asAdmin && $this->isQueueAdmin($user, $complaint);
@@ -239,7 +239,12 @@ class ComplaintService
                 }
             }
             $this->notifyAssignedStaff($complaint, $user, 'New complaint message', 'There is an update on '.$complaint->reference.'.', true);
-            app(ComplaintMailer::class)->messageReceived($this->find($id), $user, (int) $messageId, trim($body));
+            $freshComplaint = $this->find($id);
+            if ($mailKind === 'work_update') {
+                app(ComplaintMailer::class)->workUpdated($freshComplaint, $user, (int) $messageId, trim($body));
+            } else {
+                app(ComplaintMailer::class)->messageReceived($freshComplaint, $user, (int) $messageId, trim($body));
+            }
         }
 
         return $this->show($user, $id, $asAdmin);
@@ -542,7 +547,7 @@ class ComplaintService
 
         $from = (string) $complaint->status;
         $to = in_array($from, ['submitted', 'reopened'], true) ? 'in_review' : $from;
-        $statusEventId = DB::transaction(function () use ($complaint, $user, $note, $from, $to) {
+        [$acceptedEventId, $statusEventId] = DB::transaction(function () use ($complaint, $user, $note, $from, $to) {
             DB::table('complaint_assignments')->insert([
                 'complaint_id' => $complaint->id,
                 'staff_id' => $complaint->assigned_staff_id,
@@ -552,29 +557,29 @@ class ComplaintService
                 'note' => $note,
                 'created_at' => now(),
             ]);
-            $this->event($complaint->id, $user->id, 'accepted', $from, $from, $note);
+            $acceptedEventId = $this->event($complaint->id, $user->id, 'accepted', $from, $from, $note);
             if ($to === $from) {
-                return 0;
+                return [$acceptedEventId, 0];
             }
             DB::table('complaints')->where('id', $complaint->id)->update([
                 'status' => $to,
                 'updated_at' => now(),
             ]);
 
-            return $this->event($complaint->id, $user->id, 'status_changed', $from, $to, 'Assignment accepted');
+            return [$acceptedEventId, $this->event($complaint->id, $user->id, 'status_changed', $from, $to, 'Assignment accepted')];
         });
         $fresh = $this->find($id);
         $payload = $this->staffPayload($fresh, $user);
-        if ($statusEventId) {
-            $label = $this->statusLabel($to);
-            $this->afterResponse(function () use ($fresh, $user, $from, $to, $statusEventId, $label) {
+        $label = $this->statusLabel($to);
+        $this->afterResponse(function () use ($fresh, $user, $acceptedEventId, $statusEventId, $label, $note) {
+            if ($statusEventId) {
                 if ((int) $fresh->reporter_user_id !== (int) $user->id) {
                     $this->notifyUser((int) $fresh->reporter_user_id, $fresh, 'Complaint '.$label, $fresh->reference.' is now '.$label.'.', false);
                 }
                 $this->notifyQueue($fresh, 'Complaint '.$label, $fresh->reference.' is now '.$label.'.', $user->id);
-                app(ComplaintMailer::class)->statusChanged($fresh, $from, $to, $user, $statusEventId, 'Assignment accepted', true);
-            });
-        }
+            }
+            app(ComplaintMailer::class)->assignmentAccepted($fresh, $user, $acceptedEventId, $note);
+        });
 
         return $payload;
     }
@@ -664,7 +669,7 @@ class ComplaintService
         abort_unless($this->assignmentAccepted($complaint, $user), 422, 'Accept the assignment before adding a work update.');
         abort_if(in_array($complaint->status, ['closed', 'cancelled'], true), 422, 'This complaint is no longer open for updates.');
 
-        return $this->addMessage($user, $complaint->id, $body, 'public', $files, false);
+        return $this->addMessage($user, $complaint->id, $body, 'public', $files, false, 'work_update');
     }
 
     public function feedback(User $user, int $id, int $rating, ?string $comment): array

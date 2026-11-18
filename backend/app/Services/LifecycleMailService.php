@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\DeliverTransactionalEmail;
 use App\Mail\HavenaTransactionalMail;
 use App\Models\Community;
 use App\Models\GuestInvitation;
@@ -452,7 +453,64 @@ class LifecycleMailService
         return ! in_array((string) config('mail.default'), ['log', 'array'], true);
     }
 
-    public function sendOnce(string $type, string $contextKey, ?string $email, Mailable $mail): bool
+    /**
+     * @param  array{
+     *     subjectLine: string,
+     *     preheader: string,
+     *     eyebrow: string,
+     *     heading: string,
+     *     intro: string,
+     *     paragraphs?: list<string>,
+     *     details?: list<array{label: string, value: string}>,
+     *     ctaLabel?: ?string,
+     *     ctaUrl?: ?string,
+     *     footerNote?: ?string
+     * }  $message
+     */
+    public function queueOnce(string $type, string $contextKey, ?string $email, array $message): void
+    {
+        $email = ContactIdentityService::normalizeEmail($email);
+        if (! $email || ContactIdentityService::isPlaceholderEmail($email)) {
+            return;
+        }
+        if (strlen($contextKey) > 120) {
+            $contextKey = substr(hash('sha256', $contextKey), 0, 40);
+        }
+
+        try {
+            $alreadySent = TransactionalEmailSend::query()
+                ->where('mail_type', $type)
+                ->where('context_key', $contextKey)
+                ->exists();
+            if ($alreadySent) {
+                return;
+            }
+        } catch (Throwable $e) {
+            Log::warning('Transactional email lock check failed', [
+                'type' => $type,
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        DeliverTransactionalEmail::dispatch(
+            $type,
+            $contextKey,
+            $email,
+            (string) $message['subjectLine'],
+            (string) $message['preheader'],
+            (string) $message['eyebrow'],
+            (string) $message['heading'],
+            (string) $message['intro'],
+            $message['paragraphs'] ?? [],
+            $message['details'] ?? [],
+            $message['ctaLabel'] ?? null,
+            $message['ctaUrl'] ?? null,
+            $message['footerNote'] ?? null,
+        );
+    }
+
+    public function sendOnce(string $type, string $contextKey, ?string $email, Mailable $mail, bool $throwOnFailure = false): bool
     {
         $email = ContactIdentityService::normalizeEmail($email);
         if (! $email || ContactIdentityService::isPlaceholderEmail($email)) {
@@ -487,6 +545,9 @@ class LifecycleMailService
                 'email' => $email,
                 'error' => $e->getMessage(),
             ]);
+            if ($throwOnFailure) {
+                throw $e;
+            }
 
             return false;
         }

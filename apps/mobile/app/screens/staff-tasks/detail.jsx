@@ -134,8 +134,6 @@ export default function StaffTaskDetailScreen() {
   const [busy, setBusy] = useState(false);
   const [busyDecision, setBusyDecision] = useState("");
   const respondLock = useRef(false);
-  const [updateNote, setUpdateNote] = useState("");
-  const [updateOpen, setUpdateOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetStatus, setSheetStatus] = useState("");
   const [sheetNote, setSheetNote] = useState("");
@@ -250,25 +248,6 @@ export default function StaffTaskDetailScreen() {
     if (!result.canceled) setFile(result.assets?.[0] ?? null);
   };
 
-  const sendUpdate = async () => {
-    if (updateNote.trim().length < 1) {
-      await showError("Work update", "Write a short update before sending.");
-      return;
-    }
-    setBusy(true);
-    try {
-      setTask(await addStaffTaskUpdate(id, updateNote.trim(), file ? [file] : []));
-      setUpdateNote("");
-      setFile(null);
-      setUpdateOpen(false);
-      await showSuccess("Update sent", "The resident can see this update.");
-    } catch (err) {
-      await showError("Work update", err?.message || "Could not send this update.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const openFile = async (item) => {
     if (isImage(item)) {
       setPreview(item);
@@ -332,7 +311,6 @@ export default function StaffTaskDetailScreen() {
             footerBorderless
             footerStyle={styles.statusFooter}
             contentContainerStyle={[styles.body, { paddingBottom: tab === "details" && !pending && transitions.length ? sw(8) : Math.max(insets.bottom, sw(16)) }]}
-            keyboardFieldGap={updateOpen ? sw(58) : 0}
             scrollStyle={styles.flex}
           >
             <View style={styles.card}>
@@ -452,34 +430,6 @@ export default function StaffTaskDetailScreen() {
                   <Pressable disabled={busy} onPress={() => void respond("accept")} style={styles.primary}><Text style={styles.primaryText}>{busy && busyDecision === "accept" ? "Accepting…" : "Accept"}</Text></Pressable>
                   <Pressable disabled={busy} onPress={() => void respond("decline")} style={styles.secondary}><Text style={styles.secondaryText}>{busy && busyDecision === "decline" ? "Declining…" : "Decline"}</Text></Pressable>
                 </View>
-              </View>
-            ) : null}
-            {tab === "details" && !pending ? (
-              <View style={styles.card}>
-                <Pressable onPress={() => setUpdateOpen((open) => !open)} style={styles.more}>
-                  <Text style={styles.moreText}>{updateOpen ? "Hide work update" : "Add work update"}</Text>
-                </Pressable>
-                {updateOpen ? (
-                  <>
-                    <TextInput
-                      value={updateNote}
-                      onChangeText={setUpdateNote}
-                      placeholder="What did you do?"
-                      placeholderTextColor="#94A3B8"
-                      editable={!busy}
-                      multiline
-                      style={styles.input}
-                    />
-                    <View style={styles.row}>
-                      <Pressable disabled={busy} onPress={() => void pickFile()} style={styles.secondary}>
-                        <Text style={styles.secondaryText} numberOfLines={1}>{file?.name || "Add photo or file"}</Text>
-                      </Pressable>
-                      <Pressable disabled={busy} onPress={() => void sendUpdate()} style={styles.primary}>
-                        <Text style={styles.primaryText}>Send</Text>
-                      </Pressable>
-                    </View>
-                  </>
-                ) : null}
               </View>
             ) : null}
           </KeyboardSafeScreen>
@@ -677,14 +627,11 @@ const styles = StyleSheet.create({
   eventMeta: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#64748B" },
   eventNote: { fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(16), color: "#334155" },
   eventTime: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#94A3B8" },
-  more: { alignSelf: "flex-start" },
-  moreText: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: NAVY },
   row: { flexDirection: "row", gap: sw(8) },
   primary: { flex: 1, minHeight: sw(44), borderRadius: sw(12), backgroundColor: NAVY, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, paddingHorizontal: sw(10) },
   primaryText: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: "#fff" },
   secondary: { flex: 1, minHeight: sw(44), borderRadius: sw(12), borderWidth: 1, borderColor: "#D6E0EA", backgroundColor: "#fff", alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, paddingHorizontal: sw(10) },
   secondaryText: { flexShrink: 1, fontFamily: Fonts.semiBold, fontSize: sf(13), color: NAVY },
-  input: { minHeight: sw(72), borderRadius: sw(12), borderWidth: 1, borderColor: "#E2E8F0", padding: sw(12), fontFamily: Fonts.regular, fontSize: sf(14), color: "#0F172A", textAlignVertical: "top" },
   tabs: { flexDirection: "row", gap: sw(8), paddingHorizontal: sw(16), paddingTop: sw(12) },
   tab: { flex: 1, height: sw(36), borderRadius: 999, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E6EDF5", alignItems: "center", justifyContent: "center" },
   tabOn: { backgroundColor: NAVY, borderColor: NAVY },

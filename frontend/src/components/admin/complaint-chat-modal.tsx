@@ -19,7 +19,7 @@ import { subscribeForegroundNotification } from "@/lib/notifications/foreground-
 const STATUS_TONE: Record<string, "slate" | "blue" | "cyan" | "amber" | "green" | "violet" | "red"> = {
   submitted: "slate",
   open: "slate",
-  requested: "blue",
+  requested: "violet",
   pending: "amber",
   in_review: "amber",
   in_progress: "blue",

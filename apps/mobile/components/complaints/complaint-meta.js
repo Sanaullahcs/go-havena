@@ -49,17 +49,19 @@ export const STATUS_ACTION = {
 export function statusColor(status) {
   if (status === "resolved" || status === "closed") return "#059669";
   if (status === "cancelled" || status === "not_resolved" || status === "urgent") return "#E11D48";
-  if (status === "requested" || status === "pending" || status === "in_review" || status === "waiting_on_resident" || status === "reopened" || status === "high") return "#D97706";
+  if (status === "requested") return "#6D28D9";
+  if (status === "pending" || status === "in_review" || status === "waiting_on_resident" || status === "reopened" || status === "high") return "#D97706";
   if (status === "in_progress") return "#1B4F8A";
   return "#1B4F8A";
 }
 
-/** Staff complaint colors: open/requested navy, pending amber, in progress blue, not resolved red, resolved green. */
+/** Staff complaint colors: requested purple, in progress blue, pending amber, not resolved red, resolved green. */
 export function staffStatusTone(status, workflow) {
   const key = workflow || status;
   if (key === "resolved" || key === "closed") return { color: "#059669", bg: "#E7F8EF" };
   if (key === "in_progress") return { color: "#1B4F8A", bg: "#E8F1FA" };
   if (key === "not_resolved" || key === "cancelled") return { color: "#E11D48", bg: "#FDECEC" };
-  if (key === "requested" || key === "open" || key === "submitted") return { color: "#1B4F8A", bg: "#E8F1FA" };
+  if (key === "requested") return { color: "#6D28D9", bg: "#F5F3FF" };
+  if (key === "open" || key === "submitted") return { color: "#1B4F8A", bg: "#E8F1FA" };
   return { color: "#D97706", bg: "#FEF6E7" };
 }

@@ -249,6 +249,9 @@ export default function StaffHomeScreen() {
       <Modal visible={Boolean(callPhone)} transparent animationType="fade" onRequestClose={() => setCallPhone("")}>
         <Pressable style={styles.callBackdrop} onPress={() => setCallPhone("")}>
           <Pressable style={styles.callSheet} onPress={() => {}}>
+            <Pressable onPress={() => setCallPhone("")} style={styles.callClose} accessibilityRole="button" accessibilityLabel="Close">
+              <Feather name="x" size={sf(16)} color="#334155" />
+            </Pressable>
             <View style={styles.callIcon}>
               <Feather name="phone" size={sf(18)} color={NAVY} />
             </View>
@@ -262,10 +265,6 @@ export default function StaffHomeScreen() {
             >
               <Feather name="phone" size={sf(15)} color="#FFFFFF" />
               <Text style={styles.callActionText}>Call</Text>
-            </Pressable>
-            <Pressable onPress={() => setCallPhone("")} style={styles.callDismiss} accessibilityRole="button" accessibilityLabel="Close">
-              <Feather name="x" size={sf(15)} color={NAVY} />
-              <Text style={styles.callDismissText}>Close</Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -361,11 +360,10 @@ const styles = StyleSheet.create({
   callText: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: NAVY },
   callBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.55)", alignItems: "center", justifyContent: "center", paddingHorizontal: sw(24) },
   callSheet: { width: "100%", maxWidth: 360, backgroundColor: "#FFFFFF", borderRadius: 28, paddingHorizontal: sw(18), paddingTop: sw(22), paddingBottom: sw(16), alignItems: "center" },
+  callClose: { position: "absolute", top: sw(12), right: sw(12), zIndex: 2, width: sw(32), height: sw(32), borderRadius: sw(16), backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
   callIcon: { width: sw(48), height: sw(48), borderRadius: sw(24), backgroundColor: "#E8F1FA", alignItems: "center", justifyContent: "center", marginBottom: sw(10) },
   callTitle: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: "#64748B" },
   callNumber: { marginTop: sw(6), fontFamily: Fonts.bold, fontSize: sf(22), color: NAVY },
   callAction: { marginTop: sw(16), alignSelf: "stretch", minHeight: sw(48), borderRadius: sw(14), backgroundColor: NAVY, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: sw(6) },
   callActionText: { fontFamily: Fonts.bold, fontSize: sf(15), color: "#FFFFFF" },
-  callDismiss: { marginTop: sw(10), alignSelf: "stretch", minHeight: sw(46), borderRadius: sw(14), backgroundColor: "#E8F1FA", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: sw(6) },
-  callDismissText: { fontFamily: Fonts.bold, fontSize: sf(15), color: NAVY },
 });

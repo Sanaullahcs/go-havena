@@ -1,14 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { getManagedCommunityId, getUser, SESSION_PATCHED_EVENT } from "@/lib/auth/session";
-import { Calendar, CheckCircle2, ChevronDown, Flag, Hash, LifeBuoy, MessageSquare, Paperclip, SlidersHorizontal, Tag, Timer, UserCheck, UserRound, X } from "lucide-react";
+import { Calendar, CheckCircle2, ChevronDown, CircleDot, ClipboardList, Clock, FileText, Flag, Hash, MessageSquare, Paperclip, SlidersHorizontal, Tag, UserCheck, UserRound, X } from "lucide-react";
 import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { ComplaintChatModal } from "@/components/admin/complaint-chat-modal";
-import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
+import { AdminBadge, DataTable, DtPagination } from "@/components/admin/ui";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ThemedSelect } from "@/components/ui/themed-select";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
@@ -34,7 +34,7 @@ import { apiError } from "@/lib/api/client";
 const STATUS_TONE: Record<string, "slate" | "blue" | "cyan" | "amber" | "green" | "violet" | "red"> = {
   submitted: "slate",
   open: "slate",
-  requested: "blue",
+  requested: "violet",
   pending: "amber",
   in_review: "amber",
   in_progress: "blue",
@@ -96,7 +96,7 @@ const STAFF_ASSIGN_COPY: Record<StaffAssignMode, { title: string; confirmTitle: 
 
 const PRIORITY_TONE = {
   low: "slate",
-  normal: "blue",
+  normal: "slate",
   high: "amber",
   urgent: "red",
 } as const;
@@ -153,9 +153,8 @@ const ACTIVITY_ACTION: Record<string, string> = {
 
 function activityTitle(action: string, toStatus?: string | null) {
   const label = ACTIVITY_ACTION[action] ?? action.replaceAll("_", " ");
-  const status = toStatus ? ACTIVITY_STATUS[toStatus] ?? toStatus.replaceAll("_", " ") : "";
-  if (!status || action === "created") return label;
-  return `${label} · ${status}`;
+  if (action !== "status_changed" || !toStatus) return label;
+  return `${label} · ${ACTIVITY_STATUS[toStatus] ?? toStatus.replaceAll("_", " ")}`;
 }
 
 function formatDate(value?: string | null) {
@@ -314,6 +313,38 @@ function ComplaintFiltersButton({
         document.body,
       ) : null}
     </>
+  );
+}
+
+function formatSubmitted(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function isImageAttachment(file: { mime_type?: string | null; file_name: string }) {
+  if (file.mime_type?.startsWith("image/")) return true;
+  return /\.(png|jpe?g|gif|webp)$/i.test(file.file_name);
+}
+
+function activityIcon(action: string) {
+  if (action === "attachment") return Paperclip;
+  if (action === "created") return FileText;
+  if (action === "message" || action === "internal_note") return MessageSquare;
+  if (action.includes("assign") || action === "accepted" || action === "declined") return UserRound;
+  return CheckCircle2;
+}
+
+function ComplaintStat({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F4F7FB] text-[#1B4F8A]">{icon}</span>
+      <span className="min-w-0">
+        <span className="block truncate text-[12px] font-medium text-slate-500">{label}</span>
+        <span className="block text-[1.15rem] font-semibold tabular-nums leading-tight text-[#0A2A43]">{value}</span>
+      </span>
+    </div>
   );
 }
 
@@ -698,10 +729,9 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
     }
   };
 
-  const openCount = ["submitted", "in_review", "in_progress", "waiting_on_resident", "not_resolved", "reopened"].reduce(
-    (sum, key) => sum + Number(counts[key] ?? 0),
-    0,
-  );
+  const openCount = Number(counts.submitted ?? 0) + Number(counts.reopened ?? 0);
+  const progressCount = Number(counts.in_progress ?? 0);
+  const resolvedCount = Number(counts.resolved ?? 0);
   const statuses = [
     ["all", "All"],
     ["submitted", "Open"],
@@ -757,24 +787,30 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
     </div>
   );
 
+  const summary = (
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <ComplaintStat icon={<ClipboardList className="h-4 w-4" />} label="Total" value={Number(counts.all ?? 0)} />
+      <ComplaintStat icon={<CircleDot className="h-4 w-4" />} label="Open" value={openCount} />
+      <ComplaintStat icon={<Clock className="h-4 w-4" />} label="In Progress" value={progressCount} />
+      <ComplaintStat icon={<CheckCircle2 className="h-4 w-4" />} label="Resolved" value={resolvedCount} />
+    </div>
+  );
+
   return (
     <section className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Total" value={counts.all ?? 0} icon={<LifeBuoy />} tone="blue" />
-        <StatTile label="Open" value={openCount} icon={<Timer />} tone="amber" />
-        <StatTile label="Waiting" value={counts.waiting_on_resident ?? 0} icon={<MessageSquare />} tone="violet" />
-        <StatTile label="Resolved" value={counts.resolved ?? 0} icon={<CheckCircle2 />} tone="green" />
-      </div>
       {error ? <PageError message={error} onRetry={() => void load()} /> : null}
       <DataTable
         title={audience === "system" ? "Complaints & Support" : "Complaints"}
+        titleCount={Number(counts.all ?? total)}
+        intro={summary}
+        stacked={audience === "community"}
         totalCount={total}
         search={search}
         onSearch={(value) => {
           setPage(1);
           setSearch(value);
         }}
-        searchPlaceholder="Search tickets"
+        searchPlaceholder="Search complaints..."
         loading={loading}
         beforeSearch={audience === "system" ? inlineFilters : undefined}
         toolbar={audience === "community" ? (
@@ -791,43 +827,46 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
         <div className="overflow-x-auto">
         <table className="min-w-full border-separate border-spacing-0 text-left">
           <thead>
-            <tr className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-              {["Ticket", "Complaint", "Resident", "Unit", "Category", "Priority", "Assigned Staff", "Submitted", "Status", ""].map((label) => (
-                <th key={label || "actions"} className="sticky top-0 border-b border-slate-100 bg-slate-50/80 px-4 py-3 font-semibold first:pl-5 last:pr-5">{label}</th>
+            <tr className="text-[11px] font-medium uppercase tracking-[0.06em] text-slate-400">
+              {["Ticket", "Complaint", "Resident", "Unit", "Category", "Priority", "Assigned Staff", "Submitted", "Status", "Actions"].map((label) => (
+                <th key={label} className={`sticky top-0 border-b border-slate-100 bg-white px-3 py-2.5 font-medium first:pl-4 last:pr-4 ${label === "Actions" ? "text-right" : ""}`}>{label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="group transition-colors hover:bg-[#F4F8FD]">
-                <td className="border-b border-slate-100 px-4 py-3.5 pl-5 align-middle">
-                  <span className="font-mono text-[12px] font-medium tracking-wide text-slate-500">{row.reference}</span>
+              <tr key={row.id} className="group transition-colors hover:bg-[#F8FAFC]">
+                <td className="border-b border-slate-100 px-3 py-2.5 pl-4 align-middle">
+                  <span className="font-mono text-[12px] font-medium tracking-wide text-[#1B4F8A]">{row.reference}</span>
                 </td>
-                <td className="border-b border-slate-100 px-4 py-3.5 align-middle">
-                  <button type="button" onClick={() => openComplaint(row.id)} className="block max-w-[16rem] text-left">
-                    <span className="block truncate text-[13.5px] font-semibold text-[#0A2A43] group-hover:text-[#0D9488]">{row.title}</span>
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
+                  <button type="button" onClick={() => openComplaint(row.id)} className="block max-w-[14rem] text-left">
+                    <span className="block truncate text-[13px] font-semibold text-[#0A2A43]">{row.title}</span>
                   </button>
                 </td>
-                <td className="border-b border-slate-100 px-4 py-3.5 align-middle text-[13px] text-slate-600">{row.reporter_name}</td>
-                <td className="border-b border-slate-100 px-4 py-3.5 align-middle text-[13px] tabular-nums text-slate-600">{row.unit_number ?? "—"}</td>
-                <td className="border-b border-slate-100 px-4 py-3.5 align-middle text-[13px] text-slate-600">{row.category_label}</td>
-                <td className="border-b border-slate-100 px-4 py-3.5 align-middle">
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-[13px] text-slate-600">{row.reporter_name}</td>
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-[13px] tabular-nums text-slate-600">{row.unit_number ?? "—"}</td>
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-[13px] text-slate-600">{row.category_label}</td>
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
                   <AdminBadge tone={PRIORITY_TONE[row.priority]}>
                     {row.priority.charAt(0).toUpperCase() + row.priority.slice(1)}
                   </AdminBadge>
                 </td>
-                <td className="border-b border-slate-100 px-4 py-3.5 align-middle">
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
                   {assignedStaffName(row) ? (
-                    <span className="block max-w-[11rem] truncate text-[13px] font-semibold text-[#0A2A43]">{assignedStaffName(row)}</span>
+                    <span className="inline-flex max-w-[11rem] items-center gap-1.5 text-[13px] text-slate-700">
+                      <UserRound className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <span className="truncate">{assignedStaffName(row)}</span>
+                    </span>
                   ) : (
                     <span className="text-[13px] text-slate-400">Unassigned</span>
                   )}
                 </td>
-                <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3.5 align-middle text-[13px] text-slate-500">{formatDate(row.created_at)}</td>
-                <td className="border-b border-slate-100 px-4 py-3.5 align-middle">
+                <td className="whitespace-nowrap border-b border-slate-100 px-3 py-2.5 align-middle text-[13px] text-slate-500">{formatDate(row.created_at)}</td>
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
                   <AdminBadge tone={complaintTone(row)}>{row.status_label}</AdminBadge>
                 </td>
-                <td className="border-b border-slate-100 px-4 py-3.5 pr-5 text-right align-middle">
+                <td className="border-b border-slate-100 px-3 py-2.5 pr-4 text-right align-middle">
                   <div className="inline-flex items-center justify-end gap-2">
                     {audience === "community" && row.type !== "technical" && complaintWorkflow(row) === "in_progress" ? (
                       <button
@@ -907,6 +946,46 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   );
 }
 
+function AttachmentThumb({
+  complaintId,
+  file,
+  onOpen,
+}: {
+  complaintId: number;
+  file: { id: number; file_name: string; mime_type?: string | null };
+  onOpen: () => void;
+}) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let active = true;
+    let objectUrl = "";
+    downloadAdminComplaintAttachment(complaintId, file.id)
+      .then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => {
+        if (active) setUrl("");
+      });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [complaintId, file.id]);
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title={file.file_name}
+      className="flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-[#F8FAFC] text-[#1B4F8A]"
+    >
+      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <Paperclip className="h-4 w-4" />}
+    </button>
+  );
+}
+
 function ComplaintDetailModal({
   detail,
   error,
@@ -941,29 +1020,39 @@ function ComplaintDetailModal({
       label: person.matched ? `${person.label || person.name} · Suggested` : (person.label || person.name),
     })),
   ];
+  const [pane, setPane] = useState<"details" | "history">("details");
+  const detailKey = detail?.id ?? 0;
+  const [seenDetail, setSeenDetail] = useState(detailKey);
+  if (detailKey !== seenDetail) {
+    setSeenDetail(detailKey);
+    setPane("details");
+  }
   const facts = detail
     ? [
         { label: "Resident", value: detail.reporter_name, icon: UserRound },
         { label: "Unit", value: detail.unit_number ?? "—", icon: Hash },
         { label: "Category", value: detail.category_label, icon: Tag },
         { label: "Priority", value: detail.priority.charAt(0).toUpperCase() + detail.priority.slice(1), icon: Flag },
-        { label: "Assigned", value: detail.assigned_staff_label || detail.assigned_to_name || "Not assigned", icon: UserCheck },
-        { label: "Submitted", value: formatDate(detail.created_at), icon: Calendar },
+        { label: "Assigned Staff", value: assignedStaffName(detail) || "Not assigned", icon: UserCheck },
+        { label: "Submitted", value: formatSubmitted(detail.created_at) || formatDate(detail.created_at), icon: Calendar },
       ]
     : [];
-  const publicMessages = (detail?.messages ?? []).filter((message) => message.visibility !== "internal");
+  const images = (detail?.attachments ?? []).filter((file) => isImageAttachment(file));
+  const documents = (detail?.attachments ?? []).filter((file) => !isImageAttachment(file));
+  const events = detail?.events ?? [];
+  const unread = detail?.unread_count ?? 0;
 
   return (
     <div className="nl-notice-modal-backdrop" role="presentation" onClick={onClose}>
       <div
         className="nl-notice-modal"
-        style={{ maxWidth: "58rem" }}
+        style={{ maxWidth: "68rem", background: "#fff", boxShadow: "0 16px 40px rgba(15, 23, 42, 0.12)" }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="complaint-view-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+        <header className="flex items-start gap-4 border-b border-slate-100 px-5 py-4">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-[#E8F1FA] px-2.5 py-1 font-mono text-[11px] font-semibold tracking-wide text-[#1B4F8A]">
@@ -984,97 +1073,120 @@ function ComplaintDetailModal({
             </h3>
             {detail ? (
               <p className="mt-1.5 text-[13px] text-slate-500">
-                {detail.reporter_name}
+                Submitted by {detail.reporter_name}
                 {detail.unit_number ? ` · Unit ${detail.unit_number}` : ""}
-                {` · ${formatDate(detail.created_at)}`}
+                {formatSubmitted(detail.created_at) ? ` · ${formatSubmitted(detail.created_at)}` : ""}
               </p>
             ) : null}
           </div>
-          <button type="button" onClick={onClose} className="nl-notice-modal-close" aria-label="Close">
-            <X className="h-4 w-4" strokeWidth={2.25} />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {detail ? (
+              <button
+                type="button"
+                onClick={onOpenChat}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[13px] font-semibold text-[#0A2A43] transition hover:border-[#1B4F8A]/30 hover:bg-[#F8FAFC]"
+              >
+                <MessageSquare className="h-4 w-4 text-[#1B4F8A]" />
+                Chat
+                {unread > 0 ? (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#1B4F8A] px-1.5 text-[11px] font-bold leading-none text-white">{unread}</span>
+                ) : null}
+              </button>
+            ) : null}
+            <button type="button" onClick={onClose} className="nl-notice-modal-close" aria-label="Close">
+              <X className="h-4 w-4" strokeWidth={2.25} />
+            </button>
+          </div>
         </header>
 
         <div className="nl-notice-modal-body">
           {error ? <PageError message={error} onRetry={onRetry} /> : null}
           {!detail && !error ? <p className="py-10 text-center text-sm text-slate-500">Loading complaint…</p> : null}
           {detail ? (
-            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_18.5rem]">
-              <div className="min-w-0 space-y-5">
-                <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                  {facts.map((fact) => {
-                    const Icon = fact.icon;
-                    return (
-                      <div key={fact.label} className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-100 bg-[#F8FAFC] px-3 py-2.5">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-[#1B4F8A] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-                          <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{fact.label}</span>
-                          <span className="mt-0.5 block text-[13px] font-semibold leading-5 text-[#0A2A43]">{fact.value}</span>
-                        </span>
-                      </div>
-                    );
-                  })}
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,19rem)]">
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="mb-4 inline-flex rounded-xl bg-[#F4F7FB] p-1">
+                  {(["details", "history"] as const).map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setPane(item)}
+                      className={`rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pane === item ? "bg-white text-[#1B4F8A]" : "text-slate-500 hover:text-[#0A2A43]"}`}
+                    >
+                      {item === "details" ? "Details" : "History"}
+                    </button>
+                  ))}
                 </div>
-
-                {detail.description ? (
-                  <section>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Description</p>
-                    <p className="mt-2 whitespace-pre-wrap text-[14px] leading-6 text-slate-700">{detail.description}</p>
-                  </section>
-                ) : null}
-
-                <section>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Attachments</p>
-                  {(detail.attachments ?? []).length === 0 ? (
-                    <p className="mt-2 text-sm text-slate-400">No attachments.</p>
-                  ) : (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {(detail.attachments ?? []).map((file) => (
-                        <button
-                          key={file.id}
-                          type="button"
-                          className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[13px] font-semibold text-[#1B4F8A] hover:border-[#1B4F8A]/30 hover:bg-[#F4F8FD]"
-                          onClick={() => onOpenFile(file.id, file.file_name)}
-                        >
-                          <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{file.file_name}</span>
-                        </button>
-                      ))}
+                {pane === "details" ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {facts.map((fact) => {
+                        const Icon = fact.icon;
+                        return (
+                          <div key={fact.label} className="flex min-w-0 items-center gap-2.5 rounded-xl border border-slate-100 bg-[#F8FAFC] px-2.5 py-2">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#1B4F8A]">
+                              <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-[10px] font-medium text-slate-400">{fact.label}</span>
+                              <span className="mt-0.5 block break-words text-[13px] font-semibold leading-5 text-[#0A2A43]">{fact.value}</span>
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
-                </section>
-
-                <section>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Conversation</p>
-                  <button
-                    type="button"
-                    onClick={onOpenChat}
-                    className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-[#1B4F8A]/30 hover:bg-[#F8FAFC]"
-                  >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#E8F1FA] text-[#1B4F8A]">
-                      <MessageSquare className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2 text-sm font-semibold text-[#0A2A43]">
-                        Open chat
-                        {(detail.unread_count ?? 0) > 0 ? (
-                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#1B4F8A] px-1.5 text-[11px] text-white">{detail.unread_count}</span>
+                    {detail.description ? (
+                      <section>
+                        <p className="text-[12px] font-semibold text-slate-500">Description</p>
+                        <p className="mt-1.5 whitespace-pre-wrap text-[14px] leading-6 text-slate-700">{detail.description}</p>
+                      </section>
+                    ) : null}
+                    <section>
+                      <p className="text-[12px] font-semibold text-slate-500">Attachments ({(detail.attachments ?? []).length})</p>
+                      {(detail.attachments ?? []).length === 0 ? <p className="mt-2 text-sm text-slate-400">No attachments.</p> : null}
+                      {images.length ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {images.map((file) => (
+                            <AttachmentThumb key={file.id} complaintId={detail.id} file={file} onOpen={() => onOpenFile(file.id, file.file_name)} />
+                          ))}
+                        </div>
+                      ) : null}
+                      {documents.length ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {documents.map((file) => (
+                            <button
+                              key={file.id}
+                              type="button"
+                              className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[13px] font-semibold text-[#1B4F8A] hover:bg-[#F8FAFC]"
+                              onClick={() => onOpenFile(file.id, file.file_name)}
+                            >
+                              <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{file.file_name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </section>
+                  </div>
+                ) : (
+                  <ol className="max-h-[28rem] space-y-3 overflow-y-auto overscroll-contain pr-1">
+                    {events.length === 0 ? <li className="text-sm text-slate-400">No history yet.</li> : null}
+                    {events.map((event) => (
+                      <li key={event.id} className="rounded-xl border border-slate-100 bg-[#F8FAFC] px-3 py-2.5">
+                        <p className="text-[13px] font-semibold text-[#0A2A43]">{activityTitle(event.action, event.to_status)}</p>
+                        {event.from_status && event.to_status && event.from_status !== event.to_status ? (
+                          <p className="mt-0.5 text-[12px] text-slate-500">{ACTIVITY_STATUS[event.from_status] ?? event.from_status} → {ACTIVITY_STATUS[event.to_status] ?? event.to_status}</p>
                         ) : null}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[13px] text-slate-500">
-                        {publicMessages.at(-1)?.body || "No messages yet"}
-                      </span>
-                    </span>
-                    <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-xs font-semibold text-[#1B4F8A]">
-                      {publicMessages.length}
-                    </span>
-                  </button>
-                </section>
+                        {event.note ? <p className="mt-0.5 text-[13px] leading-5 text-slate-600">{event.note}</p> : null}
+                        {event.actor_name ? <p className="mt-0.5 text-[12px] text-slate-500">{event.actor_name}</p> : null}
+                        <p className="mt-0.5 text-[11px] text-slate-400">{formatWhen(event.created_at)}</p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
 
-              <aside className="space-y-3 lg:sticky lg:top-0">
+              <aside className="min-w-0 space-y-3">
                 {showAssignment || (allowStatusChanges && (detail.allowed_transitions ?? []).length > 0) ? (
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <p className="nl-notice-view-section-title">Assignment</p>
@@ -1127,37 +1239,35 @@ function ComplaintDetailModal({
                 </div>
                 ) : null}
 
-                <div className="rounded-2xl border border-slate-100 bg-[#F8FAFC] p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Activity</p>
-                    <span className="text-[11px] font-semibold text-slate-400">{(detail.events ?? []).length}</span>
-                  </div>
-                  {(detail.events ?? []).length === 0 ? <p className="text-sm text-slate-400">No activity yet.</p> : null}
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="mb-3 text-[13px] font-semibold text-[#0A2A43]">Activity</p>
+                  {events.length === 0 ? <p className="text-sm text-slate-400">No activity yet.</p> : null}
                   <ol className="max-h-[28rem] space-y-0 overflow-y-auto overscroll-contain pr-1">
-                    {(detail.events ?? []).map((event, index, events) => (
-                      <li key={event.id} className="relative pb-4 pl-5 last:pb-0">
-                        <span
-                          className={`absolute left-[4px] w-px bg-slate-200 ${index === events.length - 1 ? "top-2 h-2" : "top-2 bottom-0"}`}
-                          aria-hidden
-                        />
-                        <span className="absolute left-0 top-1.5 z-[1] h-2.5 w-2.5 rounded-full border-2 border-[#F8FAFC] bg-[#1B4F8A]" />
-                        <p className="text-[13px] font-semibold leading-5 text-[#0A2A43]">{activityTitle(event.action, event.to_status)}</p>
-                        {event.note ? <p className="mt-0.5 text-[13px] leading-5 text-slate-600">{event.note}</p> : null}
-                        <p className="mt-0.5 text-[11px] text-slate-400">{formatWhen(event.created_at)}</p>
-                      </li>
-                    ))}
+                    {events.map((event, index) => {
+                      const Icon = activityIcon(event.action);
+                      const last = index === events.length - 1;
+                      return (
+                        <li key={event.id} className="flex gap-3">
+                          <span className="flex w-7 shrink-0 flex-col items-center">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#E8F1FA] text-[#1B4F8A]">
+                              <Icon className="h-3.5 w-3.5" />
+                            </span>
+                            {last ? null : <span className="my-1 w-px flex-1 bg-slate-200" />}
+                          </span>
+                          <span className={`min-w-0 flex-1 ${last ? "" : "pb-4"}`}>
+                            <p className="text-[13px] font-semibold leading-5 text-[#0A2A43]">{activityTitle(event.action, event.to_status)}</p>
+                            {event.note ? <p className="mt-0.5 break-all text-[12px] leading-5 text-slate-500">{event.note}</p> : null}
+                            <p className="mt-0.5 text-[11px] text-slate-400">{formatWhen(event.created_at)}</p>
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ol>
                 </div>
               </aside>
             </div>
           ) : null}
         </div>
-
-        <footer className="nl-notice-modal-foot">
-          <button type="button" onClick={onClose} className="nl-btn-ghost">
-            Close
-          </button>
-        </footer>
       </div>
     </div>
   );

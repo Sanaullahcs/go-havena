@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Mail\HavenaTransactionalMail;
 use App\Models\User;
+use App\Services\ContactIdentityService;
 use App\Support\AppUrls;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -14,36 +15,55 @@ class ComplaintMailer
 
     public function submitted(object $complaint): void
     {
-        $resident = $this->user((int) $complaint->reporter_user_id);
-        if ($resident) {
-            $this->send(
-                'complaint_submitted',
-                'complaint:'.$complaint->id.':submitted:resident',
-                $resident,
-                'Havena Complaint '.$complaint->reference.' received',
-                'We received your complaint',
-                'Your complaint '.$complaint->reference.' was sent to your community team.',
-                $complaint,
-                null,
-                null,
-                $this->residentLink($complaint),
-            );
-        }
+        $this->emailParties(
+            $complaint,
+            'complaint_submitted',
+            'complaint:'.$complaint->id.':submitted',
+            'Havena Complaint '.$complaint->reference.' submitted',
+            'A complaint was submitted',
+            $complaint->reference.' was submitted and is now Open.',
+            null,
+            null,
+            null,
+            'Open',
+            false,
+        );
+    }
 
-        foreach ($this->adminRecipients($complaint) as $admin) {
-            $this->send(
-                'complaint_submitted_admin',
-                'complaint:'.$complaint->id.':submitted:admin:'.$admin->id,
-                $admin,
-                'Havena Complaint '.$complaint->reference.' submitted',
-                'A new complaint needs review',
-                $complaint->reference.' was submitted and is waiting for assignment.',
-                $complaint,
-                null,
-                null,
-                $this->adminLink($complaint),
-            );
-        }
+    public function assignmentAccepted(object $complaint, User $actor, int $eventId, ?string $note): void
+    {
+        $label = $this->statusLabel((string) $complaint->status);
+        $this->emailParties(
+            $complaint,
+            'complaint_accepted',
+            'complaint:'.$complaint->id.':accepted:'.$eventId,
+            'Havena Complaint '.$complaint->reference.', Assignment Accepted',
+            'Assignment accepted',
+            trim($actor->name.' accepted '.$complaint->reference.'. The status is now '.$label.'.'),
+            $note,
+            $actor,
+            null,
+            $label,
+            true,
+        );
+    }
+
+    public function workUpdated(object $complaint, User $actor, int $messageId, string $note): void
+    {
+        $label = $this->statusLabel((string) $complaint->status);
+        $this->emailParties(
+            $complaint,
+            'complaint_work_update',
+            'complaint:'.$complaint->id.':work:'.$messageId,
+            'Havena Complaint '.$complaint->reference.', Work Update',
+            'Work update added',
+            trim($actor->name.' added a work update on '.$complaint->reference.'.'),
+            $note,
+            $actor,
+            null,
+            $label,
+            true,
+        );
     }
 
     public function assigned(object $complaint, User $actor, int $eventId, bool $reassigned): void
@@ -84,6 +104,25 @@ class ComplaintMailer
         $previous = $this->statusLabel($from);
         $subject = 'Havena Complaint '.$complaint->reference.', Status Updated';
         $intro = 'The status of '.$complaint->reference.' changed from '.$previous.' to '.$label.'.';
+
+        if ($byStaff) {
+            $this->emailParties(
+                $complaint,
+                'complaint_status',
+                'complaint:'.$complaint->id.':status:'.$eventId,
+                $subject,
+                'Complaint status updated',
+                $intro,
+                $note,
+                $actor,
+                $previous,
+                $label,
+                true,
+            );
+
+            return;
+        }
+
         $resident = $this->user((int) $complaint->reporter_user_id);
         $staff = $complaint->assigned_to_user_id ? $this->user((int) $complaint->assigned_to_user_id) : null;
 
@@ -92,14 +131,6 @@ class ComplaintMailer
         }
         if ($staff && (int) $staff->id !== (int) $actor->id && (! $resident || (int) $staff->id !== (int) $resident->id)) {
             $this->send('complaint_status_staff', 'complaint:'.$complaint->id.':status:'.$eventId.':staff', $staff, $subject, 'Complaint status updated', $intro, $complaint, $note, $actor, $this->residentLink($complaint), $previous, $label);
-        }
-        if ($byStaff) {
-            foreach ($this->adminRecipients($complaint) as $admin) {
-                if ((int) $admin->id === (int) $actor->id) {
-                    continue;
-                }
-                $this->send('complaint_status_admin', 'complaint:'.$complaint->id.':status:'.$eventId.':admin:'.$admin->id, $admin, $subject, 'Staff updated a complaint', $intro, $complaint, $note, $actor, $this->adminLink($complaint), $previous, $label);
-            }
         }
     }
 
@@ -241,33 +272,107 @@ class ComplaintMailer
         if ($previous) {
             $details[] = ['label' => 'Previous status', 'value' => $previous];
         }
+        $details[] = ['label' => 'Staff', 'value' => $this->assignedStaffName($complaint)];
         if ($actor) {
             $details[] = ['label' => 'Updated by', 'value' => $this->actorLabel($actor)];
         }
-        $details[] = ['label' => 'When', 'value' => now()->timezone((string) config('app.timezone'))->format('M j, Y g:i A')];
+        $details[] = ['label' => 'When', 'value' => now()->timezone($this->communityTimezone($complaint))->format('M j, Y g:i A')];
 
         $paragraphs = [$intro];
         if ($note) {
             $paragraphs[] = 'Update: '.$note;
         }
 
-        $this->mail->sendOnce(
-            $type,
-            $key,
-            $user->email,
-            new HavenaTransactionalMail(
-                subjectLine: $subject,
-                preheader: $complaint->reference.' · '.$complaint->title,
-                eyebrow: 'Complaints',
-                heading: $heading,
-                intro: 'Hello '.$this->firstName($user).',',
-                paragraphs: $paragraphs,
-                details: $details,
-                ctaLabel: 'View Complaint',
-                ctaUrl: $link,
-                footerNote: 'Sign in with this email address to open the complaint. Private resident details stay inside Havena.',
-            ),
+        $this->mail->queueOnce($type, $key, $user->email, [
+            'subjectLine' => $subject,
+            'preheader' => $complaint->reference.' · '.$complaint->title,
+            'eyebrow' => 'Complaints',
+            'heading' => $heading,
+            'intro' => 'Hello '.$this->firstName($user).',',
+            'paragraphs' => $paragraphs,
+            'details' => $details,
+            'ctaLabel' => 'View Complaint',
+            'ctaUrl' => $link,
+            'footerNote' => 'Sign in with this email address to open the complaint. Private resident details stay inside Havena.',
+        ]);
+    }
+
+    private function emailParties(
+        object $complaint,
+        string $type,
+        string $eventKey,
+        string $subject,
+        string $heading,
+        string $intro,
+        ?string $note,
+        ?User $actor,
+        ?string $previous,
+        ?string $current,
+        bool $includeStaff,
+    ): void {
+        foreach ($this->parties($complaint, $includeStaff) as $party) {
+            $email = ContactIdentityService::normalizeEmail($party['user']->email);
+            if (! $email) {
+                continue;
+            }
+            $this->send(
+                $type,
+                $eventKey.':'.substr(hash('sha256', $email), 0, 20),
+                $party['user'],
+                $subject,
+                $heading,
+                $intro,
+                $complaint,
+                $note,
+                $actor,
+                $this->linkFor($party['audience'], $complaint),
+                $previous,
+                $current,
+            );
+        }
+    }
+
+    /** @return list<array{user: User, audience: string}> */
+    private function parties(object $complaint, bool $includeStaff): array
+    {
+        $ranked = [];
+        $push = function (?User $user, string $audience, int $rank) use (&$ranked): void {
+            if (! $user || $user->status !== 'active') {
+                return;
+            }
+            $email = ContactIdentityService::normalizeEmail($user->email);
+            if (! $email || ContactIdentityService::isPlaceholderEmail($email)) {
+                return;
+            }
+            if (! isset($ranked[$email]) || $rank > $ranked[$email]['rank']) {
+                $ranked[$email] = ['user' => $user, 'audience' => $audience, 'rank' => $rank];
+            }
+        };
+
+        $push($this->user((int) $complaint->reporter_user_id), 'resident', 1);
+        if ($includeStaff && $complaint->assigned_to_user_id) {
+            $push($this->user((int) $complaint->assigned_to_user_id), 'staff', 2);
+        }
+        foreach ($this->adminRecipients($complaint) as $admin) {
+            $push($admin, 'admin', 3);
+        }
+
+        return array_map(
+            fn (array $party) => ['user' => $party['user'], 'audience' => $party['audience']],
+            array_values($ranked),
         );
+    }
+
+    private function linkFor(string $audience, object $complaint): string
+    {
+        if ($audience === 'admin' || ($audience === 'staff' && $complaint->routed_to === 'system_admin')) {
+            return $this->adminLink($complaint);
+        }
+        if ($audience === 'staff') {
+            return 'havena://screens/staff-tasks/detail?id='.$complaint->id;
+        }
+
+        return 'havena://screens/complaints/detail?id='.$complaint->id;
     }
 
     /** @return list<User> */
@@ -297,6 +402,27 @@ class ComplaintMailer
     private function user(int $id): ?User
     {
         return User::query()->find($id);
+    }
+
+    private function assignedStaffName(object $complaint): string
+    {
+        if (! $complaint->assigned_to_user_id) {
+            return 'Unassigned';
+        }
+        $name = trim((string) DB::table('users')->where('id', $complaint->assigned_to_user_id)->value('name'));
+
+        return $name !== '' ? $name : 'Staff';
+    }
+
+    private function communityTimezone(object $complaint): string
+    {
+        $fallback = (string) config('app.timezone');
+        if (! $complaint->community_id) {
+            return $fallback;
+        }
+        $timezone = trim((string) DB::table('communities')->where('id', $complaint->community_id)->value('timezone'));
+
+        return $timezone !== '' ? $timezone : $fallback;
     }
 
     private function staffLine(object $complaint): string

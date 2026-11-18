@@ -589,6 +589,80 @@ class StaffAssignmentTest extends TestCase
         $this->getJson('/api/v1/staff/tasks/'.$complaint['id'])->assertNotFound();
     }
 
+    public function test_complaint_workflow_emails_each_party_once(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+        $staffUser = $this->staff($admin, 'Noor Plumber', 'noor.plumber@example.com', ['plumbing']);
+
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Kitchen tap dripping',
+            'description' => 'The kitchen tap has been dripping since this morning.',
+        ])->assertCreated()->json('data');
+
+        $this->assertSame(1, $this->mailsTo($resident->email, 'submitted')->count());
+        $this->assertSame(1, $this->mailsTo($admin->email, 'submitted')->count());
+        $submitted = $this->mailsTo($resident->email, 'submitted')->first();
+        $this->assertTrue(collect($submitted->details)->contains(fn ($row) => $row['label'] === 'Ticket' && $row['value'] === $complaint['reference']));
+        $this->assertTrue(collect($submitted->details)->contains(fn ($row) => $row['label'] === 'Community' && $row['value'] === $community->name));
+        $this->assertTrue(collect($submitted->details)->contains(fn ($row) => $row['label'] === 'Status' && $row['value'] === 'Open'));
+        $this->assertStringContainsString('/screens/complaints/detail?id='.$complaint['id'], (string) $submitted->ctaUrl);
+
+        $duplicate = DB::table('complaints')->where('id', $complaint['id'])->first();
+        $duplicate->id = 900001;
+        $duplicate->reference = 'CMP-DEDUPE';
+        $duplicate->reporter_user_id = $admin->id;
+        $before = Mail::sent(HavenaTransactionalMail::class)->count();
+        app(ComplaintMailer::class)->submitted($duplicate);
+        $this->assertSame($before + 1, Mail::sent(HavenaTransactionalMail::class)->count());
+        app(ComplaintMailer::class)->submitted($duplicate);
+        $this->assertSame($before + 1, Mail::sent(HavenaTransactionalMail::class)->count());
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $staffUser->id,
+        ])->assertOk();
+
+        Sanctum::actingAs($staffUser);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/respond', ['decision' => 'accept'])->assertOk();
+        foreach ([$resident, $admin, $staffUser] as $person) {
+            $this->assertSame(1, $this->mailsTo($person->email, 'Assignment Accepted')->count());
+        }
+        $accepted = $this->mailsTo($staffUser->email, 'Assignment Accepted')->first();
+        $this->assertTrue(collect($accepted->details)->contains(fn ($row) => $row['label'] === 'Status' && $row['value'] === 'Pending'));
+        $this->assertTrue(collect($accepted->details)->contains(fn ($row) => $row['label'] === 'Staff' && $row['value'] === 'Noor Plumber'));
+        $this->assertStringContainsString('havena://screens/staff-tasks/detail?id='.$complaint['id'], (string) $accepted->ctaUrl);
+        $this->assertStringContainsString('complaint='.$complaint['id'], (string) $this->mailsTo($admin->email, 'Assignment Accepted')->first()->ctaUrl);
+
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'in_progress',
+            'note' => 'Replacing the washer.',
+        ])->assertOk();
+        foreach ([$resident, $admin, $staffUser] as $person) {
+            $this->assertSame(1, $this->mailsTo($person->email, 'Status Updated')->count());
+        }
+
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/updates', [
+            'body' => 'The washer is replaced and the tap is dry.',
+        ])->assertOk();
+        foreach ([$resident, $admin, $staffUser] as $person) {
+            $mail = $this->mailsTo($person->email, 'Work Update');
+            $this->assertSame(1, $mail->count());
+            $this->assertTrue(collect($mail->first()->paragraphs)->contains(fn ($line) => str_contains($line, 'The washer is replaced and the tap is dry.')));
+        }
+    }
+
+    private function mailsTo(string $email, string $subjectPart)
+    {
+        return Mail::sent(HavenaTransactionalMail::class, function (HavenaTransactionalMail $mail) use ($email, $subjectPart) {
+            return $mail->hasTo($email) && str_contains($mail->subjectLine, $subjectPart);
+        });
+    }
+
     private function staff(User $admin, string $name, string $email, array $skills): User
     {
         Sanctum::actingAs($admin);
