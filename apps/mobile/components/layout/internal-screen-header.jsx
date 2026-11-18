@@ -3,7 +3,7 @@ import ScreenHeader from "./screen-header";
 import { sw } from "../../utils/responsive";
 
 /** Compact header for stack/internal screens -- always shows back chevron. */
-export default function InternalScreenHeader({ title, subtitle, onBack, right, compact = false, dense = false }) {
+export default function InternalScreenHeader({ title, subtitle, onBack, right, compact = false, dense = false, showBack = true }) {
   return (
     <ScreenHeader
       layout={subtitle ? "stacked" : "inline"}
@@ -11,6 +11,7 @@ export default function InternalScreenHeader({ title, subtitle, onBack, right, c
       subtitle={subtitle}
       onBack={onBack}
       right={right}
+      showBack={showBack}
       iconOnly
       padded
       compact={compact}

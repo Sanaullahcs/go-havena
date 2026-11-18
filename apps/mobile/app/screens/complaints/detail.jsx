@@ -85,18 +85,26 @@ export default function ComplaintDetailScreen() {
   const [token, setToken] = useState("");
   const loadedId = React.useRef(null);
 
-  const load = useCallback(async () => {
-    setError("");
+  const load = useCallback(async (quiet = false) => {
+    if (!quiet) setError("");
     try {
       setComplaint(await fetchComplaint(id));
+      if (quiet) setError("");
     } catch (err) {
-      setError(err?.message || "Could not open this complaint.");
+      if (!quiet) setError(err?.message || "Could not open this complaint.");
     } finally {
       setLoading(false);
     }
   }, [id]);
 
   React.useEffect(() => { void load(); }, [load]);
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      if (!busy) void load(true);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [load, busy]);
 
   React.useEffect(() => {
     let active = true;
@@ -176,7 +184,7 @@ export default function ComplaintDetailScreen() {
   const transitions = (complaint?.allowed_transitions ?? []).filter((status) => (
     !(status === "cancelled" && complaint?.status === "in_progress")
   ));
-  const accent = complaint ? statusColor(complaint.status) : NAVY;
+  const accent = complaint ? statusColor(complaint.workflow_status || complaint.status) : NAVY;
   const unitLabel = complaint?.unit_number ? `Unit ${complaint.unit_number}` : "";
   const showUnit = unitLabel && unitLabel.toLowerCase() !== String(complaint?.description || "").trim().toLowerCase();
 
@@ -216,7 +224,7 @@ export default function ComplaintDetailScreen() {
                   <MetaCell icon="tag" label="Category" value={complaint.category_label} />
                   <MetaCell icon="flag" label="Priority" value={pretty(complaint.priority)} tone={statusColor(complaint.priority)} />
                   <MetaCell icon="life-buoy" label="Support" value={complaint.support_team} />
-                  <MetaCell icon="user" label="Assigned" value={complaint.assigned_to_name || "Waiting"} muted={!complaint.assigned_to_name} />
+                  <MetaCell icon="user" label="Assigned" value={complaint.assigned_staff_label || complaint.assigned_to_name || "Waiting"} muted={!(complaint.assigned_staff_label || complaint.assigned_to_name)} />
                 </View>
               </View>
             </View>

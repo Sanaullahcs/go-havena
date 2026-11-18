@@ -120,7 +120,7 @@ export default function AdminTechnicalReportDetailScreen() {
     }
   };
 
-  const accent = statusColor(complaint?.status);
+  const accent = statusColor(complaint?.workflow_status || complaint?.status);
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Mail\HavenaTransactionalMail;
 use App\Models\Community;
+use Carbon\Carbon;
 use App\Models\CommunityMembership;
 use App\Models\Region;
 use App\Models\User;
@@ -291,13 +292,16 @@ class AgreementSigningTest extends TestCase
             'title' => 'Already due',
             'category' => 'Rules & Policies',
             'description' => 'Agreement details for residents.',
-            'due_at' => now()->subDay()->toDateString(),
+            'due_at' => now()->addDays(3)->toDateString(),
             'file' => $this->pdfFile('Overdue terms.'),
         ], ['Accept' => 'application/json'])->json('data.id');
         $this->postJson("/api/v1/admin/documents/agreements/{$overdueId}/publish", [
             'scope' => 'all',
             'notify' => false,
         ])->assertOk();
+        DB::table('community_documents')->where('id', $overdueId)->update([
+            'due_at' => now()->subDay()->toDateString().' 00:00:00',
+        ]);
 
         $counts = $this->getJson('/api/v1/admin/documents/agreements?status=draft')
             ->assertOk()
@@ -503,6 +507,55 @@ class AgreementSigningTest extends TestCase
         $this->assertNotEmpty($detail->json('data.recipients.0.signed_file_url'));
         $this->assertSame(0, $detail->json('data.stats.signed'));
         $this->assertSame(1, $detail->json('data.stats.expired'));
+    }
+
+    public function test_agreement_dates_follow_the_community_calendar(): void
+    {
+        Storage::fake('public');
+        ['admin' => $admin, 'community' => $community] = $this->seedCommunity();
+        $community->update(['timezone' => 'America/New_York']);
+        Carbon::setTestNow(Carbon::parse('2026-11-17 02:00:00', 'UTC'));
+
+        try {
+            Sanctum::actingAs($admin);
+            $future = [
+                'title' => 'Future dates',
+                'category' => 'Rules & Policies',
+                'description' => 'Residents agree to these terms.',
+                'due_at' => '11/19/2026',
+                'effective_at' => '11/20/2026',
+                'expires_at' => '11/28/2026',
+                'file' => $this->pdfFile('Future terms.'),
+            ];
+            $created = $this->post('/api/v1/admin/documents/agreements', $future, ['Accept' => 'application/json'])->assertCreated();
+            $id = $created->json('data.id');
+            $this->assertSame('2026-11-19', substr((string) $created->json('data.due_at'), 0, 10));
+            $this->assertSame('2026-11-20', substr((string) $created->json('data.effective_at'), 0, 10));
+            $this->assertSame('2026-11-28', substr((string) $created->json('data.expires_at'), 0, 10));
+
+            $this->post('/api/v1/admin/documents/'.$id, [
+                'title' => 'Future dates',
+                'category' => 'Rules & Policies',
+                'description' => 'Residents agree to these terms.',
+                'due_at' => '2026-11-16',
+                'effective_at' => '2026-11-16',
+                'expires_at' => '2026-11-16',
+            ], ['Accept' => 'application/json'])->assertOk();
+
+            $this->post('/api/v1/admin/documents/agreements', [
+                'title' => 'Past due date',
+                'category' => 'Rules & Policies',
+                'description' => 'Residents agree to these terms.',
+                'due_at' => '11/15/2026',
+                'effective_at' => '11/20/2026',
+                'expires_at' => '11/28/2026',
+                'file' => $this->pdfFile('Past terms.'),
+            ], ['Accept' => 'application/json'])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors(['due_at']);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     private function pdfFile(string $sentence): UploadedFile

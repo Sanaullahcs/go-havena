@@ -85,6 +85,10 @@ export default function MyComplaintsScreen() {
       requestAnimationFrame(() => listRef.current?.scrollTo({ y, animated: false }));
     }
     void load(hasLoaded.current);
+    const timer = setInterval(() => {
+      void load(true);
+    }, 4000);
+    return () => clearInterval(timer);
   }, [load]));
 
   const openCreate = () => router.push("/screens/complaints/create");
@@ -177,17 +181,18 @@ export default function MyComplaintsScreen() {
               style={styles.card}
               onPress={() => router.push({ pathname: "/screens/complaints/detail", params: { id: String(row.id) } })}
             >
-              <View style={[styles.rail, { backgroundColor: statusColor(row.status) }]} />
+              <View style={[styles.rail, { backgroundColor: statusColor(row.workflow_status || row.status) }]} />
               <View style={styles.cardBody}>
                 <View style={styles.cardTop}>
                   <Text style={styles.ref}>{row.reference}</Text>
-                  <View style={[styles.badge, { backgroundColor: `${statusColor(row.status)}16` }]}>
-                    <Text style={[styles.badgeText, { color: statusColor(row.status) }]}>{row.status_label}</Text>
+                  <View style={[styles.badge, { backgroundColor: `${statusColor(row.workflow_status || row.status)}16` }]}>
+                    <Text style={[styles.badgeText, { color: statusColor(row.workflow_status || row.status) }]}>{row.status_label}</Text>
                   </View>
                 </View>
                 <Text style={styles.title} numberOfLines={2}>{row.title}</Text>
                 <Text style={styles.meta} numberOfLines={1}>
                   {row.category_label}{row.unit_number ? ` · Unit ${row.unit_number}` : ""} · {row.support_team}
+                  {(row.unread_count ?? 0) > 0 ? ` · ${row.unread_count} new` : ""}
                 </Text>
                 <View style={styles.cardFoot}>
                   <Text style={styles.date}>{formatWhen(row.created_at) || " "}</Text>

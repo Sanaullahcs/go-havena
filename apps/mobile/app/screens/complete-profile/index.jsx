@@ -34,7 +34,7 @@ import {
   shouldSkipUtilityBill,
   shouldUseSimpleCompleteProfileSubmit,
 } from "../../../services/community-access";
-import { isNetworkLikeError, showApiFailure } from "../../../utils/auth-errors";
+import { isNetworkLikeError, showApiFailure, showNetworkErrorDialog } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { confirmLeaveOnboarding } from "../../../services/sign-out";
 import AuthSuccessOverlay from "../../../components/ui/auth-success-overlay";
@@ -778,10 +778,7 @@ export default function CompleteProfile() {
       console.warn("[complete-profile] submit failed", err);
     }
     if (isNetworkLikeError(err)) {
-      await dialog.showError(
-        t("onboarding.noInternetConnection"),
-        t("onboarding.unableToCompleteProfileOffline"),
-      );
+      await showNetworkErrorDialog(dialog);
       return;
     }
     await showApiFailure(dialog, t(fallbackTitleKey), err);

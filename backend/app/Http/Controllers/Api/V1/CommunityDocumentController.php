@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\AgreementDates;
 use App\Support\ContentFieldRules;
 use App\Support\DocumentCategories;
 use App\Services\ActivityLogService;
@@ -13,8 +14,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CommunityDocumentController extends Controller
@@ -83,8 +86,10 @@ class CommunityDocumentController extends Controller
             'effective_at'     => $doc->effective_at ?? null,
             'expires_at'       => $doc->expires_at ?? null,
             'version'          => (int) ($doc->version ?? 1),
+            'version_root_id'  => isset($doc->version_root_id) && $doc->version_root_id ? (int) $doc->version_root_id : (int) $doc->id,
             'supersedes_id'    => isset($doc->supersedes_id) && $doc->supersedes_id ? (int) $doc->supersedes_id : null,
             'published_at'     => $doc->published_at ?? null,
+            'modified_after_publish' => $this->modifiedAfterPublish($doc),
             'assignment_scope' => $doc->assignment_scope ?? null,
             'page_count'       => isset($doc->page_count) && $doc->page_count ? (int) $doc->page_count : null,
             'created_by'       => (int) $doc->created_by,
@@ -155,6 +160,51 @@ class CommunityDocumentController extends Controller
         ])->values()->all();
     }
 
+    /** The five dashboard categories, counted only from documents this resident can open. */
+    private function residentDocumentCategories(iterable $documents): array
+    {
+        $counts = array_fill_keys(DocumentCategories::PRESETS, 0);
+        $others = 0;
+
+        foreach ($documents as $document) {
+            if (($document['kind'] ?? 'document') === 'agreement') {
+                continue;
+            }
+            $name = trim((string) ($document['category'] ?? ''));
+            $matched = null;
+            foreach (DocumentCategories::PRESETS as $preset) {
+                if (mb_strtolower($preset) === mb_strtolower($name)) {
+                    $matched = $preset;
+                    break;
+                }
+            }
+            if ($matched) {
+                $counts[$matched]++;
+            } else {
+                $others++;
+            }
+        }
+
+        $rows = [];
+        foreach (DocumentCategories::PRESETS as $preset) {
+            $rows[] = ['name' => $preset, 'count' => $counts[$preset], 'match' => 'exact'];
+        }
+        $rows[] = ['name' => 'Others', 'count' => $others, 'match' => 'other'];
+
+        return $rows;
+    }
+
+    private function modifiedAfterPublish(object $doc): bool
+    {
+        $published = $doc->published_at ?: $doc->created_at;
+        $updated = $doc->updated_at ?? null;
+        if (! $published || ! $updated) {
+            return false;
+        }
+
+        return Carbon::parse($updated)->greaterThan(Carbon::parse($published)->addSeconds(5));
+    }
+
     private function storeUploadedFile(UploadedFile $file, int $communityId): array
     {
         $path = $file->store("documents/{$communityId}", 'public');
@@ -165,7 +215,39 @@ class CommunityDocumentController extends Controller
             'file_name'  => $file->getClientOriginalName(),
             'file_size'  => (int) $file->getSize(),
             'mime_type'  => $file->getClientMimeType(),
+            'page_count' => null,
+            'original_checksum' => null,
         ];
+    }
+
+    /** Copy the stored file so a new version can be deleted without removing the original. */
+    private function duplicateStoredFile(object $source): array
+    {
+        $normalized = MediaUrl::normalize($source->file_path);
+        abort_if(! $normalized || ! str_starts_with($normalized, '/storage/'), 422, 'The original file could not be copied.');
+        $diskPath = ltrim(substr($normalized, strlen('/storage/')), '/');
+        abort_if($diskPath === '' || ! Storage::disk('public')->exists($diskPath), 422, 'The original file could not be copied.');
+
+        $extension = pathinfo($diskPath, PATHINFO_EXTENSION);
+        $target = 'documents/'.$source->community_id.'/'.Str::uuid()->toString().($extension !== '' ? '.'.$extension : '');
+        Storage::disk('public')->copy($diskPath, $target);
+
+        return [
+            'file_path' => '/storage/'.ltrim(str_replace('\\', '/', $target), '/'),
+            'file_name' => $source->file_name,
+            'file_size' => (int) $source->file_size,
+            'mime_type' => $source->mime_type,
+            'page_count' => $source->page_count ?? null,
+            'original_checksum' => $source->original_checksum ?? null,
+        ];
+    }
+
+    private function isDuplicateVersion(QueryException $exception): bool
+    {
+        $message = $exception->getMessage();
+
+        return str_contains($message, 'community_documents_version_unique')
+            || str_contains($message, 'version_root_id');
     }
 
     private function deleteStoredFile(?string $filePath): void
@@ -244,7 +326,9 @@ class CommunityDocumentController extends Controller
         return response()->json([
             'data'       => $data,
             'recent'     => $recent,
-            'categories' => $this->buildCategories($communityId, true),
+            'categories' => $this->isCommunityAdmin($user)
+                ? $this->buildCategories($communityId, true)
+                : $this->residentDocumentCategories($data),
             'total'      => $data->count(),
         ]);
     }
@@ -462,7 +546,9 @@ class CommunityDocumentController extends Controller
         $this->ensureCategory($communityId, $data['category']);
 
         $managed = $request->exists('assignment_scope') || $request->exists('publication_status');
-        $id = DB::table('community_documents')->insertGetId([
+        $id = DB::transaction(function () use ($communityId, $user, $data, $fileMeta, $managed, $signature, $scope) {
+            $createdId = DB::table('community_documents')->insertGetId([
+            'version'      => 1,
             'community_id' => $communityId,
             'created_by'   => $user->id,
             'title'        => $data['title'],
@@ -483,7 +569,11 @@ class CommunityDocumentController extends Controller
             'original_checksum' => $fileMeta['original_checksum'] ?? null,
             'created_at'   => now(),
             'updated_at'   => now(),
-        ]);
+            ]);
+            DB::table('community_documents')->where('id', $createdId)->update(['version_root_id' => $createdId]);
+
+            return $createdId;
+        });
 
         $doc = DB::table('community_documents')->find($id);
         if ($managed && ! $publishing) {
@@ -515,6 +605,19 @@ class CommunityDocumentController extends Controller
         abort_if(!$doc, 404, 'Document not found.');
         if (($doc->kind ?? 'document') === 'agreement' && ($doc->publication_status ?? 'draft') !== 'draft') {
             abort(422, 'Published agreements cannot be edited. Create a new version.');
+        }
+        $rewritesDocument = $request->exists('title')
+            || $request->exists('category')
+            || $request->exists('description')
+            || $request->exists('assignment_scope')
+            || $request->hasFile('file')
+            || $request->boolean('remove_file');
+        if (
+            ($doc->kind ?? 'document') !== 'agreement'
+            && ($doc->publication_status ?? 'published') !== 'draft'
+            && $rewritesDocument
+        ) {
+            abort(422, 'Create a new version to update a published document.');
         }
 
         if ($request->input('expires_at') === '') {
@@ -563,7 +666,14 @@ class CommunityDocumentController extends Controller
                 'effective_at' => 'nullable|date',
                 'expires_at' => 'nullable|date',
             ]);
-            $updates = array_merge($updates, $dates);
+            $schedule = [];
+            foreach (['due_at', 'effective_at', 'expires_at'] as $field) {
+                if ($request->exists($field)) {
+                    $schedule[$field] = $request->input($field);
+                }
+            }
+            AgreementDates::assertSchedule($schedule, (int) $doc->community_id);
+            $updates = array_merge($updates, AgreementDates::normalize($dates));
         }
 
         if (isset($updates['category'])) {
@@ -630,6 +740,125 @@ class CommunityDocumentController extends Controller
             'data'    => $this->presentAdminDocuments(collect([$updated]), $request)->first(),
             'message' => 'Document updated successfully.',
         ]);
+    }
+
+    /* ─── POST /v1/admin/documents/{id}/versions ────────────── */
+    public function storeVersion(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $source = $this->communityDocument($request, $id);
+        abort_if(($source->kind ?? 'document') === 'agreement', 422, 'Agreements are versioned separately.');
+
+        $data = $this->validateDocumentPayload($request, false);
+        if (! $request->hasFile('file') && ! $source->file_path) {
+            throw ValidationException::withMessages(['file' => 'Choose a file to upload.']);
+        }
+
+        $publishing = $this->wantsPublish($request);
+        $scope = $request->input('assignment_scope', $source->assignment_scope);
+        $this->assertPublishRules($request, $publishing, false, $scope);
+        $this->ensureCategory((int) $source->community_id, $data['category']);
+
+        $newId = null;
+        try {
+            $newId = DB::transaction(function () use ($request, $source, $data, $user, $scope) {
+                $locked = DB::table('community_documents')->where('id', $source->id)->lockForUpdate()->first();
+                abort_if(! $locked || $locked->deleted_at, 404, 'Document not found.');
+
+                $rootId = (int) ($locked->version_root_id ?: $locked->id);
+                if (! $locked->version_root_id) {
+                    DB::table('community_documents')->where('id', $rootId)->update(['version_root_id' => $rootId]);
+                }
+                DB::table('community_documents')->where('id', $rootId)->lockForUpdate()->first();
+
+                $max = (int) DB::table('community_documents')->where('version_root_id', $rootId)->max('version');
+                $nextVersion = max($max, (int) $locked->version) + 1;
+                $fileMeta = $request->hasFile('file')
+                    ? $this->storeUploadedFile($request->file('file'), (int) $locked->community_id)
+                    : $this->duplicateStoredFile($locked);
+
+                $createdId = DB::table('community_documents')->insertGetId([
+                    'community_id' => $locked->community_id,
+                    'created_by' => $user->id,
+                    'title' => $data['title'],
+                    'category' => $data['category'],
+                    'description' => $this->blankToNull($data['description'] ?? null),
+                    'file_path' => $fileMeta['file_path'],
+                    'file_name' => $fileMeta['file_name'],
+                    'file_size' => $fileMeta['file_size'],
+                    'mime_type' => $fileMeta['mime_type'],
+                    'status' => 'inactive',
+                    'kind' => 'document',
+                    'publication_status' => 'draft',
+                    'signature_required' => false,
+                    'due_at' => null,
+                    'expires_at' => null,
+                    'assignment_scope' => $scope,
+                    'version' => $nextVersion,
+                    'version_root_id' => $rootId,
+                    'supersedes_id' => null,
+                    'page_count' => $fileMeta['page_count'] ?? null,
+                    'original_checksum' => $fileMeta['original_checksum'] ?? null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                return $createdId;
+            });
+        } catch (QueryException $exception) {
+            if ($this->isDuplicateVersion($exception)) {
+                abort(409, 'This document was updated at the same time. Try again.');
+            }
+            throw $exception;
+        }
+
+        $created = DB::table('community_documents')->find($newId);
+        try {
+            if ($publishing) {
+                $result = app(AgreementService::class)->publish(
+                    $created,
+                    (int) $user->id,
+                    (string) $scope,
+                    array_map('intval', $request->input('user_ids', [])),
+                    [],
+                    $request->boolean('notify'),
+                );
+                $created = $result['document'];
+            }
+            DB::table('community_documents')->where('id', $newId)->update([
+                'supersedes_id' => (int) $source->id,
+                'updated_at' => now(),
+            ]);
+            $created = DB::table('community_documents')->find($newId);
+        } catch (\Throwable $exception) {
+            $orphan = DB::table('community_documents')->find($newId);
+            if ($orphan && ($orphan->publication_status ?? '') === 'draft') {
+                $this->deleteStoredFile($orphan->file_path);
+                DB::table('community_documents')->where('id', $newId)->delete();
+            }
+            throw $exception;
+        }
+
+        ActivityLogService::recordUpdate(
+            'community_document_version_created',
+            'CommunityDocument',
+            (int) $created->id,
+            [],
+            ActivityLogService::snapshot($created, ['title', 'category', 'description', 'file_path', 'version']),
+            [],
+            null,
+            null,
+            [
+                'related_item' => $created->title,
+                'source_document_id' => (int) $source->id,
+                'version' => (int) $created->version,
+            ],
+        );
+
+        return response()->json([
+            'data' => $this->presentAdminDocuments(collect([$created]), $request)->first(),
+            'message' => 'Document version created.',
+        ], 201);
     }
 
     public function signatureTracking(Request $request): JsonResponse

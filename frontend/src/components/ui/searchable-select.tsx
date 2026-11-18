@@ -53,7 +53,12 @@ export function SearchableSelect({
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState("");
-  const { style: popoverStyle, ready } = useAnchoredPopover(open, triggerRef, { popoverRef });
+  const { style: popoverStyle, ready } = useAnchoredPopover(open, triggerRef, {
+    popoverRef,
+    constrainToViewport: true,
+    preferBelow: true,
+    maxHeight: 320,
+  });
 
   const selected = useMemo(() => {
     if (!value) return undefined;
@@ -156,14 +161,14 @@ export function SearchableSelect({
               <div
                 ref={popoverRef}
                 className={[
-                  "nl-themed-popover nl-select-popover overflow-hidden p-0",
+                  "nl-themed-popover nl-select-popover flex flex-col overflow-hidden p-0",
                   ready ? "nl-select-popover-open" : "",
                 ].join(" ")}
-                style={popoverStyle}
+                style={{ ...popoverStyle, overflow: "hidden" }}
                 role="listbox"
               >
                 {searchable ? (
-                  <div className="border-b border-slate-100 p-2">
+                  <div className="shrink-0 border-b border-slate-100 p-2">
                     <div className="nl-search-field">
                       <Search className="nl-search-icon" aria-hidden />
                       <ClearableInput
@@ -180,7 +185,10 @@ export function SearchableSelect({
                   </div>
                 ) : null}
 
-                <div className="max-h-56 overflow-y-auto p-1">
+                <div
+                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1"
+                  onWheel={(event) => event.stopPropagation()}
+                >
                   {filtered.length === 0 && !showCustom ? (
                     <p className="px-3 py-4 text-center text-xs text-slate-400">{emptyMessage}</p>
                   ) : (

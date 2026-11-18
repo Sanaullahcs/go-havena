@@ -447,6 +447,11 @@ class LifecycleMailService
         );
     }
 
+    public function deliversToInbox(): bool
+    {
+        return ! in_array((string) config('mail.default'), ['log', 'array'], true);
+    }
+
     public function sendOnce(string $type, string $contextKey, ?string $email, Mailable $mail): bool
     {
         $email = ContactIdentityService::normalizeEmail($email);

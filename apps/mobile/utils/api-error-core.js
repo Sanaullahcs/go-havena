@@ -59,10 +59,18 @@ export function looksLikeNetworkFailureMessage(message) {
     text.includes("getaddrinfo") ||
     text.includes("unable to resolve host") ||
     text.includes("unknown host") ||
-    // e.g. Failed to connect to apis.example.com/1.2.3.4:443
-    /failed to connect to .+:\d+/i.test(String(message)) ||
-    /\b\d{1,3}(?:\.\d{1,3}){3}:\d+\b/.test(String(message)) ||
-    /https?:\/\/\S+/i.test(String(message))
+    /failed to connect to .+:\d+/i.test(String(message))
+  );
+}
+
+/** Device-level offline text, not a failure to reach one server. */
+export function isDeviceOfflineMessage(message) {
+  if (!message) return false;
+  const text = String(message).toLowerCase();
+  return (
+    text.includes("internet connection appears to be offline") ||
+    text.includes("not connected to the internet") ||
+    text.includes("network is unreachable")
   );
 }
 
@@ -74,21 +82,17 @@ export function isNetworkLikeError(error) {
   if (!error) return false;
 
   const code = getApiErrorCode(error);
-  if (code === "NETWORK_ERROR" || code === "TIMEOUT") return true;
+  if (code === "NETWORK_ERROR") return true;
   if (code) return false;
-
-  const name = String(error?.name ?? "").toLowerCase();
-  if (name === "aborterror") return true;
+  if (error.status && error.status !== 0) return false;
 
   const causeMessage = error?.cause?.message ?? error?.cause;
-  return (
-    looksLikeNetworkFailureMessage(error?.message) ||
-    looksLikeNetworkFailureMessage(causeMessage)
-  );
+  return isDeviceOfflineMessage(error?.message) || isDeviceOfflineMessage(causeMessage);
 }
 
-const GENERIC_NETWORK_USER_MESSAGE =
-  "Could not reach the server. Check your connection and try again.";
+const OFFLINE_USER_MESSAGE = "Please check your internet connection and try again.";
+const SERVER_UNREACHABLE_MESSAGE = "The server encountered an error. Please try again in a moment.";
+const TIMEOUT_USER_MESSAGE = "Connection timed out. Check your network and try again.";
 
 function friendlyValidationMessage(message) {
   if (!message) return message;
@@ -107,7 +111,7 @@ function friendlyValidationMessage(message) {
   }
 
   if (looksLikeNetworkFailureMessage(text)) {
-    return GENERIC_NETWORK_USER_MESSAGE;
+    return SERVER_UNREACHABLE_MESSAGE;
   }
 
   return text;
@@ -115,8 +119,15 @@ function friendlyValidationMessage(message) {
 
 /** Map Laravel validation / API errors to user-facing messages. */
 export function getApiErrorMessage(error, field) {
-  if (isNetworkLikeError(error)) {
-    return GENERIC_NETWORK_USER_MESSAGE;
+  const code = getApiErrorCode(error);
+  if (code === "NETWORK_ERROR" || isNetworkLikeError(error)) {
+    return OFFLINE_USER_MESSAGE;
+  }
+  if (code === "TIMEOUT") {
+    return TIMEOUT_USER_MESSAGE;
+  }
+  if (code === "SERVER_UNREACHABLE") {
+    return SERVER_UNREACHABLE_MESSAGE;
   }
 
   if (field && error?.errors?.[field]?.[0]) {

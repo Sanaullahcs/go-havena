@@ -35,6 +35,7 @@ import {
 } from "../components/layout/system-chrome";
 import { registerScreenChrome } from "../components/layout/chrome-manager";
 import BootSplash from "../components/layout/boot-splash";
+import { startConnectivityWatch } from "../services/connectivity";
 import { fontMapForLanguage } from "../constants/font-map";
 import { getSavedLanguage } from "../i18n";
 import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
@@ -78,6 +79,8 @@ export default function RootLayout() {
   useEffect(() => {
     applySplashChrome();
   }, []);
+
+  useEffect(() => startConnectivityWatch(), []);
 
   useEffect(() => {
     if (!bootLang) return;
@@ -460,6 +463,10 @@ export default function RootLayout() {
         <Stack.Screen
           name="screens/complaints"
           options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/staff-tasks"
+          options={{ headerShown: false, header: () => null, title: "My Assigned Tasks" }}
         />
         <Stack.Screen
           name="screens/admin-amenities/index"

@@ -38,6 +38,10 @@ export async function fetchAdminComplaint(id) {
   return res.data;
 }
 
+export async function markComplaintRead(id, admin = false) {
+  await apiRequest(`${admin ? "/admin" : ""}/complaints/${id}/read`, { method: "POST" });
+}
+
 export async function postComplaintMessage(id, body, files = []) {
   if (!files.length) {
     const res = await apiRequest(`/complaints/${id}/messages`, { method: "POST", body: { body } });
@@ -134,6 +138,62 @@ async function upload(path, fields, files) {
     throw new ApiError(message, { status: response.status });
   }
   return body;
+}
+
+const staffRequest = { community: false };
+
+export async function fetchStaffAccess() {
+  const res = await apiRequest("/staff/access", staffRequest);
+  return res.data;
+}
+
+export async function fetchStaffInvitations() {
+  const res = await apiRequest("/staff/invitations", staffRequest);
+  return res.data ?? [];
+}
+
+export async function acceptStaffInvitation(id) {
+  return apiRequest(`/staff/invitations/${id}/accept`, { method: "POST", ...staffRequest });
+}
+
+export async function fetchStaffTasks(params = {}) {
+  return apiRequest(`/staff/tasks${query({ ...params, per_page: 20 })}`, staffRequest);
+}
+
+export async function fetchStaffTask(id) {
+  const res = await apiRequest(`/staff/tasks/${id}`, staffRequest);
+  return res.data;
+}
+
+export async function markStaffTaskRead(id) {
+  await apiRequest(`/complaints/${id}/read`, { method: "POST", ...staffRequest });
+}
+
+export async function respondToStaffTask(id, decision, note) {
+  const res = await apiRequest(`/staff/tasks/${id}/respond`, {
+    method: "POST",
+    body: { decision, note },
+    ...staffRequest,
+  });
+  return res.data;
+}
+
+export async function updateStaffTaskStatus(id, status, note) {
+  const res = await apiRequest(`/staff/tasks/${id}/status`, {
+    method: "POST",
+    body: { status, note },
+    ...staffRequest,
+  });
+  return res.data;
+}
+
+export async function addStaffTaskUpdate(id, body, files = []) {
+  if (!files.length) {
+    const res = await apiRequest(`/staff/tasks/${id}/updates`, { method: "POST", body: { body }, ...staffRequest });
+    return res.data;
+  }
+  const res = await upload(`/staff/tasks/${id}/updates`, { body }, files);
+  return res.data;
 }
 
 export function complaintDownloadPath(id, attachmentId, admin = false) {

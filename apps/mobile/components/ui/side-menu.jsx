@@ -33,6 +33,7 @@ import { getUser, getCachedUser, subscribeSessionUser } from "../../services/aut
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
 import { canSwitchModes, canSwitchToAdminMode, currentCommunityId, isCommunityAdmin, isGuestUser, isResidentMode } from "../../services/community-access";
 import { fetchMe, switchActiveContext } from "../../services/profile-api";
+import { fetchStaffAccess } from "../../services/complaints-api";
 import { syncRoleFromUser } from "../../constants/role-session";
 import { navigateAfterAuth } from "../../constants/onboarding-routes";
 import { formatResidentUnitLabel, getProfileFields } from "../../utils/profile-display";
@@ -66,6 +67,7 @@ const MenuItem = ({
   iconColor,
   iconBg,
   badgeCount,
+  singleLine = false,
   onPress,
 }) => {
   const tinted = Boolean(iconColor && iconBg);
@@ -96,7 +98,9 @@ const MenuItem = ({
       <View style={styles.menuItemLabel}>
         <Text
           style={[styles.menuItemText, isActive && styles.menuItemTextActive]}
-          numberOfLines={2}
+          numberOfLines={singleLine ? 1 : 2}
+          adjustsFontSizeToFit={singleLine}
+          minimumFontScale={singleLine ? 0.82 : 1}
         >
           {title}
         </Text>
@@ -175,6 +179,7 @@ function SideMenuPanel({ visible, onClose }) {
   const navigatingRef = useRef(false);
   const [selectedMenu, setSelectedMenu] = useState(null);
   const [user, setUser] = useState(() => getCachedUser());
+  const [staffAccess, setStaffAccess] = useState(false);
 
   useEffect(() => {
     let sawLiveUpdate = false;
@@ -200,6 +205,12 @@ function SideMenuPanel({ visible, onClose }) {
       } catch {
         const cached = await getUser();
         if (!cancelled && cached) setUser(cached);
+      }
+      try {
+        const access = await fetchStaffAccess();
+        if (!cancelled) setStaffAccess(access?.active || access?.pending ? access : null);
+      } catch {
+        if (!cancelled) setStaffAccess(false);
       }
     })();
 
@@ -363,7 +374,10 @@ function SideMenuPanel({ visible, onClose }) {
     isResidentFeatureEnabled(user, "documents")
       ? {
           iconName: "file-text",
-          titleKey: "services.documents",
+          titleKey: isCommunityAdmin(user) && !isResidentMode(user)
+            ? "services.documents"
+            : "services.documentsAndAgreements",
+          singleLine: !(isCommunityAdmin(user) && !isResidentMode(user)),
           route: PropertyManagementRoutes.DOCUMENTS,
         }
       : null,
@@ -372,6 +386,13 @@ function SideMenuPanel({ visible, onClose }) {
           iconName: "life-buoy",
           titleKey: "nav.complaints",
           route: isCommunityAdmin(user) ? "/screens/admin-complaints" : "/screens/complaints",
+        }
+      : null,
+    staffAccess && !isGuestUser(user)
+      ? {
+          iconName: "clipboard",
+          titleKey: "nav.assignedTasks",
+          route: staffAccess.active ? "/screens/staff-tasks" : "/screens/staff-tasks/invitations",
         }
       : null,
     {
@@ -556,6 +577,7 @@ function SideMenuPanel({ visible, onClose }) {
                   iconName={item.iconName}
                   title={t(item.titleKey)}
                   badgeCount={item.badgeCount ?? 0}
+                  singleLine={item.singleLine}
                   isActive={selectedMenu === `main-${index}`}
                   onPress={() => {
                     setSelectedMenu(`main-${index}`);

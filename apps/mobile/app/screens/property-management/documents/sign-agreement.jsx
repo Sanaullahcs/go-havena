@@ -911,7 +911,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F6F8FB" },
   flex: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  progressWrap: { paddingHorizontal: sw(16), paddingBottom: sw(8) },
+  progressWrap: { paddingHorizontal: sw(16), paddingTop: sw(18), paddingBottom: sw(12) },
   progress: { flexDirection: "row", alignItems: "flex-start" },
   progressStep: { alignItems: "center", width: sw(72) },
   progressDot: {

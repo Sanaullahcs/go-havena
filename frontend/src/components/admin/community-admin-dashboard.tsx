@@ -181,7 +181,7 @@ function relTime(ts: string) {
   return `${Math.floor(diff / 86400000)}d ago`;
 }
 
-const OPEN_COMPLAINT_STATUSES = ["submitted", "in_review", "in_progress", "waiting_on_resident", "reopened"];
+const OPEN_COMPLAINT_STATUSES = ["submitted", "in_review", "in_progress", "waiting_on_resident", "not_resolved", "reopened"];
 
 function communityStatsCacheKey(communityId: number | null) {
   return `dashboard:community-stats:${communityId ?? "none"}`;

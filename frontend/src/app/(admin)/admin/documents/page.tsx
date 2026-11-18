@@ -44,6 +44,7 @@ import {
   fetchDocument,
   remindDocument,
   restoreDocument,
+  createDocumentVersion,
   updateDocument,
   type CommunityDocument,
   type DocumentForm,
@@ -425,6 +426,7 @@ export default function DocumentsPage() {
   const [showForm, setShowForm] = useState(false);
   const [viewing, setViewing] = useState<CommunityDocument | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [versionSourceId, setVersionSourceId] = useState<number | null>(null);
   const [editingPublication, setEditingPublication] = useState<"draft" | "published" | null>(null);
   const [form, setForm] = useState<DocumentForm>(emptyForm);
   const [categorySelect, setCategorySelect] = useState("");
@@ -450,7 +452,7 @@ export default function DocumentsPage() {
 
   const resolvedCategory = resolveDocumentCategory(categorySelect, customCategoryInput);
   const formFields = { ...form, category: resolvedCategory };
-  const keptExistingFile = Boolean(editingId && existingFile?.name && !existingFileRemoved);
+  const keptExistingFile = Boolean((editingId || versionSourceId) && existingFile?.name && !existingFileRemoved);
   const hasFile = Boolean(selectedFile) || keptExistingFile;
   const draftErrors = useMemo(
     () => validateDocumentForm(formFields, { hasFile, publishing: false, file: selectedFile }),
@@ -533,6 +535,7 @@ export default function DocumentsPage() {
     setExistingFile(null);
     setExistingFileRemoved(false);
     setEditingId(null);
+    setVersionSourceId(null);
     setEditingPublication(null);
     setViewing(null);
     setCategorySelect("");
@@ -570,11 +573,28 @@ export default function DocumentsPage() {
   };
 
   const openEdit = (doc: CommunityDocument) => {
+    setVersionSourceId(null);
     setViewing(null);
     fillEditForm(doc);
     setShowForm(true);
     void fetchAgreementOptions().then((options) => setResidents(options.residents)).catch(() => setResidents([]));
     void fetchDocument(doc.id).then((full) => fillEditForm(full, true)).catch(() => undefined);
+  };
+
+  const openUpdate = (doc: CommunityDocument) => {
+    setViewing(null);
+    fillEditForm(doc);
+    setEditingId(null);
+    setVersionSourceId(doc.id);
+    setEditingPublication("published");
+    setShowForm(true);
+    void fetchAgreementOptions().then((options) => setResidents(options.residents)).catch(() => setResidents([]));
+    void fetchDocument(doc.id).then((full) => {
+      fillEditForm(full, true);
+      setEditingId(null);
+      setVersionSourceId(full.id);
+      setEditingPublication("published");
+    }).catch(() => undefined);
   };
 
   const openView = async (doc: CommunityDocument) => {
@@ -589,6 +609,7 @@ export default function DocumentsPage() {
   const closeForm = () => {
     setShowForm(false);
     setEditingId(null);
+    setVersionSourceId(null);
     setEditingPublication(null);
     setForm(emptyForm);
     setSelectedFile(null);
@@ -620,7 +641,10 @@ export default function DocumentsPage() {
         expires_at: "",
         notify: false,
       };
-      if (editingId) {
+      if (versionSourceId) {
+        await createDocumentVersion(versionSourceId, payload, selectedFile);
+        toastSuccess("New version published");
+      } else if (editingId) {
         await updateDocument(editingId, payload, selectedFile, { removeFile: existingFileRemoved });
         toastSuccess(publication === "draft" ? "Draft saved" : "Document published");
       } else {
@@ -855,7 +879,10 @@ export default function DocumentsPage() {
                   return (
                   <tr key={doc.id} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="max-w-0 overflow-hidden py-3 pl-5 pr-4">
-                      <div className="w-fit max-w-[min(32ch,100%)] truncate font-semibold text-slate-900" title={doc.title}>{doc.title}</div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="w-fit max-w-[min(32ch,100%)] truncate font-semibold text-slate-900" title={doc.title}>{doc.title}</div>
+                        <span className="shrink-0 rounded-md bg-[#E8F0F7] px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-[#1B4F8A]">V{doc.version || 1}</span>
+                      </div>
                       <div className="truncate text-xs text-slate-400" title={`${fileTypeLabel(doc)} · ${doc.file_size_label} · ${doc.category}`}>{fileTypeLabel(doc)} · {doc.file_size_label} · {doc.category}</div>
                     </td>
                     <td className="px-4 py-3 text-slate-600">{assignedLabel(doc)}</td>
@@ -868,7 +895,8 @@ export default function DocumentsPage() {
                         actions={[
                           { label: "View Details", icon: "view", onClick: () => void openView(doc) },
                           { label: "Download", icon: "download", onClick: () => { window.open(doc.file_url, "_blank", "noopener,noreferrer"); } },
-                          { label: "Edit", icon: "edit", onClick: () => openEdit(doc) },
+                          { label: "Update", icon: "edit", hidden: life === "draft", onClick: () => openUpdate(doc) },
+                          { label: "Edit", icon: "edit", hidden: life !== "draft", onClick: () => openEdit(doc) },
                           { label: "Send Reminder", icon: "escalate", hidden: !doc.signature_required || life === "draft" || life === "archived" || openSignatures === 0, onClick: () => void sendReminders(doc) },
                           { label: "Extend Deadline", icon: "edit", hidden: !doc.signature_required || life === "draft" || life === "archived" || fullySigned, onClick: () => openExtend(doc) },
                           { label: "Archive", icon: "ban", tone: "warning", hidden: life === "draft" || life === "archived", onClick: () => void handleArchive(doc) },
@@ -915,6 +943,7 @@ export default function DocumentsPage() {
                   </DetailField>
                 ) : null}
                 {viewing.category?.trim() ? <DetailField label="Category">{viewing.category}</DetailField> : null}
+                <DetailField label="Version">V{viewing.version || 1}</DetailField>
                 {viewing.file_name ? (
                   <DetailField label="File">
                     <p className="font-medium text-slate-900">{viewing.file_name}</p>
@@ -976,8 +1005,9 @@ export default function DocumentsPage() {
             <div className="border-b border-slate-100 px-6 py-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-blue-600">{editingId ? "Edit Document" : "New Document"}</p>
-                  <h3 className="text-lg font-bold text-slate-900">{editingId ? "Update Document" : "Upload Document"}</h3>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-blue-600">{versionSourceId ? "New Version" : editingId ? "Edit Document" : "New Document"}</p>
+                  <h3 className="text-lg font-bold text-slate-900">{versionSourceId || editingId ? "Update Document" : "Upload Document"}</h3>
+                  {versionSourceId ? <p className="mt-1 text-sm text-slate-500">Publishing creates a new version. The current version stays unchanged.</p> : null}
                 </div>
                 <button type="button" onClick={closeForm} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
               </div>
@@ -1057,8 +1087,8 @@ export default function DocumentsPage() {
                 <p className="mb-1.5 text-[13px] font-medium text-slate-700">Assigned To *</p>
                 <div className="space-y-2">
                   {(["all", "residents"] as const).map((scope) => (
-                    <label key={scope} className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-sm ${editingPublication === "published" ? "cursor-default opacity-70" : "cursor-pointer"} ${form.assignment_scope === scope ? "border-[#1B4F8A] bg-[#F4F8FC]" : "border-slate-200"}`}>
-                      <input type="radio" disabled={editingPublication === "published"} checked={form.assignment_scope === scope} onChange={() => setF("assignment_scope", scope)} />
+                    <label key={scope} className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-sm ${editingPublication === "published" && !versionSourceId ? "cursor-default opacity-70" : "cursor-pointer"} ${form.assignment_scope === scope ? "border-[#1B4F8A] bg-[#F4F8FC]" : "border-slate-200"}`}>
+                      <input type="radio" disabled={editingPublication === "published" && !versionSourceId} checked={form.assignment_scope === scope} onChange={() => setF("assignment_scope", scope)} />
                       <span className="font-medium text-slate-800">{scope === "all" ? "All Residents" : "Specific Residents"}</span>
                     </label>
                   ))}
@@ -1068,7 +1098,7 @@ export default function DocumentsPage() {
                     <ResidentMultiSelect
                       residents={residents}
                       selectedIds={form.user_ids ?? []}
-                      disabled={editingPublication === "published"}
+                      disabled={editingPublication === "published" && !versionSourceId}
                       error={showError("user_ids", publishErrors)}
                       onChange={(ids) => setF("user_ids", ids)}
                     />
@@ -1103,8 +1133,8 @@ export default function DocumentsPage() {
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-6 py-4">
               <button type="button" onClick={closeForm} disabled={submitting} className="nl-btn-secondary">Close</button>
-              <button type="button" onClick={() => void handleSubmit("published")} disabled={submitting || hasFieldErrors(editingPublication === "published" ? draftErrors : publishErrors)} className="nl-btn-primary disabled:opacity-60">
-                {submitting ? "Saving…" : editingPublication === "published" ? "Save changes" : "Publish Document"}
+              <button type="button" onClick={() => void handleSubmit("published")} disabled={submitting || hasFieldErrors(versionSourceId || editingPublication !== "published" ? publishErrors : draftErrors)} className="nl-btn-primary disabled:opacity-60">
+                {submitting ? "Saving…" : versionSourceId || editingPublication !== "published" ? "Publish Document" : "Save changes"}
               </button>
             </div>
           </div>

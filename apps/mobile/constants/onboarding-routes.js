@@ -20,6 +20,19 @@ import { markFirstHomeVisit } from "./user-session";
 import { hasSeenProductWelcome, markProductWelcomeSeen } from "../services/product-welcome-seen";
 import { prepareAuthScreenChrome } from "../components/layout/chrome-manager";
 
+export const STAFF_HOME = "/screens/staff-tasks/home";
+export const STAFF_INVITES = "/screens/staff-tasks/invitations";
+
+/** Activated staff with no resident or community-admin access. */
+export function isStaffOnlyUser(user) {
+  return Boolean(user?.staff_access?.active) && !canAccessDashboard(user) && !isCommunityAdminRole(user);
+}
+
+/** A staff invitation is waiting, and this account has no resident home yet. */
+export function hasPendingStaffInvite(user) {
+  return Boolean(user?.staff_access?.pending) && !user?.staff_access?.active && !canAccessDashboard(user) && !isCommunityAdminRole(user);
+}
+
 export const Routes = {
   SPLASH: "/",
   LOGIN: "/screens/login",
@@ -94,6 +107,14 @@ export function getColdStartRoute(user) {
     return { pathname: Routes.LOGIN, params: {} };
   }
 
+  if (isStaffOnlyUser(user)) {
+    return { pathname: STAFF_HOME, params: {} };
+  }
+
+  if (hasPendingStaffInvite(user)) {
+    return { pathname: STAFF_INVITES, params: {} };
+  }
+
   const activeRole = user?.role || "resident";
 
   if (needsInviteCode(user)) {
@@ -150,6 +171,14 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
     return { pathname: Routes.PENDING_COMMUNITY, params: { guest: "1" } };
   }
 
+  if (isStaffOnlyUser(user)) {
+    return { pathname: STAFF_HOME, params: {} };
+  }
+
+  if (hasPendingStaffInvite(user)) {
+    return { pathname: STAFF_INVITES, params: {} };
+  }
+
   if (needsInviteCode(user)) {
     return {
       pathname: Routes.INVITE_CODE,
@@ -176,6 +205,10 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
 
   if (canAccessDashboard(user)) {
     return { pathname: Routes.TABS_HOME, params: { role: onboardingRole } };
+  }
+
+  if (isStaffOnlyUser(user)) {
+    return { pathname: STAFF_HOME, params: {} };
   }
 
   // Community admin access gate from backend `/me` access payload.

@@ -11,6 +11,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { Feather } from "@expo/vector-icons";
+import { promptImageSourceAsync } from "../../../providers/image-source-picker-provider";
+import { pickImage, takePhoto } from "../../../utils/pickImage";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import { MAINTENANCE_CATEGORIES, TECHNICAL_CATEGORIES, PRIORITIES } from "../../../components/complaints/complaint-meta";
 import { ChoiceChip, NAVY } from "../../../components/complaints/complaint-ui";
@@ -112,15 +114,42 @@ export default function CreateComplaintScreen() {
     if (touched.category) setErrors((current) => ({ ...current, category: "Choose a category." }));
   };
 
+  const addAttachment = (asset) => {
+    if (!asset?.uri) return;
+    const name = asset.name || asset.fileName || `photo-${Date.now()}.jpg`;
+    setFiles((current) => [...current, { ...asset, name }].slice(0, 5));
+  };
+
   const pickFile = async () => {
+    if (files.length >= 5) {
+      await showError("Attachment", "You can add up to 5 files.");
+      return;
+    }
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        multiple: true,
-        copyToCacheDirectory: true,
-        type: ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/jpeg", "image/png", "image/webp"],
+      const source = await promptImageSourceAsync({
+        title: "Add attachment",
+        message: "Take a photo or choose one from your gallery.",
+        allowCamera: true,
+        allowFile: true,
       });
-      if (result.canceled) return;
-      setFiles([...files, ...(result.assets ?? [])].slice(0, 5));
+      if (!source) return;
+
+      if (source === "file") {
+        const result = await DocumentPicker.getDocumentAsync({
+          multiple: false,
+          copyToCacheDirectory: true,
+          type: ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/jpeg", "image/png", "image/webp"],
+        });
+        if (result.canceled) return;
+        addAttachment(result.assets?.[0]);
+        return;
+      }
+
+      const photoOptions = { showError, documentPick: true, uploadBaseName: "complaint" };
+      const asset = source === "camera"
+        ? await takePhoto(undefined, photoOptions)
+        : await pickImage(undefined, { ...photoOptions, allowCamera: false });
+      addAttachment(asset);
     } catch (err) {
       await showError("Attachment", err?.message || "Could not add this file.");
     }
@@ -293,7 +322,7 @@ export default function CreateComplaintScreen() {
             </View>
             <View style={styles.attachCopy}>
               <Text style={styles.attachText}>Add a photo or file</Text>
-              <Text style={styles.attachHint}>PDF, Word, or image · up to 5 files</Text>
+              <Text style={styles.attachHint}>Camera, gallery, or file · up to 5 files</Text>
             </View>
           </Pressable>
           {files.map((file, index) => (

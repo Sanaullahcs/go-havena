@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Keyboard,
   Linking,
+  AppState,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect, usePathname } from "expo-router";
@@ -38,6 +39,14 @@ function formatDocDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString(getLocaleForLang(i18n.language), { month: "long", day: "numeric", year: "numeric" });
+}
+
+function wasModifiedAfterPublish(doc) {
+  if (typeof doc?.modified_after_publish === "boolean") return doc.modified_after_publish;
+  const published = new Date(doc?.published_at || doc?.created_at).getTime();
+  const updated = new Date(doc?.updated_at).getTime();
+  if (!Number.isFinite(published) || !Number.isFinite(updated)) return false;
+  return updated - published > 5000;
 }
 
 const STATUS_TONE = {
@@ -391,10 +400,15 @@ export default function DocumentDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const hasLoadedOnce = useRef(false);
+  const inFlight = useRef(false);
 
   const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    setError(null);
+    if (inFlight.current) return;
+    inFlight.current = true;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const found = await fetchCommunityDocument(documentId);
       if (getCurrentRole() === "admin" && found?.kind === "agreement") {
@@ -406,17 +420,29 @@ export default function DocumentDetail() {
         }
       }
       setDoc(found);
+      setError(null);
     } catch (err) {
-      setError(err?.message ?? t("propertyMgmt.couldNotLoadDocs"));
+      const missing = err?.status === 404;
+      if (missing) setDoc(null);
+      if (!silent || missing) setError(err?.message ?? t("propertyMgmt.couldNotLoadDocs"));
     } finally {
+      inFlight.current = false;
       setLoading(false);
       hasLoadedOnce.current = true;
     }
-  }, [documentId]);
+  }, [documentId, t]);
 
   useFocusEffect(
     useCallback(() => {
       load(hasLoadedOnce.current);
+      const timer = setInterval(() => load(true), 15000);
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "active") load(true);
+      });
+      return () => {
+        clearInterval(timer);
+        subscription.remove();
+      };
     }, [load]),
   );
 
@@ -536,7 +562,14 @@ export default function DocumentDetail() {
               <Feather name="file-text" size={sf(20)} color="#E11D48" />
             </View>
             <View style={styles.docCopy}>
-              <Text style={styles.title}>{doc.title}</Text>
+              <View style={styles.titleLine}>
+                <Text style={[styles.title, styles.titleFlex]}>{doc.title}</Text>
+                {doc.kind !== "agreement" ? (
+                  <View style={styles.versionPill}>
+                    <Text style={styles.versionText}>V{doc.version || 1}</Text>
+                  </View>
+                ) : null}
+              </View>
               {doc.category ? (
                 <View style={styles.categoryPill}>
                   <Text style={styles.category} numberOfLines={1}>{doc.category}</Text>
@@ -552,28 +585,36 @@ export default function DocumentDetail() {
             </View>
           ) : null}
 
-          <View style={styles.statRow}>
-            {doc.file_size_label ? (
-              <View style={styles.statTile}>
-                <View style={[styles.statIcon, { backgroundColor: "#E8F0F7" }]}>
-                  <Feather name="file" size={sf(14)} color="#1B4F8A" />
+          {isAdmin ? (
+            <View style={styles.statRow}>
+              {doc.file_size_label ? (
+                <View style={styles.statTile}>
+                  <View style={[styles.statIcon, { backgroundColor: "#E8F0F7" }]}>
+                    <Feather name="file" size={sf(14)} color="#1B4F8A" />
+                  </View>
+                  <Text style={styles.statValue}>{doc.file_size_label}</Text>
                 </View>
-                <Text style={styles.statValue}>{doc.file_size_label}</Text>
+              ) : null}
+              <View style={styles.statTile}>
+                <View style={[styles.statIcon, { backgroundColor: "#F0FDFA" }]}>
+                  <Feather name="download" size={sf(14)} color="#0F766E" />
+                </View>
+                <Text style={styles.statValue}>{t("propertyMgmt.downloadCount", { count: doc.download_count ?? 0 })}</Text>
               </View>
-            ) : null}
-            <View style={styles.statTile}>
-              <View style={[styles.statIcon, { backgroundColor: "#F0FDFA" }]}>
-                <Feather name="download" size={sf(14)} color="#0F766E" />
-              </View>
-              <Text style={styles.statValue}>{t("propertyMgmt.downloadCount", { count: doc.download_count ?? 0 })}</Text>
             </View>
-          </View>
+          ) : null}
 
           <View style={styles.dateRow}>
             <View style={styles.dateIcon}>
               <Feather name="clock" size={sf(14)} color="#475569" />
             </View>
-            <Text style={styles.dateText}>{t("propertyMgmt.updatedDate", { date: formatDocDate(doc.updated_at) })}</Text>
+            <Text style={styles.dateText}>
+              {!isAdmin && wasModifiedAfterPublish(doc)
+                ? t("propertyMgmt.updatedDate", { date: formatDocDate(doc.updated_at) })
+                : !isAdmin
+                  ? t("propertyMgmt.publishedDate", { date: formatDocDate(doc.published_at || doc.created_at) })
+                  : t("propertyMgmt.updatedDate", { date: formatDocDate(doc.updated_at) })}
+            </Text>
           </View>
         </View>
 
@@ -627,6 +668,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF1F2", alignItems: "center", justifyContent: "center",
   },
   docCopy: { flex: 1, minWidth: 0 },
+  titleLine: { flexDirection: "row", alignItems: "flex-start", gap: sw(8) },
+  titleFlex: { flex: 1, minWidth: 0 },
+  versionPill: {
+    marginTop: sw(3),
+    borderRadius: sw(6),
+    backgroundColor: "#E8F0F7",
+    paddingHorizontal: sw(7),
+    paddingVertical: sw(3),
+  },
+  versionText: { fontFamily: Fonts.bold, fontSize: sf(11), color: "#1B4F8A", fontWeight: "700" },
   title: { fontFamily: Fonts.bold, fontSize: sf(20), lineHeight: sf(26), color: "#101828", fontWeight: "700" },
   categoryPill: {
     alignSelf: "flex-start",

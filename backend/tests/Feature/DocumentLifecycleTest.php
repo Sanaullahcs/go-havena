@@ -159,6 +159,92 @@ class DocumentLifecycleTest extends TestCase
         $this->getJson('/api/v1/documents')->assertOk()->assertJsonFragment(['id' => $id]);
     }
 
+    public function test_each_document_update_keeps_the_previous_version(): void
+    {
+        ['admin' => $admin, 'resident' => $resident, 'other' => $other] = $this->seedPeople();
+        Sanctum::actingAs($admin);
+
+        $first = $this->post('/api/v1/admin/documents', [
+            'title' => 'Community Guidelines',
+            'category' => 'Rules & Policies',
+            'description' => 'Original community guidelines for residents.',
+            'assignment_scope' => 'all',
+            'publication_status' => 'published',
+            'signature_required' => 0,
+            'notify' => 0,
+            'file' => UploadedFile::fake()->create('guidelines-v1.pdf', 40, 'application/pdf'),
+        ], ['Accept' => 'application/json'])->assertCreated();
+
+        $v1 = $first->json('data.id');
+        $this->assertSame(1, $first->json('data.version'));
+        $this->assertSame($v1, $first->json('data.version_root_id'));
+
+        $second = $this->post("/api/v1/admin/documents/{$v1}/versions", [
+            'title' => 'Community Guidelines',
+            'category' => 'Maintenance',
+            'description' => 'Second version of the community guidelines.',
+            'assignment_scope' => 'residents',
+            'user_ids' => [$resident->id],
+            'publication_status' => 'published',
+            'signature_required' => 0,
+            'notify' => 0,
+            'file' => UploadedFile::fake()->create('guidelines-v2.pdf', 55, 'application/pdf'),
+        ], ['Accept' => 'application/json'])->assertCreated();
+
+        $v2 = $second->json('data.id');
+        $this->assertSame(2, $second->json('data.version'));
+        $this->assertSame($v1, $second->json('data.supersedes_id'));
+        $this->assertSame($v1, $second->json('data.version_root_id'));
+        $this->assertSame('published', $second->json('data.publication_status'));
+        $this->assertSame('guidelines-v2.pdf', $second->json('data.file_name'));
+
+        $this->getJson("/api/v1/documents/{$v1}")
+            ->assertOk()
+            ->assertJsonPath('data.version', 1)
+            ->assertJsonPath('data.file_name', 'guidelines-v1.pdf')
+            ->assertJsonPath('data.category', 'Rules & Policies')
+            ->assertJsonPath('data.publication_status', 'published');
+
+        $third = $this->post("/api/v1/admin/documents/{$v2}/versions", [
+            'title' => 'Community Guidelines',
+            'category' => 'Maintenance',
+            'description' => 'Third version of the community guidelines.',
+            'assignment_scope' => 'all',
+            'publication_status' => 'published',
+            'signature_required' => 0,
+            'notify' => 0,
+            'file' => UploadedFile::fake()->create('guidelines-v3.pdf', 60, 'application/pdf'),
+        ], ['Accept' => 'application/json'])->assertCreated();
+
+        $v3 = $third->json('data.id');
+        $this->assertSame(3, $third->json('data.version'));
+        $this->assertSame($v2, $third->json('data.supersedes_id'));
+        $this->getJson("/api/v1/documents/{$v2}")
+            ->assertOk()
+            ->assertJsonPath('data.file_name', 'guidelines-v2.pdf')
+            ->assertJsonPath('data.publication_status', 'published');
+
+        $this->post("/api/v1/admin/documents/{$v2}/archive", [], ['Accept' => 'application/json'])->assertOk();
+        $this->getJson("/api/v1/documents/{$v1}")->assertOk()->assertJsonPath('data.publication_status', 'published');
+        $this->getJson("/api/v1/documents/{$v3}")->assertOk()->assertJsonPath('data.publication_status', 'published');
+
+        Sanctum::actingAs($resident);
+        $residentIds = collect($this->getJson('/api/v1/documents')->json('data'))->pluck('id');
+        $this->assertTrue($residentIds->contains($v1));
+        $this->assertFalse($residentIds->contains($v2));
+        $this->assertTrue($residentIds->contains($v3));
+
+        Sanctum::actingAs($other);
+        $otherIds = collect($this->getJson('/api/v1/documents')->json('data'))->pluck('id');
+        $this->assertTrue($otherIds->contains($v1));
+        $this->assertFalse($otherIds->contains($v2));
+        $this->assertTrue($otherIds->contains($v3));
+
+        Sanctum::actingAs($admin);
+        $rows = collect($this->getJson('/api/v1/admin/documents?search=Community%20Guidelines')->json('data'));
+        $this->assertSame([1, 2, 3], $rows->sortBy('version')->pluck('version')->values()->all());
+    }
+
     private function pdf(string $sentence): UploadedFile
     {
         $pdf = new \FPDF();

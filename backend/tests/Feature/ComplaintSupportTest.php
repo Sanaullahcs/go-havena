@@ -164,10 +164,9 @@ class ComplaintSupportTest extends TestCase
 
         Sanctum::actingAs($admin);
         $this->postJson('/api/v1/admin/complaints/'.$id.'/status', ['status' => 'resolved'])
-            ->assertStatus(422);
+            ->assertForbidden();
         $this->postJson('/api/v1/admin/complaints/'.$id.'/status', ['status' => 'in_review'])
-            ->assertOk()
-            ->assertJsonPath('data.status', 'in_review');
+            ->assertForbidden();
         $this->postJson('/api/v1/admin/complaints/'.$id.'/messages', [
             'body' => 'We are checking the pipe.',
             'visibility' => 'public',
@@ -178,10 +177,14 @@ class ComplaintSupportTest extends TestCase
         ])->assertOk();
         $this->postJson('/api/v1/admin/complaints/'.$id.'/assign', [
             'assigned_to_user_id' => $admin->id,
-        ])->assertOk()->assertJsonPath('data.assigned_to_user_id', $admin->id);
-        $this->postJson('/api/v1/admin/complaints/'.$id.'/status', ['status' => 'in_progress'])->assertOk();
-        $this->postJson('/api/v1/admin/complaints/'.$id.'/status', ['status' => 'resolved'])->assertOk()
-            ->assertJsonPath('data.status', 'resolved');
+        ])->assertStatus(422);
+        $this->postJson('/api/v1/admin/complaints/'.$id.'/status', ['status' => 'in_progress'])->assertForbidden();
+        $this->postJson('/api/v1/admin/complaints/'.$id.'/status', ['status' => 'resolved'])->assertForbidden();
+        DB::table('complaints')->where('id', $id)->update([
+            'status' => 'resolved',
+            'resolved_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         Sanctum::actingAs($resident);
         $detail = $this->getJson('/api/v1/complaints/'.$id)->assertOk();

@@ -830,6 +830,7 @@
     "invalidCode": "Código inválido",
     "invalidPhoneNumber": "Número de teléfono inválido",
     "connectionProblem": "Problema de conexión",
+    "checkConnection": "Revisa tu conexión e inténtalo de nuevo.",
     "pleaseTryAgain": "Por favor, inténtalo de nuevo.",
     "notIncluded": "No incluido",
     "whatYouCanDo": "Qué puedes hacer",

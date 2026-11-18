@@ -7,7 +7,7 @@ import { CharCount } from "@/components/admin/char-count";
 import { AdminActionsMenu, type AdminMenuAction } from "@/components/admin/admin-actions-menu";
 import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
 import { confirmAction, confirmDelete, toastError, toastSuccess } from "@/lib/alert";
-import { validateAgreementDetails } from "@/lib/admin/agreement-form-validation";
+import { agreementDateKey, validateAgreementDetails } from "@/lib/admin/agreement-form-validation";
 import { inputClass } from "@/lib/admin/form-validation-utils";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { apiError } from "@/lib/api/client";
@@ -78,8 +78,7 @@ function recipientStatusLabel(status: string) {
 }
 
 function dateInput(value: string | null | undefined) {
-  const match = value?.match(/^(\d{4}-\d{2}-\d{2})/);
-  return match?.[1] ?? "";
+  return agreementDateKey(value);
 }
 
 const EMPTY_COUNTS: AgreementCounts = {
@@ -110,6 +109,7 @@ export function AgreementsPanel({
 }) {
   const [rows, setRows] = useState<AgreementSummary[]>([]);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0, counts: EMPTY_COUNTS });
+  const [timeZone, setTimeZone] = useState<string | undefined>();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -134,6 +134,7 @@ export function AgreementsPanel({
       });
       setRows(res.data);
       setMeta(res.meta);
+      if (res.meta.timezone) setTimeZone(res.meta.timezone);
     } catch (err) {
       toastError(apiError(err));
     } finally {
@@ -367,6 +368,7 @@ export function AgreementsPanel({
           key={wizardDraft?.id ?? "new"}
           draft={wizardDraft}
           intent={wizardDraft ? wizardIntent : "create"}
+          timeZone={timeZone}
           onClose={() => {
             const id = wizardDraft?.id ?? null;
             setCreating(false);
@@ -536,7 +538,7 @@ function agreementFileKey(file: File | null) {
   return `${file.name}:${file.size}:${file.lastModified}`;
 }
 
-function AgreementWizard({ draft = null, intent = "create", onClose, onPublished }: { draft?: AgreementDetail | null; intent?: "create" | "edit" | "publish"; onClose: () => void; onPublished: (id: number) => Promise<void> }) {
+function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, onPublished }: { draft?: AgreementDetail | null; intent?: "create" | "edit" | "publish"; timeZone?: string; onClose: () => void; onPublished: (id: number) => Promise<void> }) {
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState(draft?.title ?? "");
   const [description, setDescription] = useState(draft?.description ?? "");
@@ -609,8 +611,11 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
       effectiveAt,
       expiresAt,
       hasFile: Boolean(file) || Boolean(draftId),
-    }),
-    [title, description, category, dueAt, effectiveAt, expiresAt, file, draftId],
+    }, { timeZone }),
+    [title, description, category, dueAt, effectiveAt, expiresAt, file, draftId, timeZone],
+  );
+  const dateMessage = (field: "dueAt" | "effectiveAt" | "expiresAt") => (
+    liveErrors[field] ? showError(field, liveErrors) : undefined
   );
 
   const markSaved = () => {
@@ -658,9 +663,9 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
           title: title.trim(),
           category: category.trim(),
           description,
-          due_at: dueAt || undefined,
-          effective_at: effectiveAt || undefined,
-          expires_at: expiresAt || undefined,
+          due_at: agreementDateKey(dueAt) || undefined,
+          effective_at: agreementDateKey(effectiveAt) || undefined,
+          expires_at: agreementDateKey(expiresAt) || undefined,
           file: file!,
         });
         setDraftId(draft.id);
@@ -672,9 +677,9 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
         title: title.trim(),
         category: category.trim(),
         description,
-        due_at: dueAt || undefined,
-        effective_at: effectiveAt || undefined,
-        expires_at: expiresAt || undefined,
+        due_at: agreementDateKey(dueAt) || undefined,
+        effective_at: agreementDateKey(effectiveAt) || undefined,
+        expires_at: agreementDateKey(expiresAt) || undefined,
         file,
       });
       setSavedFile({ name: updated.file_name, size: updated.file_size, pages: updated.page_count });
@@ -907,9 +912,9 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
                     value={dueAt}
                     onChange={(e) => { setDueAt(e.target.value); touch("dueAt"); }}
                     onBlur={() => touch("dueAt")}
-                    className={inputClass(showError("dueAt", liveErrors), "nl-input mt-1.5 block w-full min-w-0 font-normal")}
+                    className={inputClass(dateMessage("dueAt"), "nl-input mt-1.5 block w-full min-w-0 font-normal")}
                   />
-                  {showError("dueAt", liveErrors) ? <p className="mt-1 text-xs font-normal text-red-600">{showError("dueAt", liveErrors)}</p> : null}
+                  {dateMessage("dueAt") ? <p className="mt-1 text-xs font-normal text-red-600">{dateMessage("dueAt")}</p> : null}
                 </label>
                 <label className="nl-label">Effective date
                   <input
@@ -917,9 +922,9 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
                     value={effectiveAt}
                     onChange={(e) => { setEffectiveAt(e.target.value); touch("effectiveAt"); }}
                     onBlur={() => touch("effectiveAt")}
-                    className={inputClass(showError("effectiveAt", liveErrors), "nl-input mt-1.5 block w-full min-w-0 font-normal")}
+                    className={inputClass(dateMessage("effectiveAt"), "nl-input mt-1.5 block w-full min-w-0 font-normal")}
                   />
-                  {showError("effectiveAt", liveErrors) ? <p className="mt-1 text-xs font-normal text-red-600">{showError("effectiveAt", liveErrors)}</p> : null}
+                  {dateMessage("effectiveAt") ? <p className="mt-1 text-xs font-normal text-red-600">{dateMessage("effectiveAt")}</p> : null}
                 </label>
                 <label className="nl-label">Expiration date
                   <input
@@ -927,9 +932,9 @@ function AgreementWizard({ draft = null, intent = "create", onClose, onPublished
                     value={expiresAt}
                     onChange={(e) => { setExpiresAt(e.target.value); touch("expiresAt"); }}
                     onBlur={() => touch("expiresAt")}
-                    className={inputClass(showError("expiresAt", liveErrors), "nl-input mt-1.5 block w-full min-w-0 font-normal")}
+                    className={inputClass(dateMessage("expiresAt"), "nl-input mt-1.5 block w-full min-w-0 font-normal")}
                   />
-                  {showError("expiresAt", liveErrors) ? <p className="mt-1 text-xs font-normal text-red-600">{showError("expiresAt", liveErrors)}</p> : null}
+                  {dateMessage("expiresAt") ? <p className="mt-1 text-xs font-normal text-red-600">{dateMessage("expiresAt")}</p> : null}
                 </label>
                 <div className="min-w-0 sm:col-span-2">
                   <p className="nl-label">PDF</p>

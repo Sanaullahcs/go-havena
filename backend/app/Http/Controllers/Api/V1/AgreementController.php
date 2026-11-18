@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\AgreementDates;
 use App\Support\ContentFieldRules;
 use App\Support\DocumentCategories;
+use App\Support\NoticeSchedule;
 use App\Services\AgreementService;
 use App\Services\UserActingContextService;
 use App\Support\MediaUrl;
@@ -63,6 +65,7 @@ class AgreementController extends Controller
                 'per_page' => $page->perPage(),
                 'total' => $page->total(),
                 'counts' => $counts,
+                'timezone' => NoticeSchedule::communityTimezone($communityId),
             ],
         ]);
     }
@@ -216,6 +219,8 @@ class AgreementController extends Controller
             'expires_at' => 'nullable|date',
             'file' => 'required|file|max:10240',
         ], ContentFieldRules::messages());
+        AgreementDates::assertSchedule($data, $communityId);
+        $data = AgreementDates::normalize($data);
         $fileMeta = $this->agreements->storeFile($request->file('file'), $communityId);
         $this->ensureCategory($communityId, $data['category']);
         $id = $this->agreements->createDraft($communityId, (int) $request->user()->id, $data, $fileMeta);

@@ -14,8 +14,7 @@ import { getUser, getToken, getCachedUser, clearSession, subscribeSessionUser } 
 import { fetchMe } from "../../services/auth-api";
 
 import { canAccessDashboard, currentCommunityId, isCommunityAdmin, isGuestUser } from "../../services/community-access";
-
-import { getPostAuthRoute, needsCompleteProfile, Routes } from "../../constants/onboarding-routes";
+import { getPostAuthRoute, hasPendingStaffInvite, isStaffOnlyUser, needsCompleteProfile, Routes, STAFF_HOME, STAFF_INVITES } from "../../constants/onboarding-routes";
 import { syncRoleFromUser } from "../../constants/role-session";
 
 import { isAccountSuspendedError, loginRouteWithSuspendedNotice, persistBlockedAccountNotice } from "../../utils/auth-errors";
@@ -72,6 +71,14 @@ export default function TabLayout() {
       if (!user || cancelled) return false;
       if (canAccessDashboard(user) && !needsCompleteProfile(user)) {
         return false;
+      }
+      if (isStaffOnlyUser(user)) {
+        routerRef.current.replace(STAFF_HOME);
+        return true;
+      }
+      if (hasPendingStaffInvite(user)) {
+        routerRef.current.replace(STAFF_INVITES);
+        return true;
       }
       const route = getPostAuthRoute(user);
       routerRef.current.replace({ pathname: route.pathname, params: route.params });

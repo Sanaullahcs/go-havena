@@ -240,7 +240,7 @@ export default function AdminComplaintsScreen() {
                 row={row}
                 who={`${row.reporter_name || "Resident"}${row.unit_number ? ` · Unit ${row.unit_number}` : ""}`}
                 detail={`${row.category_label} · ${pretty(row.priority)}`}
-                foot={row.assigned_to_name || "Unassigned"}
+                foot={`${row.assigned_staff_label || row.assigned_to_name || "Not assigned"}${(row.unread_count ?? 0) > 0 ? ` · ${row.unread_count} new` : ""}`}
                 when={formatWhen(row.updated_at || row.created_at)}
                 onPress={() => router.push({ pathname: "/screens/admin-complaints/detail", params: { id: String(row.id) } })}
               />
@@ -314,7 +314,7 @@ function InlineSelect({ label, value, active, open, options, selected, onToggle,
 }
 
 function ComplaintCard({ row, who, detail, foot, when, onPress }) {
-  const color = statusColor(row.status);
+  const color = statusColor(row.workflow_status || row.status);
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <View style={[styles.rail, { backgroundColor: color }]} />

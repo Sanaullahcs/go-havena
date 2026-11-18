@@ -1,7 +1,7 @@
 import i18n from "../i18n";
-import { describeApiConnectionHint, isDevTestEmail, isDevTestPhone } from "../constants/api-config";
+import { describeApiConnectionHint } from "../constants/api-config";
 import { setBlockedAccountNotice } from "../services/auth-session";
-import { getApiErrorCode, getApiErrorMessage } from "./api-error-core";
+import { getApiErrorCode, getApiErrorMessage, isNetworkLikeError } from "./api-error-core";
 import { isExistingAccountSignupError } from "./signup-errors";
 import {
   blockedAccountNoticeFromError,
@@ -221,17 +221,8 @@ export async function handleAuthApiError(error, dialog, router, { phone, email }
     return;
   }
 
-  if (code === "TIMEOUT" || code === "NETWORK_ERROR") {
-    const hint = describeApiConnectionHint();
-    const devHint =
-      __DEV__ && ((email && isDevTestEmail(email)) || (phone && isDevTestPhone(phone)))
-        ? "\n\nEnsure `npm run backend` is running. Android emulator uses http://10.0.2.2:8000 automatically."
-        : "";
-    const detail = [message, hint].filter(Boolean).join("\n\n");
-    await dialog.showError(
-      i18n.t("auth.connectionProblem"),
-      `${detail}${devHint}`,
-    );
+  if (code === "NETWORK_ERROR" || isNetworkLikeError(error)) {
+    await showNetworkErrorDialog(dialog);
     return;
   }
 
@@ -242,7 +233,25 @@ export async function showApiSuccess(dialog, title, message) {
   await dialog.showSuccess(title, message);
 }
 
+export async function showNetworkErrorDialog(dialog) {
+  if (__DEV__) {
+    const hint = describeApiConnectionHint();
+    if (hint) console.warn("[Havena]", hint);
+  }
+  await dialog.showDialog({
+    type: "error",
+    layout: "compact",
+    title: i18n.t("onboarding.noInternetConnection"),
+    message: i18n.t("propertyMgmt.offlineBody"),
+    actions: [{ label: i18n.t("common.ok"), variant: "primary" }],
+  });
+}
+
 export async function showApiFailure(dialog, title, error, field) {
+  if (isNetworkLikeError(error)) {
+    await showNetworkErrorDialog(dialog);
+    return;
+  }
   const permissionTitle = guestPermissionDialogTitle(error, error?.feature);
   await dialog.showError(
     permissionTitle ?? title,

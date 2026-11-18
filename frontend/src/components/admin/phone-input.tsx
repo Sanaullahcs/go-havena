@@ -3,6 +3,7 @@
 import { ClearableInput } from "@/components/admin/clearable-field";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   PHONE_COUNTRIES,
   formatDialLabel,
@@ -52,10 +53,14 @@ export function AdminPhoneInput({
   const hintId = `${inputId}-hint`;
   const listId = `${inputId}-countries`;
   const countryRootRef = useRef<HTMLDivElement>(null);
-  const [countryListStyle, setCountryListStyle] = useState<{ maxHeight: number; upward: boolean }>({
-    maxHeight: 288,
-    upward: false,
-  });
+  const countryListRef = useRef<HTMLDivElement>(null);
+  const [countryListBox, setCountryListBox] = useState<{
+    left: number;
+    width: number;
+    maxHeight: number;
+    top?: number;
+    bottom?: number;
+  } | null>(null);
   const [field, setField] = useState<PhoneFieldState>(() => phoneFieldFromE164(value));
   const [touched, setTouched] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
@@ -77,13 +82,14 @@ export function AdminPhoneInput({
   useEffect(() => {
     if (!countryOpen) {
       setCountryQuery("");
+      setCountryListBox(null);
       return;
     }
 
     const onPointerDown = (event: MouseEvent) => {
-      if (!countryRootRef.current?.contains(event.target as Node)) {
-        setCountryOpen(false);
-      }
+      const target = event.target as Node;
+      if (countryRootRef.current?.contains(target) || countryListRef.current?.contains(target)) return;
+      setCountryOpen(false);
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -92,27 +98,36 @@ export function AdminPhoneInput({
 
     const fitList = () => {
       const root = countryRootRef.current;
-      const viewport = window.visualViewport;
-      if (!root || !viewport) return;
+      if (!root) return;
       const rect = root.getBoundingClientRect();
-      const top = rect.top - viewport.offsetTop;
-      const bottom = viewport.height - (rect.bottom - viewport.offsetTop);
-      const upward = bottom < 200 && top > bottom;
-      const space = (upward ? top : bottom) - 16;
-      setCountryListStyle({
-        upward,
-        maxHeight: Math.max(168, Math.min(288, space)),
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const upward = spaceBelow < 220 && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(160, Math.min(288, (upward ? spaceAbove : spaceBelow) - 12));
+      const width = Math.min(296, window.innerWidth - 16);
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+      setCountryListBox({
+        left,
+        width,
+        maxHeight,
+        ...(upward
+          ? { bottom: Math.max(8, window.innerHeight - rect.top + 6) }
+          : { top: rect.bottom + 6 }),
       });
     };
 
     fitList();
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("scroll", fitList, true);
+    window.addEventListener("resize", fitList);
     window.visualViewport?.addEventListener("resize", fitList);
     window.visualViewport?.addEventListener("scroll", fitList);
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("scroll", fitList, true);
+      window.removeEventListener("resize", fitList);
       window.visualViewport?.removeEventListener("resize", fitList);
       window.visualViewport?.removeEventListener("scroll", fitList);
     };
@@ -227,16 +242,23 @@ export function AdminPhoneInput({
             <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
 
-          {countryOpen ? (
+          {countryOpen && countryListBox
+            ? createPortal(
             <div
+              ref={countryListRef}
               id={listId}
               role="listbox"
               aria-label="Select country code"
-              className={[
-                "absolute left-0 z-50 flex w-[min(18.5rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.14)]",
-                countryListStyle.upward ? "bottom-[calc(100%+0.4rem)]" : "top-[calc(100%+0.4rem)]",
-              ].join(" ")}
-              style={{ maxHeight: countryListStyle.maxHeight }}
+              className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.14)]"
+              style={{
+                position: "fixed",
+                zIndex: 400,
+                left: countryListBox.left,
+                width: countryListBox.width,
+                maxHeight: countryListBox.maxHeight,
+                top: countryListBox.top,
+                bottom: countryListBox.bottom,
+              }}
             >
               <label className="relative block shrink-0 border-b border-slate-100 p-2">
                 <span className="sr-only">Search country or code</span>
@@ -304,7 +326,8 @@ export function AdminPhoneInput({
                   );
                 })}
               </div>
-            </div>
+            </div>,
+            document.body,
           ) : null}
         </div>
 

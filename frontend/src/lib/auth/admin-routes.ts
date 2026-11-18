@@ -39,6 +39,7 @@ export const COMMUNITY_ADMIN_ROUTE_PREFIXES = [
   "/admin/community-rules",
   "/admin/documents",
   "/admin/complaints",
+  "/admin/staff",
   "/admin/units",
   "/admin/services",
   "/admin/service-bills",

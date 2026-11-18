@@ -10,7 +10,7 @@ import {
   Platform,
   AppState,
 } from "react-native";
-import { KeyboardAvoidingView, KeyboardStickyView } from "react-native-keyboard-controller";
+import { useKeyboardBottomOffset } from "../layout/keyboard-safe-screen";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
@@ -18,6 +18,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Feather } from "@expo/vector-icons";
 import InternalScreenHeader from "../layout/internal-screen-header";
+import StaffScreenHeader from "../layout/staff-screen-header";
 import { EmptyState, NAVY } from "./complaint-ui";
 import { Colors } from "../../constants/tokens";
 import { Fonts } from "../../constants/font";
@@ -26,9 +27,13 @@ import { useComplaintBack } from "../../hooks/use-complaint-back";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 import { getToken, getUser } from "../../services/auth-session";
 import {
+  addStaffTaskUpdate,
   complaintDownloadPath,
   fetchAdminComplaint,
   fetchComplaint,
+  fetchStaffTask,
+  markComplaintRead,
+  markStaffTaskRead,
   postAdminComplaintMessage,
   postComplaintMessage,
 } from "../../services/complaints-api";
@@ -48,10 +53,14 @@ function messageSignature(complaint) {
 
 export default function ComplaintChatScreen({ audience = "resident", backTo }) {
   const admin = audience === "admin";
+  const staff = audience === "staff";
   const { id } = useLocalSearchParams();
-  const goBack = useComplaintBack(backTo ?? (admin ? "/screens/admin-complaints" : "/screens/complaints"));
+  const goBack = useComplaintBack(
+    backTo ?? (staff ? "/screens/staff-tasks" : admin ? "/screens/admin-complaints" : "/screens/complaints"),
+  );
   const { showError } = useAppDialog();
   const insets = useSafeAreaInsets();
+  const { bottomOffset, safeBottom } = useKeyboardBottomOffset();
   const listRef = useRef(null);
   const signatureRef = useRef("");
   const complaintRef = useRef(null);
@@ -66,7 +75,7 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
   const load = useCallback(async (silent = false) => {
     if (!silent) setError("");
     try {
-      const next = admin ? await fetchAdminComplaint(id) : await fetchComplaint(id);
+      const next = staff ? await fetchStaffTask(id) : admin ? await fetchAdminComplaint(id) : await fetchComplaint(id);
       const signature = messageSignature(next);
       if (!silent || signature !== signatureRef.current || next.status !== complaintRef.current?.status) {
         signatureRef.current = signature;
@@ -78,7 +87,7 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [admin, id]);
+  }, [admin, id, staff]);
 
   useEffect(() => {
     void getUser().then((user) => setMeId(user?.id ?? null));
@@ -86,7 +95,8 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void (staff ? markStaffTaskRead(id) : markComplaintRead(id, admin)).catch(() => {});
+  }, [admin, id, load, staff]);
 
   useEffect(() => {
     const sync = () => {
@@ -108,9 +118,9 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
 
   useEffect(() => {
     if (!messages.length) return;
-    const handle = setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 40);
+    const handle = setTimeout(() => listRef.current?.scrollToEnd({ animated: bottomOffset === 0 }), 40);
     return () => clearTimeout(handle);
-  }, [messages.length, thread]);
+  }, [bottomOffset, messages.length, thread]);
 
   const closed = complaint && ["closed", "cancelled"].includes(complaint.status);
 
@@ -137,9 +147,11 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
     try {
       const visibility = admin && thread === "internal" ? "internal" : "public";
       const payload = text || "Attachment added.";
-      const next = admin
-        ? await postAdminComplaintMessage(id, payload, visibility, files)
-        : await postComplaintMessage(id, payload, files);
+      const next = staff
+        ? await addStaffTaskUpdate(id, payload, files)
+        : admin
+          ? await postAdminComplaintMessage(id, payload, visibility, files)
+          : await postComplaintMessage(id, payload, files);
       signatureRef.current = messageSignature(next);
       complaintRef.current = next;
       setComplaint(next);
@@ -162,23 +174,31 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
   };
 
   const filesFor = (messageId) => (complaint?.attachments ?? []).filter((file) => file.message_id === messageId);
-  const composerInset = Math.max(insets.bottom, sw(10));
+  const composerInset = bottomOffset > 0 ? sw(8) : Math.max(insets.bottom, safeBottom, sw(8));
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
-      <InternalScreenHeader
-        dense
-        title={complaint?.title || "Chat"}
-        subtitle={complaint ? `${complaint.reference} · ${complaint.status_label}` : "Complaint"}
-        onBack={goBack}
-      />
+      {staff ? (
+        <StaffScreenHeader
+          title={complaint?.reporter_name || "Chat"}
+          subtitle={complaint ? [complaint.reference, complaint.unit_number ? `Unit ${complaint.unit_number}` : ""].filter(Boolean).join(" · ") : undefined}
+          showBack
+          onBack={goBack}
+        />
+      ) : (
+        <InternalScreenHeader
+          dense
+          title={complaint?.title || "Chat"}
+          subtitle={complaint ? `${complaint.reference} · ${complaint.status_label}` : "Complaint"}
+          onBack={goBack}
+        />
+      )}
       {loading ? <View style={styles.center}><ActivityIndicator color={Colors.brandPrimary} /></View> : null}
       {!loading && error ? (
         <EmptyState icon="alert-circle" title="Could not open this chat" body={error} actionLabel="Try again" actionIcon="refresh-cw" onAction={() => { setLoading(true); void load(); }} />
       ) : null}
       {complaint ? (
         <View style={styles.flex}>
-          <KeyboardAvoidingView style={styles.flex} behavior="padding">
           {admin ? (
             <View style={styles.threads}>
               <ThreadTab label="Resident" active={thread === "public"} onPress={() => setThread("public")} />
@@ -218,15 +238,13 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
               );
             }}
           />
-          </KeyboardAvoidingView>
           {closed ? (
-            <View style={[styles.locked, { paddingBottom: composerInset }]}>
+            <View style={[styles.locked, { paddingBottom: composerInset, marginBottom: bottomOffset }]}>
               <Feather name="lock" size={sf(14)} color={Colors.textMuted} />
               <Text style={styles.lockedText}>This complaint is {complaint.status_label.toLowerCase()}.</Text>
             </View>
           ) : (
-            <KeyboardStickyView offset={{ closed: 0, opened: composerInset }}>
-              <View style={[styles.composer, thread === "internal" && styles.composerNote, { paddingBottom: composerInset }]}>
+              <View style={[styles.composer, thread === "internal" && styles.composerNote, { paddingBottom: composerInset, marginBottom: bottomOffset }]}>
                 <Pressable disabled={busy} onPress={() => void attach()} style={styles.iconBtn} accessibilityLabel="Attach a file">
                   <Feather name="paperclip" size={sf(18)} color={NAVY} />
                 </Pressable>
@@ -247,7 +265,6 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
                   {busy ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="send" size={sf(16)} color="#fff" />}
                 </Pressable>
               </View>
-            </KeyboardStickyView>
           )}
         </View>
       ) : null}
@@ -307,7 +324,7 @@ const styles = StyleSheet.create({
   fileName: { flexShrink: 1, fontFamily: Fonts.medium, fontSize: sf(12), color: NAVY },
   composer: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     gap: sw(8),
     paddingHorizontal: sw(12),
     paddingTop: sw(8),
@@ -319,15 +336,19 @@ const styles = StyleSheet.create({
   iconBtn: { width: sw(40), height: sw(40), alignItems: "center", justifyContent: "center" },
   input: {
     flex: 1,
-    minHeight: sw(42),
-    maxHeight: sw(110),
-    borderRadius: sw(21),
+    minHeight: sw(40),
+    maxHeight: sw(96),
+    borderRadius: sw(20),
     backgroundColor: "#F4F7FB",
     paddingHorizontal: sw(14),
-    paddingVertical: sw(10),
+    paddingTop: Platform.OS === "ios" ? sw(10) : 0,
+    paddingBottom: Platform.OS === "ios" ? sw(10) : 0,
     fontFamily: Fonts.regular,
     fontSize: sf(14),
+    lineHeight: sf(20),
     color: Colors.textPrimary,
+    textAlignVertical: "center",
+    ...(Platform.OS === "android" ? { includeFontPadding: false } : null),
   },
   send: {
     width: sw(42),
