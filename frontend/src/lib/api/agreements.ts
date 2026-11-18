@@ -84,7 +84,7 @@ export async function fetchAgreements(params?: {
   due_from?: string;
   due_to?: string;
   page?: number;
-}): Promise<{ data: AgreementSummary[]; meta: { current_page: number; last_page: number; total: number; counts: AgreementCounts } }> {
+}): Promise<{ data: AgreementSummary[]; meta: { current_page: number; last_page: number; total: number; counts: AgreementCounts; timezone?: string } }> {
   const p = new URLSearchParams();
   if (params?.status && params.status !== "all") p.set("status", params.status);
   if (params?.category && params.category !== "all") p.set("category", params.category);

@@ -62,6 +62,9 @@ export interface CommunityDocument {
   signature_required?: boolean;
   due_at?: string | null;
   expires_at?: string | null;
+  version?: number;
+  version_root_id?: number | null;
+  supersedes_id?: number | null;
   assignment_scope?: "all" | "residents" | null;
   lifecycle?: "draft" | "published" | "archived" | "overdue" | string;
   signature_status?: "pending" | "signed" | "overdue" | null;
@@ -174,6 +177,18 @@ export async function remindDocument(id: number, assignmentId?: number): Promise
 export async function createDocument(payload: DocumentForm, file: File): Promise<CommunityDocument> {
   const form = buildDocumentFormData(payload, file);
   const res = await api.post("/v1/admin/documents", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data.data as CommunityDocument;
+}
+
+export async function createDocumentVersion(
+  id: number,
+  payload: DocumentForm,
+  file?: File | null,
+): Promise<CommunityDocument> {
+  const form = buildDocumentFormData(payload, file);
+  const res = await api.post(`/v1/admin/documents/${id}/versions`, form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return res.data.data as CommunityDocument;

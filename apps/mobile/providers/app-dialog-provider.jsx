@@ -162,6 +162,7 @@ function AppDialogModal({ config, onClose }) {
   const icon = ICONS[config.type] ?? ICONS.info;
   const isStatusLayout = config.layout === "status";
   const isPromptLayout = config.layout === "prompt";
+  const isCompact = config.layout === "compact";
   const actions = config.actions ?? [];
   // Two-action confirms (e.g. Cancel | Log Out) sit side-by-side without truncating labels.
   const isInlineActions = !isStatusLayout && !isPromptLayout && actions.length === 2;
@@ -172,6 +173,7 @@ function AppDialogModal({ config, onClose }) {
         <View
           style={[
             styles.sheet,
+            isCompact && styles.sheetCompact,
             isStatusLayout && styles.sheetStatus,
             isPromptLayout && styles.sheetPrompt,
           ]}
@@ -183,12 +185,12 @@ function AppDialogModal({ config, onClose }) {
             <PromptDialogBody config={config} icon={icon} />
           ) : (
             <>
-              <View style={[styles.iconRing, { backgroundColor: icon.bg }]}>
-                <Ionicons name={icon.name} size={40} color={icon.color} />
+              <View style={[styles.iconRing, isCompact && styles.iconRingCompact, { backgroundColor: icon.bg }]}>
+                <Ionicons name={icon.name} size={isCompact ? 22 : 40} color={icon.color} />
               </View>
 
-              {config.title ? <Text style={styles.title}>{config.title}</Text> : null}
-              {config.message ? <Text style={styles.message}>{config.message}</Text> : null}
+              {config.title ? <Text style={[styles.title, isCompact && styles.titleCompact]}>{config.title}</Text> : null}
+              {config.message ? <Text style={[styles.message, isCompact && styles.messageCompact]}>{config.message}</Text> : null}
             </>
           )}
 
@@ -196,6 +198,7 @@ function AppDialogModal({ config, onClose }) {
             style={[
               styles.actions,
               isInlineActions && styles.actionsInline,
+              isCompact && styles.actionsCompact,
               isStatusLayout && styles.actionsStatus,
               isPromptLayout && styles.actionsPrompt,
             ]}
@@ -214,6 +217,7 @@ function AppDialogModal({ config, onClose }) {
                   key={action.key ?? `${action.label}-${index}`}
                   style={[
                     styles.actionBtn,
+                    isCompact && styles.actionBtnCompact,
                     isInlineActions && styles.actionBtnInline,
                     isPrimary && styles.actionPrimary,
                     useTealPrimary && styles.actionPrimaryPrompt,
@@ -365,6 +369,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 12 }, opacity: 0.12, radius: 24 }),
     elevation: 8,
+  },
+  sheetCompact: {
+    maxWidth: 248,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+    borderRadius: 16,
+  },
+  iconRingCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginBottom: 8,
+  },
+  titleCompact: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  messageCompact: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  actionsCompact: {
+    marginTop: 12,
+  },
+  actionBtnCompact: {
+    minHeight: 34,
+    borderRadius: 10,
+    paddingVertical: 6,
   },
   sheetStatus: {
     maxWidth: 360,

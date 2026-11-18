@@ -7,7 +7,7 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,6 +23,7 @@ import {
   amenityFlowRoutes,
 } from "../../../../constants/property-management-routes";
 import { fetchAmenities, fetchMyBookings } from "../../../../services/amenity-api";
+import { subscribeConnectivity } from "../../../../services/connectivity";
 import { getApiErrorMessage, isNetworkLikeError } from "../../../../utils/api-error-core";
 import {
   getAmenityVisual,
@@ -166,6 +167,10 @@ export default function Amenity() {
       load(true);
     }, [load]),
   );
+
+  useEffect(() => subscribeConnectivity((_state, meta) => {
+    if (meta?.restored) load(false);
+  }), [load]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

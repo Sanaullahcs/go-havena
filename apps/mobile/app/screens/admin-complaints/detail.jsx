@@ -127,7 +127,7 @@ export default function AdminComplaintDetailScreen() {
     }
   };
 
-  const accent = statusColor(complaint?.status);
+  const accent = statusColor(complaint?.workflow_status || complaint?.status);
   const publicMessages = (complaint?.messages ?? []).filter((message) => message.visibility === "public");
   const lastMessage = publicMessages[publicMessages.length - 1];
   const noteCount = (complaint?.messages ?? []).filter((message) => message.visibility === "internal").length;
@@ -166,7 +166,7 @@ export default function AdminComplaintDetailScreen() {
                   const selected = complaint.assigned_to_user_id === person.id;
                   return (
                     <Pressable key={person.id} disabled={busy} onPress={() => assign(person.id, person.name)} style={[styles.person, selected && styles.personOn]}>
-                      <Text style={[styles.personText, selected && styles.personTextOn]}>{person.name}</Text>
+                      <Text style={[styles.personText, selected && styles.personTextOn]}>{person.label || person.name}{person.matched ? " · Suggested" : ""}</Text>
                     </Pressable>
                   );
                 })}

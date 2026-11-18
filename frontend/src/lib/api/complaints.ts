@@ -5,6 +5,7 @@ export type ComplaintStatus =
   | "in_review"
   | "in_progress"
   | "waiting_on_resident"
+  | "not_resolved"
   | "resolved"
   | "reopened"
   | "closed"
@@ -27,8 +28,12 @@ export type ComplaintRecord = {
   description?: string;
   status: ComplaintStatus;
   status_label: string;
+  workflow_status?: string;
   assigned_to_user_id: number | null;
+  assigned_staff_id?: number | null;
   assigned_to_name: string | null;
+  assigned_staff_label?: string | null;
+  community_name?: string | null;
   support_team: string;
   created_at: string;
   updated_at: string;
@@ -36,10 +41,11 @@ export type ComplaintRecord = {
   allowed_transitions?: ComplaintStatus[];
   feedback_rating?: number | null;
   feedback_comment?: string | null;
+  unread_count?: number;
   messages?: ComplaintMessage[];
   attachments?: ComplaintAttachment[];
   events?: ComplaintEvent[];
-  assignees?: Array<{ id: number; name: string }>;
+  assignees?: Array<{ id: number; name: string; label?: string; matched?: boolean; staff_id?: number }>;
 };
 
 export type ComplaintMessage = {
@@ -66,6 +72,7 @@ export type ComplaintEvent = {
   from_status: string | null;
   to_status: string | null;
   note: string | null;
+  actor_name?: string | null;
   created_at: string;
 };
 
@@ -86,6 +93,7 @@ export type ComplaintList = {
     per_page: number;
     total: number;
     counts: Record<string, number>;
+    staff_revision?: string | null;
   };
 };
 
@@ -94,6 +102,8 @@ export async function fetchAdminComplaints(params: {
   status?: string;
   category?: string;
   priority?: string;
+  dateFrom?: string;
+  dateTo?: string;
   page?: number;
 }): Promise<ComplaintList> {
   const query = new URLSearchParams();
@@ -101,6 +111,8 @@ export async function fetchAdminComplaints(params: {
   if (params.status && params.status !== "all") query.set("status", params.status);
   if (params.category && params.category !== "all") query.set("category", params.category);
   if (params.priority && params.priority !== "all") query.set("priority", params.priority);
+  if (params.dateFrom) query.set("date_from", params.dateFrom);
+  if (params.dateTo) query.set("date_to", params.dateTo);
   if (params.page) query.set("page", String(params.page));
   query.set("per_page", "8");
   const res = await api.get(`/v1/admin/complaints?${query.toString()}`);
@@ -135,9 +147,18 @@ export async function updateAdminComplaintStatus(id: number, status: string): Pr
   return res.data.data as ComplaintRecord;
 }
 
+export async function markAdminComplaintRead(id: number): Promise<void> {
+  await api.post(`/v1/admin/complaints/${id}/read`);
+}
+
 export async function assignAdminComplaint(id: number, assignedToUserId: number): Promise<ComplaintRecord> {
   const res = await api.post(`/v1/admin/complaints/${id}/assign`, { assigned_to_user_id: assignedToUserId });
   return res.data.data as ComplaintRecord;
+}
+
+export async function fetchAdminComplaintAssignees(id: number): Promise<NonNullable<ComplaintRecord["assignees"]>> {
+  const res = await api.get(`/v1/admin/complaints/${id}/assignees`);
+  return (res.data.data ?? []) as NonNullable<ComplaintRecord["assignees"]>;
 }
 
 export async function downloadAdminComplaintAttachment(id: number, attachmentId: number): Promise<Blob> {

@@ -949,6 +949,7 @@
     "invalidCode": "رمز غير صالح",
     "invalidPhoneNumber": "رقم هاتف غير صالح",
     "connectionProblem": "مشكلة في الاتصال",
+    "checkConnection": "تحقق من اتصالك وحاول مرة أخرى.",
     "pleaseTryAgain": "يرجى المحاولة مرة أخرى.",
     "notIncluded": "غير مشمول",
     "whatYouCanDo": "ما يمكنك فعله",

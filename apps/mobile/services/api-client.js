@@ -8,10 +8,21 @@ import {
   isUserLocallyRestricted,
 } from "../utils/guest-permission-errors";
 import { looksLikeNetworkFailureMessage } from "../utils/api-error-core";
+import { isDeviceOffline } from "./connectivity";
 
 import { ApiError } from "./api-error";
 
 export { ApiError } from "./api-error";
+
+async function transportError({ timedOut = false } = {}) {
+  if (await isDeviceOffline()) {
+    return new ApiError(i18n.t("apiErrors.networkError"), { status: 0, code: "NETWORK_ERROR" });
+  }
+  if (timedOut) {
+    return new ApiError(i18n.t("apiErrors.timeout"), { status: 408, code: "TIMEOUT" });
+  }
+  return new ApiError(i18n.t("apiErrors.serverError"), { status: 0, code: "SERVER_UNREACHABLE" });
+}
 
 function isNetworkFailure(err) {
   if (!err) return false;
@@ -202,10 +213,7 @@ export async function apiRequest(path, { method = "GET", body, auth = true, comm
       return parseResponse(response);
     } catch (err) {
       if (isNetworkFailure(err)) {
-        throw new ApiError(
-          i18n.t("apiErrors.networkError"),
-          { status: 0, code: "NETWORK_ERROR" },
-        );
+        throw await transportError();
       }
       throw err;
     }
@@ -213,12 +221,7 @@ export async function apiRequest(path, { method = "GET", body, auth = true, comm
 
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
-      reject(
-        new ApiError(i18n.t("apiErrors.timeout"), {
-          status: 408,
-          code: "TIMEOUT",
-        }),
-      );
+      void transportError({ timedOut: true }).then(reject);
     }, timeoutMs);
   });
 

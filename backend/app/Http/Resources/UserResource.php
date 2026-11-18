@@ -88,6 +88,7 @@ class UserResource extends JsonResource
             // Clients read this once per session instead of threading a
             // currency through every amenity, bill, and listing payload.
             'currency' => app(\App\Services\CommunityCurrencyService::class)->forUser($this->resource),
+            'staff_access' => app(\App\Services\CommunityStaffService::class)->access($this->resource),
             'needs_invite_code' => \App\Services\InviteCodeService::userNeedsInviteCode($this->resource),
             'pending_invitation_count' => \App\Models\InviteCode::query()->pendingForUser((int) $this->id)->count(),
             'invited_by_admin' => OnboardingContext::invitedByAdmin($this->resource),

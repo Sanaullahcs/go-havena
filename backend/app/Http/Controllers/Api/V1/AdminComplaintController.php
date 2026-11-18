@@ -62,11 +62,16 @@ class AdminComplaintController extends Controller
 
     public function assign(Request $request, int $id): JsonResponse
     {
-        $data = $request->validate(['assigned_to_user_id' => 'required|integer']);
+        $data = $request->validate(['assigned_to_user_id' => 'nullable|integer']);
 
         return response()->json([
-            'data' => $this->complaints->assign($request->user(), $id, (int) $data['assigned_to_user_id']),
+            'data' => $this->complaints->assign($request->user(), $id, (int) ($data['assigned_to_user_id'] ?? 0)),
         ]);
+    }
+
+    public function read(Request $request, int $id): JsonResponse
+    {
+        return response()->json(['data' => $this->complaints->markRead($request->user(), $id)]);
     }
 
     public function download(Request $request, int $id, int $attachment): StreamedResponse

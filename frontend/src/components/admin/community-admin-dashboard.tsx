@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import NoticeFormModal from "@/components/admin/notice-form-modal";
@@ -10,7 +10,6 @@ import {
   formatDashboardGeneratedAt,
   LiveBadge,
   ManageLinkCard,
-  PendingAlertBanner,
 } from "@/components/admin/dashboard/dashboard-shared";
 import ReviewQueueSection, {
   ADMIN_REVIEW_QUEUE_ID,
@@ -31,7 +30,7 @@ import {
   Clock,
   dashIcon,
   FileText,
-  Map,
+  LifeBuoy,
   MessageSquare,
   ShoppingCart,
   Activity,
@@ -48,6 +47,9 @@ import {
   type AdminDashboardData,
   type AdminDashboardPendingAction,
 } from "@/lib/api/dashboard";
+import { ADMIN_COMPLAINT_SYNC_MS, fetchAdminComplaints, isComplaintNotification } from "@/lib/api/complaints";
+import { emitNotificationsRefresh } from "@/lib/api/notifications";
+import { subscribeForegroundNotification } from "@/lib/notifications/foreground-notification-events";
 import { approveMember, approveFamilyAddMemberRequest, rejectMember, rejectFamilyAddMemberRequest } from "@/lib/api/members";
 import { approvePost, rejectPost } from "@/lib/api/posts";
 import { approveListing, rejectListing } from "@/lib/api/listings";
@@ -67,26 +69,16 @@ import { apiError } from "@/lib/api/client";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { getAdminCache, setAdminCache } from "@/lib/admin/navigation-cache";
-import { getUser } from "@/lib/auth/session";
+import { getManagedCommunityId, getUser, SESSION_PATCHED_EVENT } from "@/lib/auth/session";
 import { FEATURES_UPDATED_EVENT } from "@/components/auth/feature-settings-sync";
 import { adminFeatureForPath, isResidentFeatureEnabled } from "@/lib/resident-features";
-import { communityPendingReviewCategories } from "@/lib/admin/pending-review-breakdown";
-
-const PENDING_REVIEW_LINKS: Record<string, { href: string; singular: string; plural: string }> = {
-  members: { href: "/admin/members?status=pending", singular: "resident approval", plural: "resident approvals" },
-  unit_requests: { href: "/admin/unit-requests", singular: "unit request", plural: "unit requests" },
-  listings: { href: "/admin/marketplace?status=pending", singular: "listing", plural: "listings" },
-  posts: { href: "/admin/feed?status=pending", singular: "post", plural: "posts" },
-  bookings: { href: "/admin/bookings?status=pending", singular: "booking request", plural: "booking requests" },
-  amenities: { href: "/admin/amenities", singular: "amenity review", plural: "amenity reviews" },
-  amenity_bills: { href: "/admin/amenity-bills", singular: "amenity bill", plural: "amenity bills" },
-  service_bills: { href: "/admin/service-bills", singular: "service bill", plural: "service bills" },
-  businesses: { href: "/admin/businesses?status=pending", singular: "business", plural: "businesses" },
-};
 
 function communityFeatureVisible(href?: string) {
   if (!href) return true;
-  const key = adminFeatureForPath(href.split("?")[0]);
+  const path = href.split("?")[0]?.split("#")[0] ?? href;
+  // Maintenance complaints stay in the menu when the feature flag is off.
+  if (path === "/admin/complaints" || path.startsWith("/admin/complaints/")) return true;
+  const key = adminFeatureForPath(path);
   return !key || isResidentFeatureEnabled(getUser()?.resident_features, key);
 }
 import {
@@ -189,12 +181,24 @@ function relTime(ts: string) {
   return `${Math.floor(diff / 86400000)}d ago`;
 }
 
+const OPEN_COMPLAINT_STATUSES = ["submitted", "in_review", "in_progress", "waiting_on_resident", "not_resolved", "reopened"];
+
+function communityStatsCacheKey(communityId: number | null) {
+  return `dashboard:community-stats:${communityId ?? "none"}`;
+}
+
+function openComplaintCount(counts: Record<string, number> | undefined) {
+  return OPEN_COMPLAINT_STATUSES.reduce((sum, key) => sum + Number(counts?.[key] ?? 0), 0);
+}
+
 export default function CommunityAdminDashboard() {
   const pathname = usePathname();
   const [featureRevision, setFeatureRevision] = useState(0);
-  const cached = getAdminCache<AdminDashboardData>("dashboard:community-stats");
-  const [data, setData] = useState<AdminDashboardData | null>(cached ?? null);
-  const [loading, setLoading] = useState(!cached);
+  const [communityId, setCommunityId] = useState<number | null>(null);
+  const [communityReady, setCommunityReady] = useState(false);
+  const [data, setData] = useState<AdminDashboardData | null>(null);
+  const [openComplaints, setOpenComplaints] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionId, setActionId] = useState<number | null>(null);
@@ -204,34 +208,102 @@ export default function CommunityAdminDashboard() {
   const [createKind, setCreateKind] = useState<CreateKind>(null);
   const [creating, setCreating] = useState(false);
 
-  const load = useCallback(async (silent = false) => {
+  const loadRequest = useRef(0);
+
+  const load = useCallback(async (silent = false, scopeId: number | null = communityId) => {
+    const requestId = ++loadRequest.current;
     if (!silent) setLoading(true);
     else setRefreshing(true);
     setError(null);
     try {
-      const result = await fetchAdminStats();
+      const [result, complaints] = await Promise.all([
+        fetchAdminStats(),
+        fetchAdminComplaints({ page: 1 }).catch(() => null),
+      ]);
+      if (requestId !== loadRequest.current) return;
       setData(result);
-      setAdminCache("dashboard:community-stats", result);
+      setAdminCache(communityStatsCacheKey(scopeId), result);
+      setOpenComplaints(complaints ? openComplaintCount(complaints.meta.counts) : null);
     } catch (err) {
+      if (requestId !== loadRequest.current) return;
       const message = apiError(err);
       setError(message);
       if (silent) toastError(message);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === loadRequest.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
+  }, [communityId]);
+
+  useEffect(() => {
+    const sync = () => {
+      setCommunityId(getManagedCommunityId(getUser()) ?? null);
+      setCommunityReady(true);
+      setFeatureRevision((current) => current + 1);
+    };
+    sync();
+    window.addEventListener("nbr-session-updated", sync);
+    window.addEventListener(SESSION_PATCHED_EVENT, sync);
+    window.addEventListener(FEATURES_UPDATED_EVENT, sync);
+    return () => {
+      window.removeEventListener("nbr-session-updated", sync);
+      window.removeEventListener(SESSION_PATCHED_EVENT, sync);
+      window.removeEventListener(FEATURES_UPDATED_EVENT, sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (pathname !== "/admin" || !communityReady) return;
+    const cached = getAdminCache<AdminDashboardData>(communityStatsCacheKey(communityId));
+    setData(cached ?? null);
+    setOpenComplaints(null);
+    void load(Boolean(cached));
+    // featureRevision changes when the session or community features arrive,
+    // including a community switch that keeps the same numeric id.
+  }, [pathname, communityReady, communityId, featureRevision, load]);
+
+  const complaintSyncInflight = useRef(false);
+  const complaintCountRef = useRef<number | null>(null);
+  complaintCountRef.current = openComplaints;
+
+  const syncOpenComplaints = useCallback(async () => {
+    if (complaintSyncInflight.current || document.visibilityState !== "visible") return;
+    complaintSyncInflight.current = true;
+    try {
+      const complaints = await fetchAdminComplaints({ page: 1 });
+      const next = openComplaintCount(complaints.meta.counts);
+      if (complaintCountRef.current !== null && complaintCountRef.current !== next) {
+        emitNotificationsRefresh();
+      }
+      setOpenComplaints((current) => (current === next ? current : next));
+    } catch {
+      /* keep the last open-complaint count */
+    } finally {
+      complaintSyncInflight.current = false;
     }
   }, []);
 
   useEffect(() => {
-    if (pathname !== "/admin") return;
-    void load(Boolean(getAdminCache("dashboard:community-stats")));
-  }, [pathname, load]);
-
-  useEffect(() => {
-    const sync = () => setFeatureRevision((current) => current + 1);
-    window.addEventListener(FEATURES_UPDATED_EVENT, sync);
-    return () => window.removeEventListener(FEATURES_UPDATED_EVENT, sync);
-  }, []);
+    if (pathname !== "/admin" || !communityReady) return undefined;
+    const timer = window.setInterval(() => void syncOpenComplaints(), ADMIN_COMPLAINT_SYNC_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void syncOpenComplaints();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    const unsubscribe = subscribeForegroundNotification((payload) => {
+      if (!isComplaintNotification(payload)) return;
+      void syncOpenComplaints();
+    });
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      unsubscribe();
+    };
+  }, [pathname, communityReady, syncOpenComplaints]);
 
   useEffect(() => {
     if (loading || !data) return;
@@ -299,10 +371,10 @@ export default function CommunityAdminDashboard() {
           }
         } else if (action.type === "unit_registration") {
           if (verb === "approve") {
-            await approveUnitRegistrationPackage(action.id, action.community_id);
+            await approveUnitRegistrationPackage(action.id);
             toastSuccess("Unit request approved");
           } else {
-            await rejectUnitRegistrationPackage(action.id, String(result.value ?? "").trim(), action.community_id);
+            await rejectUnitRegistrationPackage(action.id, String(result.value ?? "").trim());
             toastSuccess("Unit request rejected");
           }
         }
@@ -448,9 +520,17 @@ export default function CommunityAdminDashboard() {
         href: "/admin/bookings?status=pending",
         icon: dashIcon(Building2),
       },
+      {
+        label: "Open Complaints",
+        value: openComplaints == null ? "—" : String(openComplaints),
+        hint: openComplaints ? "Need a response" : "Nothing open right now",
+        tone: "amber",
+        href: "/admin/complaints",
+        icon: dashIcon(LifeBuoy),
+      },
     ];
     return cards.filter((item) => communityFeatureVisible(item.href));
-  }, [data, featureRevision]);
+  }, [data, featureRevision, openComplaints]);
 
   const quickActions = useMemo(
     () => [
@@ -531,6 +611,14 @@ export default function CommunityAdminDashboard() {
       icon: dashIcon(AlertTriangle),
     },
     {
+      label: "Complaints",
+      href: "/admin/complaints",
+      desc: "Maintenance requests and resident support",
+      badge: openComplaints ? `${openComplaints} open` : undefined,
+      tone: "amber",
+      icon: dashIcon(LifeBuoy),
+    },
+    {
       label: "Units",
       href: "/admin/units",
       desc: "Manage unit billing contacts",
@@ -551,13 +639,6 @@ export default function CommunityAdminDashboard() {
       desc: "Create automatic or optional unit services",
       tone: "blue",
       icon: dashIcon(FileText),
-    },
-    {
-      label: "Local Essentials",
-      href: "/admin/local-essentials",
-      desc: "Add community essentials and review resident submissions",
-      tone: "teal",
-      icon: dashIcon(Map),
     },
     {
       label: "Service Bills",
@@ -622,50 +703,6 @@ export default function CommunityAdminDashboard() {
         }
         composeActions={<ComposeRail actions={quickActions} />}
       />
-
-      {(() => {
-        const bookingsOnOwnCard = communityFeatureVisible("/admin/bookings");
-        const bookingCount = stats.pending_bookings ?? 0;
-        const approvalCount = bookingsOnOwnCard
-          ? Math.max(0, stats.pending_approval_total - bookingCount)
-          : stats.pending_approval_total;
-        const parts = communityPendingReviewCategories(stats).flatMap((row) => {
-          if (row.count <= 0) return [];
-          if (bookingsOnOwnCard && row.key === "bookings") return [];
-          const link = PENDING_REVIEW_LINKS[row.key];
-          if (!link || !communityFeatureVisible(link.href)) return [];
-          return [{ ...row, ...link }];
-        });
-        if (approvalCount <= 0) return null;
-        return (
-          <PendingAlertBanner href={`#${ADMIN_REVIEW_QUEUE_ID}`}>
-            <span className="font-semibold">
-              {approvalCount} item{approvalCount === 1 ? "" : "s"} need your review
-            </span>
-            {parts.length > 0 ? (
-              <>
-                {" — "}
-                {parts.map((row, index) => {
-                  const separator = index === 0 ? "" : index === parts.length - 1 ? " and " : ", ";
-                  const label = `${row.count} ${row.count === 1 ? row.singular : row.plural}`;
-                  return (
-                    <span key={row.key}>
-                      {separator}
-                      <Link
-                        href={row.href}
-                        className="font-semibold underline decoration-amber-400/70 underline-offset-2 hover:text-amber-950"
-                      >
-                        {label}
-                      </Link>
-                    </span>
-                  );
-                })}
-              </>
-            ) : null}
-            .
-          </PendingAlertBanner>
-        );
-      })()}
 
       <div className="space-y-4">
       {error ? (

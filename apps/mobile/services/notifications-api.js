@@ -435,17 +435,27 @@ export function resolveNotificationRoute(notification) {
   if (agreementRoute) return agreementRoute;
 
   const complaintId = queryParams.complaint || queryParams.id || notification?.complaintId;
+  if (pathname.includes("/screens/staff-tasks") || notification?.audience === "staff") {
+    if (!complaintId) return withParams("/screens/staff-tasks", {});
+    return withParams("/screens/staff-tasks/detail", {
+      id: String(complaintId),
+      ...(queryParams.chat === "1" ? { chat: "1" } : {}),
+    });
+  }
   const complaintUrl = url.includes("support-complaints") || url.includes("/complaints") || notification?.kind === "complaint";
   if (complaintUrl && complaintId) {
     const wantsAdmin = notification?.audience === "admin" || pathname.startsWith("/admin/");
     const managing = isCommunityAdmin(getCachedUser());
+    const openChat = queryParams.chat === "1" || pathname.includes("/chat");
     if (wantsAdmin) {
       return managing
-        ? withParams("/screens/admin-complaints/detail", { id: String(complaintId) })
+        ? withParams(openChat ? "/screens/admin-complaints/chat" : "/screens/admin-complaints/detail", { id: String(complaintId) })
         : "/screens/complaints";
     }
     return withParams(
-      managing ? "/screens/admin-complaints/report-detail" : "/screens/complaints/detail",
+      openChat
+        ? (managing ? "/screens/admin-complaints/chat" : "/screens/complaints/chat")
+        : (managing ? "/screens/admin-complaints/report-detail" : "/screens/complaints/detail"),
       { id: String(complaintId) },
     );
   }

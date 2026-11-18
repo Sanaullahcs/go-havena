@@ -4,16 +4,16 @@ import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { safeGoBack } from "../utils/app-navigation";
 
 /** Android hardware Back uses the same safe Community Admin fallback as the header. */
-export function useSafeModeBack() {
+export function useSafeModeBack(fallbackPath) {
   const router = useRouter();
   const navigation = useNavigation();
 
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-        return safeGoBack(router, navigation);
+        return safeGoBack(router, navigation, { fallbackPath });
       });
       return () => sub.remove();
-    }, [navigation, router]),
+    }, [fallbackPath, navigation, router]),
   );
 }

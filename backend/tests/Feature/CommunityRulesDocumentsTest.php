@@ -298,7 +298,14 @@ class CommunityRulesDocumentsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.id', $docId)
             ->assertJsonPath('total', 1)
-            ->assertJsonPath('categories.0.name', 'Rules & Policies');
+            ->assertJsonPath('categories.0.name', 'Rules & Policies')
+            ->assertJsonPath('categories.0.count', 1)
+            ->assertJsonPath('categories.1.name', 'Maintenance')
+            ->assertJsonPath('categories.1.count', 0)
+            ->assertJsonPath('categories.2.name', 'Financial')
+            ->assertJsonPath('categories.3.name', 'Property')
+            ->assertJsonPath('categories.4.name', 'Others')
+            ->assertJsonPath('categories.4.count', 0);
     }
 
     public function test_resident_can_view_and_download_document(): void
@@ -379,39 +386,50 @@ class CommunityRulesDocumentsTest extends TestCase
 
         $this->patch("/api/v1/admin/documents/{$docId}", [
             'title' => 'Updated Guide',
-        ])->assertOk()
-            ->assertJsonPath('data.title', 'Updated Guide')
+        ])->assertStatus(422);
+
+        $this->getJson("/api/v1/documents/{$docId}")
+            ->assertOk()
+            ->assertJsonPath('data.title', 'Old Guide')
+            ->assertJsonPath('data.version', 1)
             ->assertJsonPath('data.file_name', 'guide.pdf');
 
-        $this->postJson("/api/v1/admin/documents/{$docId}", [
-            'remove_file' => 1,
-        ])->assertUnprocessable()
-            ->assertJsonPath('errors.file.0', 'Choose a file to upload.');
-
-        $this->getJson('/api/v1/admin/documents')
-            ->assertOk()
-            ->assertJsonPath('data.0.file_name', 'guide.pdf');
-
         $replacement = UploadedFile::fake()->create('replacement.pdf', 80, 'application/pdf');
-        $this->post("/api/v1/admin/documents/{$docId}", [
+        $version = $this->post("/api/v1/admin/documents/{$docId}/versions", [
             'title' => 'Updated Guide',
+            'category' => 'Guidelines',
+            'description' => 'Revised community guide for residents.',
+            'assignment_scope' => 'all',
+            'publication_status' => 'published',
+            'signature_required' => 0,
+            'notify' => 0,
             'file' => $replacement,
-            'remove_file' => 1,
-        ])->assertOk()->assertJsonPath('data.file_name', 'replacement.pdf');
+        ])->assertCreated();
+        $versionId = $version->json('data.id');
+        $this->assertNotSame($docId, $versionId);
+        $this->assertSame(2, $version->json('data.version'));
+        $this->assertSame($docId, $version->json('data.supersedes_id'));
+        $this->assertSame('replacement.pdf', $version->json('data.file_name'));
+
+        $this->getJson("/api/v1/documents/{$docId}")
+            ->assertOk()
+            ->assertJsonPath('data.title', 'Old Guide')
+            ->assertJsonPath('data.file_name', 'guide.pdf')
+            ->assertJsonPath('data.publication_status', 'published');
 
         Sanctum::actingAs($resident);
-        $this->getJson('/api/v1/documents')
-            ->assertOk()
-            ->assertJsonPath('data.0.title', 'Updated Guide');
+        $visible = collect($this->getJson('/api/v1/documents')->json('data'))->pluck('id');
+        $this->assertTrue($visible->contains($docId));
+        $this->assertTrue($visible->contains($versionId));
 
         Sanctum::actingAs($admin);
         $this->deleteJson("/api/v1/admin/documents/{$docId}")
             ->assertOk();
 
         Sanctum::actingAs($resident);
-        $this->getJson('/api/v1/documents')
-            ->assertOk()
-            ->assertJsonCount(0, 'data');
+        $remaining = collect($this->getJson('/api/v1/documents')->json('data'))->pluck('id');
+        $this->assertFalse($remaining->contains($docId));
+        $this->assertTrue($remaining->contains($versionId));
     }
 
     public function test_resident_cannot_use_admin_document_endpoints(): void

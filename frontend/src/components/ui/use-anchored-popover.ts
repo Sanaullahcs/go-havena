@@ -162,13 +162,19 @@ export function useAnchoredPopover(
       }
     });
 
+    const onScroll = (event: Event) => {
+      const popover = options?.popoverRef?.current;
+      if (popover && event.target instanceof Node && popover.contains(event.target)) return;
+      update();
+    };
+
     window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
+    window.addEventListener("scroll", onScroll, true);
 
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("scroll", onScroll, true);
       resizeObserver?.disconnect();
     };
   }, [

@@ -208,6 +208,9 @@ export function DataTable<K extends string>({
   toolbar,
   beforeSearch,
   filterAccessory,
+  intro,
+  titleCount,
+  stacked = false,
   children,
   empty = "No records match your filters.",
   isEmpty = false,
@@ -236,6 +239,12 @@ export function DataTable<K extends string>({
   beforeSearch?: ReactNode;
   /** Optional control rendered beside the All filter tab. */
   filterAccessory?: ReactNode;
+  /** Content rendered inside the panel, above the search row. */
+  intro?: ReactNode;
+  /** Small count shown beside the title. */
+  titleCount?: number;
+  /** Title, summary, and a full-width search row instead of one toolbar line. */
+  stacked?: boolean;
   children: ReactNode;
   empty?: string;
   isEmpty?: boolean;
@@ -248,22 +257,8 @@ export function DataTable<K extends string>({
   const showProgress = isFetching || isSearchingOnly;
   const showOverlay = isFetching;
 
-  return (
-    <section className="nl-panel overflow-hidden">
-      {/* ── Top toolbar ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <h3 className="text-[15px] font-semibold text-slate-900">{title}</h3>
-          {totalCount != null && visibleCount != null ? (
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-slate-500">
-              {visibleCount}/{totalCount}
-            </span>
-          ) : null}
-        </div>
-        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
-          {beforeSearch}
-          {/* Search */}
-          <div className="relative min-w-0 flex-1 sm:w-auto sm:flex-none">
+  const searchField = (
+          <div className={stacked ? "relative min-w-0 flex-1" : "relative min-w-0 flex-1 sm:w-auto sm:flex-none"}>
             <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
                 <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />
@@ -277,8 +272,10 @@ export function DataTable<K extends string>({
               hideClear={showProgress}
               onChange={(e) => onSearch(e.target.value)}
               className={[
-                "h-8 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-[1.875rem] pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition",
-                searchClassName ?? "min-w-[14rem] max-w-[18rem] sm:w-64",
+                stacked
+                  ? "h-9 w-full max-w-none rounded-lg border border-slate-200 bg-white py-1.5 pl-[1.875rem] pr-8 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#E8F1FA] transition"
+                  : "h-8 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-[1.875rem] pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition",
+                stacked ? "" : (searchClassName ?? "min-w-[14rem] max-w-[18rem] sm:w-64"),
               ].join(" ")}
             />
             {showProgress ? (
@@ -287,9 +284,47 @@ export function DataTable<K extends string>({
               </span>
             ) : null}
           </div>
-          {toolbar}
-        </div>
-      </div>
+  );
+
+  return (
+    <section className="nl-panel overflow-hidden">
+      {stacked ? (
+        <>
+          <div className="flex items-center gap-2 px-5 pb-1 pt-4">
+            <h3 className="text-[15px] font-semibold text-[#0A2A43]">{title}</h3>
+            {titleCount != null ? (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#E8F1FA] px-1.5 text-[11px] font-semibold tabular-nums leading-none text-[#1B4F8A]">{titleCount}</span>
+            ) : null}
+          </div>
+          {intro ? <div className="px-4 pb-3 pt-2">{intro}</div> : null}
+          <div className="flex items-center gap-2 border-t border-slate-100 px-4 py-3">
+            {beforeSearch}
+            {searchField}
+            {toolbar}
+          </div>
+        </>
+      ) : (
+        <>
+          {intro ? <div className="border-b border-slate-100 px-4 py-3">{intro}</div> : null}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <h3 className="text-[15px] font-semibold text-slate-900">{title}</h3>
+              {titleCount != null ? (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#E8F1FA] px-1.5 text-[11px] font-semibold tabular-nums leading-none text-[#1B4F8A]">{titleCount}</span>
+              ) : totalCount != null && visibleCount != null ? (
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-slate-500">
+                  {visibleCount}/{totalCount}
+                </span>
+              ) : null}
+            </div>
+            <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
+              {beforeSearch}
+              {searchField}
+              {toolbar}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Primary filter tabs ── */}
       {filters && onFilter && (

@@ -38,7 +38,9 @@ use App\Http\Controllers\Api\V1\AdminCommunityAdminController;
 use App\Http\Controllers\Api\V1\AdminUserController;
 use App\Http\Controllers\Api\V1\ContactController;
 use App\Http\Controllers\Api\V1\AdminComplaintController;
+use App\Http\Controllers\Api\V1\CommunityStaffController;
 use App\Http\Controllers\Api\V1\ComplaintController;
+use App\Http\Controllers\Api\V1\StaffTaskController;
 use App\Http\Controllers\Api\V1\CommunityRuleController;
 use App\Http\Controllers\Api\V1\CommunityDocumentController;
 use App\Http\Controllers\Api\V1\AgreementController;
@@ -98,6 +100,7 @@ Route::prefix('v1')->group(function () {
         ->name('public.invite-qr');
     Route::get('/public/invite-qr', [InviteQrImageController::class, 'view'])
         ->name('public.invite-qr-view');
+    Route::post('/staff/invitations/accept', [CommunityStaffController::class, 'accept'])->middleware('throttle:20,1');
 
     /* ── Auth ── */
     Route::prefix('auth')->group(function () {
@@ -466,9 +469,17 @@ Route::prefix('v1')->group(function () {
                 Route::get('/complaints/{id}/assignees', [AdminComplaintController::class, 'assignees'])->whereNumber('id');
                 Route::get('/complaints/{id}', [AdminComplaintController::class, 'show'])->whereNumber('id');
                 Route::post('/complaints/{id}/messages', [AdminComplaintController::class, 'message'])->whereNumber('id');
+                Route::post('/complaints/{id}/read', [AdminComplaintController::class, 'read'])->whereNumber('id');
                 Route::post('/complaints/{id}/status', [AdminComplaintController::class, 'status'])->whereNumber('id');
                 Route::post('/complaints/{id}/assign', [AdminComplaintController::class, 'assign'])->whereNumber('id');
                 Route::get('/complaints/{id}/attachments/{attachment}', [AdminComplaintController::class, 'download'])->whereNumber('id')->whereNumber('attachment');
+
+                Route::get('/staff', [CommunityStaffController::class, 'index']);
+                Route::get('/staff/residents', [CommunityStaffController::class, 'residents']);
+                Route::post('/staff', [CommunityStaffController::class, 'store']);
+                Route::get('/staff/{id}', [CommunityStaffController::class, 'show'])->whereNumber('id');
+                Route::match(['patch', 'post'], '/staff/{id}', [CommunityStaffController::class, 'update'])->whereNumber('id');
+                Route::post('/staff/{id}/invite', [CommunityStaffController::class, 'resend'])->whereNumber('id');
             });
 
             /* Community admin (+ system admin override) */
@@ -510,6 +521,7 @@ Route::prefix('v1')->group(function () {
                 Route::post('/documents',                  [CommunityDocumentController::class, 'store']);
                 Route::get('/documents/signature-tracking', [CommunityDocumentController::class, 'signatureTracking']);
                 Route::post('/documents/{id}/remind',      [CommunityDocumentController::class, 'remind'])->whereNumber('id');
+                Route::post('/documents/{id}/versions',    [CommunityDocumentController::class, 'storeVersion'])->whereNumber('id');
                 Route::post('/documents/{id}/archive',     [CommunityDocumentController::class, 'archive'])->whereNumber('id');
                 Route::post('/documents/{id}/restore',     [CommunityDocumentController::class, 'restore'])->whereNumber('id');
                 Route::post('/documents/{id}/deadline',    [CommunityDocumentController::class, 'extendDeadline'])->whereNumber('id');
@@ -720,10 +732,20 @@ Route::prefix('v1')->group(function () {
         Route::post('/complaints', [ComplaintController::class, 'store']);
         Route::get('/complaints/{id}', [ComplaintController::class, 'show'])->whereNumber('id');
         Route::post('/complaints/{id}/messages', [ComplaintController::class, 'message'])->whereNumber('id');
+        Route::post('/complaints/{id}/read', [ComplaintController::class, 'read'])->whereNumber('id');
         Route::post('/complaints/{id}/attachments', [ComplaintController::class, 'attachment'])->whereNumber('id');
         Route::post('/complaints/{id}/status', [ComplaintController::class, 'status'])->whereNumber('id');
         Route::post('/complaints/{id}/feedback', [ComplaintController::class, 'feedback'])->whereNumber('id');
         Route::get('/complaints/{id}/attachments/{attachment}', [ComplaintController::class, 'download'])->whereNumber('id')->whereNumber('attachment');
+
+        Route::get('/staff/access', [StaffTaskController::class, 'access']);
+        Route::get('/staff/invitations', [StaffTaskController::class, 'invitations']);
+        Route::post('/staff/invitations/{id}/accept', [StaffTaskController::class, 'acceptInvitation'])->whereNumber('id');
+        Route::get('/staff/tasks', [StaffTaskController::class, 'index']);
+        Route::get('/staff/tasks/{id}', [StaffTaskController::class, 'show'])->whereNumber('id');
+        Route::post('/staff/tasks/{id}/status', [StaffTaskController::class, 'status'])->whereNumber('id');
+        Route::post('/staff/tasks/{id}/respond', [StaffTaskController::class, 'respond'])->whereNumber('id');
+        Route::post('/staff/tasks/{id}/updates', [StaffTaskController::class, 'update'])->whereNumber('id');
 
         /* Resident report filing */
         Route::post('/reports', [ReportController::class, 'store']);

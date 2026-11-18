@@ -82,6 +82,11 @@ class ComplaintController extends Controller
         ]);
     }
 
+    public function read(Request $request, int $id): JsonResponse
+    {
+        return response()->json(['data' => $this->complaints->markRead($request->user(), $id)]);
+    }
+
     public function feedback(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([

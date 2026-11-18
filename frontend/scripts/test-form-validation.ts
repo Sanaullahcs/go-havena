@@ -85,6 +85,7 @@ import {
   shouldUseSimpleCompleteProfileSubmit,
 } from "../src/lib/admin/complete-profile-fields";
 import { validateCompleteProfileForm } from "../src/lib/admin/complete-profile-validation";
+import { validateAgreementDetails } from "../src/lib/admin/agreement-form-validation";
 
 let passed = 0;
 let failed = 0;
@@ -1536,6 +1537,77 @@ console.log("\nCommunity admin edit validation");
   assert(applyCharacterLimit("Hello", "Hello world pasted", 5) === "Hello", "paste does not grow past the limit");
   assert(applyCharacterLimit("Hello", "Hel", 5) === "Hel", "shorter input is kept");
   assert(applyCharacterLimit("Too long already", "Too long alread", 5) === "Too long alread", "over-limit values can be shortened");
+}
+
+console.log("\nAgreement date validation");
+{
+  const base = {
+    title: "Community Rules",
+    description: "Residents agree to these community rules.",
+    category: "Rules & Policies",
+    hasFile: true,
+  };
+  const onNovember16 = new Date("2026-11-16T12:00:00Z");
+  const future = validateAgreementDetails({
+    ...base,
+    dueAt: "11/19/2026",
+    effectiveAt: "11/20/2026",
+    expiresAt: "11/28/2026",
+  }, { timeZone: "Asia/Karachi", now: onNovember16 });
+  assert(!future.dueAt && !future.effectiveAt && !future.expiresAt, "MM/DD/YYYY future dates are valid");
+
+  const iso = validateAgreementDetails({
+    ...base,
+    dueAt: "2026-11-19",
+    effectiveAt: "2026-11-20",
+    expiresAt: "2026-11-28",
+  }, { timeZone: "Asia/Karachi", now: onNovember16 });
+  assert(!iso.dueAt && !iso.effectiveAt && !iso.expiresAt, "ISO future dates are valid");
+
+  const today = validateAgreementDetails({
+    ...base,
+    dueAt: "11/16/2026",
+    effectiveAt: "2026-11-16",
+    expiresAt: "11/16/2026",
+  }, { timeZone: "Asia/Karachi", now: onNovember16 });
+  assert(!today.dueAt && !today.effectiveAt && !today.expiresAt, "the community's current date is valid");
+
+  const past = validateAgreementDetails({
+    ...base,
+    dueAt: "11/15/2026",
+    effectiveAt: "2026-11-15",
+    expiresAt: "11/01/2026",
+  }, { timeZone: "Asia/Karachi", now: onNovember16 });
+  assert(past.dueAt === "Due date cannot be in the past.", "a past due date is rejected");
+  assert(past.effectiveAt === "Effective date cannot be in the past.", "a past effective date is rejected");
+  assert(past.expiresAt === "Expiration date cannot be in the past.", "a past expiration date is rejected");
+
+  const stillNovember16InNewYork = new Date("2026-11-17T02:00:00Z");
+  const localToday = validateAgreementDetails({
+    ...base,
+    dueAt: "11/16/2026",
+    effectiveAt: "11/16/2026",
+    expiresAt: "11/16/2026",
+  }, { timeZone: "America/New_York", now: stillNovember16InNewYork });
+  assert(!localToday.dueAt && !localToday.effectiveAt && !localToday.expiresAt, "today in the community timezone is not treated as past");
+
+  const nextDayInKarachi = new Date("2026-11-16T22:30:00Z");
+  const rolled = validateAgreementDetails({
+    ...base,
+    dueAt: "11/16/2026",
+    effectiveAt: "11/17/2026",
+    expiresAt: "11/28/2026",
+  }, { timeZone: "Asia/Karachi", now: nextDayInKarachi });
+  assert(rolled.dueAt === "Due date cannot be in the past.", "a date before the community's local day is past");
+  assert(!rolled.effectiveAt && !rolled.expiresAt, "dates on or after the community's local day stay valid");
+
+  const order = validateAgreementDetails({
+    ...base,
+    dueAt: "11/9/2026",
+    effectiveAt: "11/20/2026",
+    expiresAt: "11/28/2026",
+  }, { timeZone: "Asia/Karachi", now: new Date("2026-11-01T12:00:00Z") });
+  assert(!order.dueAt && !order.effectiveAt && !order.expiresAt, "month-first dates are ordered by calendar day");
 }
 
 console.log(`\nResults: ${passed} passed, ${failed} failed\n`);

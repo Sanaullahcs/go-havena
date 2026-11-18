@@ -18,9 +18,13 @@ import { subscribeForegroundNotification } from "@/lib/notifications/foreground-
 
 const STATUS_TONE: Record<string, "slate" | "blue" | "cyan" | "amber" | "green" | "violet" | "red"> = {
   submitted: "slate",
-  in_review: "blue",
-  in_progress: "cyan",
+  open: "slate",
+  requested: "violet",
+  pending: "amber",
+  in_review: "amber",
+  in_progress: "blue",
   waiting_on_resident: "amber",
+  not_resolved: "red",
   resolved: "green",
   reopened: "violet",
   closed: "slate",
@@ -148,7 +152,7 @@ export function ComplaintChatModal({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{detail.reference}</p>
-              <AdminBadge tone={STATUS_TONE[detail.status] ?? "slate"}>{detail.status_label}</AdminBadge>
+              <AdminBadge tone={STATUS_TONE[detail.workflow_status || detail.status] ?? "slate"}>{detail.status_label}</AdminBadge>
             </div>
             <h3 id="complaint-chat-title" className="truncate text-base font-semibold text-slate-900">{detail.title}</h3>
           </div>
