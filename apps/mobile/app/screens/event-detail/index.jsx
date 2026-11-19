@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Share,
   Pressable,
   Dimensions,
   Modal,
@@ -415,39 +414,10 @@ export default function EventDetailScreen() {
     }
   };
 
-  const handleNativeShare = useCallback(async () => {
-    if (!event) return;
-
-    const dateLabel = formatEventDateLabel(event.eventDate, t);
-    const timeRange = formatEventTimeRange(event);
-    const schedule = [dateLabel, timeRange].filter(Boolean).join(" · ");
-    const evTitle = localizedField(event, "title") || event.title;
-    const evBody = localizedField(event, "body") || event.body;
-    const lines = [
-      evTitle,
-      schedule || null,
-      event.location?.trim() ? `${t('events.location')}: ${event.location.trim()}` : null,
-      evBody?.trim() || null,
-    ].filter(Boolean);
-
-    try {
-      await Share.share({
-        title: evTitle,
-        message: lines.join("\n\n"),
-      });
-    } catch {
-      // user dismissed
-    }
-  }, [event, t]);
-
   const handleShare = useCallback(() => {
     if (!event) return;
-    if (isOrganizer) {
-      setShareSheetVisible(true);
-      return;
-    }
-    void handleNativeShare();
-  }, [event, handleNativeShare, isOrganizer]);
+    setShareSheetVisible(true);
+  }, [event]);
 
   const handleReportSubmit = async (payload) => {
     if (!event?.id) return;
@@ -885,7 +855,7 @@ export default function EventDetailScreen() {
         ) : null}
       </ScrollView>
 
-      {isOrganizer ? (
+      {event ? (
         <ShareEventSheet
           visible={shareSheetVisible}
           event={event}

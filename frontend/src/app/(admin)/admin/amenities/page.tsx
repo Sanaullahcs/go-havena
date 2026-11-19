@@ -593,10 +593,10 @@ export default function AdminAmenitiesPage() {
             cols={[
               { label: "Facility" },
               { label: "Resident" },
+              { label: "Unit" },
               { label: "Booking date" },
               { label: "Slot / time" },
               { label: "Fee" },
-              { label: "Payment" },
               { label: "Requested" },
               { label: "Status" },
               { label: "Actions", right: true },
@@ -623,7 +623,9 @@ export default function AdminAmenitiesPage() {
                   </DtCell>
                   <DtCell className="max-w-0 overflow-hidden">
                     <p className="truncate font-medium text-slate-900">{booking.user_name || "Resident"}</p>
-                    <p className="truncate text-xs text-slate-500">
+                  </DtCell>
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <p className="truncate text-slate-700">
                       <MemberUnitsLabel
                         userUnits={booking.user_units}
                         userUnit={booking.user_unit}
@@ -639,28 +641,6 @@ export default function AdminAmenitiesPage() {
                   </DtCell>
                   <DtCell className="max-w-0 overflow-hidden">
                     <p className="truncate">{formatBookingDisplayFee(booking)}</p>
-                  </DtCell>
-                  <DtCell className="max-w-0 overflow-hidden">
-                    {booking.payment_proof ? (
-                      <div className="min-w-0">
-                        <p className="truncate">{booking.payment_proof.payment_date || "—"}</p>
-                        <p className="truncate text-xs text-slate-500">
-                          {booking.payment_proof.payment_reference || "No reference"}
-                        </p>
-                        {booking.payment_proof.file_url ? (
-                          <a
-                            href={booking.payment_proof.file_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-xs font-semibold text-[#1B4F8A]"
-                          >
-                            View proof
-                          </a>
-                        ) : null}
-                      </div>
-                    ) : (
-                      "—"
-                    )}
                   </DtCell>
                   <DtCell className="max-w-0 overflow-hidden">
                     <p className="truncate">{formatRequestDate(booking.requested_at ?? booking.created_at)}</p>

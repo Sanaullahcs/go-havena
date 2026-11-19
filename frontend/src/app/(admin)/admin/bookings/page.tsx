@@ -400,10 +400,10 @@ export default function AdminBookingsPage() {
               cols={[
                 { label: "Facility" },
                 { label: "Resident" },
+                { label: "Unit" },
                 { label: "Booking date" },
                 { label: "Slot / time" },
                 { label: "Fee" },
-                { label: "Payment" },
                 { label: "Requested" },
                 { label: "Status" },
                 { label: "Actions", right: true },
@@ -431,40 +431,18 @@ export default function AdminBookingsPage() {
                       </div>
                     </DtCell>
                     <DtCell>
-                      <p className="font-medium text-slate-900">{booking.user_name || "Resident"}</p>
-                      <p className="text-xs text-slate-500">
-                        <MemberUnitsLabel
-                          userUnits={booking.user_units}
-                          userUnit={booking.user_unit}
-                          empty="—"
-                        />
-                      </p>
+                      <p className="truncate font-medium text-slate-900">{booking.user_name || "Resident"}</p>
+                    </DtCell>
+                    <DtCell>
+                      <MemberUnitsLabel
+                        userUnits={booking.user_units}
+                        userUnit={booking.user_unit}
+                        empty="—"
+                      />
                     </DtCell>
                     <DtCell>{booking.date}</DtCell>
                     <DtCell>{booking.time_slot || "Open access"}</DtCell>
                     <DtCell>{formatBookingDisplayFee(booking)}</DtCell>
-                    <DtCell>
-                      {booking.payment_proof ? (
-                        <div>
-                          <p>{booking.payment_proof.payment_date || "—"}</p>
-                          <p className="text-xs text-slate-500">
-                            {booking.payment_proof.payment_reference || "No reference"}
-                          </p>
-                          {booking.payment_proof.file_url ? (
-                            <a
-                              href={booking.payment_proof.file_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs font-semibold text-[#1B4F8A]"
-                            >
-                              View proof
-                            </a>
-                          ) : null}
-                        </div>
-                      ) : (
-                        "—"
-                      )}
-                    </DtCell>
                     <DtCell>{formatRequestDate(booking.requested_at ?? booking.created_at)}</DtCell>
                     <DtCell>
                       <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
@@ -507,8 +485,8 @@ export default function AdminBookingsPage() {
             <DtHead
               cols={[
                 { label: "Service" },
+                { label: "Resident" },
                 { label: "Unit" },
-                { label: "Requester" },
                 { label: "Note" },
                 { label: "Requested" },
                 { label: "Latest bill" },
@@ -526,8 +504,14 @@ export default function AdminBookingsPage() {
                     <DtCell>
                       <p className="truncate font-semibold text-slate-900">{subscription.service_name || "Service"}</p>
                     </DtCell>
-                    <DtCell>{subscription.unit_number || "—"}</DtCell>
-                    <DtCell>{subscription.requester_name || "Billing contact"}</DtCell>
+                    <DtCell>
+                      <p className="truncate font-medium text-slate-900">
+                        {subscription.requester_name || "Billing contact"}
+                      </p>
+                    </DtCell>
+                    <DtCell>
+                      <p className="truncate text-slate-700">{subscription.unit_number || "—"}</p>
+                    </DtCell>
                     <DtCell>
                       <p className="max-w-[220px] truncate text-slate-700">{subscription.note || "—"}</p>
                     </DtCell>
