@@ -16,6 +16,7 @@ import { Fonts } from "../../../constants/font";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { PAYMENT_RESULT_ROUTE } from "../../../hooks/use-kuickpay-pay";
 import {
+  PAY_NOW_ENABLED,
   PAYABLE,
   fetchUtilityAccounts,
   refreshUtilityAccount,
@@ -123,7 +124,7 @@ function AccountCard({ account, refreshing, onRefresh, onPay, onMore, onOpenPaym
           {refreshing ? <ActivityIndicator size="small" color="#1B4F8A" /> : <Feather name="refresh-cw" size={sf(14)} color="#1B4F8A" />}
           <Text style={styles.refreshText} numberOfLines={1}>{timeAgo(account.last_refreshed_at, t) || t("utilities.refresh")}</Text>
         </Pressable>
-        {payable && !processing ? (
+        {payable && !processing && PAY_NOW_ENABLED ? (
           <Tap onPress={onPay} style={styles.payBtn} pressedStyle={styles.payBtnPressed} accessibilityRole="button" accessibilityLabel={t("utilities.payNow")}>
             <Feather name="lock" size={sf(14)} color="#FFFFFF" />
             <Text style={styles.payText}>{t("utilities.payNow")}</Text>

@@ -32,6 +32,12 @@ export interface AdminDashboardStats {
   total_contact_submissions?: number;
 }
 
+export interface AdminDashboardPendingUnit {
+  unit_number: string;
+  residence_type?: string | null;
+  documents?: Array<{ kind: string; file_url: string }>;
+}
+
 export interface AdminDashboardPendingAction {
   type:
     | "membership"
@@ -57,6 +63,7 @@ export interface AdminDashboardPendingAction {
   subtitle: string;
   detail: string | null;
   utility_bill_url?: string | null;
+  units?: AdminDashboardPendingUnit[];
   created_at: string;
   action_label: string;
   action_href: string;

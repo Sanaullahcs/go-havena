@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, CalendarOff, Check, CheckCircle2, ChevronDown, Clock, FileText, Upload, X } from "lucide-react";
+import { AlarmClock, ArrowLeft, ArrowRight, Bell, Check, CheckCircle2, ClipboardCheck, Clock, Download, FileText, Files, Home, PenLine, Search, Upload, Users, X } from "lucide-react";
 import { CharCount } from "@/components/admin/char-count";
 import { AdminActionsMenu, type AdminMenuAction } from "@/components/admin/admin-actions-menu";
 import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
 import { confirmAction, confirmDelete, toastError, toastSuccess } from "@/lib/alert";
-import { agreementDateKey, validateAgreementDetails } from "@/lib/admin/agreement-form-validation";
+import { validateAgreementDetails } from "@/lib/admin/agreement-form-validation";
 import { inputClass } from "@/lib/admin/form-validation-utils";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { apiError } from "@/lib/api/client";
@@ -20,6 +20,7 @@ import {
   resolveDocumentCategory,
   splitDocumentCategory,
 } from "@/lib/admin/document-categories";
+import { ThemedDatePicker } from "@/components/ui/themed-date-picker";
 import { ThemedSelect } from "@/components/ui/themed-select";
 import {
   archiveAgreement,
@@ -67,6 +68,20 @@ function agreementStatusLabel(status: string) {
   return status;
 }
 
+function agreementListBadge(row: AgreementSummary): { label: string; tone: "green" | "amber" | "red" | "slate" } {
+  if (row.publication_status === "draft") return { label: "Draft", tone: "slate" };
+  if (row.publication_status === "archived") return { label: "Archived", tone: "slate" };
+  if (row.publication_status === "revoked") return { label: "Revoked", tone: "red" };
+  const stats = row.stats;
+  const recipients = stats?.recipients ?? 0;
+  const signed = stats?.signed ?? 0;
+  if ((stats?.overdue ?? 0) > 0) return { label: "Overdue", tone: "amber" };
+  if (recipients > 0 && signed >= recipients) return { label: "Signed", tone: "green" };
+  if ((stats?.expired ?? 0) > 0) return { label: "Expired", tone: "red" };
+  if (row.publication_status === "published") return { label: "Waiting", tone: "amber" };
+  return { label: agreementStatusLabel(row.publication_status) || "Draft", tone: "slate" };
+}
+
 function recipientStatusLabel(status: string) {
   if (status === "pending" || status === "viewed") return "Pending";
   if (status === "overdue") return "Overdue";
@@ -78,7 +93,25 @@ function recipientStatusLabel(status: string) {
 }
 
 function dateInput(value: string | null | undefined) {
-  return agreementDateKey(value);
+  const match = value?.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] ?? "";
+}
+
+function isoToday() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function latestDate(values: string[]) {
+  return values.filter(Boolean).sort().at(-1) ?? "";
+}
+
+function formatAgreementDate(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return value || "Not set";
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
 const EMPTY_COUNTS: AgreementCounts = {
@@ -109,7 +142,6 @@ export function AgreementsPanel({
 }) {
   const [rows, setRows] = useState<AgreementSummary[]>([]);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0, counts: EMPTY_COUNTS });
-  const [timeZone, setTimeZone] = useState<string | undefined>();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -122,6 +154,7 @@ export function AgreementsPanel({
   const [info, setInfo] = useState<AgreementDetail | null>(null);
   const [versionSource, setVersionSource] = useState<AgreementSummary | null>(null);
   const [recipientQuery, setRecipientQuery] = useState("");
+  const [pdfViewer, setPdfViewer] = useState<{ title: string; url: string } | null>(null);
 
   const load = async (nextPage = page) => {
     setLoading(true);
@@ -134,7 +167,6 @@ export function AgreementsPanel({
       });
       setRows(res.data);
       setMeta(res.meta);
-      if (res.meta.timezone) setTimeZone(res.meta.timezone);
     } catch (err) {
       toastError(apiError(err));
     } finally {
@@ -267,7 +299,7 @@ export function AgreementsPanel({
         label: "View PDF",
         icon: "download",
         hidden: !row.file_url,
-        onClick: () => window.open(row.file_url, "_blank", "noopener,noreferrer"),
+        onClick: () => row.file_url && setPdfViewer({ title: row.title, url: row.file_url }),
       },
       {
         id: "tracking",
@@ -346,29 +378,24 @@ export function AgreementsPanel({
 
   const counts = meta.counts ?? EMPTY_COUNTS;
   const filters = [
-    { key: "all", label: "All", count: counts.all },
-    { key: "signed", label: "Signed", count: counts.signed },
-    { key: "overdue", label: "Overdue", count: counts.overdue },
-    { key: "archived", label: "Archived", count: counts.archived },
-    { key: "draft", label: "Draft", count: counts.draft },
-    { key: "expired", label: "Expired", count: counts.expired },
+    { key: "all", label: "All", count: counts.all, icon: <Files strokeWidth={2.25} /> },
+    { key: "draft", label: "Drafts", count: counts.draft, icon: <PenLine strokeWidth={2.25} /> },
+    { key: "signed", label: "Signed", count: counts.signed, icon: <CheckCircle2 strokeWidth={2.25} /> },
+    { key: "overdue", label: "Overdue", count: counts.overdue, icon: <AlarmClock strokeWidth={2.25} /> },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <StatTile label="Total Agreements" value={String(counts.all)} hint="All records" tone="blue" icon={<FileText className="h-5 w-5" />} />
-        <StatTile label="Pending" value={String(counts.pending ?? 0)} hint="Awaiting signature" tone="amber" icon={<Clock className="h-5 w-5" />} />
-        <StatTile label="Signed" value={String(counts.signed ?? 0)} hint="Fully signed" tone="green" icon={<CheckCircle2 className="h-5 w-5" />} />
-        <StatTile label="Overdue" value={String(counts.overdue)} hint="Deadline passed" tone="red" icon={<AlertTriangle className="h-5 w-5" />} />
-        <StatTile label="Expired" value={String(counts.expired)} hint="No longer in effect" tone="violet" icon={<CalendarOff className="h-5 w-5" />} />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatTile label="Agreements" value={String(counts.all)} hint="Everything in this community" tone="blue" icon={<FileText className="h-5 w-5" />} />
+        <StatTile label="Waiting" value={String(counts.pending ?? 0)} hint="Still need a signature" tone="amber" icon={<Clock className="h-5 w-5" />} />
+        <StatTile label="Signed" value={String(counts.signed ?? 0)} hint="Everyone has signed" tone="green" icon={<CheckCircle2 className="h-5 w-5" />} />
       </div>
       {creating || wizardDraft ? (
         <AgreementWizard
           key={wizardDraft?.id ?? "new"}
           draft={wizardDraft}
           intent={wizardDraft ? wizardIntent : "create"}
-          timeZone={timeZone}
           onClose={() => {
             const id = wizardDraft?.id ?? null;
             setCreating(false);
@@ -389,6 +416,8 @@ export function AgreementsPanel({
       ) : null}
 
       {info ? <AgreementInfoDialog detail={info} onClose={() => setInfo(null)} /> : null}
+      {pdfViewer ? <AgreementPdfDialog title={pdfViewer.title} url={pdfViewer.url} onClose={() => setPdfViewer(null)} /> : null}
+
       {versionSource ? (
         <AgreementVersionDialog
           source={versionSource}
@@ -409,6 +438,7 @@ export function AgreementsPanel({
           recipientQuery={recipientQuery}
           onRecipientQuery={setRecipientQuery}
           onClose={() => setDetail(null)}
+          onViewPdf={(url, title) => setPdfViewer({ url, title })}
           onChange={async () => {
             await load(page);
             await openDetail(detail.id);
@@ -428,23 +458,20 @@ export function AgreementsPanel({
         searchPlaceholder="Search agreements"
         searchClassName="min-w-0 w-full sm:w-56"
         beforeSearch={
-          <div className="relative shrink-0">
-            <select
-              aria-label="Category"
+          <div className="w-52 shrink-0">
+            <ThemedSelect
               value={category}
-              onChange={(event) => {
-                setCategory(event.target.value);
+              placeholder="All categories"
+              options={[
+                { value: "all", label: "All categories" },
+                ...DOCUMENT_PRESET_CATEGORIES.map((name) => ({ value: name, label: name })),
+                { value: DOCUMENT_OTHER_CATEGORY, label: DOCUMENT_OTHER_CATEGORY },
+              ]}
+              onChange={(value) => {
+                setCategory(value);
                 setPage(1);
               }}
-              className="h-8 w-44 appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-9 text-[12.5px] font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:w-52"
-            >
-              <option value="all">All categories</option>
-              {DOCUMENT_PRESET_CATEGORIES.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-              <option value={DOCUMENT_OTHER_CATEGORY}>{DOCUMENT_OTHER_CATEGORY}</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+            />
           </div>
         }
         loading={loading}
@@ -462,48 +489,52 @@ export function AgreementsPanel({
             <thead className="border-b border-slate-100 text-[11px] uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-3 font-semibold">Agreement</th>
-                <th className="px-4 py-3 font-semibold">Assigned</th>
-                <th className="px-4 py-3 font-semibold">Signed</th>
-                <th className="px-4 py-3 font-semibold">Pending</th>
-                <th className="px-4 py-3 font-semibold">Declined</th>
+                <th className="px-4 py-3 font-semibold">Signatures</th>
                 <th className="px-4 py-3 font-semibold">Due</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
-                <th className="px-4 py-3 font-semibold">Updated</th>
                 <th className="px-4 py-3 text-right font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {rows.map((row) => {
+                const recipients = row.stats?.recipients ?? 0;
+                const signed = row.stats?.signed ?? 0;
+                const progress = recipients > 0 ? Math.min(100, Math.round((signed / recipients) * 100)) : 0;
+                const badge = agreementListBadge(row);
+                return (
                 <tr key={row.id} className="cursor-pointer border-b border-slate-50 hover:bg-slate-50" onClick={() => void openDetail(row.id)}>
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-slate-900">{row.title}</div>
-                    <div className="text-xs text-slate-400">{row.category} · v{row.version}</div>
-                  </td>
-                  <td className="px-4 py-3">{row.stats?.recipients ?? 0}</td>
-                  <td className="px-4 py-3">{row.stats?.signed ?? 0}</td>
-                  <td className="px-4 py-3">{row.stats?.pending ?? 0}</td>
-                  <td className="px-4 py-3">{row.stats?.declined ?? 0}</td>
-                  <td className="px-4 py-3">{formatWhen(row.due_at)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {agreementStatusLabel(row.publication_status) ? (
-                        <AdminBadge tone={STATUS_TONE[row.publication_status] ?? "slate"}>{agreementStatusLabel(row.publication_status)}</AdminBadge>
-                      ) : null}
-                      {(row.stats?.expired ?? 0) > 0 ? (
-                        <AdminBadge tone="red">Expired</AdminBadge>
-                      ) : (row.stats?.overdue ?? 0) > 0 ? (
-                        <AdminBadge tone="amber">Overdue</AdminBadge>
-                      ) : row.publication_status === "published" && (row.stats?.signed ?? 0) > 0 && (row.stats?.pending ?? 0) === 0 ? (
-                        <AdminBadge tone="green">Signed</AdminBadge>
-                      ) : null}
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#E8F0F7] text-[#1B4F8A] ring-1 ring-[#D3E2F0]" aria-hidden>
+                        <PenLine className="h-4 w-4" strokeWidth={2.25} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900">{row.title}</div>
+                        <div className="text-xs text-slate-400">{[row.category, `Version ${row.version}`].filter(Boolean).join(" · ")}</div>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-500">{formatWhen(row.updated_at)}</td>
+                  <td className="px-4 py-3">
+                    <p className="text-sm text-slate-700">{recipients === 0 ? "Not assigned" : `${signed} of ${recipients} signed`}</p>
+                    {recipients > 0 ? (
+                      <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-[#0F766E]" style={{ width: `${progress}%` }} />
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{formatWhen(row.due_at)}</td>
+                  <td className="px-4 py-3">
+                    <AdminBadge tone={badge.tone}>
+                      {badge.label === "Signed" ? <CheckCircle2 className="mr-1 h-3 w-3" strokeWidth={2.25} aria-hidden /> : badge.label === "Waiting" || badge.label === "Overdue" ? <Clock className="mr-1 h-3 w-3" strokeWidth={2.25} aria-hidden /> : <PenLine className="mr-1 h-3 w-3" strokeWidth={2.25} aria-hidden />}
+                      {badge.label}
+                    </AdminBadge>
+                  </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right" onClick={(event) => event.stopPropagation()}>
                     <AdminActionsMenu actions={rowActions(row)} />
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -514,9 +545,9 @@ export function AgreementsPanel({
 }
 
 const AGREEMENT_STEPS = [
-  { id: 1, label: "Details" },
-  { id: 2, label: "Assign Residents" },
-  { id: 3, label: "Review & Save" },
+  { id: 1, label: "Details", icon: FileText },
+  { id: 2, label: "Assign Residents", icon: Users },
+  { id: 3, label: "Review & Save", icon: ClipboardCheck },
 ] as const;
 
 const EMPTY_AGREEMENT_FORM = JSON.stringify({
@@ -533,12 +564,172 @@ const EMPTY_AGREEMENT_FORM = JSON.stringify({
   notify: true,
 });
 
+function downloadHref(url: string) {
+  if (!url.includes("/signed-files/")) return url;
+  return url.includes("download=") ? url : `${url}${url.includes("?") ? "&" : "?"}download=1`;
+}
+
+const PDFJS_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+type PdfJsDocument = {
+  numPages: number;
+  getPage: (page: number) => Promise<{
+    getViewport: (options: { scale: number }) => { width: number; height: number };
+    render: (options: { canvasContext: CanvasRenderingContext2D; viewport: { width: number; height: number } }) => { promise: Promise<void> };
+  }>;
+  destroy?: () => void;
+};
+
+function loadPdfJs(): Promise<{ getDocument: (src: { data: ArrayBuffer }) => { promise: Promise<PdfJsDocument> } }> {
+  const win = window as Window & { pdfjsLib?: { getDocument: (src: { data: ArrayBuffer }) => { promise: Promise<PdfJsDocument> }; GlobalWorkerOptions: { workerSrc: string } } };
+  if (win.pdfjsLib) {
+    win.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+    return Promise.resolve(win.pdfjsLib);
+  }
+  const pending = (loadPdfJs as { pending?: Promise<NonNullable<typeof win.pdfjsLib>> }).pending;
+  if (pending) return pending;
+  const next = new Promise<NonNullable<typeof win.pdfjsLib>>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = PDFJS_SRC;
+    script.async = true;
+    script.onload = () => {
+      if (!win.pdfjsLib) {
+        reject(new Error("pdf"));
+        return;
+      }
+      win.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+      resolve(win.pdfjsLib);
+    };
+    script.onerror = () => reject(new Error("pdf"));
+    document.head.appendChild(script);
+  });
+  (loadPdfJs as { pending?: Promise<NonNullable<typeof win.pdfjsLib>> }).pending = next;
+  return next;
+}
+
+function PdfPreview({ url, title, tall = false }: { url: string; title: string; tall?: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const docRef = useRef<PdfJsDocument | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setReady(false);
+    setFailed(false);
+    setPage(1);
+    setTotal(0);
+    void (async () => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("pdf");
+        const data = await response.arrayBuffer();
+        const pdfjs = await loadPdfJs();
+        const doc = await pdfjs.getDocument({ data }).promise;
+        if (cancelled) {
+          doc.destroy?.();
+          return;
+        }
+        docRef.current = doc;
+        setTotal(doc.numPages);
+        setReady(true);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      docRef.current?.destroy?.();
+      docRef.current = null;
+    };
+  }, [url]);
+
+  useEffect(() => {
+    const doc = docRef.current;
+    const canvas = canvasRef.current;
+    const stage = stageRef.current;
+    if (!doc || !canvas || !stage || !ready) return;
+    let cancelled = false;
+    void (async () => {
+      const pdfPage = await doc.getPage(page);
+      if (cancelled) return;
+      const width = Math.max(240, stage.clientWidth - 32);
+      const unscaled = pdfPage.getViewport({ scale: 1 });
+      const ratio = window.devicePixelRatio || 1;
+      const viewport = pdfPage.getViewport({ scale: (width / unscaled.width) * ratio });
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${viewport.height / ratio}px`;
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      await pdfPage.render({ canvasContext: context, viewport }).promise;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, ready]);
+
+  return (
+    <div className={`flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-100 ${tall ? "h-full" : ""}`}>
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-2">
+        <p className="min-w-0 truncate text-xs font-semibold text-slate-600" title={title}>{title}</p>
+        <div className="flex shrink-0 items-center gap-1">
+          <button type="button" className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30" aria-label="Previous page" disabled={!ready || page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+            <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.25} />
+          </button>
+          <span className="min-w-[4.5rem] text-center text-[11px] font-semibold tabular-nums text-slate-500">{ready ? `${page} of ${total}` : "Opening"}</span>
+          <button type="button" className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30" aria-label="Next page" disabled={!ready || page >= total} onClick={() => setPage((current) => current + 1)}>
+            <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.25} />
+          </button>
+        </div>
+      </div>
+      <div ref={stageRef} className={`overflow-auto px-4 py-4 ${tall ? "min-h-0 flex-1" : "max-h-80"}`}>
+        {failed ? <p className="py-10 text-center text-sm text-slate-500">This PDF could not be shown here.</p> : null}
+        {!failed && !ready ? <div className="mx-auto h-64 max-w-md animate-pulse rounded-sm bg-white shadow-sm" /> : null}
+        <canvas ref={canvasRef} className={`mx-auto block bg-white shadow-md ring-1 ring-slate-200/80 ${ready && !failed ? "" : "hidden"}`} />
+      </div>
+    </div>
+  );
+}
+
+function AgreementPdfDialog({ title, url, onClose }: { title: string; url: string; onClose: () => void }) {
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-3 backdrop-blur-sm sm:items-center sm:p-6">
+      <div className="flex h-[min(92dvh,860px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1B4F8A]">Agreement</p>
+            <h3 className="mt-1 truncate text-lg font-bold text-slate-900">{title}</h3>
+          </div>
+          <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100" aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex min-h-0 flex-1 bg-slate-100 p-3">
+          <div className="min-h-0 min-w-0 flex-1">
+            <PdfPreview url={url} title={title} tall />
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-4">
+          <button type="button" className="nl-btn-secondary" onClick={onClose}><X className="h-4 w-4" strokeWidth={2.25} />Close</button>
+          <a className="nl-btn-primary" href={downloadHref(url)} target="_blank" rel="noreferrer"><Download className="h-4 w-4" strokeWidth={2.25} />Download PDF</a>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function agreementFileKey(file: File | null) {
   if (!file) return "";
   return `${file.name}:${file.size}:${file.lastModified}`;
 }
 
-function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, onPublished }: { draft?: AgreementDetail | null; intent?: "create" | "edit" | "publish"; timeZone?: string; onClose: () => void; onPublished: (id: number) => Promise<void> }) {
+function AgreementWizard({ draft = null, intent = "create", onClose, onPublished }: { draft?: AgreementDetail | null; intent?: "create" | "edit" | "publish"; onClose: () => void; onPublished: (id: number) => Promise<void> }) {
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState(draft?.title ?? "");
   const [description, setDescription] = useState(draft?.description ?? "");
@@ -611,11 +802,8 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
       effectiveAt,
       expiresAt,
       hasFile: Boolean(file) || Boolean(draftId),
-    }, { timeZone }),
-    [title, description, category, dueAt, effectiveAt, expiresAt, file, draftId, timeZone],
-  );
-  const dateMessage = (field: "dueAt" | "effectiveAt" | "expiresAt") => (
-    liveErrors[field] ? showError(field, liveErrors) : undefined
+    }),
+    [title, description, category, dueAt, effectiveAt, expiresAt, file, draftId],
   );
 
   const markSaved = () => {
@@ -663,9 +851,9 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
           title: title.trim(),
           category: category.trim(),
           description,
-          due_at: agreementDateKey(dueAt) || undefined,
-          effective_at: agreementDateKey(effectiveAt) || undefined,
-          expires_at: agreementDateKey(expiresAt) || undefined,
+          due_at: dueAt || undefined,
+          effective_at: effectiveAt || undefined,
+          expires_at: expiresAt || undefined,
           file: file!,
         });
         setDraftId(draft.id);
@@ -677,9 +865,9 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
         title: title.trim(),
         category: category.trim(),
         description,
-        due_at: agreementDateKey(dueAt) || undefined,
-        effective_at: agreementDateKey(effectiveAt) || undefined,
-        expires_at: agreementDateKey(expiresAt) || undefined,
+        due_at: dueAt || undefined,
+        effective_at: effectiveAt || undefined,
+        expires_at: expiresAt || undefined,
         file,
       });
       setSavedFile({ name: updated.file_name, size: updated.file_size, pages: updated.page_count });
@@ -838,8 +1026,8 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
                     <div className={`h-full rounded-full bg-[#1B4F8A] transition-all duration-300 ${step >= item.id ? "w-full" : "w-0"}`} />
                   </div>
                   <p className={`mt-2 flex items-center gap-1.5 text-[11px] font-semibold leading-4 sm:text-xs ${active ? "text-[#1B4F8A]" : done ? "text-slate-700" : "text-slate-400"}`}>
-                    <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] ${active ? "bg-[#1B4F8A] text-white" : done ? "bg-[#E8F0F7] text-[#1B4F8A]" : "bg-slate-100 text-slate-500"}`}>
-                      {done ? <Check className="h-2.5 w-2.5" /> : item.id}
+                    <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md ${active ? "bg-[#1B4F8A] text-white" : done ? "bg-[#E8F0F7] text-[#1B4F8A]" : "bg-slate-100 text-slate-400"}`}>
+                      {done ? <Check className="h-3 w-3" strokeWidth={2.5} /> : <item.icon className="h-3 w-3" strokeWidth={2.25} />}
                     </span>
                     <span className="min-w-0 leading-4">{item.label}</span>
                   </p>
@@ -853,7 +1041,7 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
           <div key={step} className="space-y-4" style={{ animation: "nl-modal-in 220ms cubic-bezier(0.22, 1, 0.36, 1)" }}>
             {step === 1 ? (
               <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-                <label className="nl-label">Title
+                <label className="nl-label">Title *
                   <input
                     value={title}
                     onChange={(e) => { setTitle(e.target.value); touch("title"); }}
@@ -865,7 +1053,7 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
                   {showError("title", liveErrors) ? <p className="mt-1 text-xs font-normal text-red-600">{showError("title", liveErrors)}</p> : null}
                   <CharCount value={title} max={200} />
                 </label>
-                <label className="nl-label">Category
+                <label className="nl-label">Category *
                   <div className="mt-1.5">
                     <ThemedSelect
                       value={categorySelect}
@@ -898,7 +1086,7 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
                     onChange={(e) => { setDescription(e.target.value); touch("description"); }}
                     onBlur={() => touch("description")}
                     maxLength={5000}
-                    rows={4}
+                    rows={3}
                     style={{ resize: "none" }}
                     className={inputClass(showError("description", liveErrors), "nl-input mt-1.5 min-h-24 resize-none overflow-y-auto font-normal")}
                     placeholder="What residents are agreeing to"
@@ -906,38 +1094,55 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
                   {showError("description", liveErrors) ? <p className="mt-1 text-xs font-normal text-red-600">{showError("description", liveErrors)}</p> : null}
                   <CharCount value={description} max={5000} />
                 </label>
-                <label className="nl-label">Due date
-                  <input
-                    type="date"
-                    value={dueAt}
-                    onChange={(e) => { setDueAt(e.target.value); touch("dueAt"); }}
-                    onBlur={() => touch("dueAt")}
-                    className={inputClass(dateMessage("dueAt"), "nl-input mt-1.5 block w-full min-w-0 font-normal")}
-                  />
-                  {dateMessage("dueAt") ? <p className="mt-1 text-xs font-normal text-red-600">{dateMessage("dueAt")}</p> : null}
-                </label>
-                <label className="nl-label">Effective date
-                  <input
-                    type="date"
-                    value={effectiveAt}
-                    onChange={(e) => { setEffectiveAt(e.target.value); touch("effectiveAt"); }}
-                    onBlur={() => touch("effectiveAt")}
-                    className={inputClass(dateMessage("effectiveAt"), "nl-input mt-1.5 block w-full min-w-0 font-normal")}
-                  />
-                  {dateMessage("effectiveAt") ? <p className="mt-1 text-xs font-normal text-red-600">{dateMessage("effectiveAt")}</p> : null}
-                </label>
-                <label className="nl-label">Expiration date
-                  <input
-                    type="date"
-                    value={expiresAt}
-                    onChange={(e) => { setExpiresAt(e.target.value); touch("expiresAt"); }}
-                    onBlur={() => touch("expiresAt")}
-                    className={inputClass(dateMessage("expiresAt"), "nl-input mt-1.5 block w-full min-w-0 font-normal")}
-                  />
-                  {dateMessage("expiresAt") ? <p className="mt-1 text-xs font-normal text-red-600">{dateMessage("expiresAt")}</p> : null}
-                </label>
+                <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3">
+                  <div>
+                    <p className="nl-label mb-1.5">Due date *</p>
+                    <ThemedDatePicker
+                      placeholder="Select due date"
+                      value={dueAt}
+                      min={isoToday()}
+                      error={showError("dueAt", liveErrors) || undefined}
+                      onBlur={() => touch("dueAt")}
+                      onChange={(value) => {
+                        setDueAt(value);
+                        touch("dueAt");
+                        if (expiresAt && value && expiresAt < value) setExpiresAt(value);
+                      }}
+                    />
+                    {showError("dueAt", liveErrors) ? <p className="mt-1 text-xs font-normal text-red-600">{showError("dueAt", liveErrors)}</p> : null}
+                  </div>
+                  <div>
+                    <p className="nl-label mb-1.5">Effective date *</p>
+                    <ThemedDatePicker
+                      placeholder="Select effective date"
+                      value={effectiveAt}
+                      min={isoToday()}
+                      error={showError("effectiveAt", liveErrors) || undefined}
+                      onBlur={() => touch("effectiveAt")}
+                      onChange={(value) => {
+                        setEffectiveAt(value);
+                        touch("effectiveAt");
+                        if (expiresAt && value && expiresAt < value) setExpiresAt(value);
+                      }}
+                    />
+                    {showError("effectiveAt", liveErrors) ? <p className="mt-1 text-xs font-normal text-red-600">{showError("effectiveAt", liveErrors)}</p> : null}
+                  </div>
+                  <div>
+                    <p className="nl-label mb-1.5">Expiration date *</p>
+                    <ThemedDatePicker
+                      placeholder="Select expiration date"
+                      value={expiresAt}
+                      min={latestDate([isoToday(), dueAt, effectiveAt])}
+                      error={showError("expiresAt", liveErrors) || undefined}
+                      onBlur={() => touch("expiresAt")}
+                      onChange={(value) => { setExpiresAt(value); touch("expiresAt"); }}
+                    />
+                    {showError("expiresAt", liveErrors) ? <p className="mt-1 text-xs font-normal text-red-600">{showError("expiresAt", liveErrors)}</p> : null}
+                  </div>
+                  <p className="text-xs leading-5 text-slate-500 sm:col-span-3">Expiration must be on or after both the due date and the effective date. Dates before today are unavailable.</p>
+                </div>
                 <div className="min-w-0 sm:col-span-2">
-                  <p className="nl-label">PDF</p>
+                  <p className="nl-label">Agreement PDF *</p>
                   <input
                     ref={fileInputRef}
                     id="agreement-pdf-file"
@@ -948,7 +1153,7 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
                   />
                   {file || (draft && savedFile) ? (
                     <div
-                      className={`mt-1.5 flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${dragOver ? "border-[#1B4F8A] bg-[#E8F0F7]" : "border-slate-200 bg-white"}`}
+                      className={`mt-1.5 flex items-center gap-3 rounded-xl border px-3 py-3 transition ${dragOver ? "border-[#1B4F8A] bg-[#E8F0F7]" : "border-slate-200 bg-white"}`}
                       onDragOver={(event) => {
                         event.preventDefault();
                         setDragOver(true);
@@ -960,20 +1165,31 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
                         acceptPdf(event.dataTransfer.files?.[0] ?? null);
                       }}
                     >
-                      <div className="flex min-w-0 items-center gap-2">
-                        <FileText className="h-4 w-4 shrink-0 text-[#1B4F8A]" />
-                        <p className="truncate text-sm text-slate-700">{file ? `${file.name} · ${fileSize(file.size)}` : `${savedFile?.name ?? "PDF"} · ${fileSize(savedFile?.size ?? 0)}`}</p>
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600 ring-1 ring-rose-100" aria-hidden>
+                        <FileText className="h-4 w-4" strokeWidth={2.25} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 break-all text-sm font-semibold leading-5 text-slate-900" title={file?.name || savedFile?.name || "PDF"}>{file?.name || savedFile?.name || "PDF"}</p>
+                        <p className="text-xs text-slate-500">{fileSize(file?.size ?? savedFile?.size ?? 0)}{!file && savedFile?.pages ? ` · ${savedFile.pages} pages` : ""}</p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <button type="button" className="text-sm font-semibold text-[#1B4F8A]" onClick={() => fileInputRef.current?.click()}>Replace</button>
-                        {file ? <button type="button" className="text-sm font-semibold text-[#1B4F8A]" onClick={() => acceptPdf(null)}>Remove</button> : null}
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button type="button" className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-[#1B4F8A] hover:bg-[#E8F0F7]" onClick={() => fileInputRef.current?.click()}>
+                          <Upload className="h-3.5 w-3.5" strokeWidth={2.25} />
+                          Replace
+                        </button>
+                        {file ? (
+                          <button type="button" className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800" onClick={() => acceptPdf(null)}>
+                            <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                            Remove
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   ) : (
                     <label
                       htmlFor="agreement-pdf-file"
                       onClick={() => touch("file")}
-                      className={`mt-1.5 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-5 text-center transition ${showError("file", liveErrors) ? "border-red-300 bg-red-50/50" : dragOver ? "border-[#1B4F8A] bg-[#E8F0F7]" : "border-slate-300 bg-slate-50 hover:border-[#1B4F8A] hover:bg-[#F4F8FC]"}`}
+                      className={`mt-1.5 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-8 text-center transition ${showError("file", liveErrors) ? "border-red-300 bg-red-50/50" : dragOver ? "border-[#1B4F8A] bg-[#E8F0F7]" : "border-slate-300 bg-slate-50 hover:border-[#1B4F8A] hover:bg-[#F4F8FC]"}`}
                       onDragOver={(event) => {
                         event.preventDefault();
                         setDragOver(true);
@@ -985,76 +1201,105 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
                         acceptPdf(event.dataTransfer.files?.[0] ?? null);
                       }}
                     >
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#1B4F8A] shadow-sm">
-                        <Upload className="h-4 w-4" />
+                      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[#1B4F8A] shadow-sm ring-1 ring-slate-200">
+                        <Upload className="h-5 w-5" strokeWidth={2.25} />
                       </span>
-                      <span className="mt-2 text-sm font-semibold text-slate-800">Drop a PDF here, or browse</span>
-                      <span className="mt-0.5 text-xs text-slate-500">PDF only. Residents review this file before signing.</span>
+                      <span className="mt-3 text-sm font-semibold text-slate-800">Drop a PDF here, or browse</span>
+                      <span className="mt-1 max-w-sm text-xs leading-5 text-slate-500">PDF only, up to 10 MB. Residents open this file before they sign.</span>
                     </label>
                   )}
                   {showError("file", liveErrors) ? <p className="mt-1 text-xs text-red-600">{showError("file", liveErrors)}</p> : null}
                 </div>
                 {previewUrl ? (
-                  <iframe
-                    title="Agreement preview"
-                    src={`${previewUrl}#page=1&view=Fit&zoom=page-fit&toolbar=1&navpanes=0&scrollbar=1`}
-                    className="h-[min(48dvh,420px)] min-h-[260px] w-full min-w-0 max-w-full rounded-xl border border-slate-200 bg-slate-50 sm:col-span-2 sm:h-[clamp(500px,56dvh,600px)] sm:min-h-[500px]"
-                  />
+                  <div className="sm:col-span-2">
+                    <PdfPreview url={previewUrl} title={file?.name || savedFile?.name || "Agreement"} />
+                  </div>
                 ) : null}
               </div>
             ) : null}
 
             {step === 2 ? (
               <div className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {(["all", "residents", "units"] as Scope[]).map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => {
-                        if (item === scope) return;
-                        setScope(item);
-                        setSearch("");
-                      }}
-                      className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition ${scope === item ? "border-[#1B4F8A] bg-[#1B4F8A] text-white" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"}`}
-                    >
-                      {item === "all" ? "All residents" : item === "residents" ? "Selected residents" : "Selected units"}
-                    </button>
-                  ))}
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {([
+                    { key: "all" as const, label: "All residents", hint: "Everyone eligible", icon: Users },
+                    { key: "residents" as const, label: "Selected residents", hint: "Pick people", icon: CheckCircle2 },
+                    { key: "units" as const, label: "Selected units", hint: "Pick homes", icon: Home },
+                  ]).map((item) => {
+                    const active = scope === item.key;
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => {
+                          if (item.key === scope) return;
+                          setScope(item.key);
+                          setSearch("");
+                        }}
+                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition ${active ? "border-[#1B4F8A] bg-[#F4F8FC] text-[#1B4F8A] shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"}`}
+                      >
+                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? "bg-[#1B4F8A] text-white" : "bg-slate-100 text-slate-500"}`}>
+                          <Icon className="h-4 w-4" strokeWidth={2.25} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold">{item.label}</span>
+                          <span className={`block text-[11px] ${active ? "text-[#1B4F8A]/80" : "text-slate-400"}`}>{item.hint}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
                 {scope === "residents" || scope === "units" ? (
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder={scope === "residents" ? "Search residents" : "Search units"}
-                    aria-label={scope === "residents" ? "Search residents" : "Search units"}
-                    className="nl-input"
-                  />
-                ) : null}
-                <p className="text-sm text-slate-500">{recipientCount} recipient{recipientCount === 1 ? "" : "s"} in this community</p>
+                  <div className="nl-search-field">
+                    <Search className="nl-search-icon" aria-hidden />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder={scope === "residents" ? "Search residents" : "Search units"}
+                      aria-label={scope === "residents" ? "Search residents" : "Search units"}
+                      className="nl-input"
+                    />
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600">Every eligible resident in this community will be asked to sign.</p>
+                )}
+                <p className="text-sm font-medium text-slate-700">{recipientCount} recipient{recipientCount === 1 ? "" : "s"} will be asked to sign</p>
                 <div className="max-h-72 space-y-2 overflow-y-auto pr-1 sm:max-h-80">
-                  {scope === "residents" ? residents.map((person) => (
-                    <label key={person.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 px-3 py-2.5 text-sm transition hover:border-slate-300">
-                      <input type="checkbox" className="mt-1" checked={selectedUsers.includes(person.id)} onChange={() => setSelectedUsers((current) => current.includes(person.id) ? current.filter((id) => id !== person.id) : [...current, person.id])} />
+                  {scope === "residents" ? residents.map((person) => {
+                    const selected = selectedUsers.includes(person.id);
+                    return (
+                    <label key={person.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 text-sm transition ${selected ? "border-[#1B4F8A] bg-[#F4F8FC]" : "border-slate-200 hover:border-slate-300"}`}>
+                      <input type="checkbox" className="nl-member-check mt-0.5" checked={selected} onChange={() => setSelectedUsers((current) => current.includes(person.id) ? current.filter((id) => id !== person.id) : [...current, person.id])} />
                       <span>
                         <span className="block font-semibold text-slate-800">{person.name}</span>
                         <span className="text-slate-400">{person.units.map((unit) => unit.unit_number).join(", ") || "No unit"} · {person.status}</span>
                       </span>
                     </label>
-                  )) : null}
-                  {scope === "units" ? units.map((unit) => (
-                    <label key={unit.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 px-3 py-2.5 text-sm transition hover:border-slate-300">
-                      <input type="checkbox" className="mt-1" checked={selectedUnits.includes(unit.id)} onChange={() => setSelectedUnits((current) => current.includes(unit.id) ? current.filter((id) => id !== unit.id) : [...current, unit.id])} />
+                    );
+                  }) : null}
+                  {scope === "units" ? units.map((unit) => {
+                    const selected = selectedUnits.includes(unit.id);
+                    return (
+                    <label key={unit.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 text-sm transition ${selected ? "border-[#1B4F8A] bg-[#F4F8FC]" : "border-slate-200 hover:border-slate-300"}`}>
+                      <input type="checkbox" className="nl-member-check mt-0.5" checked={selected} onChange={() => setSelectedUnits((current) => current.includes(unit.id) ? current.filter((id) => id !== unit.id) : [...current, unit.id])} />
                       <span>
                         <span className="block font-semibold text-slate-800">Unit {unit.unit_number}</span>
                         <span className="text-slate-400">{unit.residents.map((person) => person.name).join(", ") || "No eligible resident"}</span>
                       </span>
                     </label>
-                  )) : null}
+                    );
+                  }) : null}
+                  {scope === "residents" && residents.length === 0 ? <p className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-sm text-slate-500">No residents match this search.</p> : null}
+                  {scope === "units" && units.length === 0 ? <p className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-sm text-slate-500">No units match this search.</p> : null}
                 </div>
-                <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-600">
-                  <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
-                  Notify residents when this agreement is saved
+                <label className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-sm ${notify ? "border-[#1B4F8A] bg-[#F4F8FC] text-slate-800" : "border-slate-200 text-slate-600"}`}>
+                  <input type="checkbox" className="nl-member-check" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+                  <Bell className="h-4 w-4 shrink-0 text-[#1B4F8A]" strokeWidth={2.25} aria-hidden />
+                  <span>
+                    <span className="block font-semibold">Notify residents when this agreement is saved</span>
+                    <span className="text-xs text-slate-500">{notify ? "They will get a notification to review and sign." : "No notification will be sent."}</span>
+                  </span>
                 </label>
               </div>
             ) : null}
@@ -1062,9 +1307,12 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
             {step === 3 ? (
               <dl className="grid min-w-0 gap-3 sm:grid-cols-2">
                 {[
-                  ["Title", title],
+                  ["Title", title || "Not set"],
+                  ["Category", category || "Not set"],
+                  ["Due date", formatAgreementDate(dueAt)],
+                  ["Effective date", formatAgreementDate(effectiveAt)],
+                  ["Expiration date", formatAgreementDate(expiresAt)],
                   ["Recipients", `${scopeLabel} · ${recipientCount}`],
-                  ["Due", dueAt || "None"],
                   ["Signature", "Required"],
                   ["Notifications", notify ? "Send on save" : "Do not notify"],
                 ].map(([label, value]) => (
@@ -1074,12 +1322,17 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
                   </div>
                 ))}
                 <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Description</dt>
+                  <dd className="mt-1 whitespace-pre-wrap break-words text-sm font-medium text-slate-800">{description.trim() || "Not set"}</dd>
+                </div>
+                <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
                   <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">File</dt>
                   <dd className="mt-1 flex min-w-0 items-center gap-2 text-sm font-medium text-slate-800">
                     <FileText className="h-4 w-4 shrink-0 text-[#1B4F8A]" />
                     <span className="min-w-0 flex-1 truncate" title={reviewFileName || undefined}>{reviewFileName || "—"}</span>
                     {reviewFileDetail ? <span className="shrink-0 font-normal text-slate-500">{reviewFileDetail}</span> : null}
                   </dd>
+                  {previewUrl ? <div className="mt-3"><PdfPreview url={previewUrl} title={title || reviewFileName || "Agreement"} /></div> : null}
                 </div>
               </dl>
             ) : null}
@@ -1087,17 +1340,18 @@ function AgreementWizard({ draft = null, intent = "create", timeZone, onClose, o
         </div>
 
         <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-white px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <button type="button" className="nl-btn-secondary w-full disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto" disabled={busy || step === 1} onClick={() => setStep((value) => value - 1)}>Back</button>
+          <button type="button" className="nl-btn-secondary w-full disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto" disabled={busy || step === 1} onClick={() => setStep((value) => value - 1)}><ArrowLeft className="h-4 w-4" strokeWidth={2.25} />Back</button>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             {step === 3 ? (
-              <button type="button" className="nl-btn-secondary w-full sm:w-auto" disabled={busy} onClick={() => void saveDraft().then((id) => { if (id) toastSuccess("Draft saved"); })}>Draft</button>
+              <button type="button" className="nl-btn-secondary w-full sm:w-auto" disabled={busy} onClick={() => void saveDraft().then((id) => { if (id) toastSuccess("Draft saved"); })}><PenLine className="h-4 w-4" strokeWidth={2.25} />Draft</button>
             ) : null}
             {step < 3 ? (
               <button type="button" className="nl-btn-primary w-full sm:w-auto" disabled={busy} onClick={continueStep}>
                 {busy ? "Saving…" : "Continue"}
+                {busy ? null : <ArrowRight className="h-4 w-4" strokeWidth={2.25} />}
               </button>
             ) : (
-              <button type="button" className="nl-btn-primary w-full sm:w-auto" disabled={busy} onClick={() => void publish()}>{busy ? "Saving…" : "Save"}</button>
+              <button type="button" className="nl-btn-primary w-full sm:w-auto" disabled={busy} onClick={() => void publish()}><Check className="h-4 w-4" strokeWidth={2.25} />{busy ? "Saving…" : "Save"}</button>
             )}
           </div>
         </footer>
@@ -1113,12 +1367,14 @@ function AgreementDetailView({
   onRecipientQuery,
   onClose,
   onChange,
+  onViewPdf,
 }: {
   detail: AgreementDetail;
   recipientQuery: string;
   onRecipientQuery: (value: string) => void;
   onClose: () => void;
   onChange: () => Promise<void>;
+  onViewPdf: (url: string, title: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [signatureFilter, setSignatureFilter] = useState<"all" | "signed" | "pending" | "overdue" | "expired" | "declined">("all");
@@ -1242,7 +1498,7 @@ function AgreementDetailView({
                       {(row.display_status === "pending" || row.display_status === "overdue") ? (
                         <button type="button" className="font-semibold text-[#1B4F8A]" disabled={busy} onClick={() => void run(async () => { const result = await remindAgreement(detail.id, row.id); toastSuccess(result.sent ? "Reminder sent" : "Reminder was already sent"); })}>Remind</button>
                       ) : null}
-                      {row.signed_file_url ? <a className="font-semibold text-[#1B4F8A]" href={row.signed_file_url} target="_blank" rel="noreferrer">Signed PDF</a> : null}
+                      {row.signed_file_url ? <button type="button" className="font-semibold text-[#1B4F8A]" onClick={() => onViewPdf(row.signed_file_url!, `${row.resident_name} · ${detail.title}`)}>View signed PDF</button> : null}
                     </div>
                   </td>
                 </tr>
@@ -1312,15 +1568,17 @@ function AgreementInfoDialog({ detail, onClose }: { detail: AgreementDetail; onC
               <p className="truncate font-medium text-slate-900" title={detail.file_name}>{detail.file_name}</p>
               <p className="text-slate-500">{fileSize(detail.file_size)}{detail.page_count ? ` · ${detail.page_count} pages` : ""}</p>
               {detail.file_url ? (
-                <iframe title="Agreement PDF" src={`${detail.file_url}#toolbar=0&navpanes=0`} className="mt-3 h-64 w-full rounded-xl border border-slate-200 bg-slate-50" />
+                <div className="mt-3">
+                  <PdfPreview url={detail.file_url} title={detail.title} />
+                </div>
               ) : null}
             </InfoField>
           </dl>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-6 py-4">
-          <button type="button" onClick={onClose} className="nl-btn-secondary">Close</button>
+          <button type="button" onClick={onClose} className="nl-btn-secondary"><X className="h-4 w-4" strokeWidth={2.25} />Close</button>
           {detail.file_url ? (
-            <a className="nl-btn-primary" href={detail.file_url} target="_blank" rel="noreferrer">View PDF</a>
+            <a className="nl-btn-primary" href={downloadHref(detail.file_url)} target="_blank" rel="noreferrer"><Download className="h-4 w-4" strokeWidth={2.25} />Download PDF</a>
           ) : <span />}
         </div>
       </div>
@@ -1422,8 +1680,8 @@ function AgreementVersionDialog({
           )}
         </div>
         <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-6 py-4">
-          <button type="button" className="nl-btn-secondary" onClick={onClose} disabled={busy}>Close</button>
-          <button type="button" className="nl-btn-primary disabled:opacity-60" onClick={() => void submit()} disabled={busy || !file}>{busy ? "Saving…" : "Create version"}</button>
+          <button type="button" className="nl-btn-secondary" onClick={onClose} disabled={busy}><X className="h-4 w-4" strokeWidth={2.25} />Close</button>
+          <button type="button" className="nl-btn-primary disabled:opacity-60" onClick={() => void submit()} disabled={busy || !file}><FileText className="h-4 w-4" strokeWidth={2.25} />{busy ? "Saving…" : "Create version"}</button>
         </div>
       </div>
     </div>,

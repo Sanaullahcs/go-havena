@@ -13,8 +13,13 @@ import {
   getPrimaryMembership,
   isCommunityAdmin,
   isGuestUser,
+  membershipForCommunity,
 } from "../../services/community-access";
 import { fetchMe, fetchMyCommunities, switchActiveCommunity } from "../../services/profile-api";
+import {
+  promptAddUnitsBeforeSwitch,
+  showSwitchCommunityFailure,
+} from "../../utils/switch-community-errors";
 import { getCommunityId, getUser, setCommunityId, subscribeSessionUser } from "../../services/auth-session";
 import { HeaderShell } from "../layout/header-chrome";
 import { sw, sf } from "../../utils/responsive";
@@ -29,6 +34,7 @@ import CommunityLocationMenu from "./community-location-menu";
 import LocationPickerSheet from "./location-picker-sheet";
 import SwitchCommunitySheet from "./switch-community-sheet";
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
+import { communityUsesMiles } from "../../utils/community-language";
 
 export default function TopBar({ onMenuPress }) {
   const router = useRouter();
@@ -80,16 +86,16 @@ export default function TopBar({ onMenuPress }) {
 
   const openDiscoverNearby = useCallback(() => {
     afterMenuClose(() => {
-      setLocationFresh(true);
-      setLocationOpen(true);
+      router.push("/screens/discover");
     });
-  }, [afterMenuClose]);
+  }, [afterMenuClose, router]);
 
   const loadSwitchCommunities = useCallback(async () => {
     try {
       const payload = await fetchMyCommunities();
       const currentId = payload.activeCommunityId ?? activeCommunityId;
       const rows = (payload.communities || []).filter((row) => {
+        if (row.needs_units) return Number(row.community_id) !== Number(currentId);
         if (String(row.status || "").toLowerCase() !== "approved") return false;
         if (Number(row.community_id) === Number(currentId)) return false;
         const community = row.community;
@@ -118,6 +124,14 @@ export default function TopBar({ onMenuPress }) {
   const confirmSwitch = useCallback(
     async (row) => {
       const name = row.community?.name || t("community.myCommunity");
+      setSwitchOpen(false);
+      if (row.needs_units) {
+        await promptAddUnitsBeforeSwitch(dialog, router, {
+          communityId: row.community_id,
+          communityName: name,
+        });
+        return;
+      }
       const choice = await dialog.showConfirm(
         t("nav.switchCommunityTitle"),
         t("nav.switchCommunityBody", { name }),
@@ -126,21 +140,32 @@ export default function TopBar({ onMenuPress }) {
           cancelLabel: t("common.cancel"),
         },
       );
-      if (choice !== "confirm") return;
+      if (choice !== "confirm") {
+        setSwitchOpen(true);
+        return;
+      }
 
       setSwitching(true);
       try {
         const next = await switchActiveCommunity(row.community_id);
-        setSwitchOpen(false);
         setActiveCommunityId(row.community_id);
         navigateAfterAuth(router, next, { mode: "login" });
       } catch (err) {
-        await showFailure(t("nav.couldNotSwitchCommunity"), err);
+        await showSwitchCommunityFailure(
+          dialog,
+          router,
+          t("nav.couldNotSwitchCommunity"),
+          err,
+          {
+            communityId: row.community_id,
+            communityName: row.community?.name,
+          },
+        );
       } finally {
         setSwitching(false);
       }
     },
-    [dialog, router, showFailure, t],
+    [dialog, router, t],
   );
 
   useEffect(() => subscribeSessionUser((next) => {
@@ -176,7 +201,11 @@ export default function TopBar({ onMenuPress }) {
   const roleLabel = getRoleLabel(user);
   const hasCommunity = Boolean(user?.memberships?.some((m) => m?.community?.name));
   const title = hasCommunity ? communityName : t("topBar.chooseYourCommunity");
-  const rangeLabel = t("topBar.compactKm", { count: 3 });
+  const activeCommunity = membershipForCommunity(user, activeCommunityId)?.community
+    ?? getPrimaryMembership(user)?.community;
+  const range = communityUsesMiles(activeCommunity, user)
+    ? { value: "2", unit: t("topBar.miUnit") }
+    : { value: "3", unit: t("topBar.kmUnit") };
   const showNearby = isResidentFeatureEnabled(user, "nearby_places");
   // Community admins manage one community; switch is residents-only when multi-approved.
   const showSwitch = !guestUser && !adminUser && canSwitchCommunities(user);
@@ -192,8 +221,7 @@ export default function TopBar({ onMenuPress }) {
       return;
     }
     if (showNearby) {
-      setLocationFresh(true);
-      setLocationOpen(true);
+      router.push("/screens/discover");
       return;
     }
     void loadSwitchCommunities();
@@ -229,8 +257,14 @@ export default function TopBar({ onMenuPress }) {
                   <Text style={styles.rolePillText}>{roleLabel}</Text>
                 </View>
               ) : showNearby ? (
-                <View style={styles.rangeChip}>
-                  <Text style={styles.rangeChipText}>{rangeLabel}</Text>
+                <View style={styles.rangeChip} accessibilityLabel={`${range.value} ${range.unit}`}>
+                  <Text style={styles.rangeValue} numberOfLines={1}>{range.value}</Text>
+                  <Text
+                    style={[styles.rangeUnit, /[\u0600-\u06FF]/.test(range.unit) && styles.rangeUnitAr]}
+                    numberOfLines={1}
+                  >
+                    {range.unit}
+                  </Text>
                 </View>
               ) : null}
               {showLocationMenu ? <Feather name="chevron-down" size={sf(14)} color={T.navy} /> : null}
@@ -335,24 +369,41 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    lineHeight: sf(18),
+    lineHeight: sf(22),
     color: T.navy,
     fontWeight: "700",
     includeFontPadding: false,
   },
   rangeChip: {
+    flexDirection: "row",
+    direction: "ltr",
+    alignItems: "center",
+    flexWrap: "nowrap",
     flexShrink: 0,
+    gap: sw(3),
     paddingHorizontal: sw(7),
-    paddingVertical: sw(2),
+    paddingVertical: sw(3),
     borderRadius: 999,
     backgroundColor: T.mint,
   },
-  rangeChipText: {
+  rangeValue: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(11),
+    lineHeight: sf(16),
+    color: T.deepTeal,
+    fontWeight: "700",
+    includeFontPadding: false,
+    writingDirection: "ltr",
+  },
+  rangeUnit: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(11),
-    lineHeight: sf(14),
+    lineHeight: sf(16),
     color: T.deepTeal,
     includeFontPadding: false,
+  },
+  rangeUnitAr: {
+    writingDirection: "rtl",
   },
   rolePill: {
     flexShrink: 0,

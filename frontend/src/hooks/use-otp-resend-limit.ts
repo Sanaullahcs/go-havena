@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   normalizeOtpRateLimit,
   extractOtpRateLimitFromError,
@@ -8,17 +8,41 @@ import {
   type OtpRateLimitState,
 } from "@/lib/auth/otp-rate-limit";
 import { OTP_RESEND_LOCK_SECONDS, OTP_RESEND_SECONDS } from "@/lib/auth/otp-config";
+import { showOtpResendLockAlert } from "@/lib/alert";
 
 function initialSecondsLeft(initialRateLimit: unknown): number {
   const normalized = normalizeOtpRateLimit(initialRateLimit);
   return normalized.retryAfterSeconds > 0 ? normalized.retryAfterSeconds : OTP_RESEND_SECONDS;
 }
 
-export function useOtpResendLimit(initialRateLimit: unknown = null) {
+function isResendLimitLock(state: OtpRateLimitState): boolean {
+  return Boolean(state.locked && state.lockType === "resend_limit");
+}
+
+export function useOtpResendLimit(
+  initialRateLimit: unknown = null,
+  { showResendLimitDialog = true }: { showResendLimitDialog?: boolean } = {},
+) {
   const [limits, setLimits] = useState<OtpRateLimitState>(() =>
     normalizeOtpRateLimit(initialRateLimit),
   );
   const [secondsLeft, setSecondsLeft] = useState(() => initialSecondsLeft(initialRateLimit));
+  const resendLimitDialogShownRef = useRef(false);
+
+  const maybeShowResendLimitDialog = useCallback(
+    (normalized: OtpRateLimitState, retrySeconds: number) => {
+      if (
+        !showResendLimitDialog ||
+        resendLimitDialogShownRef.current ||
+        !isResendLimitLock(normalized)
+      ) {
+        return;
+      }
+      resendLimitDialogShownRef.current = true;
+      void showOtpResendLockAlert(retrySeconds > 0 ? retrySeconds : OTP_RESEND_LOCK_SECONDS);
+    },
+    [showResendLimitDialog],
+  );
 
   const applyRateLimit = useCallback(
     (raw: unknown, options?: { extendCooldown?: boolean }) => {
@@ -27,9 +51,7 @@ export function useOtpResendLimit(initialRateLimit: unknown = null) {
 
       let retrySeconds = normalized.retryAfterSeconds;
       if (retrySeconds <= 0 && normalized.locked) {
-        if (normalized.lockType === "resend_limit") {
-          retrySeconds = OTP_RESEND_LOCK_SECONDS;
-        } else if (normalized.lockType === "security") {
+        if (normalized.lockType === "resend_limit" || normalized.lockType === "security") {
           retrySeconds = OTP_RESEND_LOCK_SECONDS;
         }
       }
@@ -38,6 +60,7 @@ export function useOtpResendLimit(initialRateLimit: unknown = null) {
         setSecondsLeft((current) =>
           options?.extendCooldown ? Math.max(current, retrySeconds) : retrySeconds,
         );
+        maybeShowResendLimitDialog(normalized, retrySeconds);
         return;
       }
 
@@ -48,7 +71,7 @@ export function useOtpResendLimit(initialRateLimit: unknown = null) {
         );
       }
     },
-    [],
+    [maybeShowResendLimitDialog],
   );
 
   const applyRateLimitFromError = useCallback(
@@ -75,6 +98,7 @@ export function useOtpResendLimit(initialRateLimit: unknown = null) {
           lockType: null,
           retryAfterSeconds: 0,
         }));
+        resendLimitDialogShownRef.current = false;
       }
       return undefined;
     }

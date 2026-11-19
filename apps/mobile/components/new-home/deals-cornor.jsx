@@ -59,9 +59,11 @@ function mapDealToCard(deal, index) {
 function DealCard({ item, cardWidth, cardHeight, onPress }) {
   const { t, i18n } = useTranslation();
   const deal = item.deal;
-  const badgeText = deal?.isTrending
+  const arabic = String(i18n.language || "").startsWith("ar");
+  const badgeRaw = deal?.isTrending
     ? t("deals.limitedTime")
-    : (deal?.category ? t(`categories.${deal.category}`, { defaultValue: deal.category }) : t("deals.localDeal")).toUpperCase();
+    : (deal?.category ? t(`categories.${deal.category}`, { defaultValue: deal.category }) : t("deals.localDeal"));
+  const badgeText = arabic ? badgeRaw : badgeRaw.toUpperCase();
 
   return (
     <Pressable
@@ -81,7 +83,7 @@ function DealCard({ item, cardWidth, cardHeight, onPress }) {
 
         {/* Top badge */}
         <View style={styles.badge}>
-          <Text style={styles.badgeText} numberOfLines={1}>{badgeText}</Text>
+          <Text style={[styles.badgeText, arabic && styles.badgeTextAr]} numberOfLines={1}>{badgeText}</Text>
         </View>
 
         {/* Bottom gradient overlay */}
@@ -226,12 +228,20 @@ const styles = StyleSheet.create({
   badgeText: {
     fontFamily: Fonts.bold,
     fontSize: sf(8.5),
+    lineHeight: sf(14),
     fontWeight: "700",
     letterSpacing: 0.4,
     color: T.navy,
     textTransform: "uppercase",
     flexShrink: 1,
     writingDirection: "auto",
+  },
+  badgeTextAr: {
+    letterSpacing: 0,
+    textTransform: "none",
+    fontSize: sf(11),
+    lineHeight: sf(16),
+    writingDirection: "rtl",
   },
   overlay: {
     position: "absolute",

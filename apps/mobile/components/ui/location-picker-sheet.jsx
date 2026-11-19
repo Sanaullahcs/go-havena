@@ -92,8 +92,11 @@ function PlaceRow({ place, t, onPress }) {
 }
 
 function capitalize(value) {
-  const text = String(value || "");
-  return text.charAt(0).toUpperCase() + text.slice(1);
+  return String(value || "")
+    .split(/[_-]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
 }
 
 function placeSearchText(place) {

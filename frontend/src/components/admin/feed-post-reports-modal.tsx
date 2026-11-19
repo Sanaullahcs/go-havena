@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { AdminBadge } from "@/components/admin/ui";
 import { FeedPostStatus } from "@/components/admin/feed-post-status";
 import type { AdminPost, AdminPostReport } from "@/lib/api/posts";
+import { feedContentTitle, isPollFeedContent } from "@/lib/feed-content-label";
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
   harassment: "Harassment or bullying",
@@ -55,6 +56,10 @@ export function FeedPostReportsModal({
 }) {
   if (!post) return null;
 
+  const contentTitle = feedContentTitle(post);
+  const isPoll = isPollFeedContent(post);
+  const pollQuestion = (post.poll?.question ?? post.body ?? "").trim();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
       <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -62,7 +67,7 @@ export function FeedPostReportsModal({
           <div>
             <h3 className="text-lg font-bold text-slate-900">Reports</h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              Post by {post.author_name} · #{post.id}
+              {contentTitle} by {post.author_name} · #{post.id}
             </p>
           </div>
           <button
@@ -77,7 +82,9 @@ export function FeedPostReportsModal({
 
         <div className="border-b border-slate-100 px-5 py-3">
           <FeedPostStatus post={post} />
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{post.body}</p>
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+            {isPoll ? pollQuestion : post.body}
+          </p>
           <p className="mt-2 text-sm font-semibold text-slate-700">
             {reports.length} {reports.length === 1 ? "report" : "reports"}
           </p>
@@ -87,7 +94,9 @@ export function FeedPostReportsModal({
           {loading ? (
             <p className="py-8 text-center text-sm text-slate-500">Loading reports…</p>
           ) : reports.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">No reports submitted for this post or its comments yet.</p>
+            <p className="py-8 text-center text-sm text-slate-500">
+              No reports submitted for this {contentTitle.toLowerCase()} or its comments yet.
+            </p>
           ) : (
             <div className="space-y-3">
               {reports.map((report) => (
@@ -110,7 +119,9 @@ export function FeedPostReportsModal({
                     </div>
                     <div className="flex flex-wrap justify-end gap-1.5">
                       <AdminBadge tone={report.comment_id ? "cyan" : "slate"}>
-                        {report.comment_id ? "Comment report" : "Post report"}
+                        {report.comment_id
+                          ? "Comment report"
+                          : (isPoll ? "Poll report" : "Post report")}
                       </AdminBadge>
                       <AdminBadge tone={report.source === "admin" ? "amber" : "red"}>
                         {report.source === "admin" ? "Admin action" : "Resident report"}
@@ -167,7 +178,7 @@ export function FeedPostReportsModal({
           ) : null}
           {post.can_remove_post && onRemove ? (
             <button type="button" disabled={busy} onClick={onRemove} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-              Remove Post
+              {isPoll ? "Remove Poll" : "Remove Post"}
             </button>
           ) : null}
           <button type="button" onClick={onClose} className="nl-btn-secondary justify-center">

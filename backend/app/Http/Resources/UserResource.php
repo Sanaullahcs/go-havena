@@ -16,6 +16,14 @@ class UserResource extends JsonResource
     public function toArray(Request $request): array
     {
         $profile = $this->profile;
+        $units = app(UnitAssignmentService::class)->userUnitsBrief($this->resource);
+        $isBillingContact = false;
+        foreach ($units as $row) {
+            if (($row['association_status'] ?? 'active') === 'active' && ! empty($row['is_billing_contact'])) {
+                $isBillingContact = true;
+                break;
+            }
+        }
 
         return [
             'id' => $this->id,
@@ -69,8 +77,9 @@ class UserResource extends JsonResource
                     ] : null,
                 ]);
             }),
-            'unit' => app(UnitAssignmentService::class)->userUnitBrief($this->resource),
-            'units' => app(UnitAssignmentService::class)->userUnitsBrief($this->resource),
+            'unit' => $units[0] ?? null,
+            'units' => $units,
+            'is_billing_contact' => $isBillingContact,
             'invite_units' => $this->inviteUnitsPayload(),
             ...$this->unitAccessPayload(),
             'guest_access' => \App\Services\GuestAccessService::guestAccessSummary($this->resource),

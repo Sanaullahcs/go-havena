@@ -8,6 +8,7 @@ import {
   hasRejectedMembershipApproval,
   getPendingInvitedMembership,
   getPrimaryMembership,
+  approvedResidentMemberships,
   hasLinkedCommunityForProfile,
   isCommunityAdminRole,
   isCommunityAdminRejected,
@@ -60,6 +61,7 @@ export const Routes = {
   TABS_HOME: "/(tabs)/home",
   ADMIN_DASHBOARD: "/screens/admin-dashboard",
   COMMUNITY_WELCOME: "/screens/community-welcome",
+  CHOOSE_LOGIN_COMMUNITY: "/screens/choose-login-community",
 };
 
 function resetTo(router, pathname, params = {}) {
@@ -341,6 +343,26 @@ export function openCommunityWelcome(router) {
   router.replace(Routes.COMMUNITY_WELCOME);
 }
 
+/** Approved communities a resident can enter after email OTP. */
+export function enrolledLoginCommunities(user) {
+  if (!user || isGuestUser(user) || isCommunityAdminRole(user)) return [];
+  if (needsInviteCode(user) || needsCompleteProfile(user) || !canAccessDashboard(user)) return [];
+  return approvedResidentMemberships(user);
+}
+
+export function shouldChooseCommunityOnLogin(user) {
+  return enrolledLoginCommunities(user).length > 1;
+}
+
+/** After email OTP: pick a community when the resident belongs to more than one. */
+export function continueAfterEmailLogin(router, user) {
+  if (shouldChooseCommunityOnLogin(user)) {
+    resetTo(router, Routes.CHOOSE_LOGIN_COMMUNITY);
+    return;
+  }
+  void openHomeAfterLogin(router, user);
+}
+
 /** After login: show the one-time welcome, otherwise go straight home. */
 export async function openHomeAfterLogin(router, user) {
   if (await shouldShowCommunityWelcome(user)) {
@@ -423,17 +445,29 @@ export function goToCompleteProfile(router, params = {}) {
   router.push({ pathname: Routes.COMPLETE_PROFILE, params });
 }
 
-export function goToJoinCommunityUnits(router, { communityId, communityName, regionId, returnTo } = {}) {
+export function goToJoinCommunityUnits(router, { communityId, communityName, regionId, returnTo, switchAfter } = {}) {
   router.push({
     pathname: Routes.JOIN_COMMUNITY_UNITS,
     params: {
       communityId: communityId != null ? String(communityId) : undefined,
       communityName: communityName ? String(communityName) : undefined,
       regionId: regionId != null ? String(regionId) : undefined,
-      joinAnother: "1",
+      ...(switchAfter ? { switchAfter: "1" } : { joinAnother: "1" }),
       ...(returnTo ? { returnTo: String(returnTo) } : {}),
     },
   });
+}
+
+/** After a resident adds another community, land on Home for their existing approved community. */
+export function finishJoinAnotherCommunity(router) {
+  try {
+    if (router.canDismiss?.()) {
+      router.dismissAll();
+    }
+  } catch {
+    // cold start — nothing to dismiss
+  }
+  router.replace({ pathname: Routes.TABS_HOME, params: { role: "resident" } });
 }
 
 export function goToMyCommunity(router) {

@@ -157,6 +157,7 @@ final class AmenitySlots
         $normalized = self::normalizeHoursText($fallback);
         if (
             $normalized === 'Open 24 Hours'
+            || (is_string($normalized) && preg_match('/\p{Arabic}/u', $normalized))
             || (is_string($normalized) && preg_match('/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}\b/', $normalized))
         ) {
             return $normalized;

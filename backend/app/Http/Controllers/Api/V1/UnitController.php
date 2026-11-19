@@ -206,9 +206,10 @@ class UnitController extends Controller
     /** POST /v1/admin/unit-registration-packages/{id}/approve */
     public function adminApprovePackage(Request $request, int $id): JsonResponse
     {
-        $communityId = $this->resolveAdminCommunityId($request);
         $package = DB::table('unit_registration_packages')->find($id);
-        abort_if(! $package || (int) $package->community_id !== $communityId, 404);
+        abort_if(! $package, 404);
+        $communityId = $this->resolvePackageAdminCommunityId($request, $package);
+        abort_if((int) $package->community_id !== $communityId, 404);
 
         $fresh = $this->packages->approvePackage($id, (int) $request->user()->id);
 
@@ -221,12 +222,13 @@ class UnitController extends Controller
     /** POST /v1/admin/unit-registration-packages/{id}/reject */
     public function adminRejectPackage(Request $request, int $id): JsonResponse
     {
-        $communityId = $this->resolveAdminCommunityId($request);
         $data = $request->validate([
             'reason' => 'required|string|max:1000',
         ]);
         $package = DB::table('unit_registration_packages')->find($id);
-        abort_if(! $package || (int) $package->community_id !== $communityId, 404);
+        abort_if(! $package, 404);
+        $communityId = $this->resolvePackageAdminCommunityId($request, $package);
+        abort_if((int) $package->community_id !== $communityId, 404);
 
         $fresh = $this->packages->rejectPackage($id, (int) $request->user()->id, $data['reason']);
 
@@ -424,6 +426,24 @@ class UnitController extends Controller
         abort_if(! $scope, 422, 'No community scope available.');
 
         return (int) $scope;
+    }
+
+    /**
+     * Community admins stay inside their managed community.
+     * System admins have no single community, so a package review uses that package's community.
+     */
+    private function resolvePackageAdminCommunityId(Request $request, object $package): int
+    {
+        $scope = AdminRoleService::resolveAdminCommunityScope($request->user(), $request);
+        if ($scope) {
+            return (int) $scope;
+        }
+
+        if (AdminRoleService::isSystemAdmin($request->user())) {
+            return (int) $package->community_id;
+        }
+
+        abort(422, 'No community scope available.');
     }
 
     private function assertCommunityUnitsAccess(Request $request, int $communityId, bool $mutating = false): void

@@ -1013,4 +1013,107 @@ class AdminMembersListTest extends TestCase
         $this->assertSame(['A-301'], $unitsByCommunity['amana mall']);
         $this->assertSame(['12B'], $unitsByCommunity['centaurus mall']);
     }
+
+    public function test_system_admin_pending_count_matches_list_for_second_community_invite_onboarding(): void
+    {
+        $this->seed(SystemAdminSeeder::class);
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
+
+        $region = Region::query()->create([
+            'title' => 'Cairo Metro',
+            'area' => 'Cairo',
+            'state' => 'EG',
+            'users_label' => '0 users',
+            'sort_order' => 1,
+            'status' => 'active',
+        ]);
+
+        $communityA = Community::query()->create([
+            'name' => 'Community Alpha',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+        $communityB = Community::query()->create([
+            'name' => 'Community Beta',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        app(\App\Services\CommunityBillingService::class)->activateManualSubscription($communityA, 'growth');
+        app(\App\Services\CommunityBillingService::class)->activateManualSubscription($communityB, 'growth');
+
+        $adminB = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status' => 'active',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $adminB->id,
+            'community_id' => $communityB->id,
+            'role' => 'admin',
+            'status' => 'approved',
+        ]);
+
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'active_context_community_id' => $communityA->id,
+        ]);
+        \Illuminate\Support\Facades\DB::table('profiles')->insert([
+            'user_id' => $resident->id,
+            'display_name' => 'Multi Community Resident',
+            'unit_number' => '101',
+            'residence_type' => 'homeowner',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $resident->id,
+            'community_id' => $communityA->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+        app(UnitAssignmentService::class)->assignUserToUnitNumber(
+            $communityA->id,
+            $resident->id,
+            '101',
+            false,
+            false,
+            'active',
+            'invite',
+        );
+
+        Sanctum::actingAs($adminB);
+        $invite = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Multi Community Resident',
+            'email' => $resident->email,
+            'phone' => '+12025550998',
+            'unit_number' => 'B-12',
+        ])->assertCreated();
+
+        Sanctum::actingAs($resident->fresh());
+        $this->postJson('/api/v1/communities/join-by-invite', [
+            'invite_code' => $invite->json('data.invite_code'),
+        ])->assertSuccessful();
+
+        Sanctum::actingAs($systemAdmin);
+
+        $baseline = $this->getJson('/api/v1/admin/members?community_id=all&role=member')->assertOk();
+        $this->assertSame(0, $baseline->json('meta.stats.pending'));
+        $this->assertGreaterThanOrEqual(1, $baseline->json('meta.stats.onboarding'));
+
+        $pendingTab = $this->getJson('/api/v1/admin/members?community_id=all&role=member&status=pending')->assertOk();
+        $this->assertSame(0, $pendingTab->json('meta.total'));
+        $this->assertSame(0, $pendingTab->json('meta.stats.pending'));
+
+        $onboardingTab = $this->getJson('/api/v1/admin/members?community_id=all&role=member&status=onboarding')->assertOk();
+        $this->assertSame(1, $onboardingTab->json('meta.total'));
+        $this->assertSame($resident->id, (int) $onboardingTab->json('data.0.id'));
+        $this->assertSame('onboarding', $onboardingTab->json('data.0.status'));
+        $this->assertSame(1, $onboardingTab->json('meta.stats.onboarding'));
+    }
 }

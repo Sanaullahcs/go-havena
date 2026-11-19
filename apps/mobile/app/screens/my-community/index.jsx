@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -36,6 +36,10 @@ import {
 } from "../../../services/profile-api";
 import { navigateAfterAuth } from "../../../constants/onboarding-routes";
 import SwitchCommunitySheet from "../../../components/ui/switch-community-sheet";
+import {
+  promptAddUnitsBeforeSwitch,
+  showSwitchCommunityFailure,
+} from "../../../utils/switch-community-errors";
 import { chevronForward } from "../../../utils/rtl";
 import { sf, sw } from "../../../utils/responsive";
 import { rnShadow } from "../../../utils/shadow";
@@ -49,13 +53,27 @@ const FILTERS = [
 ];
 
 function isCurrentMembership(row, activeCommunityId) {
-  return (
-    Boolean(row?.is_active) ||
-    Number(row?.community_id) === Number(activeCommunityId)
-  );
+  // Prefer the explicit active id so a just-switched community cannot stay
+  // marked current via a stale `is_active` flag on another row.
+  if (activeCommunityId != null && Number(activeCommunityId) > 0) {
+    return Number(row?.community_id) === Number(activeCommunityId);
+  }
+  return Boolean(row?.is_active);
 }
 
-function membershipTone(status) {
+function membershipNeedsUnits(row) {
+  return Boolean(row?.needs_units);
+}
+
+function membershipTone(status, row) {
+  if (membershipNeedsUnits(row)) {
+    return {
+      bg: T.mint,
+      text: T.deepTeal,
+      labelKey: "myCommunity.statusAddUnit",
+      icon: "home",
+    };
+  }
   const key = String(status || "").toLowerCase();
   if (key === "approved")
     return {
@@ -103,6 +121,8 @@ function communityLocation(community) {
   const regionLower = region.toLowerCase();
   if (addressLower.includes(regionLower) || regionLower.includes(addressLower))
     return address;
+  const regionParts = regionLower.split(/[^a-z0-9]+/).filter((part) => part.length > 2);
+  if (regionParts.some((part) => addressLower.includes(part))) return address;
   return `${address} · ${region}`;
 }
 
@@ -119,7 +139,7 @@ function formatExpiry(value, t) {
 }
 
 function CommunityCard({ row, activeCommunityId, t }) {
-  const tone = membershipTone(row.status);
+  const tone = membershipTone(row.status, row);
   const isActive = isCurrentMembership(row, activeCommunityId);
   const name = row.community?.name || t("community.myCommunity");
   const location = communityLocation(row.community);
@@ -167,7 +187,7 @@ function CommunityCard({ row, activeCommunityId, t }) {
                 </View>
                 <Text
                   style={[styles.cardMeta, isActive && styles.cardMetaActive]}
-                  numberOfLines={2}
+                  numberOfLines={1}
                 >
                   {location}
                 </Text>
@@ -406,6 +426,7 @@ export default function MyCommunityScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const loadedOnce = useRef(false);
   const { dialog, showFailure, showSuccess, runAction } = useApiAction();
   const [tab, setTab] = useState("communities");
   const [filter, setFilter] = useState("all");
@@ -420,7 +441,8 @@ export default function MyCommunityScreen() {
 
   const load = useCallback(
     async ({ silent = false } = {}) => {
-      if (!silent) setLoading(true);
+      const quiet = silent || loadedOnce.current;
+      if (!quiet) setLoading(true);
       try {
         const [communityPayload, inviteRows] = await Promise.all([
           fetchMyCommunities(),
@@ -431,6 +453,7 @@ export default function MyCommunityScreen() {
           communityPayload.activeCommunityId ?? currentCommunityId(null),
         );
         setInvitations(inviteRows || []);
+        loadedOnce.current = true;
       } catch (err) {
         await showFailure(t("myCommunity.title"), err);
       } finally {
@@ -453,6 +476,12 @@ export default function MyCommunityScreen() {
       rows = communities.filter((row) =>
         isCurrentMembership(row, activeCommunityId),
       );
+    } else if (filter === "pending") {
+      rows = communities.filter(
+        (row) =>
+          String(row.status || "").toLowerCase() === "pending" &&
+          !membershipNeedsUnits(row),
+      );
     } else if (filter !== "all") {
       rows = communities.filter(
         (row) => String(row.status || "").toLowerCase() === filter,
@@ -469,6 +498,7 @@ export default function MyCommunityScreen() {
   const switchable = useMemo(
     () =>
       communities.filter((row) => {
+        if (membershipNeedsUnits(row)) return !isCurrentMembership(row, activeCommunityId);
         if (row.status !== "approved") return false;
         if (isCurrentMembership(row, activeCommunityId)) return false;
         const community = row.community;
@@ -519,6 +549,15 @@ export default function MyCommunityScreen() {
 
   const confirmSwitch = async (row) => {
     const name = row.community?.name || t("community.myCommunity");
+    setSwitchOpen(false);
+    if (membershipNeedsUnits(row)) {
+      await promptAddUnitsBeforeSwitch(dialog, router, {
+        communityId: row.community_id,
+        communityName: name,
+        returnTo: "my-community",
+      });
+      return;
+    }
     const choice = await dialog.showConfirm(
       t("nav.switchCommunityTitle"),
       t("nav.switchCommunityBody", { name }),
@@ -527,17 +566,39 @@ export default function MyCommunityScreen() {
         cancelLabel: t("common.cancel"),
       },
     );
-    if (choice !== "confirm") return;
+    if (choice !== "confirm") {
+      setSwitchOpen(true);
+      return;
+    }
 
     setSwitching(true);
+    const previousActiveId = activeCommunityId;
+    const previousCommunities = communities;
+    setActiveCommunityId(row.community_id);
+    setCommunities((prev) =>
+      prev.map((item) => ({
+        ...item,
+        is_active: Number(item.community_id) === Number(row.community_id),
+      })),
+    );
     try {
       const next = await switchActiveCommunity(row.community_id);
-      setSwitchOpen(false);
-      setActiveCommunityId(row.community_id);
       await load({ silent: true });
       navigateAfterAuth(router, next, { mode: "login" });
     } catch (err) {
-      await showFailure(t("nav.couldNotSwitchCommunity"), err);
+      setActiveCommunityId(previousActiveId);
+      setCommunities(previousCommunities);
+      await showSwitchCommunityFailure(
+        dialog,
+        router,
+        t("nav.couldNotSwitchCommunity"),
+        err,
+        {
+          communityId: row.community_id,
+          communityName: row.community?.name,
+          returnTo: "my-community",
+        },
+      );
     } finally {
       setSwitching(false);
     }
@@ -601,7 +662,7 @@ export default function MyCommunityScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+    <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
         title={t("myCommunity.title")}
         onBack={() => router.back()}
@@ -719,8 +780,10 @@ export default function MyCommunityScreen() {
               accessibilityLabel={t("myCommunity.joinAnother")}
               style={styles.joinBtn}
             >
-              <Feather name="plus" size={sf(18)} color="#FFFFFF" />
-              <Text style={styles.joinBtnText}>
+              <View style={styles.joinIcon}>
+                <Feather name="plus" size={sf(14)} color="#FFFFFF" />
+              </View>
+              <Text style={styles.joinBtnText} numberOfLines={1}>
                 {t("myCommunity.joinAnother")}
               </Text>
             </TouchableOpacity>
@@ -887,7 +950,8 @@ const styles = StyleSheet.create({
   filterRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: sw(16),
+    paddingLeft: sw(16),
+    paddingRight: sw(28),
     paddingVertical: sw(2),
   },
   filterChip: {
@@ -942,17 +1006,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: "100%",
     height: sw(52),
+    paddingHorizontal: sw(16),
+    gap: sw(8),
     backgroundColor: "#1B4F8A",
     borderRadius: sw(14),
     borderWidth: 1,
     borderColor: "#163F6E",
     marginBottom: sw(10),
   },
+  joinIcon: {
+    width: sw(20),
+    height: sw(20),
+    borderRadius: sw(10),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
   joinBtnText: {
-    marginLeft: sw(8),
+    flexShrink: 1,
     fontFamily: Fonts.bold,
-    fontSize: sf(14),
+    fontSize: sf(15),
     color: "#FFFFFF",
+    textAlign: "center",
+    includeFontPadding: false,
   },
   switchBtn: {
     flexDirection: "row",

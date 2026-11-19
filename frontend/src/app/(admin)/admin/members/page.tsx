@@ -5,7 +5,8 @@ import { ClearableInput } from "@/components/admin/clearable-field";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { AdminBadge, StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
+import { ResidentInviteProfileNotice } from "@/components/admin/resident-invite-profile-notice";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { ProvisionUserModal } from "@/components/admin/provision-user-modal";
@@ -14,6 +15,7 @@ import {
   fetchMembers,
   fetchMember,
   inviteMember,
+  lookupResidentForInvite,
   resendMemberInvite,
   resendMemberInvites,
   approveMember,
@@ -55,6 +57,8 @@ import {
   inviteMemberUnitLiveError,
   validateSystemMemberInviteForm,
 } from "@/lib/admin/invite-member-validation";
+import { useResidentInviteEmailStep } from "@/lib/admin/use-resident-invite-email-step";
+import { phoneFieldFromE164 } from "@/lib/phone/format";
 import { UnitPickerField } from "@/components/admin/unit-picker-field";
 import {
   approveUnitRegistrationPackage,
@@ -148,6 +152,8 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const [exporting, setExporting] = useState(false);
   const [inviteResult, setInviteResult] = useState<MemberInviteResult | null>(null);
   const [inviting, setInviting] = useState(false);
+  const [inviteEmailStepError, setInviteEmailStepError] = useState<string | null>(null);
+  const [invitePhoneE164, setInvitePhoneE164] = useState("");
   const [provisionOpen, setProvisionOpen] = useState(false);
   const [batchOpen, setBatchOpen] = useState(false);
   const [scopeCommunityId, setScopeCommunityId] = useState<number | "all" | undefined>(() => {
@@ -167,14 +173,49 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const hasLoadedOnce = useRef(false);
   const currentUser = getUser();
 
+  const systemInviteWithoutUnit = isSystemResidents || isSystemAdminUser();
   const inviteLiveErrors = useMemo(
-    () => validateSystemMemberInviteForm(form, invitePhone),
-    [form, invitePhone],
+    () => validateSystemMemberInviteForm(form, invitePhone, { requireUnits: !systemInviteWithoutUnit }),
+    [form, invitePhone, systemInviteWithoutUnit],
   );
   const canInvite = !hasFieldErrors(inviteLiveErrors);
   const nameShownError = inviteMemberNameLiveError(form.name) || showError("name", inviteLiveErrors);
-  const primaryUnit = form.units[0] ?? form.unit;
+  const primaryUnit = (form.units ?? [])[0] ?? form.unit;
   const unitShownError = inviteMemberUnitLiveError(primaryUnit) || showError("unit", inviteLiveErrors);
+
+  const inviteCommunityId = form.communityId ? Number(form.communityId) : null;
+  const {
+    step: inviteStep,
+    setStep: setInviteStep,
+    lookupLoading: inviteLookupLoading,
+    profileLocked: inviteProfileLocked,
+    lookupNotice: inviteLookupNotice,
+    resetInviteSteps,
+    continueWithEmail: continueInviteWithEmail,
+  } = useResidentInviteEmailStep(inviteCommunityId);
+
+  useEffect(() => {
+    if (!modal || inviteStep !== "details" || !form.email.trim() || !form.communityId) return;
+
+    let cancelled = false;
+    void lookupResidentForInvite(form.email.trim(), Number(form.communityId)).then((data) => {
+      if (cancelled) return;
+      if (data.auto_fill && data.name && data.phone) {
+        setForm((f) => ({ ...f, name: data.name! }));
+        setInvitePhone(phoneFieldFromE164(data.phone));
+        setInvitePhoneE164(data.phone);
+        setPhoneResetKey((k) => k + 1);
+      }
+      if (data.invitable === false && data.message) {
+        setErrors((prev) => ({ ...prev, email: data.message }));
+        touch("email");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [modal, inviteStep, form.communityId, form.email, setErrors, touch]);
 
   const load = useCallback(async (silent = false) => {
     if (!hasLoadedOnce.current) {
@@ -192,10 +233,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
         ...(filter !== "all" ? { status: filter } : {}),
         ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
       });
-      setMembers(res.data);
-      setTotal(res.meta.total);
-      setLastPage(res.meta.last_page);
-      if (res.meta.stats) setStats(res.meta.stats);
+      setMembers(Array.isArray(res.data) ? res.data : []);
+      setTotal(res.meta?.total ?? 0);
+      setLastPage(res.meta?.last_page ?? 1);
+      if (res.meta?.stats) setStats(res.meta.stats);
     } catch (err) {
       setError(apiError(err));
     } finally {
@@ -222,7 +263,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
 
   useEffect(() => {
     fetchAdminCommunities()
-      .then((res) => setScopeCommunities(res.data))
+      .then((res) => setScopeCommunities(Array.isArray(res.data) ? res.data : []))
       .catch(() => setScopeCommunities([]));
   }, []);
 
@@ -234,7 +275,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     fetchBilling()
       .then(setBilling)
       .catch(() => setBilling(null));
-  }, [isSystemResidents, members.length]);
+  }, [isSystemResidents, members?.length]);
 
   const viewingAllCommunities = scopeCommunityId === "all";
 
@@ -255,7 +296,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     { label: "Pending Approval", value: String(stats.pending), hint: "Awaiting review", tone: "amber" as const, icon: <IcoClock /> },
     { label: "Active", value: String(stats.approved), hint: "Approved residents", tone: "green" as const, icon: <IcoActivity /> },
     { label: "Invitation Sent", value: String(stats.invitation_sent ?? 0), hint: "Awaiting signup", tone: "slate" as const, icon: <IcoUser /> },
-    { label: "Onboarding", value: String(stats.onboarding ?? 0), hint: "Signed in, profile incomplete", tone: "cyan" as const, icon: <IcoUser /> },
+    { label: "Onboarding", value: String(stats.onboarding ?? 0), hint: "Finishing profile or unit enrollment", tone: "cyan" as const, icon: <IcoUser /> },
     { label: "Suspended", value: String(stats.banned), hint: "Banned from community", tone: "slate" as const, icon: <IcoBanStat /> },
     { label: "Inactive", value: String(stats.inactive ?? 0), hint: "Former members", tone: "slate" as const, icon: <IcoUser /> },
   ], [stats, isSystemResidents]);
@@ -267,14 +308,17 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   }));
 
   const billingExempt = Boolean(billing && isCommunityBillingExempt(billing));
+  const billingSetup = billing?.setup;
+  const billingSeats = billing?.seats;
+  const canInviteResidents = Boolean(billingExempt || billingSetup?.can_invite_residents);
 
   const openInviteModal = async () => {
-    if (billing && !billingExempt && !billing.setup.can_invite_residents) {
-      if (!billing.setup.subscription_active) {
+    if (billing && !billingExempt && !canInviteResidents) {
+      if (!billing.setup?.subscription_active) {
         toastError("An active subscription is required before inviting residents.");
-      } else if (billing.seats.seats_available <= 0) {
+      } else if ((billing.seats?.seats_available ?? 0) <= 0) {
         toastError("All seats are in use. Upgrade your plan to invite more residents.");
-      } else if (!billing.setup.community_approved) {
+      } else if (!billing.setup?.community_approved) {
         toastError("Your community is still awaiting platform approval.");
       } else {
         toastError("You cannot invite residents right now. Check Billing.");
@@ -284,20 +328,24 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
 
     resetTouched();
     setInvitePhone(emptyPhoneField());
+    setInvitePhoneE164("");
     setPhoneResetKey((k) => k + 1);
+    setInviteEmailStepError(null);
+    resetInviteSteps();
     setModal(true);
     setCommunitiesLoading(true);
     try {
       const res = await fetchAdminCommunities();
-      setCommunities(res.data);
+      const communityRows = Array.isArray(res.data) ? res.data : [];
+      setCommunities(communityRows);
       const defaultId = getAdminCommunityId();
-      const match = defaultId ? res.data.find((c) => c.id === defaultId) : null;
+      const match = defaultId ? communityRows.find((c) => c.id === defaultId) : null;
       setForm({
         name: "",
         email: "",
         unit: "",
         units: [""],
-        communityId: match ? String(match.id) : res.data[0] ? String(res.data[0].id) : "",
+        communityId: match ? String(match.id) : communityRows[0] ? String(communityRows[0].id) : "",
       });
     } catch (err) {
       toastError(apiError(err));
@@ -313,8 +361,28 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     setModal(false);
     resetTouched();
     setInvitePhone(emptyPhoneField());
+    setInvitePhoneE164("");
     setPhoneResetKey((k) => k + 1);
+    setInviteEmailStepError(null);
+    resetInviteSteps();
     setForm({ name: "", email: "", unit: "", units: [""], communityId: "" });
+  };
+
+  const handleInviteEmailContinue = async () => {
+    setInviteEmailStepError(null);
+    const result = await continueInviteWithEmail(form.email.trim());
+    if (!result.ok) {
+      setInviteEmailStepError(result.error);
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      email: f.email.trim(),
+      name: result.name || f.name,
+    }));
+    setInvitePhone(result.phone);
+    setInvitePhoneE164(result.phone.e164);
+    setPhoneResetKey((k) => k + 1);
   };
 
   const openProfile = async (member: Member) => {
@@ -344,7 +412,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     await load(true);
   };
 
-  const runApproveUnitPackage = async (packageId: number, unitNumber: string) => {
+  const runApproveUnitPackage = async (packageId: number, unitNumber: string, communityId?: number | null) => {
     if (!viewing) return;
     const confirmed = await confirmAction({
       title: `Approve unit ${unitNumber}?`,
@@ -356,7 +424,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
 
     setBusyUnitPackageId(packageId);
     try {
-      await approveUnitRegistrationPackage(packageId);
+      await approveUnitRegistrationPackage(packageId, communityId);
       toastSuccess(`Unit ${unitNumber} approved.`);
       await refreshViewingMember(viewing);
     } catch (err) {
@@ -366,7 +434,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     }
   };
 
-  const runRejectUnitPackage = async (packageId: number, unitNumber: string) => {
+  const runRejectUnitPackage = async (packageId: number, unitNumber: string, communityId?: number | null) => {
     if (!viewing) return;
     const result = await confirmRejectWithReason({
       title: `Reject unit ${unitNumber}?`,
@@ -377,7 +445,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
 
     setBusyUnitPackageId(packageId);
     try {
-      await rejectUnitRegistrationPackage(packageId, String(result.value));
+      await rejectUnitRegistrationPackage(packageId, String(result.value), communityId);
       toastSuccess(`Unit ${unitNumber} rejected.`);
       await refreshViewingMember(viewing);
     } catch (err) {
@@ -390,7 +458,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const memberCommunityId = (member: Member) =>
     member.community_id ?? (scopeCommunityId !== "all" ? scopeCommunityId : undefined);
 
-  const eligibleMembers = useMemo(() => members.filter(canReceiveInvitation), [members]);
+  const eligibleMembers = useMemo(
+    () => (Array.isArray(members) ? members : []).filter(canReceiveInvitation),
+    [members],
+  );
   const eligibleIdSet = useMemo(() => new Set(eligibleMembers.map((member) => member.id)), [eligibleMembers]);
   const selectedMembers = eligibleMembers.filter((member) => selectedIds.includes(member.id));
   const allEligibleSelected =
@@ -588,29 +659,29 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     <div
       className={[
         "flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-[13px]",
-        billing.seats.in_grace
+        billing.seats?.in_grace
           ? "border-amber-200 bg-amber-50 text-amber-950"
-          : !billing.setup.subscription_active
+          : !billing.setup?.subscription_active
             ? "border-sky-200 bg-sky-50 text-sky-950"
-            : billing.seats.seats_available <= 0
+            : (billing.seats?.seats_available ?? 0) <= 0
               ? "border-rose-200 bg-rose-50 text-rose-950"
               : "border-slate-200 bg-white text-slate-700",
       ].join(" ")}
     >
       <p>
         <span className="font-semibold">
-          {billing.seats.seats_used} / {billing.seats.seat_limit || "—"} seats used
+          {billing.seats?.seats_used ?? 0} / {billing.seats?.seat_limit || "—"} seats used
         </span>
-        {!billing.setup.subscription_active
+        {!billing.setup?.subscription_active
           ? " — choose a plan before inviting residents."
-          : billing.seats.seats_available <= 0
+          : (billing.seats?.seats_available ?? 0) <= 0
             ? " — upgrade to add more residents."
-            : billing.seats.in_grace
+            : billing.seats?.in_grace
               ? " — update payment to keep inviting."
               : "."}
       </p>
       <Link href="/admin/billing" className="font-semibold text-[#1B4F8A] underline-offset-2 hover:underline">
-        {billing.setup.subscription_active ? "Manage billing" : "Choose a plan"}
+        {billing.setup?.subscription_active ? "Manage billing" : "Choose a plan"}
       </Link>
     </div>
   ) : null;
@@ -654,7 +725,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
             </button>
             {isSystemResidents ? (
               <button type="button" className="nl-btn-primary" onClick={() => setProvisionOpen(true)}>
-                <IcoPlus /> Create Resident
+                <IcoPlus /> Invite Resident
               </button>
             ) : (
               <>
@@ -662,9 +733,9 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   type="button"
                   className="nl-btn-secondary disabled:opacity-60"
                   onClick={() => setBatchOpen(true)}
-                  disabled={Boolean(billing && !billingExempt && !billing.setup.can_invite_residents)}
+                  disabled={Boolean(billing && !billingExempt && !canInviteResidents)}
                   title={
-                    billing && !billingExempt && !billing.setup.can_invite_residents
+                    billing && !billingExempt && !canInviteResidents
                       ? "Subscription or seats required — open Billing"
                       : undefined
                   }
@@ -675,9 +746,9 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   type="button"
                   className="nl-btn-primary disabled:opacity-60"
                   onClick={openInviteModal}
-                  disabled={Boolean(billing && !billingExempt && !billing.setup.can_invite_residents)}
+                  disabled={Boolean(billing && !billingExempt && !canInviteResidents)}
                   title={
-                    billing && !billingExempt && !billing.setup.can_invite_residents
+                    billing && !billingExempt && !canInviteResidents
                       ? "Subscription or seats required — open Billing"
                       : undefined
                   }
@@ -770,7 +841,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                           className="nl-member-check"
                         />
                       ) : null}
-                      <UserAvatar name={m.name} src={m.avatar_url} size={32} />
+                      <UserAvatar name={m.name ?? ""} src={m.avatar_url} size={32} />
                       <div>
                         <p className="font-semibold text-slate-900">{m.name}</p>
                         <div className="text-[12px] text-slate-400">{contactDisplay(m)}</div>
@@ -969,16 +1040,66 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
       </DataTable>
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
+          <div className="flex max-h-[min(92dvh,720px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
                 <h3 className="text-[15px] font-bold text-slate-900">Invite New Member</h3>
                 <p className="mt-0.5 text-[12.5px] text-slate-500">Create a resident account in your community.</p>
               </div>
               <button type="button" onClick={closeInviteModal} disabled={inviting} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:pointer-events-none disabled:opacity-40"><X className="h-4 w-4" strokeWidth={2} /></button>
             </div>
-            <div className="space-y-4 px-6 py-5">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-5">
+              {inviteStep === "email" ? (
+                <>
+                  <h4 className="text-[13px] font-semibold text-slate-800">Resident email</h4>
+                  <div>
+                    <label className="nl-label">
+                      Email address <span className="text-red-500">*</span>
+                    </label>
+                    <ClearableInput
+                      type="email"
+                      autoFocus
+                      value={form.email}
+                      onChange={(e) => {
+                        setInviteEmailStepError(null);
+                        clearError("email");
+                        setForm((f) => ({ ...f, email: e.target.value }));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void handleInviteEmailContinue();
+                        }
+                      }}
+                      className={inputClass(inviteEmailStepError ?? undefined, "nl-input mt-1.5")}
+                      placeholder="resident@example.com"
+                    />
+                    {inviteEmailStepError ? (
+                      <p className="mt-1 text-xs text-red-600">{inviteEmailStepError}</p>
+                    ) : null}
+                  </div>
+                  <p className="text-[12px] leading-relaxed text-slate-500">
+                    If they are already in another community, we&apos;ll load their name and phone on the next step.
+                  </p>
+                </>
+              ) : (
+                <>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-600 hover:text-slate-900"
+                onClick={() => {
+                  setInviteStep("email");
+                  setInviteEmailStepError(null);
+                }}
+              >
+                <ArrowLeft className="h-4 w-4" strokeWidth={2} aria-hidden />
+                Change email
+              </button>
+              <p className="text-[12px] text-slate-500">{form.email}</p>
+              {inviteLookupNotice && inviteProfileLocked ? (
+                <ResidentInviteProfileNotice message={inviteLookupNotice} />
+              ) : null}
               <div>
                 <label className="nl-label">Community</label>
                 <select
@@ -1013,8 +1134,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     Full Name <span className="text-red-500">*</span>
                   </label>
                   <ClearableInput
+                    readOnly={inviteProfileLocked}
                     value={form.name}
                     onChange={(e) => {
+                      if (inviteProfileLocked) return;
                       clearError("name");
                       setForm((f) => ({ ...f, name: e.target.value }));
                     }}
@@ -1026,6 +1149,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     <p className="mt-1 text-xs text-red-600">{nameShownError}</p>
                   ) : null}
                 </div>
+                {!systemInviteWithoutUnit ? (
                 <div className="sm:col-span-2">
                   <label className="nl-label">
                     Units <span className="text-red-500">*</span>
@@ -1034,7 +1158,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     <UnitPickerField
                       multiple
                       dataField="units"
-                      values={form.units.filter((u) => u.trim())}
+                      values={(form.units ?? []).filter((u) => u.trim())}
                       placeholder="Select one or more units"
                       unitMax={20}
                       error={unitShownError}
@@ -1072,25 +1196,11 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     <p className="mt-1 text-xs text-red-600">{unitShownError}</p>
                   ) : null}
                 </div>
-              </div>
-              <div>
-                <label className="nl-label">
-                  Email Address <span className="text-red-500">*</span>
-                </label>
-                <ClearableInput
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => {
-                    clearError("email");
-                    setForm((f) => ({ ...f, email: e.target.value }));
-                  }}
-                  onBlur={() => touch("email")}
-                  className={inputClass(showError("email", inviteLiveErrors), "nl-input mt-1.5")}
-                  placeholder="resident@example.com"
-                />
-                {showError("email", inviteLiveErrors) ? (
-                  <p className="mt-1 text-xs text-red-600">{showError("email", inviteLiveErrors)}</p>
-                ) : null}
+                ) : (
+                  <p className="sm:col-span-2 text-[12px] leading-5 text-slate-500">
+                    This resident will add their unit on Complete Profile after accepting the invitation.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="nl-label">
@@ -1099,19 +1209,35 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                 <div className="mt-1.5">
                   <AdminPhoneInput
                     resetKey={phoneResetKey}
+                    value={invitePhoneE164}
                     required
+                    disabled={inviteProfileLocked}
                     showError={Boolean(showError("phone", inviteLiveErrors))}
                     onChange={(state) => {
+                      if (inviteProfileLocked) return;
                       clearError("phone");
                       setInvitePhone(state);
+                      setInvitePhoneE164(state.e164);
                     }}
                     onBlur={() => touch("phone")}
                   />
                 </div>
               </div>
+              </>
+              )}
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-100 bg-white px-6 py-4">
               <button type="button" onClick={closeInviteModal} className="nl-btn-secondary" disabled={inviting}>Cancel</button>
+              {inviteStep === "email" ? (
+                <button
+                  type="button"
+                  className="nl-btn-primary disabled:opacity-60"
+                  disabled={inviteLookupLoading || !form.email.trim()}
+                  onClick={() => void handleInviteEmailContinue()}
+                >
+                  {inviteLookupLoading ? "Checking…" : "Continue"}
+                </button>
+              ) : (
               <button type="button" onClick={async () => {
                 if (inviting || !validateOnSubmit(inviteLiveErrors)) return;
                 const selectedCommunity = communities.find((c) => String(c.id) === form.communityId);
@@ -1126,7 +1252,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   try {
                     const memberName = form.name;
                     const memberEmail = form.email;
-                    const unitNumbers = collectInviteUnitNumbers(form);
+                    const unitNumbers = systemInviteWithoutUnit ? [] : collectInviteUnitNumbers(form);
                     const res = await inviteMember({
                       name: memberName,
                       email: memberEmail,
@@ -1160,6 +1286,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   }
                 }
               }} className="nl-btn-primary disabled:opacity-60" disabled={communitiesLoading || !canInvite || inviting}>{inviting ? "Sending…" : <><IcoPlus /> Send Invitation</>}</button>
+              )}
             </div>
           </div>
         </div>
@@ -1184,6 +1311,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
           open={provisionOpen}
           onClose={() => setProvisionOpen(false)}
           onCreated={() => load(true)}
+          onResidentInvited={(result) => setInviteResult(result)}
           presetCommunity={scopePresetCommunity}
         />
       )}
@@ -1296,11 +1424,11 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     fallbackResidenceType={viewing.residence_type}
                     fallbackUtilityBillUrl={viewing.utility_bill_url}
                     busyPackageId={busyUnitPackageId}
-                    onApprovePackage={(packageId, unitNumber) => {
-                      void runApproveUnitPackage(packageId, unitNumber);
+                    onApprovePackage={(packageId, unitNumber, communityId) => {
+                      void runApproveUnitPackage(packageId, unitNumber, communityId);
                     }}
-                    onRejectPackage={(packageId, unitNumber) => {
-                      void runRejectUnitPackage(packageId, unitNumber);
+                    onRejectPackage={(packageId, unitNumber, communityId) => {
+                      void runRejectUnitPackage(packageId, unitNumber, communityId);
                     }}
                   />
                   <ProfileRow label="Bio" value={viewing.bio?.trim() ? viewing.bio : "—"} />

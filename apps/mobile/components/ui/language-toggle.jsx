@@ -20,9 +20,10 @@ const LANGS = [
   { code: "ar", label: "ع" },
 ];
 
-const SEGMENT_W = sw(30);
+const SEGMENT_W = sw(36);
 const TRACK_PAD = sw(3);
-const TRACK_GAP = sw(1);
+const TRACK_GAP = sw(2);
+const TRACK_W = TRACK_PAD * 2 + LANGS.length * SEGMENT_W + (LANGS.length - 1) * TRACK_GAP;
 
 export default function LanguageToggle() {
   const { language, changeLanguage } = useLanguage();
@@ -60,7 +61,12 @@ export default function LanguageToggle() {
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={`Language ${lang.code}`}
           >
-            <Text style={[styles.label, isActive && styles.labelActive]}>
+            <Text
+              style={[styles.label, isActive && styles.labelActive]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
               {lang.label}
             </Text>
           </Pressable>
@@ -72,13 +78,17 @@ export default function LanguageToggle() {
 
 const styles = StyleSheet.create({
   track: {
+    width: TRACK_W,
+    height: SEGMENT_W + TRACK_PAD * 2,
     flexDirection: "row",
     alignItems: "center",
+    direction: "ltr",
     backgroundColor: "#F1F5F9",
     borderRadius: sw(10),
     padding: TRACK_PAD,
     gap: TRACK_GAP,
     position: "relative",
+    flexShrink: 0,
     ...(Platform.OS === "ios"
       ? {
           ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 1 }, opacity: 0.05, radius: 2 }),
@@ -107,10 +117,13 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: Fonts.bold,
-    fontSize: sf(10),
+    fontSize: sf(11),
+    lineHeight: sf(16),
     fontWeight: "700",
     color: "#64748B",
-    letterSpacing: 0.2,
+    letterSpacing: 0,
+    textAlign: "center",
+    includeFontPadding: false,
   },
   labelActive: {
     color: T.white,

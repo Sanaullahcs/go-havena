@@ -69,7 +69,21 @@ class RegionBillingPolicy
             ->with('regionRecord.stateRecord.country')
             ->find($communityId);
 
-        return $this->countryCodeForRegion($community?->regionRecord);
+        if (! $community) {
+            return null;
+        }
+
+        $code = $this->countryCodeForRegion($community->regionRecord);
+        if ($code) {
+            return $code;
+        }
+
+        return $this->textLooksLikeExemptCountry(implode(' ', array_filter([
+            $community->region,
+            $community->regionRecord?->title,
+            $community->regionRecord?->state,
+            $community->regionRecord?->area,
+        ]))) ? 'PK' : null;
     }
 
     public function countryCodeForRegion(?Region $region): ?string

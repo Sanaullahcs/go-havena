@@ -152,7 +152,15 @@ export async function fetchMembers(params: MembersQuery = {}) {
       community_id: communityId,
     },
   });
-  return res.data as { data: Member[]; meta: MemberMeta };
+  const body = (res?.data ?? {}) as { data?: Member[] | null; meta?: MemberMeta | null };
+  const rows = Array.isArray(body.data) ? body.data : [];
+  const meta = body.meta ?? {
+    current_page: params.page ?? 1,
+    last_page: 1,
+    total: rows.length,
+    per_page: params.per_page ?? ADMIN_TABLE_PAGE_SIZE,
+  };
+  return { data: rows, meta };
 }
 
 export async function fetchMember(id: number, communityId?: number | "all") {
@@ -286,6 +294,28 @@ export async function commitMemberBatch(file: File) {
   return res.data as { data: MemberBatchResult; message: string };
 }
 
+export type ResidentInviteLookup = {
+  found: boolean;
+  enrolled: boolean;
+  auto_fill: boolean;
+  invitable: boolean;
+  user_id: number | null;
+  name: string | null;
+  phone: string | null;
+  phone_display: string | null;
+  message: string | null;
+};
+
+export async function lookupResidentForInvite(email: string, communityId?: number) {
+  const res = await api.get("/v1/admin/members/invite-lookup", {
+    params: {
+      email: email.trim(),
+      ...(communityId ? { community_id: communityId } : {}),
+    },
+  });
+  return res.data.data as ResidentInviteLookup;
+}
+
 export async function inviteMember(data: {
   name: string;
   email: string;
@@ -389,7 +419,7 @@ export async function deleteMember(id: number, communityId?: number) {
 
 export function membersToCsv(rows: Member[]): string {
   const header = ["Name", "Email", "Phone Number", "Community", "Unit", "Role", "Status", "Joined"];
-  const lines = rows.map((m) => [
+  const lines = (Array.isArray(rows) ? rows : []).map((m) => [
     m.name,
     m.email,
     (m.phone ?? "").trim(),

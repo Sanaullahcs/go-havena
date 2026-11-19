@@ -16,8 +16,12 @@ import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { Colors } from "../../constants/tokens";
 import { getReportReasons, REPORT_REASON_KINDS } from "../../services/reports-api";
+import { isPollPost } from "../../services/feed-api";
 import { useKeyboardBottomOffset } from "../layout/keyboard-safe-screen";
 import { sw, sf } from "../../utils/responsive";
+
+const REPORT_DETAILS_MIN = 8;
+const REPORT_DETAILS_MAX = 1000;
 
 /** RN cannot present AppDialog over this sheet Modal — close the sheet first. */
 export function waitForReportSheetUnmount() {
@@ -65,16 +69,19 @@ export default function FeedPostReportSheet({
   const { bottomOffset } = useKeyboardBottomOffset();
   const [type, setType] = useState("");
   const [description, setDescription] = useState("");
+  const [detailsTouched, setDetailsTouched] = useState(false);
   const [pending, setPending] = useState(false);
   const isBusy = submitting || pending;
   const reasons = useMemo(() => getReportReasons(reasonKind), [reasonKind, t]);
   const detailsRequired = type === "other";
 
   const authorName = post?.user?.display_name ?? post?.user?.name ?? t("feed.report.thisNeighbor");
+  const isPoll = isPollPost(post);
   const detailsPlaceholder = placeholder ?? t("feed.report.tellUsMoreRequired");
 
   const selectReason = (value) => {
     setType(value);
+    setDetailsTouched(false);
     if (value !== "other") {
       setDescription("");
     }
@@ -87,8 +94,15 @@ export default function FeedPostReportSheet({
     }
     setType("");
     setDescription("");
+    setDetailsTouched(false);
     setPending(false);
   }, [visible, post?.id, resetKey, reasonKind]);
+
+  const trimmedLen = description.trim().length;
+  const detailsShowError =
+    detailsRequired && detailsTouched && trimmedLen > 0 && trimmedLen < REPORT_DETAILS_MIN;
+  const detailsShowHint = detailsRequired && detailsTouched && trimmedLen === 0;
+  const detailsLooksGood = detailsRequired && trimmedLen >= REPORT_DETAILS_MIN;
 
   const handleClose = useCallback(() => {
     if (isBusy) return;
@@ -97,18 +111,23 @@ export default function FeedPostReportSheet({
 
   const canSubmit = useMemo(() => {
     if (!type) return false;
-    if (detailsRequired) return description.trim().length >= 8;
+    if (detailsRequired) return trimmedLen >= REPORT_DETAILS_MIN;
     return true;
-  }, [description, detailsRequired, type]);
+  }, [description, detailsRequired, trimmedLen, type]);
 
   const handleSubmit = async () => {
+    if (detailsRequired && trimmedLen < REPORT_DETAILS_MIN) {
+      setDetailsTouched(true);
+    }
     if (!canSubmit || isBusy) return;
     setPending(true);
     try {
       await onSubmit?.({
         type,
-        description: description.trim(),
-        title: t("feed.report.reportedPostTitle", { name: authorName }),
+        description: detailsRequired ? description.trim() : "",
+        title: isPoll
+          ? t("feed.report.reportedPollTitle", { name: authorName })
+          : t("feed.report.reportedPostTitle", { name: authorName }),
         reportedUserId: post?.user_id ?? post?.user?.id ?? null,
       });
     } finally {
@@ -149,9 +168,13 @@ export default function FeedPostReportSheet({
               <Feather name="flag" size={22} color="#DC2626" />
             </View>
             <View style={styles.headerCopy}>
-              <Text style={styles.title}>{title ?? t("feed.report.title")}</Text>
+              <Text style={styles.title}>
+                {title ?? (isPoll ? t("feed.report.titlePoll") : t("feed.report.titlePost"))}
+              </Text>
               <Text style={styles.subtitle}>
-                {subtitle ?? t("feed.report.subtitle", { name: authorName })}
+                {subtitle ?? (isPoll
+                  ? t("feed.report.subtitlePoll", { name: authorName })
+                  : t("feed.report.subtitlePost", { name: authorName }))}
               </Text>
             </View>
           </View>
@@ -192,21 +215,55 @@ export default function FeedPostReportSheet({
 
             {detailsRequired ? (
               <>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>{t("feed.report.details")}</Text>
+                  <Text style={styles.requiredStar} accessibilityLabel="required">
+                    {" *"}
+                  </Text>
+                </View>
                 <LocaleTextInput
                   value={description}
-                  onChangeText={setDescription}
+                  onChangeText={(text) => {
+                    setDescription(text);
+                    setDetailsTouched(true);
+                  }}
+                  onBlur={() => setDetailsTouched(true)}
                   placeholder={detailsPlaceholder}
                   placeholderTextColor="#9CA3AF"
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    detailsShowError || detailsShowHint ? styles.inputError : null,
+                    detailsLooksGood ? styles.inputValid : null,
+                  ]}
                   multiline
-                  maxLength={1000}
+                  maxLength={REPORT_DETAILS_MAX}
                   editable={!isBusy}
-                  autoFocus={false}
+                  autoFocus
                   blurOnSubmit
                 />
-                <Text style={styles.helper}>
-                  {t("feed.report.helper", { count: description.trim().length })}
-                </Text>
+                {detailsShowError ? (
+                  <Text style={styles.helperError}>
+                    {t("feed.report.detailsTooShort", {
+                      count: trimmedLen,
+                      min: REPORT_DETAILS_MIN,
+                      remaining: REPORT_DETAILS_MIN - trimmedLen,
+                    })}
+                  </Text>
+                ) : detailsShowHint ? (
+                  <Text style={styles.helperError}>{t("feed.report.detailsRequiredHint", { min: REPORT_DETAILS_MIN })}</Text>
+                ) : detailsLooksGood ? (
+                  <Text style={styles.helperOk}>
+                    {t("feed.report.detailsValid", { count: trimmedLen, max: REPORT_DETAILS_MAX })}
+                  </Text>
+                ) : (
+                  <Text style={styles.helper}>
+                    {t("feed.report.detailsHint", {
+                      min: REPORT_DETAILS_MIN,
+                      count: trimmedLen,
+                      max: REPORT_DETAILS_MAX,
+                    })}
+                  </Text>
+                )}
               </>
             ) : null}
           </ScrollView>
@@ -303,13 +360,25 @@ const styles = StyleSheet.create({
     paddingBottom: sw(8),
     flexGrow: 0,
   },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: sw(4),
+    marginBottom: sw(8),
+  },
   label: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
     color: "#475569",
     fontWeight: "600",
-    marginBottom: sw(8),
-    marginTop: sw(4),
+    marginBottom: 0,
+    marginTop: 0,
+  },
+  requiredStar: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(12),
+    color: "#DC2626",
+    fontWeight: "700",
   },
   typeGrid: {
     flexDirection: "row",
@@ -356,7 +425,7 @@ const styles = StyleSheet.create({
     minHeight: sw(96),
     maxHeight: sw(140),
     borderRadius: sw(14),
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#E2E8F0",
     backgroundColor: "#F8FAFC",
     paddingHorizontal: sw(14),
@@ -379,11 +448,33 @@ const styles = StyleSheet.create({
     lineHeight: sf(20),
     color: "#9CA3AF",
   },
+  inputError: {
+    borderColor: "#F87171",
+    backgroundColor: "#FEF2F2",
+  },
+  inputValid: {
+    borderColor: "#34D399",
+    backgroundColor: "#FFFFFF",
+  },
   helper: {
     marginTop: sw(6),
     fontFamily: Fonts.regular,
     fontSize: sf(11),
     color: "#94A3B8",
+  },
+  helperError: {
+    marginTop: sw(6),
+    fontFamily: Fonts.medium,
+    fontSize: sf(11),
+    color: "#DC2626",
+    fontWeight: "500",
+  },
+  helperOk: {
+    marginTop: sw(6),
+    fontFamily: Fonts.medium,
+    fontSize: sf(11),
+    color: "#059669",
+    fontWeight: "500",
   },
   actions: {
     flexDirection: "row",

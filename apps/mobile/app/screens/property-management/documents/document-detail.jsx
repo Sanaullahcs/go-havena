@@ -25,7 +25,6 @@ import {
   deleteCommunityDocument,
   fetchAgreementDetail,
   fetchCommunityDocument,
-  fetchSignedAgreementLink,
   recordDocumentDownload,
   remindAgreement,
   remindDocument,
@@ -451,10 +450,17 @@ export default function DocumentDetail() {
   ) ?? doc?.assignments?.[0];
   const needsSignature = doc?.kind === "agreement" || Boolean(doc?.signature_required);
 
-  const openSigned = () => run(async () => {
-    const url = assignment?.signed_file_url || await fetchSignedAgreementLink(doc.id, assignment?.assignment_id);
-    if (url) await Linking.openURL(url);
-  });
+  const openViewer = (source) => {
+    router.push({
+      pathname: amenityFlowRoutes(pathname).signAgreement,
+      params: {
+        documentId: String(doc.id),
+        assignmentId: String(assignment?.assignment_id ?? assignmentId ?? ""),
+        mode: "view",
+        source,
+      },
+    });
+  };
 
   const handleDownload = () => {
     if (!doc?.file_url) return;
@@ -525,8 +531,8 @@ export default function DocumentDetail() {
             },
           })
         }
-        onOpenFile={handleDownload}
-        onSignedCopy={() => void openSigned()}
+        onOpenFile={() => openViewer("original")}
+        onSignedCopy={() => openViewer("signed")}
         onRemind={() => run(async () => {
           if (doc.kind === "agreement") await remindAgreement(doc.id);
           else await remindDocument(doc.id);

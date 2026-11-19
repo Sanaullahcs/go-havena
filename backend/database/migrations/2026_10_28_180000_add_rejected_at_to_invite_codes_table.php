@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasColumn('invite_codes', 'rejected_at')) {
+            return;
+        }
+
         Schema::table('invite_codes', function (Blueprint $table) {
             $table->timestamp('rejected_at')->nullable()->after('expires_at');
         });

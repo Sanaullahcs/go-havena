@@ -43,7 +43,7 @@ export function AdminActionsMenu({
   const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const visible = actions.filter((action) => !action.hidden);
+  const visible = (Array.isArray(actions) ? actions : []).filter((action) => !action.hidden);
 
   const { style: popoverStyle, placement, ready } = useAnchoredPopover(open, triggerRef, {
     popoverRef,
@@ -95,12 +95,12 @@ export function AdminActionsMenu({
         disabled={disabled}
         onClick={() => setOpen((value) => !value)}
         className={[
-          "flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-[#64748B] transition-all duration-200",
-          "hover:border-[#CBD5E1] hover:bg-[#F8FAFC] hover:text-[#334155] hover:shadow-sm",
+          "flex h-9 w-9 items-center justify-center rounded-lg border bg-white text-slate-600 transition-all duration-200",
+          "hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 hover:shadow-sm",
           "disabled:cursor-not-allowed disabled:opacity-50",
           open
-            ? "border-[#CBD5E1] bg-[#F8FAFC] text-[#334155] shadow-sm ring-2 ring-blue-100"
-            : "border-[#EDEDED]",
+            ? "border-[#1B4F8A] bg-[#F4F8FC] text-[#1B4F8A] shadow-sm ring-2 ring-blue-100"
+            : "border-slate-300",
         ].join(" ")}
       >
         <MoreVertical className="h-4 w-4" strokeWidth={2} aria-hidden />

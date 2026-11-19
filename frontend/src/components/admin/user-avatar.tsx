@@ -10,8 +10,9 @@ const FALLBACK_COLORS = [
 
 function colorFromName(name: string): string {
   let hash = 0;
-  for (let i = 0; i < name.length; i += 1) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  const text = String(name ?? "");
+  for (let i = 0; i < text.length; i += 1) {
+    hash = text.charCodeAt(i) + ((hash << 5) - hash);
   }
   return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length];
 }
@@ -41,7 +42,7 @@ export function UserAvatar({
 }) {
   const [failed, setFailed] = useState(false);
   const resolved = useMemo(() => resolveMediaUrl(src), [src]);
-  const displayName = name.trim() || "User";
+  const displayName = String(name ?? "").trim() || "User";
   const bg = color ?? colorFromName(displayName);
   const textSize = size <= 28 ? "text-[10px]" : size <= 36 ? "text-[11px]" : "text-[12px]";
 

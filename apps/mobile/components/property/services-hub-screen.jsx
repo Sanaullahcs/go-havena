@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import PropertyQuickGrid from "../property/property-quick-grid";
 import PropertyHubApprovalQueue from "../property/property-hub-approval-queue";
 import { PropertyManagementRoutes, navigatePropertyHubRoute } from "../../constants/property-management-routes";
 import { getCurrentRole } from "../../constants/role-session";
-import { fetchMe } from "../../services/auth-api";
+import { getCachedUser } from "../../services/auth-session";
 import { usesKuickpay } from "../../utils/payment-provider";
 import { isServiceRouteEnabled } from "../../constants/resident-features";
 import { useSessionUser } from "../../hooks/use-session-user";
@@ -35,6 +35,7 @@ import {
   filterPropertyServicesForViewer,
 } from "../../constants/property-management-theme";
 import {
+  billingAccessFromUser,
   getCachedViewerBillingAccess,
   resolveViewerBillingAccess,
 } from "../../services/property-services-api";
@@ -58,6 +59,13 @@ function getEmptyResidentActivity(t) {
     incoming: { title: t("services.requestsToApprove"), items: [] },
     outgoing: { title: t("services.yourReservations"), items: [] },
   };
+}
+
+function billingContactFromSession(user) {
+  if (getCurrentRole() === "admin") return false;
+  const fromUser = billingAccessFromUser(user);
+  if (fromUser) return fromUser.isBillingContact;
+  return Boolean(getCachedViewerBillingAccess()?.isBillingContact);
 }
 
 function getInitialHubStats(isAdmin, t) {
@@ -106,7 +114,7 @@ export default function PropertyManagment() {
   const sessionUser = useSessionUser();
   const [isAdmin, setIsAdmin] = useState(() => getCurrentRole() === "admin");
   const [isBillingContact, setIsBillingContact] = useState(
-    () => Boolean(getCachedViewerBillingAccess()?.isBillingContact),
+    () => billingContactFromSession(sessionUser ?? getCachedUser()),
   );
   const hubServices = useMemo(() => {
     const services = getPropertyHubServices(isAdmin, t);
@@ -132,35 +140,30 @@ export default function PropertyManagment() {
       setIsBillingContact(false);
       return;
     }
+    const known = billingAccessFromUser(getCachedUser());
+    if (known) setIsBillingContact(known.isBillingContact);
+    if (!force && known) return;
     try {
       const billingAccess = await resolveViewerBillingAccess({ force });
       setIsBillingContact(Boolean(billingAccess.isBillingContact));
     } catch {
-      if (!getCachedViewerBillingAccess()) setIsBillingContact(false);
+      if (!known && !getCachedViewerBillingAccess()) setIsBillingContact(false);
     }
   }, []);
 
-  const loadActivity = useCallback(async ({ forceBilling = false } = {}) => {
+  useEffect(() => {
+    setIsBillingContact(billingContactFromSession(sessionUser));
+  }, [sessionUser]);
+
+  const loadActivity = useCallback(async () => {
     setActivityLoading(true);
 
-    // Start billing access immediately so My Unit Bills can appear without waiting
-    // for fetchMe / bookings / inbox.
-    const roleHint = getCurrentRole();
-    if (roleHint === "admin") {
-      setIsBillingContact(false);
-    } else {
-      void refreshBillingAccess({ force: forceBilling });
-    }
-
-    await fetchMe().catch(() => null);
     const admin = getCurrentRole() === "admin";
     setIsAdmin(admin);
-
     if (admin) {
       setIsBillingContact(false);
-    } else if (roleHint === "admin") {
-      // Role resolved to resident after /me — fetch billing access now.
-      void refreshBillingAccess({ force: forceBilling });
+    } else if (!billingAccessFromUser(getCachedUser())) {
+      void refreshBillingAccess();
     }
 
     try {
@@ -236,8 +239,9 @@ export default function PropertyManagment() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    void loadActivity({ forceBilling: true });
-  }, [loadActivity]);
+    void refreshBillingAccess({ force: true });
+    void loadActivity();
+  }, [loadActivity, refreshBillingAccess]);
 
   const goTo = (routeKey) => {
     navigatePropertyHubRoute(router, routeKey, ROUTES);

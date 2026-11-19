@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -11,14 +11,14 @@ import { Fonts } from "../../../constants/font";
 import { HomeTheme as T } from "../../../constants/home-theme";
 import { ScreenBrand as B } from "../../../constants/screen-brand";
 import { joinCommunity } from "../../../services/auth-api";
-import { getUser } from "../../../services/auth-session";
-import { membershipForCommunity } from "../../../services/community-access";
-import { fetchMe, uploadUtilityBill } from "../../../services/profile-api";
+import { getCommunityId, getUser } from "../../../services/auth-session";
+import { approvedResidentMemberships, membershipForCommunity } from "../../../services/community-access";
+import { fetchMe, switchActiveCommunity, uploadUtilityBill } from "../../../services/profile-api";
 import {
   completeOnboardingUnits,
   fetchCommunityUnits,
 } from "../../../services/property-services-api";
-import { navigateAfterAuth } from "../../../constants/onboarding-routes";
+import { finishJoinAnotherCommunity, navigateAfterAuth } from "../../../constants/onboarding-routes";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { LIMITS } from "../../../utils/form-validation";
@@ -42,14 +42,102 @@ export default function JoinCommunityUnitsScreen() {
   const insets = useSafeAreaInsets();
   const { dialog, showFailure, showSuccess } = useApiAction();
   const { submitting, run } = useSubmitLock();
-  const { validateOnSubmit } = useTouchedFieldErrors();
-  const { communityId, communityName = "", returnTo } = useLocalSearchParams();
+  const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
+  const { communityId, communityName = "", returnTo, joinAnother, switchAfter } = useLocalSearchParams();
   const numericCommunityId = Number(communityId);
   const name = String(communityName || t("community.myCommunity"));
+  const shouldSwitchAfter = switchAfter === "1" || switchAfter === true;
+  const isJoinAnother =
+    !shouldSwitchAfter &&
+    (joinAnother === "1" || joinAnother === true || returnTo === "my-community");
 
   const [unitEntries, setUnitEntries] = useState(() => [emptyEntry()]);
+  const scrollRef = useRef(null);
+  const homeCommunityIdRef = useRef(null);
+  const inviteUnitsLoadedRef = useRef(false);
 
-  const errors = useMemo(() => {
+  useEffect(() => {
+    if (!numericCommunityId || inviteUnitsLoadedRef.current) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const user = await fetchMe({ inviteCommunityId: numericCommunityId });
+        if (cancelled) return;
+        const inviteUnits = Array.isArray(user?.invite_units) ? user.invite_units : [];
+        const membership = membershipForCommunity(user, numericCommunityId);
+        const residenceType = String(user?.profile?.residence_type ?? user?.residence_type ?? "").trim();
+        const lockedInviteUnits = inviteUnits
+          .map((row) => ({
+            unit_number: String(row?.unit_number ?? "").trim(),
+            locked: row?.locked !== false,
+          }))
+          .filter((row) => row.unit_number !== "");
+        if (lockedInviteUnits.length > 0 && membership?.status === "pending") {
+          inviteUnitsLoadedRef.current = true;
+          setUnitEntries(
+            lockedInviteUnits.map((row, index) => ({
+              key: `invite-${index}-${row.unit_number}`,
+              unit_number: row.unit_number,
+              locked: row.locked,
+              is_new_unit: false,
+              residence_type: residenceType,
+              utilityFile: null,
+            })),
+          );
+        }
+      } catch {
+        // keep default empty entry
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [numericCommunityId]);
+
+  useEffect(() => {
+    if (!isJoinAnother) return;
+    void (async () => {
+      const stored = await getCommunityId();
+      if (stored) {
+        homeCommunityIdRef.current = Number(stored);
+        return;
+      }
+      const user = await getUser();
+      const approved = approvedResidentMemberships(user);
+      if (approved[0]?.community_id) {
+        homeCommunityIdRef.current = Number(approved[0].community_id);
+      }
+    })();
+  }, [isJoinAnother]);
+
+  const restoreHomeCommunity = async (user) => {
+    let targetId = homeCommunityIdRef.current;
+    if (!targetId) {
+      const approved = approvedResidentMemberships(user).find(
+        (membership) => String(membership.community_id) !== String(numericCommunityId),
+      );
+      targetId = approved?.community_id;
+    }
+    if (!targetId || String(targetId) === String(numericCommunityId)) {
+      return user;
+    }
+    try {
+      return (await switchActiveCommunity(Number(targetId))) ?? user;
+    } catch {
+      return user;
+    }
+  };
+
+  const exitAfterJoinAnother = async (user) => {
+    await restoreHomeCommunity(user);
+    await showSuccess(
+      t("region.joinRequestSentTitle"),
+      t("region.joinRequestSentBody", { name }),
+    );
+    finishJoinAnotherCommunity(router);
+  };
+
+  const liveErrors = useMemo(() => {
     const next = {};
     const seen = new Set();
     unitEntries.forEach((entry, index) => {
@@ -83,7 +171,16 @@ export default function JoinCommunityUnitsScreen() {
     return next;
   }, [t, unitEntries]);
 
-  const isValid = Object.keys(errors).length === 0 && unitEntries.length > 0;
+  const visibleErrors = useMemo(() => {
+    const next = {};
+    for (const key of Object.keys(liveErrors)) {
+      const message = showError(key, liveErrors);
+      if (message) next[key] = message;
+    }
+    return next;
+  }, [liveErrors, showError]);
+
+  const isValid = Object.keys(liveErrors).length === 0 && unitEntries.length > 0;
 
   const handleBack = () => {
     if (router.canGoBack?.()) {
@@ -94,7 +191,7 @@ export default function JoinCommunityUnitsScreen() {
   };
 
   const submit = () => {
-    if (!validateOnSubmit(errors) || !numericCommunityId) return;
+    if (!validateOnSubmit(liveErrors) || !numericCommunityId) return;
 
     void run(async () => {
       try {
@@ -134,6 +231,10 @@ export default function JoinCommunityUnitsScreen() {
           await joinCommunity(numericCommunityId);
         } else if (existing.status === "approved") {
           const next = await fetchMe().catch(() => sessionUser);
+          if (isJoinAnother) {
+            await exitAfterJoinAnother(next);
+            return;
+          }
           if (returnTo === "my-community") {
             router.replace("/screens/my-community");
             return;
@@ -148,6 +249,19 @@ export default function JoinCommunityUnitsScreen() {
         });
 
         const latest = await fetchMe().catch(() => getUser());
+        if (shouldSwitchAfter) {
+          const switched = await switchActiveCommunity(numericCommunityId);
+          await showSuccess(
+            t("nav.switchedCommunityTitle"),
+            t("nav.switchedCommunityBody", { name }),
+          );
+          navigateAfterAuth(router, switched ?? latest, { mode: "login" });
+          return;
+        }
+        if (isJoinAnother) {
+          await exitAfterJoinAnother(latest);
+          return;
+        }
         await showSuccess(
           t("region.joinRequestSentTitle"),
           t("region.joinRequestSentBody", { name }),
@@ -176,6 +290,7 @@ export default function JoinCommunityUnitsScreen() {
       </View>
 
       <KeyboardSafeScreen
+        scrollRef={scrollRef}
         contentContainerStyle={styles.scroll}
         footer={
           <TouchableOpacity
@@ -201,11 +316,21 @@ export default function JoinCommunityUnitsScreen() {
       >
         <UnitEntriesSection
           entries={unitEntries}
-          onChange={setUnitEntries}
+          onChange={(next) => {
+            setUnitEntries(next);
+            next.forEach((entry, index) => {
+              const prefix = `unit_${index}`;
+              if (String(entry.unit_number ?? "").trim()) clearError(`${prefix}_number`);
+              if (entry.residence_type) clearError(`${prefix}_residence`);
+              if (entry.utilityFile?.uri) clearError(`${prefix}_utility`);
+            });
+          }}
+          scrollRef={scrollRef}
           canAdd
           canRemove
           unitMax={LIMITS.profileUnit}
-          errors={errors}
+          errors={visibleErrors}
+          onTouchField={touch}
           dialog={dialog}
           loadUnits={async () => {
             const rows = await fetchCommunityUnits(numericCommunityId);

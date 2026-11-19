@@ -56,8 +56,8 @@ type MemberUnitsDetailProps = {
   fallbackResidenceType?: string | null;
   fallbackUtilityBillUrl?: string | null;
   busyPackageId?: number | null;
-  onApprovePackage?: (packageId: number, unitNumber: string) => void;
-  onRejectPackage?: (packageId: number, unitNumber: string) => void;
+  onApprovePackage?: (packageId: number, unitNumber: string, communityId?: number | null) => void;
+  onRejectPackage?: (packageId: number, unitNumber: string, communityId?: number | null) => void;
 };
 
 function UnitDetailCard({
@@ -76,8 +76,8 @@ function UnitDetailCard({
   fallbackUtilityBillUrl?: string | null;
   showFallbackBill: boolean;
   busyPackageId?: number | null;
-  onApprovePackage?: (packageId: number, unitNumber: string) => void;
-  onRejectPackage?: (packageId: number, unitNumber: string) => void;
+  onApprovePackage?: (packageId: number, unitNumber: string, communityId?: number | null) => void;
+  onRejectPackage?: (packageId: number, unitNumber: string, communityId?: number | null) => void;
 }) {
   const pendingPackageId =
     unit.association_status === "pending" && unit.package_id ? Number(unit.package_id) : null;
@@ -113,15 +113,10 @@ function UnitDetailCard({
           label="Residence"
           value={unit.residence_type || fallbackResidenceType || "—"}
         />
-        <div>
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            Utility bill / lease
-          </p>
-          <UtilityBillPreview
-            url={unit.utility_bill_url || (showFallbackBill ? fallbackUtilityBillUrl : null) || null}
-            compact
-          />
-        </div>
+        <UtilityBillPreview
+          url={unit.utility_bill_url || (showFallbackBill ? fallbackUtilityBillUrl : null) || null}
+          compact
+        />
         {showReview && pendingPackageId ? (
           <div className="flex flex-wrap gap-2 pt-1">
             {onApprovePackage ? (
@@ -129,7 +124,7 @@ function UnitDetailCard({
                 type="button"
                 className="nl-btn-primary !px-3 !py-1.5 !text-[12px]"
                 disabled={busy}
-                onClick={() => onApprovePackage(pendingPackageId, unit.unit_number)}
+                onClick={() => onApprovePackage(pendingPackageId, unit.unit_number, unit.community_id)}
               >
                 {busy ? "Working…" : "Approve"}
               </button>
@@ -139,7 +134,7 @@ function UnitDetailCard({
                 type="button"
                 className="nl-btn-secondary !border-red-200 !px-3 !py-1.5 !text-[12px] !text-red-700 hover:!bg-red-50"
                 disabled={busy}
-                onClick={() => onRejectPackage(pendingPackageId, unit.unit_number)}
+                onClick={() => onRejectPackage(pendingPackageId, unit.unit_number, unit.community_id)}
               >
                 Reject
               </button>

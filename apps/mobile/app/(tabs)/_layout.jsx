@@ -215,12 +215,18 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="home" options={{ title: t("nav.home") }} />
       <Tabs.Screen name="community" options={{ title: t("nav.community") }} />
-      <Tabs.Screen name="marketplace" options={{ href: null, title: t("nav.marketplace") }} />
+      {/*
+        These screens are opened from Home and Community, not from the bottom bar.
+        Do not set href: null. In this Expo Router that marks the tab hidden, and a
+        hidden focused tab is replaced with Home — so a deal, an update, or a
+        wellness lesson never stays open.
+      */}
+      <Tabs.Screen name="marketplace" options={{ title: t("nav.marketplace") }} />
       <Tabs.Screen name="services" options={{ title: t("nav.services") }} />
       <Tabs.Screen name="profile" options={{ title: t("nav.profile") }} />
-      <Tabs.Screen name="create-post" options={{ href: null }} />
-      <Tabs.Screen name="wellness" options={{ href: null }} />
-      <Tabs.Screen name="notices" options={{ href: null, title: t("nav.updates") }} />
+      <Tabs.Screen name="create-post" />
+      <Tabs.Screen name="wellness" />
+      <Tabs.Screen name="notices" options={{ title: t("nav.updates") }} />
       <Tabs.Screen name="assigned-tasks" options={{ href: null }} />
     </Tabs>
   );

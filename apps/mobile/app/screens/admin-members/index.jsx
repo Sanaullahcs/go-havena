@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, Pressable, ScrollView } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAvoidingView, KeyboardEvents } from "react-native-keyboard-controller";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -118,13 +118,26 @@ export default function AdminMembersScreen() {
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ name: "", email: "", unit: "" });
+  const [inviteForm, setInviteForm] = useState({ name: "", email: "", unit: "", units: [] });
   const [phoneDigits, setPhoneDigits] = useState("");
   const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
   const { touch, clearError, showError, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
   const [inviting, setInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const insets = useSafeAreaInsets();
   const { runAction, showFailure } = useApiAction();
+
+  useEffect(() => {
+    const show = KeyboardEvents.addListener("keyboardWillShow", (event) => {
+      setKeyboardHeight(Math.max(0, event?.height ?? 0));
+    });
+    const hide = KeyboardEvents.addListener("keyboardWillHide", () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (params.invite === "1") setInviteOpen(true);
@@ -208,6 +221,7 @@ export default function AdminMembersScreen() {
         name: inviteForm.name,
         email: inviteForm.email,
         unit: inviteForm.unit,
+        units: inviteForm.units,
         phoneDigits,
         phoneCountry,
       }),
@@ -225,7 +239,7 @@ export default function AdminMembersScreen() {
           name: inviteForm.name.trim(),
           email: inviteForm.email.trim(),
           phone: toE164(phoneDigits, phoneCountry),
-          unit_number: inviteForm.unit.trim() || undefined,
+          units: inviteForm.units,
         }),
         successTitle: t("admin.inviteSent"),
         successMessage: t("admin.inviteCreated"),
@@ -233,7 +247,7 @@ export default function AdminMembersScreen() {
         silentSuccess: true,
       });
       setInviteResult(res.data ?? res);
-      setInviteForm({ name: "", email: "", unit: "" });
+      setInviteForm({ name: "", email: "", unit: "", units: [] });
       setPhoneDigits("");
       setPhoneCountry(DEFAULT_PHONE_COUNTRY);
       resetTouched();
@@ -335,13 +349,25 @@ export default function AdminMembersScreen() {
         />
       )}
 
-      <Modal visible={inviteOpen} transparent animationType="slide" onRequestClose={closeInvite}>
+      <Modal visible={inviteOpen} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={closeInvite}>
         <Pressable style={styles.modalOverlay} onPress={closeInvite}>
-          <KeyboardAvoidingView
-            behavior="padding"
-            style={styles.modalKeyboard}
-          >
-            <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <Pressable
+              style={[
+                styles.modalSheet,
+                styles.inviteSheet,
+                {
+                  marginBottom: keyboardHeight,
+                  paddingBottom: keyboardHeight > 0 ? 16 : Math.max(insets.bottom, 20),
+                },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                contentContainerStyle={styles.modalScroll}
+              >
               <Text style={styles.modalTitle}>
                 {inviteResult ? t("admin.inviteSent") : t("admin.inviteResident")}
               </Text>
@@ -390,6 +416,7 @@ export default function AdminMembersScreen() {
                     placeholder={t("admin.emailPlaceholder")}
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    autoCorrect={false}
                   />
                   {showError("email", inviteLiveErrors) ? <Text style={styles.errorText}>{showError("email", inviteLiveErrors)}</Text> : null}
                   <Text style={styles.label}>{t("admin.phoneLabel")}</Text>
@@ -408,15 +435,19 @@ export default function AdminMembersScreen() {
                     showError={Boolean(showError("phone", inviteLiveErrors))}
                   />
                   {showError("phone", inviteLiveErrors) ? <Text style={styles.errorText}>{showError("phone", inviteLiveErrors)}</Text> : null}
+                  <View style={styles.unitField}>
                   <UnitPickerField
-                    label={t("admin.unitOptional")}
-                    value={inviteForm.unit}
+                    label={t("admin.unitsLabel")}
+                    required
+                    multiple
+                    values={inviteForm.units}
                     placeholder={t("admin.unitPlaceholder")}
                     unitMax={LIMITS.inviteUnit}
+                    maxSelected={20}
                     error={showError("unit", inviteLiveErrors) ? showError("unit", inviteLiveErrors) : undefined}
                     onBlur={() => touch("unit")}
-                    onChange={(v) => {
-                      setInviteForm((f) => ({ ...f, unit: v }));
+                    onChangeValues={(units) => {
+                      setInviteForm((f) => ({ ...f, units, unit: units[0] ?? "" }));
                       clearError("unit");
                     }}
                     loadUnits={async () => {
@@ -431,6 +462,8 @@ export default function AdminMembersScreen() {
                     }}
                     createUnit={async (unit_number) => createAdminUnit(unit_number)}
                   />
+                  <Text style={styles.fieldHint}>{t("admin.unitsRequiredHint")}</Text>
+                  </View>
                   <TouchableOpacity
                     style={[styles.primaryBtn, (!canInvite || inviting) && { opacity: 0.45 }]}
                     disabled={!canInvite || inviting}
@@ -444,8 +477,8 @@ export default function AdminMembersScreen() {
                   </TouchableOpacity>
                 </>
               )}
+              </ScrollView>
             </Pressable>
-          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
 
@@ -744,8 +777,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 24,
-    paddingBottom: 32,
+    maxHeight: "92%",
+    paddingHorizontal: 24,
+    paddingTop: 24,
+  },
+  inviteSheet: {
+    paddingBottom: 0,
+  },
+  modalScroll: {
+    paddingBottom: 8,
+  },
+  unitField: {
+    marginTop: 18,
   },
   modalTitle: {
     fontFamily: Fonts.bold,
@@ -757,8 +800,8 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: sf(13),
     color: Colors.textSecondary,
-    marginBottom: 6,
-    marginTop: 10,
+    marginBottom: 8,
+    marginTop: 18,
   },
   input: {
     borderWidth: 1,
@@ -772,6 +815,14 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: "#DC2626",
+  },
+  fieldHint: {
+    marginTop: 10,
+    marginBottom: 4,
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    color: "#64748B",
+    lineHeight: sf(17),
   },
   errorText: {
     marginTop: 4,

@@ -714,7 +714,9 @@ export function validateGuestInviteCodeForm(inviteCode) {
   return errors;
 }
 
-export function validateInviteMemberForm({ name, email, unit, phoneDigits, phoneCountry }) {
+const INVITE_UNIT_RE = /^[A-Za-z0-9 /\\-]{1,20}$/;
+
+export function validateInviteMemberForm({ name, email, unit, units, phoneDigits, phoneCountry }) {
   const errors = {};
 
   const nameErr = requiredText(name, "validation.fields.fullName", { min: 2, max: 100 });
@@ -733,9 +735,20 @@ export function validateInviteMemberForm({ name, email, unit, phoneDigits, phone
     if (phoneErr) errors.phone = phoneErr;
   }
 
-  const unitStr = String(unit ?? "").trim();
-  if (unitStr.length > LIMITS.inviteUnit) {
-    errors.unit = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.unit"), max: LIMITS.inviteUnit });
+  const unitList = (Array.isArray(units) && units.length > 0 ? units : [unit])
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+  if (unitList.length === 0) {
+    errors.unit = i18n.t("validation.unitRequired");
+  } else if (unitList.length > 20) {
+    errors.unit = i18n.t("validation.maxUnits", { max: 20 });
+  } else {
+    for (const unitValue of unitList) {
+      if (unitValue.length > LIMITS.inviteUnit || !INVITE_UNIT_RE.test(unitValue)) {
+        errors.unit = i18n.t("validation.unitInvalid");
+        break;
+      }
+    }
   }
 
   return errors;

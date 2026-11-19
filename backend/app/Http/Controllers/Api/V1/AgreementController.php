@@ -419,14 +419,19 @@ class AgreementController extends Controller
         abort_unless(is_file($absolute), 404, 'Signed agreement not found.');
         $document = DB::table('community_documents')->where('id', $row->document_id)->first();
         $name = preg_replace('/[^A-Za-z0-9._-]+/', '-', (string) ($document->title ?? 'agreement')).'-signed.pdf';
+        $disposition = $request->boolean('download') ? 'attachment' : 'inline';
 
-        return response()->streamDownload(function () use ($absolute) {
+        return response()->stream(function () use ($absolute) {
             $handle = fopen($absolute, 'rb');
             if ($handle) {
                 fpassthru($handle);
                 fclose($handle);
             }
-        }, $name, ['Content-Type' => 'application/pdf', 'Cache-Control' => 'private, max-age=60']);
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => $disposition.'; filename="'.$name.'"',
+            'Cache-Control' => 'private, max-age=60',
+        ]);
     }
 
     private function summary(object $document, Request $request): array

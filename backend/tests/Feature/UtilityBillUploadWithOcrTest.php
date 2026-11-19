@@ -37,6 +37,21 @@ class UtilityBillUploadWithOcrTest extends TestCase
         $this->assertNull($user->fresh()->profile?->utility_bill_url);
     }
 
+    public function test_rejects_logo_when_ocr_reads_the_brand_name(): void
+    {
+        $this->bindOcr('HAVENA');
+
+        $user = $this->actingResident();
+
+        $this->post('/api/v1/me/utility-bill', [
+            'utility_bill' => $this->simpleLogoImage(),
+        ], ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.utility_bill.0', UtilityBillDocumentVerdict::REJECT_MESSAGE);
+
+        $this->assertNull($user->fresh()->profile?->utility_bill_url);
+    }
+
     public function test_rejects_unrelated_photo_when_ocr_reads_non_bill_text(): void
     {
         $this->bindOcr('Beautiful sunset at the beach vacation with friends and family fun day');
@@ -146,6 +161,24 @@ class UtilityBillUploadWithOcrTest extends TestCase
         imagedestroy($image);
 
         return new UploadedFile($path, 'scanned-bill.jpg', 'image/jpeg', null, true);
+    }
+
+    private function simpleLogoImage(): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'logo').'.png';
+        $image = imagecreatetruecolor(640, 640);
+        $white = imagecolorallocate($image, 255, 255, 255);
+        $blue = imagecolorallocate($image, 27, 79, 138);
+        $navy = imagecolorallocate($image, 15, 40, 80);
+        imagefilledrectangle($image, 0, 0, 639, 639, $white);
+        imagefilledellipse($image, 320, 230, 200, 200, $blue);
+        imagefilledellipse($image, 320, 230, 110, 110, $white);
+        imagestring($image, 5, 255, 400, 'HAVENA', $navy);
+        imagefilledrectangle($image, 180, 440, 460, 468, $navy);
+        imagepng($image, $path);
+        imagedestroy($image);
+
+        return new UploadedFile($path, 'havena-logo.png', 'image/png', null, true);
     }
 
     private function lightDecorativeImage(): UploadedFile

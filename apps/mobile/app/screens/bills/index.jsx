@@ -14,6 +14,7 @@ import { PropertyManagementRoutes } from "../../../constants/property-management
 import { Fonts } from "../../../constants/font";
 import { useBillsSummary } from "../../../hooks/use-bills-summary";
 import { PAYMENT_RESULT_ROUTE } from "../../../hooks/use-kuickpay-pay";
+import { PAY_BILLS_ENABLED, PAY_NOW_ENABLED } from "../../../services/payments-api";
 import { formatCommunityMoney } from "../../../utils/money";
 import { sf, sw } from "../../../utils/responsive";
 import { rnShadow } from "../../../utils/shadow";
@@ -91,7 +92,11 @@ export default function BillsHubScreen() {
   const [pulling, setPulling] = useState(false);
   const [hidden, setHidden] = useState(false);
 
-  useFocusEffect(useCallback(() => { void refresh({ force: true }); }, [refresh]));
+  useFocusEffect(useCallback(() => {
+    if (!PAY_BILLS_ENABLED) return undefined;
+    void refresh({ force: true });
+    return undefined;
+  }, [refresh]));
 
   const onPull = useCallback(async () => {
     setPulling(true);
@@ -125,6 +130,21 @@ export default function BillsHubScreen() {
 
   const masked = (value) => formatCommunityMoney(value).replace(/\d[\d.,\s]*\d|\d/, "••••");
   const amountText = hidden ? masked(summary?.dueTotal ?? 0) : formatCommunityMoney(summary?.dueTotal ?? 0);
+
+  if (!PAY_BILLS_ENABLED) {
+    return (
+      <SafeAreaView style={styles.screen} edges={["left", "right"]}>
+        <InternalScreenHeader title={t("bills.title")} subtitle={t("bills.comingSoonTitle")} />
+        <View style={styles.soon}>
+          <View style={styles.soonIcon}>
+            <Feather name="clock" size={sf(22)} color={NAVY} />
+          </View>
+          <Text style={styles.soonTitle}>{t("bills.comingSoonTitle")}</Text>
+          <Text style={styles.soonBody}>{t("bills.comingSoonBody")}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
@@ -186,7 +206,7 @@ export default function BillsHubScreen() {
             </View>
 
             <View style={styles.heroActions}>
-              {payTarget ? (
+              {payTarget && PAY_NOW_ENABLED ? (
                 <Tap onPress={() => router.push(GROUP_META[payTarget].route)} style={styles.heroPrimary} label={t("bills.payNow")}>
                   <Feather name="arrow-up-right" size={sf(16)} color={NAVY} />
                   <Text style={styles.heroPrimaryText}>{t("bills.payNow")}</Text>
@@ -195,7 +215,7 @@ export default function BillsHubScreen() {
               {kuickpay ? (
                 <Tap
                   onPress={() => router.push(PropertyManagementRoutes.PAYMENTS_HISTORY)}
-                  style={[styles.heroGhost, !payTarget && styles.heroGhostWide]}
+                  style={[styles.heroGhost, !(payTarget && PAY_NOW_ENABLED) && styles.heroGhostWide]}
                   label={t("bills.history")}
                 >
                   <Feather name="clock" size={sf(15)} color="#FFFFFF" />
@@ -367,6 +387,36 @@ export default function BillsHubScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F4F6FB" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  soon: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: sw(32),
+    paddingBottom: sw(48),
+  },
+  soonIcon: {
+    width: sw(56),
+    height: sw(56),
+    borderRadius: sw(18),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E8F0F7",
+    marginBottom: sw(16),
+  },
+  soonTitle: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(18),
+    color: INK,
+    textAlign: "center",
+  },
+  soonBody: {
+    marginTop: sw(8),
+    fontFamily: Fonts.regular,
+    fontSize: sf(14),
+    lineHeight: sf(20),
+    color: MUTED,
+    textAlign: "center",
+  },
   content: { padding: sw(16), paddingBottom: sw(40), gap: sw(14) },
   hero: { borderRadius: sw(24), padding: sw(20), overflow: "hidden" },
   orb: { position: "absolute", borderRadius: 999, backgroundColor: "rgba(255,255,255,0.07)" },

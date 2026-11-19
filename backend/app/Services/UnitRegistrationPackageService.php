@@ -60,6 +60,28 @@ class UnitRegistrationPackageService
         return $count;
     }
 
+    /**
+     * Rejecting the resident request also closes the initial unit package.
+     * The membership rejection already tells the resident, so this stays quiet.
+     */
+    public function rejectPendingInitialPackagesForUser(int $userId, int $communityId, int $reviewerId, string $reason): int
+    {
+        $ids = DB::table('unit_registration_packages')
+            ->where('user_id', $userId)
+            ->where('community_id', $communityId)
+            ->where('kind', self::KIND_INITIAL)
+            ->where('status', self::STATUS_PENDING)
+            ->pluck('id');
+
+        $count = 0;
+        foreach ($ids as $packageId) {
+            $this->rejectPackage((int) $packageId, $reviewerId, $reason, false);
+            $count++;
+        }
+
+        return $count;
+    }
+
     public function hasApprovedInitialOrActiveUnit(int $userId, int $communityId): bool
     {
         if ($this->units->activeUnitCountForUser($userId, $communityId) > 0) {
@@ -318,7 +340,7 @@ class UnitRegistrationPackageService
         return $fresh;
     }
 
-    public function rejectPackage(int $packageId, int $reviewerId, string $reason): object
+    public function rejectPackage(int $packageId, int $reviewerId, string $reason, bool $notifyResident = true): object
     {
         $package = DB::table('unit_registration_packages')->find($packageId);
         abort_if(! $package, 404, 'Registration package not found.');
@@ -372,7 +394,9 @@ class UnitRegistrationPackageService
             return DB::table('unit_registration_packages')->find($package->id);
         });
 
-        $this->notifyResidentOfPackageDecision($fresh, self::STATUS_REJECTED, $reason);
+        if ($notifyResident) {
+            $this->notifyResidentOfPackageDecision($fresh, self::STATUS_REJECTED, $reason);
+        }
 
         return $fresh;
     }
@@ -398,6 +422,19 @@ class UnitRegistrationPackageService
         if ($kind) {
             $query->where('p.kind', $kind);
         }
+
+        // Initial signup units are reviewed with the resident request.
+        $query->where(function ($outer) {
+            $outer->where('p.kind', '!=', self::KIND_INITIAL)
+                ->orWhere('p.status', '!=', self::STATUS_PENDING)
+                ->orWhereNotExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('community_memberships as cm')
+                        ->whereColumn('cm.user_id', 'p.user_id')
+                        ->whereColumn('cm.community_id', 'p.community_id')
+                        ->where('cm.status', 'pending');
+                });
+        });
 
         return $query->get()->map(fn ($row) => $this->formatPackage($row))->all();
     }
@@ -552,6 +589,8 @@ class UnitRegistrationPackageService
             $this->submitPackage($userId, $communityId, self::KIND_ADDON, $extraItems);
         }
 
+        MembershipService::approvePendingInviteForCommunity($userId, $communityId);
+
         return $assigned;
     }
 
@@ -637,7 +676,7 @@ class UnitRegistrationPackageService
 
     private function notifyAdminsOfPackageRequest(?object $package): void
     {
-        if (! $package) {
+        if (! $package || ($package->kind ?? '') !== self::KIND_ADDON) {
             return;
         }
 
@@ -649,11 +688,8 @@ class UnitRegistrationPackageService
                 ?: DB::table('users')->where('id', $userId)->value('name')
                 ?: 'A resident';
 
-            $isAddon = ($package->kind ?? '') === self::KIND_ADDON;
-            $title = $isAddon ? 'Additional unit request' : 'Unit registration pending';
-            $body = $isAddon
-                ? "{$residentName} requested unit {$unitLabel}. Review in Unit Requests."
-                : "{$residentName} submitted unit {$unitLabel} for community approval.";
+            $title = 'Additional unit request';
+            $body = "{$residentName} requested unit {$unitLabel}. Review in Unit Requests.";
 
             $adminIds = DB::table('community_memberships')
                 ->where('community_id', $communityId)

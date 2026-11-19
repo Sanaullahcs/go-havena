@@ -1,39 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Keyboard,
   Modal,
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import LocaleTextInput from "./locale-text-input";
-import SearchInput from "./search-input";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sf, sw } from "../../utils/responsive";
 import { showApiFailure } from "../../utils/auth-errors";
-
-function keyboardCoverFromEvent(event) {
-  const height = event?.endCoordinates?.height ?? 0;
-  const screenY = event?.endCoordinates?.screenY;
-  const windowHeight = Dimensions.get("window").height;
-  if (!Number.isFinite(screenY) || screenY <= 0) {
-    return Math.max(0, height);
-  }
-  if (screenY >= windowHeight - 1) {
-    return 0;
-  }
-  return Math.max(0, Math.min(height, windowHeight - screenY));
-}
 
 function normalizeUnitNumber(value) {
   return String(value ?? "")
@@ -42,15 +29,33 @@ function normalizeUnitNumber(value) {
     .toLowerCase();
 }
 
+function dedupeUnitNumbers(units) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of units) {
+    const trimmed = String(raw ?? "").trim();
+    const key = normalizeUnitNumber(trimmed);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out;
+}
+
 export default function UnitPickerField({
   label,
   value = "",
   onChange,
+  multiple = false,
+  values,
+  onChangeValues,
+  maxSelected = 20,
   onBlur,
   error,
   disabled = false,
   locked = false,
   placeholder,
+  required = false,
   loadUnits,
   createUnit,
   unitMax = 50,
@@ -60,12 +65,7 @@ export default function UnitPickerField({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
-  const searchRef = useRef(null);
-  const [searchEnabled, setSearchEnabled] = useState(false);
-  const [keyboardCover, setKeyboardCover] = useState(0);
-  const [topChrome, setTopChrome] = useState(0);
-  const [footerChrome, setFooterChrome] = useState(0);
-  const [listContentHeight, setListContentHeight] = useState(0);
+  const searchInputRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -91,11 +91,6 @@ export default function UnitPickerField({
 
   useEffect(() => {
     if (!open) {
-      setSearchEnabled(false);
-      setKeyboardCover(0);
-      setTopChrome(0);
-      setFooterChrome(0);
-      setListContentHeight(0);
       setSearch("");
       setShowCreate(false);
       setNewUnit("");
@@ -105,45 +100,6 @@ export default function UnitPickerField({
     void refresh();
     return undefined;
   }, [open, refresh]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const onShow = (event) => setKeyboardCover(keyboardCoverFromEvent(event));
-    const onHide = () => setKeyboardCover(0);
-    const subs = [
-      Keyboard.addListener(showEvent, onShow),
-      Keyboard.addListener(hideEvent, onHide),
-    ];
-    if (Platform.OS === "ios") {
-      subs.push(Keyboard.addListener("keyboardDidShow", onShow));
-    }
-
-    return () => {
-      subs.forEach((sub) => sub.remove());
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!searchEnabled) return undefined;
-    const frame = requestAnimationFrame(() => searchRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, [searchEnabled]);
-
-  const dismissKeyboard = () => {
-    setSearchEnabled(false);
-    searchRef.current?.blur();
-    Keyboard.dismiss();
-  };
-
-  const openSheet = () => {
-    if (disabled || locked) return;
-    setSearchEnabled(false);
-    Keyboard.dismiss();
-    setOpen(true);
-  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -155,14 +111,41 @@ export default function UnitPickerField({
   }, [units, search]);
 
   const close = () => {
-    dismissKeyboard();
+    searchInputRef.current?.blur();
+    Keyboard.dismiss();
     setOpen(false);
     onBlur?.();
   };
 
+  const selectedValues = multiple
+    ? dedupeUnitNumbers(Array.isArray(values) ? values : [])
+    : String(value ?? "").trim()
+      ? [String(value).trim()]
+      : [];
+
+  const commitSelection = (next) => {
+    const clean = dedupeUnitNumbers(next).slice(0, maxSelected);
+    if (multiple) onChangeValues?.(clean);
+    else onChange?.(clean[0] ?? "");
+  };
+
   const selectUnit = (unitNumber) => {
-    onChange?.(unitNumber);
-    close();
+    if (!multiple) {
+      onChange?.(unitNumber);
+      close();
+      return;
+    }
+    const key = normalizeUnitNumber(unitNumber);
+    const already = selectedValues.some((row) => normalizeUnitNumber(row) === key);
+    if (already) {
+      commitSelection(selectedValues.filter((row) => normalizeUnitNumber(row) !== key));
+      return;
+    }
+    if (selectedValues.length >= maxSelected) {
+      showApiFailure(new Error(t("validation.maxUnits", { max: maxSelected })), { title: t("unitPicker.title") });
+      return;
+    }
+    commitSelection([...selectedValues, unitNumber]);
   };
 
   const handleCreate = async () => {
@@ -183,6 +166,8 @@ export default function UnitPickerField({
         const normalized = normalizeUnitNumber(row.unit_number);
         return [...prev.filter((u) => normalizeUnitNumber(u.unit_number) !== normalized), row];
       });
+      setShowCreate(false);
+      setNewUnit("");
       selectUnit(row.unit_number);
     } catch (err) {
       showApiFailure(err, { title: t("unitPicker.addNew") });
@@ -191,20 +176,37 @@ export default function UnitPickerField({
     }
   };
 
-  const displayValue = String(value ?? "").trim();
-  const hasUnits = units.length > 0;
-  const sheetMax = Math.max(0, windowHeight - keyboardCover - insets.top - sw(8));
-  const listMax = topChrome > 0 && footerChrome > 0
-    ? Math.max(0, sheetMax - topChrome - footerChrome)
-    : undefined;
-  const listHeight = listContentHeight > 0 && listMax != null
-    ? Math.min(listContentHeight, listMax)
-    : undefined;
+  const closedPlaceholder =
+    placeholder || (multiple ? t("unitPicker.selectUnits") : t("unitPicker.selectUnit"));
+
+  const closedSummary =
+    selectedValues.length === 0
+      ? closedPlaceholder
+      : multiple
+        ? selectedValues.length === 1
+          ? selectedValues[0]
+          : `${selectedValues.length} selected`
+        : selectedValues[0];
+
+  const openSheet = () => {
+    if (disabled || locked) return;
+    setOpen(true);
+  };
+
+  const sheetMaxHeight = Math.round(windowHeight * 0.88) - insets.top;
 
   return (
     <>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View
+      {label ? (
+        <Text style={styles.label}>
+          {label}
+          {required ? <Text style={styles.requiredMark}> *</Text> : null}
+        </Text>
+      ) : null}
+
+      <Pressable
+        disabled={disabled || locked}
+        onPress={openSheet}
         style={[
           styles.trigger,
           open && !locked && styles.triggerOpen,
@@ -213,93 +215,65 @@ export default function UnitPickerField({
           locked && styles.triggerLocked,
           containerStyle,
         ]}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: disabled || locked, expanded: open }}
       >
-        <Pressable
-          disabled={disabled || locked}
-          onPress={openSheet}
-          focusable={false}
-          android_ripple={disabled || locked ? null : { color: "rgba(15, 23, 42, 0.06)" }}
-          style={styles.triggerHit}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: disabled || locked, expanded: open }}
-        >
+        {selectedValues.length > 0 && multiple ? (
+          <View style={styles.chips}>
+            {selectedValues.map((unitNumber) => (
+              <View key={normalizeUnitNumber(unitNumber)} style={styles.chip}>
+                <Text style={styles.chipText} numberOfLines={1}>
+                  {unitNumber}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : (
           <Text
             style={[
               styles.triggerText,
               locked && styles.triggerTextLocked,
-              !displayValue && !locked && styles.placeholder,
+              selectedValues.length === 0 && styles.placeholder,
             ]}
             numberOfLines={1}
           >
-            {displayValue || (locked ? "" : placeholder || t("unitPicker.selectUnit"))}
+            {closedSummary}
           </Text>
-          {locked ? null : <Feather name="chevron-down" size={sf(18)} color={T.gray} />}
-        </Pressable>
-      </View>
+        )}
+        {locked ? null : (
+          <Feather name="chevron-down" size={sf(18)} color={T.gray} style={styles.triggerChevron} />
+        )}
+      </Pressable>
+
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <Modal
-        visible={open && !locked}
-        animationType="slide"
-        transparent
-        statusBarTranslucent
-        onRequestClose={close}
-        onShow={() => {
-          setSearchEnabled(false);
-          searchRef.current?.blur();
-          Keyboard.dismiss();
-        }}
-      >
-        <Pressable style={styles.overlay} onPress={close}>
-          <Pressable
-            style={[
-              styles.sheet,
-              {
-                maxHeight: sheetMax,
-                marginBottom: keyboardCover,
-                paddingBottom: keyboardCover > 0 ? sw(12) : Math.max(insets.bottom, 16),
-              },
-            ]}
-            onPress={(event) => event.stopPropagation()}
-          >
-            <View
-              onLayout={(event) => {
-                const next = event.nativeEvent.layout.height;
-                setTopChrome((current) => (Math.abs(current - next) < 1 ? current : next));
-              }}
-            >
-              <Pressable onPress={dismissKeyboard}>
-                <View style={styles.sheetHandle} />
-                <Text style={styles.sheetTitle}>{t("unitPicker.title")}</Text>
-              </Pressable>
+      <Modal visible={open && !locked} animationType="slide" transparent statusBarTranslucent onRequestClose={close}>
+        <View style={styles.overlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={t("common.cancel")} />
+          <KeyboardAvoidingView behavior="padding" style={styles.keyboardWrap} keyboardVerticalOffset={0}>
+            <View style={[styles.sheet, { maxHeight: sheetMaxHeight, paddingBottom: Math.max(insets.bottom, sw(12)) }]}>
+              <View style={styles.sheetHandle} />
 
-              {hasUnits ? (
-                <Pressable style={styles.searchWrap} onPress={() => setSearchEnabled(true)}>
-                  <View pointerEvents={searchEnabled ? "auto" : "none"}>
-                    <SearchInput
-                      inputRef={searchRef}
-                      editable={searchEnabled}
-                      autoFocus={false}
-                      placeholder={t("unitPicker.searchPlaceholder")}
-                      value={search}
-                      onChangeText={setSearch}
-                      onFocus={() => {
-                        if (!searchEnabled) {
-                          searchRef.current?.blur();
-                          Keyboard.dismiss();
-                        }
-                      }}
-                    />
-                  </View>
-                </Pressable>
-              ) : null}
+              <View style={[styles.fieldRow, styles.fieldRowOpen]}>
+                <Feather name="search" size={sf(16)} color={T.gray} />
+                <LocaleTextInput
+                  ref={searchInputRef}
+                  style={styles.fieldInput}
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder={t("unitPicker.searchPlaceholder")}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                  underlineColorAndroid="transparent"
+                />
+                <TouchableOpacity onPress={close} hitSlop={8} accessibilityLabel={t("common.close")}>
+                  <Feather name="chevron-down" size={sf(20)} color={T.gray} />
+                </TouchableOpacity>
+              </View>
 
-              {hasUnits ? (
-                <Pressable style={styles.headerRow} onPress={dismissKeyboard}>
-                  <Text style={styles.headerCol}>{t("unitPicker.columnUnit")}</Text>
-                  <Text style={[styles.headerCol, styles.headerColRight]}>{t("unitPicker.columnResidents")}</Text>
-                </Pressable>
-              ) : null}
+              {multiple ? <Text style={styles.multiHint}>{t("unitPicker.selectUnits")}</Text> : null}
 
               {createUnit ? (
                 <View style={styles.createBlock}>
@@ -311,7 +285,6 @@ export default function UnitPickerField({
                         onChangeText={setNewUnit}
                         placeholder={t("unitPicker.createPlaceholder")}
                         maxLength={unitMax}
-                        autoFocus={false}
                         autoCapitalize="characters"
                         underlineColorAndroid="transparent"
                         onFocus={() => setCreateFocused(true)}
@@ -333,7 +306,6 @@ export default function UnitPickerField({
                     <TouchableOpacity
                       style={styles.addRow}
                       onPress={() => {
-                        dismissKeyboard();
                         setShowCreate(true);
                       }}
                     >
@@ -345,93 +317,122 @@ export default function UnitPickerField({
                   )}
                 </View>
               ) : null}
-            </View>
 
-            {loading && !hasUnits ? (
-              <View style={styles.centered}>
-                <ActivityIndicator color={T.teal} />
-              </View>
-            ) : hasUnits ? (
-              <ScrollView
-                style={[styles.list, listHeight != null ? { height: listHeight } : null]}
-                contentContainerStyle={styles.listContent}
-                onContentSizeChange={(_, height) => {
-                  setListContentHeight((current) => (Math.abs(current - height) < 1 ? current : height));
-                }}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="none"
-                nestedScrollEnabled
-              >
-                {filtered.length === 0 ? (
-                  <Text style={styles.empty}>{search.trim() ? t("unitPicker.noSearch") : t("unitPicker.empty")}</Text>
+              <View style={styles.listPanel}>
+                {units.length > 0 ? (
+                  <View style={styles.headerRow}>
+                    <Text style={styles.headerCol}>{t("unitPicker.columnUnit")}</Text>
+                    <Text style={[styles.headerCol, styles.headerColRight]}>{t("unitPicker.columnResidents")}</Text>
+                  </View>
+                ) : null}
+
+                {loading ? (
+                  <View style={styles.centered}>
+                    <ActivityIndicator color={T.teal} />
+                  </View>
                 ) : (
-                  filtered.map((unit) => {
-                    const active = normalizeUnitNumber(unit.unit_number) === normalizeUnitNumber(displayValue);
-                    const count = unit.resident_count ?? 0;
-                    return (
-                      <TouchableOpacity
-                        key={String(unit.id ?? unit.unit_number)}
-                        style={[styles.row, active && styles.rowActive]}
-                        onPress={() => selectUnit(unit.unit_number)}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={[styles.rowUnit, active && styles.rowUnitActive]} numberOfLines={1}>
-                          {unit.unit_number}
-                        </Text>
-                        <View style={styles.rowRight}>
-                          <Text style={styles.rowCount}>{count}</Text>
-                          {active ? <Feather name="check" size={sf(16)} color={T.teal} /> : null}
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })
+                  <ScrollView
+                    style={styles.list}
+                    contentContainerStyle={styles.listContent}
+                    keyboardShouldPersistTaps="always"
+                    keyboardDismissMode="on-drag"
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator
+                  >
+                    {filtered.length === 0 ? (
+                      <Text style={styles.empty}>
+                        {search.trim() ? t("unitPicker.noSearch") : t("unitPicker.empty")}
+                      </Text>
+                    ) : (
+                      filtered.map((unit) => {
+                        const active = selectedValues.some(
+                          (row) => normalizeUnitNumber(row) === normalizeUnitNumber(unit.unit_number),
+                        );
+                        const count = unit.resident_count ?? 0;
+                        return (
+                          <TouchableOpacity
+                            key={String(unit.id ?? unit.unit_number)}
+                            style={[styles.row, active && styles.rowActive]}
+                            onPress={() => selectUnit(unit.unit_number)}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={[styles.rowUnit, active && styles.rowUnitActive]} numberOfLines={1}>
+                              {unit.unit_number}
+                            </Text>
+                            <View style={styles.rowRight}>
+                              <Text style={styles.rowCount}>{count}</Text>
+                              {active ? <Feather name="check" size={sf(16)} color={T.teal} /> : null}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </ScrollView>
                 )}
-              </ScrollView>
-            ) : null}
+              </View>
 
-            <View
-              onLayout={(event) => {
-                const next = event.nativeEvent.layout.height;
-                setFooterChrome((current) => (Math.abs(current - next) < 1 ? current : next));
-              }}
-            >
-              <TouchableOpacity style={styles.closeBtn} onPress={close}>
-                <Text style={styles.closeBtnText}>{t("common.cancel")}</Text>
+              <TouchableOpacity style={multiple ? styles.doneBtn : styles.closeBtn} onPress={close}>
+                <Text style={multiple ? styles.doneBtnText : styles.closeBtnText}>
+                  {multiple ? t("common.done") : t("common.cancel")}
+                </Text>
               </TouchableOpacity>
             </View>
-          </Pressable>
-        </Pressable>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </>
   );
 }
 
-const styles = {
+const styles = StyleSheet.create({
   label: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(13),
     color: T.navy,
     marginBottom: sw(6),
   },
+  requiredMark: {
+    color: "#DC2626",
+  },
+  chips: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: sw(8),
+    marginRight: sw(8),
+  },
+  chip: {
+    maxWidth: "100%",
+    justifyContent: "center",
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(5),
+    borderRadius: 999,
+    backgroundColor: "#F0FDFA",
+  },
+  chipText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    lineHeight: sf(16),
+    color: "#0F766E",
+    ...(Platform.OS === "android" ? { includeFontPadding: false, textAlignVertical: "center" } : null),
+  },
   trigger: {
-    minHeight: sw(48),
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: sw(52),
     borderWidth: 1,
     borderColor: T.border,
     borderRadius: sw(12),
     backgroundColor: "#fff",
-    overflow: "hidden",
+    paddingHorizontal: sw(16),
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : null),
   },
   triggerOpen: {
     borderColor: T.teal,
   },
-  triggerHit: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: sw(48),
-    paddingHorizontal: sw(14),
-    ...(Platform.OS === "web" ? { outlineStyle: "none" } : null),
+  triggerChevron: {
+    marginLeft: sw(4),
   },
   triggerError: {
     borderColor: "#F87171",
@@ -451,8 +452,12 @@ const styles = {
     flex: 1,
     fontFamily: Fonts.regular,
     fontSize: sf(14),
+    lineHeight: sf(20),
     color: T.navy,
     marginRight: sw(8),
+    textAlignVertical: "center",
+    includeFontPadding: false,
+    ...(Platform.OS === "android" ? { paddingTop: 0, paddingBottom: 0 } : null),
   },
   placeholder: {
     color: "rgba(10, 10, 10, 0.45)",
@@ -465,10 +470,14 @@ const styles = {
   },
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.45)",
     justifyContent: "flex-end",
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+  },
+  keyboardWrap: {
+    width: "100%",
   },
   sheet: {
+    width: "100%",
     backgroundColor: "#fff",
     borderTopLeftRadius: sw(20),
     borderTopRightRadius: sw(20),
@@ -483,14 +492,33 @@ const styles = {
     backgroundColor: "#E2E8F0",
     marginBottom: sw(12),
   },
-  sheetTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(18),
-    color: T.navy,
-    marginBottom: sw(12),
+  fieldRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(8),
+    minHeight: sw(48),
+    borderWidth: 1,
+    borderColor: T.border,
+    borderRadius: sw(12),
+    paddingHorizontal: sw(12),
+    backgroundColor: "#fff",
   },
-  searchWrap: {
-    marginBottom: sw(10),
+  fieldRowOpen: {
+    borderColor: T.teal,
+  },
+  fieldInput: {
+    flex: 1,
+    fontFamily: Fonts.regular,
+    fontSize: sf(14),
+    color: T.navy,
+    paddingVertical: Platform.OS === "ios" ? sw(10) : sw(8),
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } : null),
+  },
+  multiHint: {
+    marginTop: sw(8),
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    color: "#64748B",
   },
   headerRow: {
     flexDirection: "row",
@@ -501,7 +529,7 @@ const styles = {
     borderBottomColor: "#F1F5F9",
     backgroundColor: "#F8FAFC",
     borderRadius: sw(8),
-    marginBottom: sw(8),
+    marginTop: sw(10),
   },
   headerCol: {
     flex: 1,
@@ -517,13 +545,13 @@ const styles = {
     minWidth: sw(72),
   },
   createBlock: {
-    marginBottom: sw(8),
+    marginTop: sw(10),
   },
   addRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: sw(10),
-    paddingVertical: sw(10),
+    paddingVertical: sw(6),
     paddingHorizontal: sw(4),
   },
   addIcon: {
@@ -554,6 +582,7 @@ const styles = {
     fontFamily: Fonts.regular,
     fontSize: sf(14),
     color: T.navy,
+    backgroundColor: "#fff",
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : null),
   },
   createInputFocused: {
@@ -575,12 +604,18 @@ const styles = {
     fontSize: sf(13),
     color: "#fff",
   },
-  list: {
-    flexGrow: 0,
+  listPanel: {
+    flexGrow: 1,
     flexShrink: 1,
+    minHeight: sw(160),
+    maxHeight: sw(320),
+    marginTop: sw(8),
+  },
+  list: {
+    flexGrow: 1,
   },
   listContent: {
-    flexGrow: 0,
+    paddingBottom: sw(4),
   },
   row: {
     flexDirection: "row",
@@ -625,8 +660,10 @@ const styles = {
     color: "#64748B",
   },
   centered: {
+    flex: 1,
     paddingVertical: sw(32),
     alignItems: "center",
+    justifyContent: "center",
   },
   closeBtn: {
     marginTop: sw(12),
@@ -640,4 +677,16 @@ const styles = {
     fontSize: sf(14),
     color: T.navy,
   },
-};
+  doneBtn: {
+    marginTop: sw(12),
+    paddingVertical: sw(14),
+    alignItems: "center",
+    borderRadius: sw(12),
+    backgroundColor: T.teal,
+  },
+  doneBtnText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(14),
+    color: "#fff",
+  },
+});

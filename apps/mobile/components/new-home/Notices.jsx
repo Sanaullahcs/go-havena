@@ -15,6 +15,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useBillsSummary } from "../../hooks/use-bills-summary";
+import { PAY_BILLS_ENABLED } from "../../services/payments-api";
+import { useAppDialog } from "../../providers/app-dialog-provider";
 import { isGuestUser } from "../../services/community-access";
 import Tap from "../ui/tap";
 import { Fonts } from "../../constants/font";
@@ -22,6 +24,7 @@ import { homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
 import {
   formatDisplayTime12h,
+  formatNoticeRelativeTime,
   formatShortDate,
   getCategoryTheme,
   getNoticeDetailRoute,
@@ -39,7 +42,7 @@ import { PropertyManagementRoutes } from "../../constants/property-management-ro
 import { MarketplaceRoutes } from "../../constants/marketplace-routes";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { arrowForward } from "../../utils/rtl";
-import { localizedField } from "../../i18n";
+import i18n, { localizedField } from "../../i18n";
 import { useSessionUser } from "../../hooks/use-session-user";
 import { isHomeSectionEnabled, isResidentFeatureEnabled, serverFeatureFlags } from "../../constants/resident-features";
 import { homeSectionEmptyHintKey } from "../../utils/home-section-empty-copy";
@@ -73,12 +76,15 @@ function mapNoticeToHero(notice, t) {
   const cat = notice.category ?? "general";
   return {
     id: String(notice.id),
-    badge: t(`categories.${cat}`, { defaultValue: theme.label }).toUpperCase(),
+    badge: (() => {
+      const label = t(`categories.${cat}`, { defaultValue: theme.label });
+      return String(i18n.language || "").startsWith("ar") ? label : label.toUpperCase();
+    })(),
     badgeIcon: theme.icon ?? "bell",
     title: localizedField(notice, "title") || notice.title || "",
     dateLabel: notice.eventDate
       ? formatShortDate(notice.eventDate)
-      : notice.timeLabel ?? "",
+      : formatNoticeRelativeTime(notice),
     timeStart: notice.eventTime ? formatDisplayTime12h(notice.eventTime) : "",
     timeEnd: notice.eventTimeEnd ? formatDisplayTime12h(notice.eventTimeEnd) : "",
     imageUrl: notice.imageUrl,
@@ -88,6 +94,7 @@ function mapNoticeToHero(notice, t) {
 
 function NoticeHeroCard({ item, cardWidth, heroHeight, onPress, onImagePress }) {
   const { t, i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const [imageFailed, setImageFailed] = useState(false);
   const hasRemoteImage = Boolean(item.imageUrl);
   const hasSchedule = item.dateLabel || item.timeStart;
@@ -150,10 +157,10 @@ function NoticeHeroCard({ item, cardWidth, heroHeight, onPress, onImagePress }) 
         >
           <View style={styles.badge}>
             <Feather name={item.badgeIcon} size={sf(10)} color={T.teal} />
-            <Text style={styles.badgeText}>{item.badge}</Text>
+            <Text style={[styles.badgeText, arabic && styles.badgeTextAr]} numberOfLines={1}>{item.badge}</Text>
           </View>
 
-          <Text style={styles.heroTitle} numberOfLines={2} ellipsizeMode="tail">
+          <Text style={[styles.heroTitle, arabic && styles.heroTitleAr]} numberOfLines={2} ellipsizeMode="tail">
             {item.title}
           </Text>
 {hasSchedule ? (
@@ -169,7 +176,7 @@ function NoticeHeroCard({ item, cardWidth, heroHeight, onPress, onImagePress }) 
           ) : null}
 
           <View style={styles.ctaBtn}>
-            <Text style={styles.ctaText}>{t("notices.viewDetails")}</Text>
+            <Text style={[styles.ctaText, arabic && styles.ctaTextAr]} numberOfLines={1}>{t("notices.viewDetails")}</Text>
             <Feather name={arrowForward()} size={sf(12)} color="#fff" />
           </View>
         </Pressable>
@@ -190,11 +197,13 @@ function NoticeHeroCard({ item, cardWidth, heroHeight, onPress, onImagePress }) 
 
 function QuickActionsRow() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const dialog = useAppDialog();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const frame = useHomeFrame();
   const sessionUser = useSessionUser();
   const guest = isGuestUser(sessionUser);
-  const { summary: bills, refresh: refreshBills } = useBillsSummary({ enabled: !guest });
+  const { summary: bills, refresh: refreshBills } = useBillsSummary({ enabled: PAY_BILLS_ENABLED && !guest });
   useFocusEffect(useCallback(() => { void refreshBills(); }, [refreshBills]));
   const billsDue = bills?.dueCount ?? 0;
   const billsOverdue = (bills?.overdueCount ?? 0) > 0;
@@ -215,20 +224,37 @@ function QuickActionsRow() {
   const tileW = Math.min(frame.size(68), Math.max(frame.size(56), Math.floor(fitW)));
   const rowWidth = actions.length * tileW + Math.max(0, actions.length - 1) * gap;
   const centerRow = actions.length > 0 && rowWidth <= frame.contentWidth;
-  const listHeight = sw(44) + sw(6) + sf(14) * 2;
+  const labelLine = arabic ? sf(16) : sf(14);
+  const listHeight = sw(44) + sw(8) + labelLine * 2;
 
   const openAction = useCallback(
-    (route) => {
-      navigateAppRoute(router, route);
+    (item) => {
+      if (item.id === "bills" && !PAY_BILLS_ENABLED) {
+        dialog.showDialog({
+          type: "info",
+          title: t("bills.comingSoonTitle"),
+          message: t("bills.comingSoonBody"),
+        });
+        return;
+      }
+      navigateAppRoute(router, item.route);
     },
-    [router],
+    [dialog, router, t],
   );
 
   if (actions.length === 0) return null;
 
   return (
     <View style={styles.qaWrap}>
-      <Text style={[homeStyles.sectionLabel, styles.qaHeader, { paddingHorizontal: frame.sideInset }]}>
+      <Text
+        style={[
+          homeStyles.sectionLabel,
+          styles.qaHeader,
+          arabic && styles.qaHeaderAr,
+          { paddingHorizontal: frame.sideInset },
+        ]}
+        numberOfLines={1}
+      >
         {t("home.quickActions", { defaultValue: "Quick Actions" })}
       </Text>
       <FlatList
@@ -256,12 +282,12 @@ function QuickActionsRow() {
         renderItem={({ item }) => (
           <View style={[styles.qaItem, { width: tileW, maxWidth: tileW }]}>
             <Tap
-              onPress={() => openAction(item.route)}
+              onPress={() => openAction(item)}
               style={[styles.qaTile, { width: tileW, maxWidth: tileW }]}
               pressedStyle={styles.qaTilePressed}
               accessibilityRole="button"
               accessibilityLabel={
-                item.id === "bills" && billsDue > 0
+                item.id === "bills" && PAY_BILLS_ENABLED && billsDue > 0
                   ? `${t(item.titleKey)}, ${t("bills.billsDue", { count: billsDue })}`
                   : t(item.titleKey)
               }
@@ -281,14 +307,18 @@ function QuickActionsRow() {
                     <Feather name={item.icon} size={sf(18)} color={T.navy} />
                   </View>
                 )}
-                {item.id === "bills" && billsDue > 0 ? (
+                {item.id === "bills" && PAY_BILLS_ENABLED && billsDue > 0 ? (
                   <View style={[styles.qaBadge, billsOverdue && styles.qaBadgeAlert]}>
                     <Text style={styles.qaBadgeText}>{billsDue > 9 ? "9+" : billsDue}</Text>
                   </View>
                 ) : null}
               </View>
               <Text
-                style={[styles.qaLabel, { width: tileW, maxWidth: tileW }]}
+                style={[
+                  styles.qaLabel,
+                  arabic && styles.qaLabelAr,
+                  { width: tileW, maxWidth: tileW, lineHeight: labelLine },
+                ]}
                 numberOfLines={2}
                 ellipsizeMode="tail"
               >
@@ -593,10 +623,17 @@ const styles = StyleSheet.create({
   badgeText: {
     fontFamily: Fonts.bold,
     fontSize: sf(8.5),
+    lineHeight: sf(14),
     color: T.teal,
     letterSpacing: 0.8,
     fontWeight: "700",
     writingDirection: "auto",
+  },
+  badgeTextAr: {
+    letterSpacing: 0,
+    fontSize: sf(11),
+    lineHeight: sf(16),
+    writingDirection: "rtl",
   },
   heroTitle: {
     fontFamily: Fonts.bold,
@@ -607,6 +644,10 @@ const styles = StyleSheet.create({
     marginBottom: sw(6),
     flexShrink: 1,
     writingDirection: "auto",
+  },
+  heroTitleAr: {
+    lineHeight: sf(22),
+    writingDirection: "rtl",
   },
   dateLine: {
     flexDirection: "row",
@@ -638,6 +679,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     writingDirection: "auto",
   },
+  ctaTextAr: {
+    lineHeight: sf(16),
+    writingDirection: "rtl",
+  },
 
   dots: {
     flexDirection: "row",
@@ -665,6 +710,13 @@ const styles = StyleSheet.create({
   },
   qaHeader: {
     marginBottom: sw(10),
+  },
+  qaHeaderAr: {
+    textTransform: "none",
+    letterSpacing: 0,
+    fontSize: sf(15),
+    lineHeight: sf(22),
+    writingDirection: "rtl",
   },
   qaList: {
     width: "100%",
@@ -727,6 +779,12 @@ const styles = StyleSheet.create({
     color: T.navy,
     fontWeight: "500",
     textAlign: "center",
+    includeFontPadding: false,
+  },
+  qaLabelAr: {
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    lineHeight: sf(16),
   },
   previewRoot: {
     flex: 1,

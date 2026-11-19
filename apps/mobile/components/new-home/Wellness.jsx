@@ -67,10 +67,13 @@ function WellnessCard({ item, width, onPress }) {
 
         <View style={styles.body}>
           <Text style={styles.title} numberOfLines={1}>
-            {item.title}
+            {t(`wellness.categories.${item.key}`, { defaultValue: item.title })}
           </Text>
           <Text style={styles.sub} numberOfLines={1}>
-            {item.coursesLabel || item.subtitle}
+            {t("wellness.courseCount", {
+              count: item.courseCount ?? 0,
+              defaultValue: item.coursesLabel || item.subtitle,
+            })}
           </Text>
 
           <View style={styles.progressWrap}>
@@ -88,7 +91,7 @@ function WellnessCard({ item, width, onPress }) {
           </View>
 
           <View style={styles.ctaRow}>
-            <Text style={[styles.ctaText, { color: visual.accent }]}>
+            <Text style={[styles.ctaText, { color: visual.accent }]} numberOfLines={1}>
               {t("common.continue")}
             </Text>
             <Feather name={arrowForward()} size={sf(13)} color={visual.accent} />
@@ -223,15 +226,15 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.bold,
     fontSize: sf(15),
-    lineHeight: sf(19),
+    lineHeight: sf(22),
     color: T.navy,
     fontWeight: "700",
     includeFontPadding: false,
   },
   sub: {
     fontFamily: Fonts.regular,
-    fontSize: sf(11),
-    lineHeight: sf(14),
+    fontSize: sf(12),
+    lineHeight: sf(18),
     color: T.gray,
     marginTop: sw(3),
     includeFontPadding: false,
@@ -273,7 +276,7 @@ const styles = StyleSheet.create({
   ctaText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(13),
-    lineHeight: sf(17),
+    lineHeight: sf(20),
     fontWeight: "600",
     includeFontPadding: false,
   },

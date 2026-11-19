@@ -207,7 +207,12 @@ export function parsePhoneInputChange(text: string, country: string, previousDig
       return previousDigits.slice(0, -1);
     }
   }
-  return clampNationalDigits(extractNationalDigits(cleaned, country), country);
+  const extracted = clampNationalDigits(extractNationalDigits(cleaned, country), country);
+  if (extracted && isValidPhone(extracted, country)) return extracted;
+  // Keep the digits the user typed, including one extra digit, so the field
+  // can show a validation error instead of dropping or clearing the number.
+  const typed = clampNationalDigits(rawDigits, country);
+  return typed || extracted;
 }
 
 export function isValidPhone(digits: string, country = DEFAULT_PHONE_COUNTRY): boolean {

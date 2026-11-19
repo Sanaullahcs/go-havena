@@ -276,6 +276,16 @@ export default function CommunitiesPage() {
     [stats],
   );
 
+  const communityFilters = useMemo(
+    () =>
+      COMMUNITY_TABS.map((item) => ({
+        key: item.key,
+        label: item.label,
+        count: tabCount(item.key, stats),
+      })),
+    [stats],
+  );
+
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
@@ -518,42 +528,6 @@ export default function CommunitiesPage() {
         ))}
       </div>
 
-      <div className="min-w-0 border-b border-slate-200">
-        <div
-          role="tablist"
-          aria-label="Community filters"
-          className="flex gap-1 overflow-x-auto lg:grid lg:grid-cols-6 lg:gap-0 lg:overflow-visible"
-        >
-          {COMMUNITY_TABS.map((item) => {
-            const selected = tab === item.key;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => setTab(item.key)}
-                className={[
-                  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-t-lg border-b-2 px-3 py-2.5 text-sm font-semibold transition",
-                  "lg:min-w-0 lg:shrink lg:flex-col lg:gap-1 lg:whitespace-normal lg:rounded-none lg:px-2 lg:py-2 lg:text-[13px] lg:leading-snug xl:py-2.5 xl:text-sm",
-                  selected
-                    ? "border-blue-600 bg-blue-50 text-blue-700"
-                    : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700",
-                ].join(" ")}
-              >
-                <span className="lg:text-balance lg:text-center">{item.label}</span>
-                <span className={[
-                  "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums",
-                  selected ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500",
-                ].join(" ")}>
-                  {tabCount(item.key, stats)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       <div className="relative">
         <DataTable
           title={tableCopy.title}
@@ -564,6 +538,10 @@ export default function CommunitiesPage() {
           searching={isSearchPending}
           loading={adminTableBusy(refreshing, statusSubmitting, reviewSubmitting)}
           searchPlaceholder={tableCopy.search}
+          filters={communityFilters}
+          activeFilter={tab}
+          onFilter={(key) => setTab(key as Tab)}
+          contained
           isEmpty={rows.length === 0}
           empty={tableCopy.empty}
         >

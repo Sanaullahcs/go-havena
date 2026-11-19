@@ -5,7 +5,11 @@ import { ClearableTextarea } from "@/components/admin/clearable-field";
 import { useEffect, useMemo, useState } from "react";
 import { Flag, Send, X } from "lucide-react";
 import type { AdminPost } from "@/lib/api/posts";
+import { feedContentTitle } from "@/lib/feed-content-label";
 import { NL } from "@/lib/design-tokens";
+
+const REPORT_DETAILS_MIN = 8;
+const REPORT_DETAILS_MAX = 500;
 
 const REPORT_TYPES = [
   { value: "harassment", label: "Harassment or bullying" },
@@ -33,25 +37,50 @@ export function FeedPostReportModal({
   onClose: () => void;
   onSubmit: (payload: FeedPostReportPayload) => void | Promise<void>;
 }) {
-  const [type, setType] = useState<string>("harassment");
+  const [type, setType] = useState<string>("");
   const [description, setDescription] = useState("");
+  const [detailsTouched, setDetailsTouched] = useState(false);
 
   useEffect(() => {
     if (!post) return;
-    setType("harassment");
+    setType("");
     setDescription("");
+    setDetailsTouched(false);
   }, [post?.id]);
 
   const trimmed = description.trim();
-  const canSubmit = useMemo(() => trimmed.length >= 8 && !busy, [trimmed, busy]);
+  const detailsRequired = type === "other";
+  const detailsValid = !detailsRequired || trimmed.length >= REPORT_DETAILS_MIN;
+  const detailsShowError = detailsRequired && detailsTouched && trimmed.length > 0 && trimmed.length < REPORT_DETAILS_MIN;
+  const detailsShowHint = detailsRequired && detailsTouched && trimmed.length === 0;
+  const canSubmit = useMemo(() => {
+    if (!type || busy) return false;
+    if (detailsRequired) return trimmed.length >= REPORT_DETAILS_MIN;
+    return true;
+  }, [busy, detailsRequired, trimmed.length, type]);
+
+  const selectType = (value: string) => {
+    setType(value);
+    setDetailsTouched(false);
+    if (value !== "other") setDescription("");
+  };
 
   if (!post) return null;
 
+  const contentTitle = feedContentTitle(post);
+  const contentKind = contentTitle.toLowerCase();
+
   const handleSubmit = async () => {
+    if (detailsRequired && trimmed.length < REPORT_DETAILS_MIN) {
+      setDetailsTouched(true);
+      return;
+    }
     if (!canSubmit) return;
-    await onSubmit({ type, reason: trimmed });
+    const label = REPORT_TYPES.find((o) => o.value === type)?.label ?? type;
+    const reason = type === "other" ? trimmed : label;
+    await onSubmit({ type, reason });
     setDescription("");
-    setType("spam");
+    setType("");
   };
 
   return (
@@ -66,7 +95,7 @@ export function FeedPostReportModal({
           <div className="min-w-0 flex-1">
             <h3 className="text-[17px] font-bold text-slate-900">Mark as Sensitive</h3>
             <p className="mt-1 text-[13px] leading-5 text-slate-500">
-              Flag {post.author_name}&apos;s post as sensitive for resident app users. Resident reports stay separate and are not changed.
+              Flag {post.author_name}&apos;s {contentKind} as sensitive for resident app users immediately. Resident reports only auto-hide content after 3 user reports.
             </p>
           </div>
           <button
@@ -91,7 +120,7 @@ export function FeedPostReportModal({
                     key={option.value}
                     type="button"
                     disabled={busy}
-                    onClick={() => setType(option.value)}
+                    onClick={() => selectType(option.value)}
                     className={[
                       "rounded-full border px-3 py-2 text-xs font-medium transition",
                       active
@@ -107,24 +136,54 @@ export function FeedPostReportModal({
             </div>
           </div>
 
-          <div>
-            <label htmlFor="report-details" className="mb-2 block text-xs font-semibold text-slate-600">
-              Details
-            </label>
-            <ClearableTextarea
-              id="report-details"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={4}
-              maxLength={500}
-              disabled={busy}
-              placeholder="Describe what happened or why this post is inappropriate..."
-              className="min-h-[96px] max-h-[min(10.5rem,28vh)] w-full resize-none overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100 disabled:opacity-60"
-            />
-            <p className="mt-1.5 text-[11px] text-slate-400">
-              {trimmed.length}/500 · minimum 8 characters
-            </p>
-          </div>
+          {detailsRequired ? (
+            <div>
+              <label htmlFor="report-details" className="mb-2 block text-xs font-semibold text-slate-600">
+                Details <span className="text-red-500" aria-hidden>*</span>
+                <span className="sr-only"> (required)</span>
+              </label>
+              <ClearableTextarea
+                id="report-details"
+                value={description}
+                onChange={(event) => {
+                  setDescription(event.target.value);
+                  setDetailsTouched(true);
+                }}
+                onBlur={() => setDetailsTouched(true)}
+                rows={4}
+                maxLength={REPORT_DETAILS_MAX}
+                disabled={busy}
+                aria-invalid={detailsShowError || detailsShowHint}
+                placeholder={`Describe what happened or why this ${contentKind} is inappropriate...`}
+                className={[
+                  "min-h-[96px] max-h-[min(10.5rem,28vh)] w-full resize-none overflow-y-auto rounded-xl border bg-slate-50 px-3.5 py-3 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 focus:bg-white disabled:opacity-60",
+                  detailsShowError || detailsShowHint
+                    ? "border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                    : detailsValid && trimmed.length >= REPORT_DETAILS_MIN
+                      ? "border-emerald-300 focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                      : "border-slate-200 focus:border-teal-400 focus:ring-2 focus:ring-teal-100",
+                ].join(" ")}
+              />
+              {detailsShowError ? (
+                <p className="mt-1.5 text-[11px] font-medium text-red-600" role="alert">
+                  Add at least {REPORT_DETAILS_MIN - trimmed.length} more character
+                  {REPORT_DETAILS_MIN - trimmed.length === 1 ? "" : "s"} ({trimmed.length}/{REPORT_DETAILS_MIN} minimum).
+                </p>
+              ) : detailsShowHint ? (
+                <p className="mt-1.5 text-[11px] font-medium text-red-600" role="alert">
+                  Details are required when you choose Other (minimum {REPORT_DETAILS_MIN} characters).
+                </p>
+              ) : trimmed.length >= REPORT_DETAILS_MIN ? (
+                <p className="mt-1.5 text-[11px] font-medium text-emerald-600">
+                  Looks good · {trimmed.length}/{REPORT_DETAILS_MAX}
+                </p>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-slate-400">
+                  Required · {trimmed.length}/{REPORT_DETAILS_MAX} · minimum {REPORT_DETAILS_MIN} characters
+                </p>
+              )}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 gap-2.5 px-5 pb-5 pt-3">

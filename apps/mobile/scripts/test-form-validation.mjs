@@ -429,6 +429,39 @@ console.log("\nInvite member validation");
     }),
     "valid invite",
   );
+  assertHasError(
+    validateInviteMemberForm({
+      name: "Jane Doe",
+      email: "jane@example.com",
+      unit: "",
+      units: [],
+      phoneDigits: "4155552671",
+      phoneCountry: "US",
+    }),
+    "unit",
+    "invite without units",
+  );
+  assertNoErrors(
+    validateInviteMemberForm({
+      name: "Jane Doe",
+      email: "jane@example.com",
+      units: ["910", "911"],
+      phoneDigits: "4155552671",
+      phoneCountry: "US",
+    }),
+    "invite with multiple units",
+  );
+  assertHasError(
+    validateInviteMemberForm({
+      name: "Jane Doe",
+      email: "jane@example.com",
+      units: ["B21+["],
+      phoneDigits: "4155552671",
+      phoneCountry: "US",
+    }),
+    "unit",
+    "invalid unit",
+  );
 }
 
 console.log("\nCommunity rule validation");

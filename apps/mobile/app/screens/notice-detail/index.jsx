@@ -17,7 +17,14 @@ import CrispImage from "../../../components/ui/crisp-image";
 import { NoticeCoverMedia } from "../../../components/notices/notice-cover-thumbnail";
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout, Shadows } from "../../../constants/tokens";
-import { fetchNotice, getCategoryTheme, formatDisplayTime12h, formatShortDate, resolveNoticeId } from "../../../services/notices-api";
+import {
+  fetchNotice,
+  formatNoticeRelativeTime,
+  getCategoryTheme,
+  formatDisplayTime12h,
+  formatShortDate,
+  resolveNoticeId,
+} from "../../../services/notices-api";
 import { canEditCommunityNotice } from "../../../services/community-access";
 import { fetchMe } from "../../../services/profile-api";
 import { getUser } from "../../../services/auth-session";
@@ -30,7 +37,6 @@ import { sw, sf, hp } from "../../../utils/responsive";
 import { useTranslation } from 'react-i18next';
 import i18n, { localizedField } from "../../../i18n";
 import { getLocaleForLang } from "../../../hooks/use-app-locale";
-import { chevronBack } from "../../../utils/rtl";
 import { resolveEffectiveEndDate } from "../../../utils/notice-schedule-window";
 
 const HERO_HEIGHT = hp(28);
@@ -41,7 +47,7 @@ function formatPublishedLabel(notice) {
   if (!instant) return "";
   try {
     const date = parseApiDate(instant);
-    if (!date) return notice.timeLabel ?? "";
+    if (!date) return formatNoticeRelativeTime(notice);
     return date.toLocaleDateString(getLocaleForLang(i18n.language), {
       weekday: "long",
       month: "long",
@@ -49,7 +55,7 @@ function formatPublishedLabel(notice) {
       year: "numeric",
     });
   } catch {
-    return notice.timeLabel ?? "";
+    return formatNoticeRelativeTime(notice);
   }
 }
 
@@ -305,16 +311,6 @@ export default function NoticeDetailScreen() {
           ) : null}
 
           <SafeAreaView edges={["top"]} style={styles.heroSafe} pointerEvents="box-none">
-            <View style={styles.heroTopBar}>
-              <Pressable
-                style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
-                onPress={goBack}
-                accessibilityLabel={t('notices.goBack')}
-              >
-                <Feather name={chevronBack()} size={sf(20)} color="#FFFFFF" />
-              </Pressable>
-            </View>
-
             {!loading && notice ? (
               <View style={styles.heroBottom}>
                 <View style={[styles.heroBadge, { backgroundColor: `${theme.accent}33`, borderColor: `${theme.accent}55` }]}>
@@ -372,7 +368,7 @@ export default function NoticeDetailScreen() {
               <View style={styles.metaRow}>
                 <View style={styles.metaChip}>
                   <Feather name="clock" size={sf(12)} color={Colors.brandPrimaryDeep} />
-                  <Text style={styles.metaChipText}>{notice.timeLabel}</Text>
+                  <Text style={styles.metaChipText}>{formatNoticeRelativeTime(notice)}</Text>
                 </View>
                 {publishedLabel ? (
                   <View style={styles.metaChipMuted}>
@@ -636,7 +632,7 @@ const styles = StyleSheet.create({
   },
   heroSafe: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     paddingHorizontal: Layout.screenPadding,
     zIndex: 2,
   },
@@ -647,12 +643,6 @@ const styles = StyleSheet.create({
     zIndex: 30,
     elevation: 30,
     paddingStart: Layout.screenPadding,
-  },
-  heroTopBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    paddingTop: hp(0.4),
   },
   titleRow: {
     flexDirection: "row",
@@ -677,19 +667,6 @@ const styles = StyleSheet.create({
     lineHeight: sf(16),
     color: "#FFFFFF",
     marginStart: sw(6),
-  },
-  iconBtn: {
-    width: sw(40),
-    height: sw(40),
-    borderRadius: sw(12),
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconBtnPressed: {
-    backgroundColor: "rgba(255,255,255,0.28)",
   },
   heroBottom: {
     flexDirection: "row",

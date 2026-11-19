@@ -24,11 +24,12 @@ import { getApiErrorMessage } from "../../../../utils/api-error-core";
 import { useAppDialog } from "../../../../providers/app-dialog-provider";
 import { useOtpResendLimit } from "../../../../hooks/use-otp-resend-limit";
 import OtpResendFooter from "../../../../components/auth/otp-resend-footer";
+import OtpResendLimitDialog from "../../../../components/auth/otp-resend-limit-dialog";
 import { extractOtpRateLimitFromResponse } from "../../../../utils/otp-rate-limit";
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
 import AuthSuccessOverlay from "../../../../components/ui/auth-success-overlay";
 import {
-  openHomeAfterLogin,
+  continueAfterEmailLogin,
 } from "../../../../constants/onboarding-routes";
 import { decodeRouteEmail, paramString } from "../../../../utils/route-params";
 import { ScreenBrand as B } from "../../../../constants/screen-brand";
@@ -63,7 +64,9 @@ export default function VerifyPhoneScreen() {
     lockType,
     applyRateLimit,
     applyRateLimitFromError,
-  } = useOtpResendLimit(null, { dialog });
+    resendLimitDialogVisible,
+    dismissResendLimitDialog,
+  } = useOtpResendLimit(null, { showResendLimitDialog: true });
   const otpDigits = otp.replace(/[^0-9]/g, "");
   const isValid = otpDigits.length === 6;
   const emailDisplay = email || t("auth.yourEmail");
@@ -221,8 +224,14 @@ export default function VerifyPhoneScreen() {
         subtitle={successSubtitle}
         onComplete={() => {
           setShowSuccess(false);
-          openHomeAfterLogin(router, verifiedUser);
+          continueAfterEmailLogin(router, verifiedUser);
         }}
+      />
+
+      <OtpResendLimitDialog
+        visible={resendLimitDialogVisible}
+        countdownLabel={countdownLabel}
+        onClose={dismissResendLimitDialog}
       />
 
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={B.canvas} />

@@ -13,6 +13,7 @@ import {
 
 import {
   DEFAULT_PHONE_COUNTRY,
+  PHONE_COUNTRIES,
   formatDialLabel,
   getCountryByCode,
   getPlaceholderDigits,
@@ -175,6 +176,32 @@ export function clampNationalDigits(digits, country = DEFAULT_PHONE_COUNTRY) {
 export function normalizeDigitsForCountry(digits, country = DEFAULT_PHONE_COUNTRY) {
   if (!digits) return "";
   return clampNationalDigits(digits, country);
+}
+
+/** Split a saved phone into the country code and national digits. */
+export function splitStoredPhone(input) {
+  const raw = String(input ?? "").trim();
+  if (!raw) return { country: DEFAULT_PHONE_COUNTRY, digits: "" };
+
+  const candidates = [raw];
+  const digitsOnly = raw.replace(/\D/g, "");
+  if (digitsOnly && !raw.startsWith("+")) {
+    candidates.push(`+${digitsOnly}`);
+  }
+
+  for (const candidate of candidates) {
+    const parsed = parsePhoneNumberFromString(candidate);
+    const country = String(parsed?.country ?? "").toUpperCase();
+    const digits = String(parsed?.nationalNumber ?? "").replace(/\D/g, "");
+    if (digits && PHONE_COUNTRIES.some((row) => row.code === country)) {
+      return { country, digits };
+    }
+  }
+
+  return {
+    country: DEFAULT_PHONE_COUNTRY,
+    digits: extractNationalDigits(raw),
+  };
 }
 
 export function extractNationalDigits(input, country = DEFAULT_PHONE_COUNTRY) {

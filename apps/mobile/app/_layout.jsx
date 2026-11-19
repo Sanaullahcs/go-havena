@@ -35,8 +35,7 @@ import {
 } from "../components/layout/system-chrome";
 import { registerScreenChrome } from "../components/layout/chrome-manager";
 import BootSplash from "../components/layout/boot-splash";
-import { startConnectivityWatch } from "../services/connectivity";
-import { fontMapForLanguage } from "../constants/font-map";
+import { BRAND_FONTS } from "../constants/font-map";
 import { getSavedLanguage } from "../i18n";
 import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
 import { isArabicLanguage } from "../constants/font";
@@ -49,7 +48,7 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [bootLang, setBootLang] = useState(null);
 
-  // Resolve language before fonts so Arabic loads Noto under the Poppins-* keys.
+  // Resolve the saved language before first paint. Both font families are already loading.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -72,15 +71,11 @@ export default function RootLayout() {
     };
   }, []);
 
-  const [fontsLoaded, fontError] = useFonts(
-    bootLang ? fontMapForLanguage(bootLang) : {},
-  );
+  const [fontsLoaded, fontError] = useFonts(BRAND_FONTS);
 
   useEffect(() => {
     applySplashChrome();
   }, []);
-
-  useEffect(() => startConnectivityWatch(), []);
 
   useEffect(() => {
     if (!bootLang) return;
@@ -316,6 +311,15 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="screens/choose-login-community/index"
+          options={{
+            headerShown: false,
+            gestureEnabled: false,
+            animation: "fade",
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
+          }}
+        />
+        <Stack.Screen
           name="screens/community-welcome/index"
           options={{
             headerShown: false,
@@ -342,6 +346,22 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="screens/listing-detail/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/discover/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/discover-essential/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/discover-suggestions/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/discover-suggestion-detail/index"
           options={{ headerShown: false }}
         />
         <Stack.Screen
@@ -463,10 +483,6 @@ export default function RootLayout() {
         <Stack.Screen
           name="screens/complaints"
           options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="screens/staff-tasks"
-          options={{ headerShown: false, header: () => null, title: "My Assigned Tasks" }}
         />
         <Stack.Screen
           name="screens/admin-amenities/index"

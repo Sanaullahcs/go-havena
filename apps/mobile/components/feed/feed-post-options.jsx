@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import AdminRowActionsMenu from "../admin/admin-row-actions-menu";
 import FeedPostReportSheet, { completeReportAndNotify } from "./feed-post-report-sheet";
-import { deletePost, reportFeedPost } from "../../services/feed-api";
+import { deletePost, isPollPost, reportFeedPost } from "../../services/feed-api";
 import { getCachedUser, getUser } from "../../services/auth-session";
 import { useApiAction } from "../../hooks/use-api-action";
 import { useAppDialog } from "../../providers/app-dialog-provider";
@@ -15,6 +15,18 @@ function postIsOwnedByCurrentUser(post, user) {
   const uid = user?.id;
   const authorId = post?.user_id ?? post?.author_id ?? post?.user?.id;
   return uid != null && authorId != null && String(uid) === String(authorId);
+}
+
+const STAFF_AUTHOR_ROLES = new Set([
+  "community_admin",
+  "admin",
+  "system_admin",
+  "moderator",
+]);
+
+function isCommunityTeamAuthor(post) {
+  const role = String(post?.author_role ?? post?.user?.role ?? "").toLowerCase();
+  return STAFF_AUTHOR_ROLES.has(role);
 }
 
 /**
@@ -44,6 +56,7 @@ export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlo
   }, [currentUser?.id]);
 
   const hasImage = Boolean(post?.image_url);
+  const isPoll = isPollPost(post);
   const isMine = postIsOwnedByCurrentUser(post, currentUser);
   const blockTarget = {
     user_id: post?.user_id,
@@ -53,9 +66,7 @@ export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlo
     author_role: post?.author_role,
   };
   const canBlock = canShowBlockUser(blockTarget, currentUser?.id);
-  const canReport =
-    !isMine
-    && (post?.can_report === true || (post?.can_report == null && canShowBlockUser(blockTarget, currentUser?.id)));
+  const canReport = !isMine && post?.can_report === true;
 
   const handleDownload = useCallback(async () => {
     if (!hasImage) return;
@@ -127,14 +138,14 @@ export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlo
           showSuccess(
             t("feed.options.reportSubmitted"),
             result?.data?.review_queue === "system_admin"
-              ? t("feed.options.systemAdminWillReview")
-              : t("feed.options.adminWillReview"),
+              ? (isPoll ? t("feed.options.systemAdminWillReviewPoll") : t("feed.options.systemAdminWillReview"))
+              : (isPoll ? t("feed.options.adminWillReviewPoll") : t("feed.options.adminWillReview")),
           );
         },
         notifyFailure: (error) => showFailure(t("apiAction.actionFailed"), error),
       });
     },
-    [onReported, post?.id, showFailure, showSuccess, t],
+    [isPoll, onReported, post?.id, showFailure, showSuccess, t],
   );
 
   const actions = useMemo(() => {
@@ -171,7 +182,7 @@ export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlo
       if (canReport) {
         list.push({
           id: "report",
-          label: t("feed.options.reportPost"),
+          label: isPoll ? t("feed.options.reportPoll") : t("feed.options.reportPost"),
           icon: "flag-outline",
           tone: "danger",
           onPress: () => setReportOpen(true),
@@ -188,7 +199,22 @@ export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlo
     }
 
     return list;
-  }, [canReport, hasImage, isMine, canBlock, handleDownload, handleEdit, handleDelete, handleBlock, t]);
+  }, [canReport, hasImage, isMine, isPoll, canBlock, handleDownload, handleEdit, handleDelete, handleBlock, t]);
+
+  const optionsMessage = useMemo(() => {
+    if (isMine) return t("feed.options.ownOptionsMessage");
+    if (isCommunityTeamAuthor(post) || post?.can_report === false) {
+      return isPoll
+        ? t("feed.options.optionsMessageAdminPoll")
+        : t("feed.options.optionsMessageAdminPost");
+    }
+    if (canReport) {
+      return isPoll ? t("feed.options.optionsMessagePoll") : t("feed.options.optionsMessage");
+    }
+    if (canBlock) return t("feed.options.optionsMessageBlockOnly");
+    if (hasImage) return t("feed.options.optionsMessageDownloadOnly");
+    return t("feed.options.optionsMessageGeneric");
+  }, [canBlock, canReport, hasImage, isMine, isPoll, post, t]);
 
   return (
     <>
@@ -196,12 +222,8 @@ export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlo
         actions={actions}
         disabled={reporting}
         compact
-        title={t("feed.options.postOptions")}
-        message={
-          isMine
-            ? t("feed.options.ownOptionsMessage")
-            : t("feed.options.optionsMessage")
-        }
+        title={isPoll ? t("feed.options.pollOptions") : t("feed.options.postOptions")}
+        message={optionsMessage}
         headerIcon={hasImage ? "image-outline" : "document-text-outline"}
       />
       {!isMine && canReport ? (
@@ -210,6 +232,14 @@ export default function FeedPostOptions({ post, onDeleted, onReported, onUserBlo
           post={post}
           submitting={reporting}
           reasonKind="post"
+          title={isPoll ? t("feed.report.titlePoll") : t("feed.report.titlePost")}
+          subtitle={isPoll
+            ? t("feed.report.subtitlePoll", {
+                name: post?.user?.display_name ?? post?.user?.name ?? t("feed.report.thisNeighbor"),
+              })
+            : t("feed.report.subtitlePost", {
+                name: post?.user?.display_name ?? post?.user?.name ?? t("feed.report.thisNeighbor"),
+              })}
           onClose={() => setReportOpen(false)}
           onSubmit={handleReportSubmit}
         />

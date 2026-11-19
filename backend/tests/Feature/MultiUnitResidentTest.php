@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Community;
 use App\Models\Region;
 use App\Models\User;
+use Database\Seeders\SystemAdminSeeder;
 use App\Services\CommunityBillingService;
 use App\Services\UnitAssignmentService;
 use App\Services\UnitRegistrationPackageService;
@@ -396,5 +397,99 @@ class MultiUnitResidentTest extends TestCase
                 $community->id,
             ),
         );
+    }
+
+    public function test_system_admin_can_invite_a_resident_without_a_unit(): void
+    {
+        ['community' => $community] = $this->seedCommunityWithAdmin();
+        $this->seed(SystemAdminSeeder::class);
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
+        Sanctum::actingAs($systemAdmin);
+
+        $response = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Open Unit Resident',
+            'email' => 'open.unit@havena.test',
+            'phone' => '+12025550193',
+            'role' => 'member',
+            'community_id' => $community->id,
+        ]);
+
+        $response->assertCreated();
+        $userId = (int) $response->json('data.id');
+        $this->assertDatabaseMissing('invite_unit_assignments', [
+            'user_id' => $userId,
+            'community_id' => $community->id,
+        ]);
+    }
+
+    public function test_admin_invite_requires_a_unit_and_stores_several(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin();
+        Sanctum::actingAs($admin);
+
+        $empty = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'No Unit Resident',
+            'email' => 'no.unit@havena.test',
+            'phone' => '+12025550191',
+            'role' => 'member',
+            'community_id' => $community->id,
+        ]);
+        $empty->assertStatus(422);
+        $empty->assertJsonValidationErrors(['units']);
+
+        $many = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Many Unit Resident',
+            'email' => 'many.units@havena.test',
+            'phone' => '+12025550192',
+            'role' => 'member',
+            'units' => ['899', '900', '901'],
+            'community_id' => $community->id,
+        ]);
+        $many->assertCreated();
+        $manyUserId = (int) $many->json('data.id');
+        foreach (['899', '900', '901'] as $unit) {
+            $this->assertDatabaseHas('invite_unit_assignments', [
+                'user_id' => $manyUserId,
+                'community_id' => $community->id,
+                'unit_number_normalized' => $unit,
+            ]);
+        }
+    }
+
+    public function test_system_admin_can_approve_unit_package_without_community_scope(): void
+    {
+        ['community' => $community] = $this->seedCommunityWithAdmin();
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        $system = User::factory()->create(['role' => 'system_admin', 'status' => 'active']);
+
+        $packageId = DB::table('unit_registration_packages')->insertGetId([
+            'community_id' => $community->id,
+            'user_id' => $resident->id,
+            'kind' => UnitRegistrationPackageService::KIND_ADDON,
+            'status' => UnitRegistrationPackageService::STATUS_PENDING,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('unit_registration_package_items')->insert([
+            'package_id' => $packageId,
+            'unit_number' => '899',
+            'unit_number_normalized' => '899',
+            'is_new_unit' => true,
+            'residence_type' => 'tenant',
+            'status' => UnitRegistrationPackageService::STATUS_PENDING,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($system);
+        $this->postJson("/api/v1/admin/unit-registration-packages/{$packageId}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', UnitRegistrationPackageService::STATUS_APPROVED);
+
+        $this->assertDatabaseHas('unit_registration_packages', [
+            'id' => $packageId,
+            'status' => UnitRegistrationPackageService::STATUS_APPROVED,
+            'reviewed_by' => $system->id,
+        ]);
     }
 }

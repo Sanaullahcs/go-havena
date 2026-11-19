@@ -7,6 +7,7 @@ import { Check, Copy, Loader2, Lock, X } from "lucide-react";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import { startKuickpayPayment, type OnlinePayment, type PayableType } from "@/lib/api/kuickpay";
+import { PAY_NOW_ENABLED } from "@/lib/payments-visibility";
 import { formatMoney } from "@/lib/money";
 
 const METHODS = [
@@ -37,6 +38,8 @@ export function KuickpayPayButton({ payableType, payableId, title, subtitle, amo
   const [confirmAmount, setConfirmAmount] = useState(amount);
   const [amountNotice, setAmountNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  if (!PAY_NOW_ENABLED) return null;
 
   const active = onlinePayment?.active_payment ?? null;
   const processing = active?.status === "processing";

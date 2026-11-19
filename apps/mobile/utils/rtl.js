@@ -1,10 +1,10 @@
-import i18n from "../i18n";
-
-const RTL_LANGUAGES = ["ar"];
-
-/** Single source of truth for layout direction — matches LanguageProvider / i18n.language. */
+/**
+ * Layout stays left-to-right for every language.
+ * Arabic changes the copy and the typeface, not row direction, so a language
+ * switch does not flip icons or shift menus.
+ */
 export function isAppRtl() {
-  return RTL_LANGUAGES.includes(i18n.language);
+  return false;
 }
 
 export function chevronForward() {

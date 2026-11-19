@@ -1,11 +1,11 @@
 import { StyleSheet } from "react-native";
 
 /**
- * React Native Text defaults to `overflow: 'hidden'`. Combined with Inter-tuned
- * lineHeights and `includeFontPadding: false`, Noto Sans Arabic glyphs get
- * clipped from the top on small phones.
+ * React Native Text defaults to `overflow: 'hidden'`. Combined with tight
+ * lineHeights and `includeFontPadding: false`, Arabic glyphs get clipped.
  *
  * Patch StyleSheet.create so text-like styles always get enough vertical room.
+ * Metrics stay the same for every language so a switch does not reflow rows.
  * Must be imported before screen modules (see apps/mobile/index.js).
  */
 
@@ -36,15 +36,8 @@ function fixTextStyle(style) {
     next.overflow = "visible";
   }
 
-  // Tracking designed for Latin often chops Arabic.
-  if (arabicActive && typeof next.letterSpacing === "number" && next.letterSpacing !== 0) {
-    next.letterSpacing = 0;
-  }
-
   if (typeof next.fontSize === "number" && Number.isFinite(next.fontSize)) {
-    const ratio = arabicActive ? 1.55 : MIN_LINE_HEIGHT_RATIO;
-    const floor = arabicActive ? MIN_LINE_HEIGHT_FLOOR : Math.ceil(next.fontSize * ratio);
-    const minLh = Math.max(floor, Math.ceil(next.fontSize * ratio));
+    const minLh = Math.max(MIN_LINE_HEIGHT_FLOOR, Math.ceil(next.fontSize * MIN_LINE_HEIGHT_RATIO));
     if (typeof next.lineHeight !== "number" || next.lineHeight < minLh) {
       next.lineHeight = minLh;
     }
@@ -78,11 +71,7 @@ export function installTextClipFixes() {
   StyleSheet.create = (styles) => originalCreate(patchStyles(styles));
 }
 
-/**
- * Prefer stronger Arabic metrics on the next StyleSheet.create calls.
- * Call before reload when switching to Arabic; also safe at boot after language resolves
- * (already-created sheets keep prior values — reload applies fully).
- */
+/** Keep one set of text metrics for every language. */
 export function setArabicTextMetricsEnabled(enabled) {
   arabicActive = Boolean(enabled);
   installTextClipFixes();

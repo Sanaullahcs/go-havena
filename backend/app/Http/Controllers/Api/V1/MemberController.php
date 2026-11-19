@@ -17,6 +17,7 @@ use App\Services\FamilyService;
 use App\Services\InviteCodeService;
 use App\Services\LifecycleMailService;
 use App\Services\MemberBatchInviteService;
+use App\Services\ResidentInviteLookupService;
 use App\Services\ResidentInviteService;
 use App\Services\UnitAssignmentService;
 use App\Models\CommunityMembership;
@@ -141,6 +142,7 @@ class MemberController extends Controller
                     $q->where(function ($pre) use ($communityId) {
                         $pre->whereNull('cm.id');
                         MemberLifecycleStatus::applyStartedSignup($pre);
+                        MemberLifecycleStatus::applyNoAssignedUnusedInvite($pre, 'users', $communityId);
                         $pre->whereNotExists(function ($sub) use ($communityId) {
                             $sub->from('community_memberships as cm_other')
                                 ->whereColumn('cm_other.user_id', 'users.id')
@@ -156,12 +158,12 @@ class MemberController extends Controller
                     })->orWhere(function ($post) {
                         $post->where('cm.status', 'pending')
                             ->whereNotNull('cm.invite_code_used');
-                        MemberLifecycleStatus::applyOnboardingPendingMembershipScope($post);
+                        MemberLifecycleStatus::applyInviteMembershipOnboardingScope($post);
                     });
                 });
             } elseif ($request->status === 'pending') {
-                $query->where('cm.status', 'pending')
-                    ->whereNull('cm.invite_code_used');
+                $query->where('cm.status', 'pending');
+                MemberLifecycleStatus::applyPendingApprovalMembershipScope($query);
             } else {
                 $query->where('cm.status', $request->status);
             }
@@ -234,8 +236,8 @@ class MemberController extends Controller
         } else {
             $query = $this->membershipRowsQuery($request, $residentsOnly);
             if ($status === 'pending') {
-                $query->where('cm.status', 'pending')
-                    ->whereNull('cm.invite_code_used');
+                $query->where('cm.status', 'pending');
+                MemberLifecycleStatus::applyPendingApprovalMembershipScope($query);
             } else {
                 $query->where('cm.status', $status);
             }
@@ -353,13 +355,7 @@ class MemberController extends Controller
             MemberLifecycleStatus::applyNotStartedSignup($query);
             MemberLifecycleStatus::applyAssignedUnusedInviteExists($query);
         } elseif ($preMembershipStatus === MemberLifecycleStatus::ONBOARDING) {
-            $query->where(function ($q) {
-                $q->where(function ($started) {
-                    MemberLifecycleStatus::applyStartedSignup($started);
-                })->orWhere(function ($noInvite) {
-                    MemberLifecycleStatus::applyNoAssignedUnusedInvite($noInvite);
-                });
-            });
+            MemberLifecycleStatus::applyNoAssignedUnusedInvite($query);
         }
 
         $this->applyMemberSearch($query, $request, includeCommunityName: false);
@@ -450,7 +446,7 @@ class MemberController extends Controller
         $membershipOnboarding = $this->membershipRowsQuery($request, $residentsOnly);
         $membershipOnboarding->where('cm.status', 'pending')
             ->whereNotNull('cm.invite_code_used');
-        MemberLifecycleStatus::applyOnboardingPendingMembershipScope($membershipOnboarding);
+        MemberLifecycleStatus::applyInviteMembershipOnboardingScope($membershipOnboarding);
 
         $union = $preMembership->unionAll($membershipOnboarding);
 
@@ -512,7 +508,8 @@ class MemberController extends Controller
         ) {
             $membership = $this->membershipRowsQuery($request, true);
             if ($status === 'pending') {
-                $membership->where('cm.status', 'pending')->whereNull('cm.invite_code_used');
+                $membership->where('cm.status', 'pending');
+                MemberLifecycleStatus::applyPendingApprovalMembershipScope($membership);
             } elseif ($status !== null) {
                 $membership->where('cm.status', $status);
             }
@@ -530,7 +527,7 @@ class MemberController extends Controller
             if ($status === MemberLifecycleStatus::ONBOARDING) {
                 $membershipOnboarding = $this->membershipRowsQuery($request, true);
                 $membershipOnboarding->where('cm.status', 'pending')->whereNotNull('cm.invite_code_used');
-                MemberLifecycleStatus::applyOnboardingPendingMembershipScope($membershipOnboarding);
+                MemberLifecycleStatus::applyInviteMembershipOnboardingScope($membershipOnboarding);
                 $parts[] = (clone $membershipOnboarding)->select('users.id as uid', 'cm.created_at as sort_at');
             }
         }
@@ -680,6 +677,16 @@ class MemberController extends Controller
             ? null
             : ($flatUnits[0]['unit_number'] ?? $primary['unit_number'] ?? null);
 
+        if (count($communities) > 1) {
+            $displayCommunity = $this->pickGroupedResidentDisplayCommunity($communities);
+            if ($displayCommunity !== null) {
+                $primary['status'] = $displayCommunity['status'];
+                $primary['community_id'] = $displayCommunity['id'];
+                $primary['community_name'] = $displayCommunity['name'];
+                $primary['membership_id'] = $displayCommunity['membership_id'];
+            }
+        }
+
         if ($detailed) {
             $profile = DB::table('users')
                 ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
@@ -697,6 +704,42 @@ class MemberController extends Controller
         }
 
         return $primary;
+    }
+
+    /**
+     * @param  list<array{id: int|null, name: string|null, status: string, membership_id: int|null, units: list<mixed>}>  $communities
+     * @return array{id: int|null, name: string|null, status: string, membership_id: int|null, units: list<mixed>}|null
+     */
+    private function pickGroupedResidentDisplayCommunity(array $communities): ?array
+    {
+        if ($communities === []) {
+            return null;
+        }
+
+        $priority = [
+            MemberLifecycleStatus::ONBOARDING => 0,
+            'pending' => 1,
+            MemberLifecycleStatus::INVITATION_SENT => 2,
+            MemberLifecycleStatus::INVITE_REJECTED => 3,
+            'rejected' => 4,
+            'banned' => 5,
+            'inactive' => 6,
+            'not_invited' => 7,
+            'approved' => 8,
+        ];
+
+        $best = null;
+        $bestRank = PHP_INT_MAX;
+        foreach ($communities as $community) {
+            $status = (string) ($community['status'] ?? 'approved');
+            $rank = $priority[$status] ?? 50;
+            if ($rank < $bestRank) {
+                $bestRank = $rank;
+                $best = $community;
+            }
+        }
+
+        return $best ?? $communities[0];
     }
 
     private function applyMemberSearch($query, Request $request, bool $includeCommunityName): void
@@ -836,6 +879,29 @@ class MemberController extends Controller
         ]);
     }
 
+    /** GET /v1/admin/members/invite-lookup */
+    public function inviteLookup(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+            'community_id' => ['nullable', 'integer', 'exists:communities,id'],
+        ]);
+
+        $communityId = isset($validated['community_id']) ? (int) $validated['community_id'] : null;
+        if ($communityId === null && ! AdminRoleService::isSystemAdmin($request->user())) {
+            $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
+        } elseif ($communityId !== null && ! AdminRoleService::isSystemAdmin($request->user())) {
+            AdminRoleService::assertCanManageCommunity($request->user(), $communityId);
+        }
+
+        $data = app(ResidentInviteLookupService::class)->lookup(
+            (string) $validated['email'],
+            $communityId,
+        );
+
+        return response()->json(['data' => $data]);
+    }
+
     /** POST /v1/admin/members/invite */
     public function invite(Request $request): JsonResponse
     {
@@ -846,7 +912,6 @@ class MemberController extends Controller
             'role'         => 'in:member,moderator,admin',
             // Legacy single unit — still accepted. Prefer `units` for multi-unit invites.
             'unit_number'  => [
-                'required_without:units',
                 'nullable',
                 'string',
                 'max:20',
@@ -863,7 +928,7 @@ class MemberController extends Controller
                     }
                 },
             ],
-            'units' => 'required_without:unit_number|nullable|array|min:1|max:20',
+            'units' => 'nullable|array|max:20',
             'units.*' => [
                 'string',
                 'max:20',
@@ -877,9 +942,8 @@ class MemberController extends Controller
         ], [
             'name.max' => 'Full Name can only contain letters, spaces, and full stops, with a maximum of 25 characters.',
             'name.regex' => 'Full Name can only contain letters, spaces, and full stops, with a maximum of 25 characters.',
-            'unit_number.required_without' => 'Unit / Apartment is required.',
             'unit_number.max' => 'Please enter a valid Unit / Apartment number.',
-            'units.required_without' => 'At least one unit is required.',
+            'units.max' => 'You can assign up to 20 units.',
         ]);
 
         $unitNumbers = [];
@@ -894,12 +958,14 @@ class MemberController extends Controller
         if ($unitNumbers === [] && $request->filled('unit_number')) {
             $unitNumbers[] = trim((string) $request->unit_number);
         }
-        if ($unitNumbers === []) {
+        $actor = $request->user();
+        $systemAdminInvite = AdminRoleService::isSystemAdmin($actor);
+        if ($unitNumbers === [] && ! $systemAdminInvite) {
             throw ValidationException::withMessages([
-                'units' => ['At least one unit is required.'],
+                'units' => ['Select at least one unit.'],
             ]);
         }
-        $primaryUnitNumber = $unitNumbers[0];
+        $primaryUnitNumber = $unitNumbers[0] ?? '';
 
         $phone = PhoneNormalizer::accept($request->phone);
         if (! $phone) {
@@ -944,7 +1010,9 @@ class MemberController extends Controller
                     ->whereIn('status', ['approved', 'pending', 'banned', 'not_invited'])
                     ->exists();
                 if ($blockingMembership) {
-                    ContactIdentityService::assertAvailableForRegistration($request->email, $phone);
+                    throw ValidationException::withMessages([
+                        'email' => ['This resident already belongs to this community.'],
+                    ]);
                 }
             } else {
                 ContactIdentityService::assertAvailableForRegistration($request->email, $phone);
@@ -1598,6 +1666,17 @@ class MemberController extends Controller
                 'updated_at'        => now(),
             ]);
 
+        try {
+            app(\App\Services\UnitRegistrationPackageService::class)
+                ->rejectPendingInitialPackagesForUser(
+                    (int) $id,
+                    (int) $communityId,
+                    (int) $request->user()->id,
+                    $reason,
+                );
+        } catch (\Throwable) {
+        }
+
         $communityName = Community::query()->where('id', $communityId)->value('name') ?? 'your community';
 
         ActivityLogService::recordChanges(
@@ -1826,27 +1905,15 @@ class MemberController extends Controller
                 ->orderByDesc('id')
                 ->first();
 
-            $startedSignup = MemberLifecycleStatus::hasStartedSignup(
-                $member->email_verified_at ?? null,
-                $member->phone_verified_at ?? null,
-                isset($member->auth_token_count) && (int) $member->auth_token_count > 0,
-            );
             $hasPendingInvite = $invite?->isValid() ?? (
                 isset($member->pending_invite_count)
                     ? (int) $member->pending_invite_count > 0
                     : InviteCode::query()->pendingForUser((int) $member->id)->exists()
             );
-            $hasOtherMemberships = CommunityMembership::query()
-                ->where('user_id', (int) $member->id)
-                ->when(
-                    $member->community_id,
-                    fn ($query) => $query->where('community_id', '!=', (int) $member->community_id),
-                )
-                ->exists();
 
             if ($invite && $invite->isRejected()) {
                 $membershipStatus = MemberLifecycleStatus::INVITE_REJECTED;
-            } elseif ($hasPendingInvite && (! $startedSignup || $hasOtherMemberships)) {
+            } elseif ($hasPendingInvite) {
                 $membershipStatus = MemberLifecycleStatus::INVITATION_SENT;
             } else {
                 $membershipStatus = MemberLifecycleStatus::ONBOARDING;
@@ -1854,7 +1921,7 @@ class MemberController extends Controller
         } elseif (
             $membershipStatus === 'pending'
             && filled($member->invite_code_used ?? null)
-            && ! MemberLifecycleStatus::residentProfileCompleteFromRow($member)
+            && MemberLifecycleStatus::inviteMembershipIsOnboarding($member)
         ) {
             $membershipStatus = MemberLifecycleStatus::ONBOARDING;
         }
@@ -1932,13 +1999,14 @@ class MemberController extends Controller
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
         $search = $request ? $this->memberSearchTerm($request) : null;
-        $onboardingPendingMemberships = MemberLifecycleStatus::countOnboardingPendingMemberships(null, $search);
+        $pendingApproval = MemberLifecycleStatus::countPendingApprovalMemberships(null, $search, $residentsOnly);
 
         $stats = $this->composeMemberStats(
             $rows,
             MemberLifecycleStatus::countOnboarding(null, $search),
             MemberLifecycleStatus::countInvitationSent(null, $search),
-            $onboardingPendingMemberships,
+            0,
+            $pendingApproval,
         );
 
         if ($residentsOnly && $request) {
@@ -1966,13 +2034,14 @@ class MemberController extends Controller
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
         $search = $request ? $this->memberSearchTerm($request) : null;
-        $onboardingPendingMemberships = MemberLifecycleStatus::countOnboardingPendingMemberships($communityId, $search);
+        $pendingApproval = MemberLifecycleStatus::countPendingApprovalMemberships($communityId, $search);
 
         return $this->composeMemberStats(
             $rows,
             MemberLifecycleStatus::countOnboarding($communityId, $search),
             MemberLifecycleStatus::countInvitationSent($communityId, $search),
-            $onboardingPendingMemberships,
+            0,
+            $pendingApproval,
         );
     }
 
@@ -1985,9 +2054,10 @@ class MemberController extends Controller
         int $onboarding,
         int $invitationSent,
         int $onboardingPendingMemberships = 0,
+        ?int $pendingApproval = null,
     ): array {
         $approved = (int) ($rows['approved'] ?? 0);
-        $pending  = max(0, (int) ($rows['pending'] ?? 0) - $onboardingPendingMemberships);
+        $pending  = $pendingApproval ?? max(0, (int) ($rows['pending'] ?? 0) - $onboardingPendingMemberships);
         $banned   = (int) ($rows['banned'] ?? 0);
         $rejected = (int) ($rows['rejected'] ?? 0);
         $inactive = (int) ($rows['inactive'] ?? 0);
@@ -2313,11 +2383,13 @@ class MemberController extends Controller
         object $member,
         bool $detailed,
     ): array {
+        $communityIdOnRow = isset($member->community_id) ? (int) $member->community_id : 0;
         $row = [
             'id' => $unitId,
             'unit_number' => $unitNumber,
             'association_status' => $status,
             'is_billing_contact' => $isBillingContact,
+            'community_id' => $communityIdOnRow > 0 ? $communityIdOnRow : null,
         ];
 
         if (! $detailed) {

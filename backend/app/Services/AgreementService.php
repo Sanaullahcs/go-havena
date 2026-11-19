@@ -752,7 +752,9 @@ class AgreementService
         ];
 
         try {
-            return AgreementPdf::stamp($this->absoluteOriginalPath($document), $lines, $strokes, $typedName, $placement);
+            $stamp = $signedAt->timezone((string) config('app.timezone', 'UTC'))->format('d M Y  ·  H:i T');
+
+            return AgreementPdf::stamp($this->absoluteOriginalPath($document), $lines, $strokes, $typedName, $placement, 'Signed  ·  '.$stamp);
         } catch (RuntimeException $e) {
             abort(422, $e->getMessage());
         }
@@ -1319,6 +1321,7 @@ class AgreementService
         return [
             'id' => (int) $signature->id,
             'method' => $signature->method,
+            'typed_name' => $signature->typed_name,
             'signed_at' => $this->iso($signature->signed_at),
             'document_version' => (int) $signature->document_version,
             'checksum' => $signature->checksum,

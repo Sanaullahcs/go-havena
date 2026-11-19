@@ -210,7 +210,108 @@ class FeedPostTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.is_sensitive', true)
             ->assertJsonPath('data.0.body', 'Inappropriate community post content.')
-            ->assertJsonPath('data.0.sensitive_message', 'This post has been reported and hidden due to community guidelines.');
+            ->assertJsonPath('data.0.sensitive_label', 'Marked as Sensitive by Community Admin');
+    }
+
+    public function test_three_resident_reports_auto_mark_post_sensitive(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        $author = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'phone'  => '+201700000050',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $author->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        $reporters = [];
+        for ($i = 0; $i < 3; $i++) {
+            $reporters[] = $i === 0
+                ? $resident
+                : User::factory()->create([
+                    'role'   => 'resident',
+                    'status' => 'active',
+                    'phone'  => '+20170000005'.($i + 1),
+                ]);
+            if ($i > 0) {
+                CommunityMembership::query()->create([
+                    'user_id'      => $reporters[$i]->id,
+                    'community_id' => $community->id,
+                    'role'         => 'member',
+                    'status'       => 'approved',
+                ]);
+            }
+        }
+
+        Sanctum::actingAs($author);
+        $postId = $this->postJson('/api/v1/feed', [
+            'body' => 'Content that will be reported three times.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        foreach ([0, 1] as $index) {
+            Sanctum::actingAs($reporters[$index]);
+            $this->postJson('/api/v1/feed/'.$postId.'/report', [
+                'type'        => 'spam',
+                'description' => 'Report number '.($index + 1),
+            ], [
+                'X-Community-Id' => (string) $community->id,
+            ])
+                ->assertCreated()
+                ->assertJsonPath('data.is_sensitive', false)
+                ->assertJsonPath('data.report_status', 'reported');
+        }
+
+        $this->assertDatabaseHas('posts', [
+            'id'           => $postId,
+            'is_sensitive' => false,
+        ]);
+
+        Sanctum::actingAs($reporters[2]);
+        $this->postJson('/api/v1/feed/'.$postId.'/report', [
+            'type'        => 'spam',
+            'description' => 'Report number 3',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.is_sensitive', true)
+            ->assertJsonPath('data.report_status', 'sensitive');
+
+        $this->assertDatabaseHas('posts', [
+            'id'           => $postId,
+            'is_sensitive' => true,
+        ]);
+
+        Sanctum::actingAs($author);
+        $this->getJson('/api/v1/feed/'.$postId, [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.is_sensitive', true)
+            ->assertJsonPath('data.sensitive_label', 'Reported by Residents');
+
+        app(\App\Services\CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $reportId = $this->getJson('/api/v1/admin/posts/'.$postId.'/reports')
+            ->assertOk()
+            ->json('data.0.id');
+
+        $this->postJson('/api/v1/admin/posts/'.$postId.'/reports/'.$reportId.'/dismiss')
+            ->assertOk()
+            ->assertJsonPath('data.is_sensitive', false);
+
+        $this->assertDatabaseHas('posts', [
+            'id'           => $postId,
+            'is_sensitive' => false,
+        ]);
     }
 
     public function test_resident_report_marks_post_as_reported_not_sensitive(): void
@@ -267,11 +368,16 @@ class FeedPostTest extends TestCase
             'X-Community-Id' => (string) $community->id,
         ])
             ->assertOk()
-            ->assertJsonCount(0, 'data');
+            ->assertJsonPath('data.0.id', $postId)
+            ->assertJsonPath('data.0.is_sensitive', false)
+            ->assertJsonPath('data.0.report_status', 'reported');
 
         $this->getJson('/api/v1/feed/'.$postId, [
             'X-Community-Id' => (string) $community->id,
-        ])->assertNotFound();
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.is_sensitive', false)
+            ->assertJsonPath('data.report_status', 'reported');
 
         Sanctum::actingAs($author);
 
@@ -282,6 +388,167 @@ class FeedPostTest extends TestCase
             ->assertJsonPath('data.0.id', $postId)
             ->assertJsonPath('data.0.is_sensitive', false)
             ->assertJsonPath('data.0.body', 'Post that a neighbor will report.');
+    }
+
+    public function test_resident_report_on_poll_keeps_poll_in_feed_until_sensitive_rules_apply(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        $author = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'phone'  => '+201700000060',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $author->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        Sanctum::actingAs($author);
+
+        $pollId = $this->postJson('/api/v1/feed', [
+            'category' => 'poll',
+            'poll' => [
+                'question' => 'Poll that a neighbor will report.',
+                'duration_days' => 3,
+                'options' => ['Yes', 'No'],
+            ],
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($resident);
+
+        $this->postJson('/api/v1/feed/'.$pollId.'/report', [
+            'type'        => 'spam',
+            'description' => 'Misleading poll options.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.is_sensitive', false);
+
+        $this->getJson('/api/v1/feed?community_id='.$community->id, [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $pollId)
+            ->assertJsonPath('data.0.category', 'poll')
+            ->assertJsonPath('data.0.is_sensitive', false)
+            ->assertJsonPath('data.0.report_status', 'reported');
+
+        $reporters = [$resident];
+        for ($i = 1; $i < 3; $i++) {
+            $reporters[] = User::factory()->create([
+                'role'   => 'resident',
+                'status' => 'active',
+                'phone'  => '+20170000006'.$i,
+            ]);
+            CommunityMembership::query()->create([
+                'user_id'      => $reporters[$i]->id,
+                'community_id' => $community->id,
+                'role'         => 'member',
+                'status'       => 'approved',
+            ]);
+        }
+
+        Sanctum::actingAs($reporters[1]);
+        $this->postJson('/api/v1/feed/'.$pollId.'/report', [
+            'type' => 'spam',
+            'description' => 'Report two',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->assertJsonPath('data.is_sensitive', false);
+
+        Sanctum::actingAs($reporters[2]);
+        $this->postJson('/api/v1/feed/'.$pollId.'/report', [
+            'type' => 'spam',
+            'description' => 'Report three',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.is_sensitive', true)
+            ->assertJsonPath('data.report_status', 'sensitive');
+
+        Sanctum::actingAs($author);
+        $this->getJson('/api/v1/feed/'.$pollId, [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.category', 'poll')
+            ->assertJsonPath('data.is_sensitive', true)
+            ->assertJsonPath('data.sensitive_label', 'Reported by Residents')
+            ->assertJsonPath('data.sensitive_source', \App\Services\PostReportModeration::SENSITIVE_SOURCE_RESIDENTS);
+    }
+
+    public function test_sensitive_poll_blocks_voting_until_admin_releases(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        $author = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'phone'  => '+201700000070',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $author->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        Sanctum::actingAs($author);
+        $pollId = $this->postJson('/api/v1/feed', [
+            'category' => 'poll',
+            'poll' => [
+                'question' => 'Should we extend gym hours?',
+                'duration_days' => 3,
+                'options' => ['Yes', 'No'],
+            ],
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        $optionId = DB::table('poll_options')
+            ->whereIn('poll_id', DB::table('polls')->where('post_id', $pollId)->pluck('id'))
+            ->orderBy('id')
+            ->value('id');
+
+        DB::table('posts')->where('id', $pollId)->update([
+            'is_sensitive' => true,
+            'sensitive_source' => \App\Services\PostReportModeration::SENSITIVE_SOURCE_ADMIN,
+        ]);
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/feed/'.$pollId.'/vote', [
+            'option_id' => $optionId,
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertStatus(422);
+
+        $this->getJson('/api/v1/feed/'.$pollId, [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.poll.voting_paused', true)
+            ->assertJsonPath('data.poll.vote_changes_allowed', false);
+
+        app(\App\Services\CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/posts/'.$pollId.'/release-sensitive')
+            ->assertOk()
+            ->assertJsonPath('data.is_sensitive', false);
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/feed/'.$pollId.'/vote', [
+            'option_id' => $optionId,
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertOk();
     }
 
     public function test_resident_can_report_another_residents_comment(): void
@@ -495,6 +762,21 @@ class FeedPostTest extends TestCase
         $this->assertCount(3, $create->json('data.poll.options'));
         $postId = $create->json('data.id');
         $yesId = $create->json('data.poll.options.0.id');
+
+        $hoursPoll = $this->postJson('/api/v1/feed', [
+            'category' => 'poll',
+            'poll' => [
+                'question' => 'Quick pulse: should we extend gym hours tonight?',
+                'duration_hours' => 6,
+                'options' => ['Yes', 'No'],
+            ],
+        ], ['X-Community-Id' => (string) $community->id])->assertCreated();
+
+        $hoursPoll->assertJsonPath('data.poll.duration_hours', 6);
+        $row = DB::table('polls')->where('post_id', $hoursPoll->json('data.id'))->first();
+        $this->assertNotNull($row);
+        $this->assertSame(6, (int) $row->duration_hours);
+        $this->assertTrue(\Illuminate\Support\Carbon::parse($row->ends_at)->greaterThan(now()->addHours(5)));
 
         Sanctum::actingAs($resident);
         $vote = $this->postJson('/api/v1/feed/'.$postId.'/vote', [
@@ -748,5 +1030,48 @@ class FeedPostTest extends TestCase
             'reporter_id' => $resident->id,
             'source'      => 'resident',
         ]);
+    }
+
+    public function test_admin_poll_voters_endpoint_lists_choices_and_blocks_residents(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($resident);
+        $create = $this->postJson('/api/v1/feed', [
+            'category' => 'poll',
+            'poll' => [
+                'question'     => 'Extend pool hours?',
+                'duration_days' => 3,
+                'options'      => ['Morning', 'Evening'],
+            ],
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated();
+
+        $postId = (int) $create->json('data.id');
+        $eveningId = (int) $create->json('data.poll.options.1.id');
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/feed/'.$postId.'/vote', [
+            'option_id' => $eveningId,
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertOk();
+
+        $this->getJson('/api/v1/admin/posts/'.$postId.'/poll-voters')
+            ->assertForbidden();
+
+        app(\App\Services\CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/posts/'.$postId.'/poll-voters')
+            ->assertOk()
+            ->assertJsonPath('data.post_id', $postId)
+            ->assertJsonPath('data.unique_voters_count', 1)
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('data.voters.0.user_id', $resident->id)
+            ->assertJsonPath('data.voters.0.selected_options.0.id', $eveningId)
+            ->assertJsonPath('data.voters.0.selected_options.0.label', 'Evening')
+            ->assertJsonCount(1, 'data.voters.0.selected_options');
     }
 }

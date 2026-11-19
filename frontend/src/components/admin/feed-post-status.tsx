@@ -3,17 +3,28 @@
 import { AdminBadge } from "@/components/admin/ui";
 import type { AdminPost } from "@/lib/api/posts";
 
+const ROW_BLOCK_CLASS = "flex min-h-[3.5rem] w-full min-w-0 items-center py-0.5";
+
+/** Publication / sensitivity state only (reports live in FeedPostReportsCell). */
 export function FeedPostStatus({ post }: { post: AdminPost }) {
-  const pending = !post.reports_restricted && (post.resident_reports_count ?? 0) > 0;
+  const isPoll = post.category === "poll" || Boolean(post.poll);
+
+  if (post.is_sensitive) {
+    return (
+      <div className={ROW_BLOCK_CLASS}>
+        <div className="flex min-w-0 flex-col gap-1">
+          <AdminBadge tone="amber">Sensitive</AdminBadge>
+          {isPoll ? (
+            <span className="text-[10.5px] leading-4 text-slate-500">Voting paused</span>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {post.is_sensitive ? (
-        <AdminBadge tone="amber">Sensitive</AdminBadge>
-      ) : (
-        <AdminBadge tone="green">Published</AdminBadge>
-      )}
-      {pending ? <AdminBadge tone="red">Pending review</AdminBadge> : null}
+    <div className={ROW_BLOCK_CLASS}>
+      <AdminBadge tone="green">Published</AdminBadge>
     </div>
   );
 }

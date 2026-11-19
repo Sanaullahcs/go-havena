@@ -7,6 +7,7 @@ use App\Models\CommunityMembership;
 use App\Models\Profile;
 use App\Models\Region;
 use App\Models\User;
+use App\Support\UtilityBillDocumentVerdict;
 use Database\Seeders\SystemAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -242,17 +243,53 @@ class CommunityAdminUpdateTest extends TestCase
 
         $this->post("/api/v1/admin/community-admins/{$admin->id}", [
             'name' => 'Updated Admin',
-            'utility_bill' => UploadedFile::fake()->image('lease.jpg'),
+            'utility_bill' => $this->utilityBillPdf(),
         ], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJsonPath('data.name', 'Updated Admin')
             ->assertJsonPath('data.community_admin_status', 'approved')
-            ->assertJsonPath('data.profile.utility_bill_review_status', 'approved');
+            ->assertJsonPath('data.profile.utility_bill_review_status', UtilityBillDocumentVerdict::LIKELY);
 
         $fresh = $admin->fresh('profile');
         $this->assertNotSame('/storage/utility-bills/existing.pdf', $fresh->profile->utility_bill_url);
         $this->assertStringContainsString('/storage/utility-bills/', (string) $fresh->profile->utility_bill_url);
         $this->assertSame('approved', $fresh->community_admin_status);
+        $this->assertSame(UtilityBillDocumentVerdict::LIKELY, $fresh->profile->utility_bill_review_status);
+    }
+
+    private function utilityBillPdf(): UploadedFile
+    {
+        $text = 'Electric Utility Bill Account Number 12345 Amount Due Service Address Due Date';
+        $escaped = str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $text);
+        $stream = "BT /F1 12 Tf 72 700 Td ({$escaped}) Tj ET";
+        $pdf = "%PDF-1.4\n1 0 obj<< /Length ".strlen($stream)." >>stream\n{$stream}\nendstream\nendobj\ntrailer<<>>\n%%EOF";
+        $path = tempnam(sys_get_temp_dir(), 'bill').'.pdf';
+        file_put_contents($path, $pdf);
+
+        return new UploadedFile($path, 'utility-bill.pdf', 'application/pdf', null, true);
+    }
+
+    public function test_system_admin_cannot_save_a_logo_as_the_utility_bill(): void
+    {
+        Storage::fake('public');
+        Sanctum::actingAs($this->systemAdmin());
+        $admin = $this->communityAdmin();
+        $admin->profile()->update([
+            'utility_bill_url' => '/storage/utility-bills/existing.pdf',
+            'utility_bill_review_status' => 'approved',
+        ]);
+
+        $this->post("/api/v1/admin/community-admins/{$admin->id}", [
+            'name' => 'Should Not Save',
+            'utility_bill' => $this->simpleLogoImage(),
+        ], ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['utility_bill'])
+            ->assertJsonPath('errors.utility_bill.0', UtilityBillDocumentVerdict::REJECT_MESSAGE);
+
+        $fresh = $admin->fresh('profile');
+        $this->assertSame('Old Name', $fresh->name);
+        $this->assertSame('/storage/utility-bills/existing.pdf', $fresh->profile->utility_bill_url);
         $this->assertSame('approved', $fresh->profile->utility_bill_review_status);
     }
 
@@ -287,6 +324,24 @@ class CommunityAdminUpdateTest extends TestCase
         $this->assertSame('/storage/utility-bills/existing.pdf', $fresh->profile->utility_bill_url);
         $this->assertSame('approved', $fresh->profile->utility_bill_review_status);
         $this->assertSame('approved', $fresh->community_admin_status);
+    }
+
+    private function simpleLogoImage(): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'logo').'.png';
+        $image = imagecreatetruecolor(640, 640);
+        $white = imagecolorallocate($image, 255, 255, 255);
+        $blue = imagecolorallocate($image, 27, 79, 138);
+        $navy = imagecolorallocate($image, 15, 40, 80);
+        imagefilledrectangle($image, 0, 0, 639, 639, $white);
+        imagefilledellipse($image, 320, 230, 200, 200, $blue);
+        imagefilledellipse($image, 320, 230, 110, 110, $white);
+        imagestring($image, 5, 255, 400, 'HAVENA', $navy);
+        imagefilledrectangle($image, 180, 440, 460, 468, $navy);
+        imagepng($image, $path);
+        imagedestroy($image);
+
+        return new UploadedFile($path, 'havena-logo.png', 'image/png', null, true);
     }
 
     public function test_non_system_admin_cannot_update_community_admin(): void

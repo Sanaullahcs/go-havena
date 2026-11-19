@@ -355,10 +355,10 @@ class MemberInviteTest extends TestCase
 
         Sanctum::actingAs($admin);
         $afterSignup = $this->getJson('/api/v1/admin/members?role=member')->assertOk();
-        $onboardingRow = collect($afterSignup->json('data'))->first(fn ($row) => (int) $row['id'] === $invitedUserId);
-        $this->assertSame('onboarding', $onboardingRow['status']);
-        $this->assertSame(0, $afterSignup->json('meta.stats.invitation_sent'));
-        $this->assertSame(1, $afterSignup->json('meta.stats.onboarding'));
+        $stillInvited = collect($afterSignup->json('data'))->first(fn ($row) => (int) $row['id'] === $invitedUserId);
+        $this->assertSame('invitation_sent', $stillInvited['status']);
+        $this->assertSame(1, $afterSignup->json('meta.stats.invitation_sent'));
+        $this->assertSame(0, $afterSignup->json('meta.stats.onboarding'));
 
         Sanctum::actingAs(User::query()->findOrFail($invitedUserId));
         $this->postJson('/api/v1/communities/join-by-invite', ['invite_code' => $inviteCode])

@@ -1,13 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { ActivityIndicator, I18nManager, StyleSheet, View } from "react-native";
-import * as Font from "expo-font";
 import * as SecureStore from "expo-secure-store";
 import i18n, { initI18n, saveLanguage, SUPPORTED } from "../i18n";
 import { Colors } from "../constants/tokens";
-import { fontMapForLanguage } from "../constants/font-map";
 import { setNativeAppLocale } from "../utils/native-app-locale";
 import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
 import { isExpoGo } from "../utils/expo-runtime";
+import { subscribeSessionUser } from "../services/auth-session";
+import { currentCommunityId } from "../services/community-access";
+import { communityPrefersArabic } from "../utils/community-language";
 
 const LanguageContext = createContext({
   language: "en",
@@ -29,9 +30,9 @@ function languageNeedsRTL(lng) {
 
 /**
  * Layout stays LTR app-wide (no I18nManager.forceRTL / no root `direction:'rtl'`)
- * so screens are not mirrored. Arabic uses Noto Sans Arabic (loaded under Poppins-*
- * keys) plus LocaleTextInput writingDirection for typing. LTR uses Poppins. Text clip fixes run from
- * index.js / setArabicTextMetricsEnabled so Noto glyphs are not cropped on top.
+ * so screens are not mirrored. Poppins and Noto Sans Arabic are both loaded at
+ * boot, and line heights stay the same so a language switch does not reflow
+ * the screen. Text clip fixes run from index.js.
  *
  * I18nManager.forceRTL must stay false. If a previous build left native
  * isRTL=true, clear it with forceRTL(false) (applies fully on the next cold start).
@@ -85,23 +86,47 @@ export default function LanguageProvider({ children }) {
     };
   }, []);
 
+  const languageRef = React.useRef(language);
+  languageRef.current = language;
+  const seenCommunityRef = React.useRef(null);
+  const restoreLangRef = React.useRef(null);
+
   const changeLanguage = useCallback(async (lng) => {
     if (!SUPPORTED.includes(lng) || lng === language) return;
 
     await saveLanguage(lng);
+    // Flip the font before React re-renders so Arabic and English share one layout pass.
+    setArabicTextMetricsEnabled(languageNeedsRTL(lng));
     await i18n.changeLanguage(lng);
     setLanguage(lng);
     setIsRTL(languageNeedsRTL(lng));
-    setArabicTextMetricsEnabled(languageNeedsRTL(lng));
-
     setNativeAppLocale(lng);
-
-    try {
-      await Font.loadAsync(fontMapForLanguage(lng));
-    } catch {
-      // Fonts already registered, or Expo Go cannot swap families mid-session.
-    }
   }, [language]);
+
+  useEffect(() => {
+    return subscribeSessionUser((user) => {
+      const id = currentCommunityId(user);
+      if (!id) return;
+      const membership = (user?.memberships || []).find(
+        (row) => Number(row?.community_id) === Number(id),
+      );
+      const community = membership?.community;
+      if (!community || seenCommunityRef.current === id) return;
+      const previousId = seenCommunityRef.current;
+      seenCommunityRef.current = id;
+      const arabicHome = communityPrefersArabic(community);
+      if (arabicHome && languageRef.current !== "ar") {
+        restoreLangRef.current = languageRef.current;
+        void changeLanguage("ar");
+        return;
+      }
+      if (!arabicHome && previousId != null && restoreLangRef.current && languageRef.current === "ar") {
+        const restore = restoreLangRef.current;
+        restoreLangRef.current = null;
+        void changeLanguage(restore);
+      }
+    });
+  }, [changeLanguage]);
 
   return (
     <LanguageContext.Provider value={{ language, isRTL, changeLanguage, ready }}>
@@ -121,6 +146,7 @@ export default function LanguageProvider({ children }) {
 const styles = StyleSheet.create({
   directionRoot: {
     flex: 1,
+    direction: "ltr",
   },
   boot: {
     flex: 1,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { ClearableInput } from "@/components/admin/clearable-field";
@@ -10,6 +10,10 @@ export type SearchableSelectOption = {
   value: string;
   label: string;
   description?: string;
+  /** When set, a heading is shown the first time this group appears. */
+  group?: string;
+  /** Stays at the top of the list and is not hidden by search. */
+  pinned?: boolean;
   color?: string;
   disabled?: boolean;
 };
@@ -23,10 +27,13 @@ type SearchableSelectProps = {
   searchPlaceholder?: string;
   emptyMessage?: string;
   searchable?: boolean;
+  /** Type in the field itself to filter. Hides the search box inside the menu. */
+  combobox?: boolean;
   allowCustom?: boolean;
   disabled?: boolean;
   error?: string | null;
   className?: string;
+  onBlur?: () => void;
   /** Shown when `value` is set but not yet present in `options` (e.g. while options load). */
   valueLabel?: string;
 };
@@ -40,25 +47,25 @@ export function SearchableSelect({
   searchPlaceholder = "Search…",
   emptyMessage = "No matches found.",
   searchable = false,
+  combobox = false,
   allowCustom = false,
   disabled = false,
   error,
   className,
   valueLabel,
+  onBlur,
 }: SearchableSelectProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const fieldRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState("");
-  const { style: popoverStyle, ready } = useAnchoredPopover(open, triggerRef, {
-    popoverRef,
-    constrainToViewport: true,
-    preferBelow: true,
-    maxHeight: 320,
-  });
+  const [editing, setEditing] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const { style: popoverStyle, ready } = useAnchoredPopover(open, combobox ? fieldRef : triggerRef, { popoverRef });
 
   const selected = useMemo(() => {
     if (!value) return undefined;
@@ -68,15 +75,19 @@ export function SearchableSelect({
     return options.find((opt) => opt.value === value) ?? { value, label: value };
   }, [value, valueLabel, options]);
 
+  const filterText = combobox && !editing ? "" : query;
   const filtered = useMemo(() => {
-    if (!searchable) return options;
-    const q = query.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((opt) => {
+    const pinned = options.filter((opt) => opt.pinned);
+    const rest = options.filter((opt) => !opt.pinned);
+    if (!searchable && !combobox) return [...pinned, ...rest];
+    const q = filterText.trim().toLowerCase();
+    if (!q) return [...pinned, ...rest];
+    const matched = rest.filter((opt) => {
       const haystack = `${opt.label} ${opt.description ?? ""}`.toLowerCase();
       return haystack.includes(q);
     });
-  }, [options, query, searchable]);
+    return [...pinned, ...matched];
+  }, [options, filterText, searchable, combobox]);
 
   const customValue = query.trim();
   const showCustom = Boolean(
@@ -90,13 +101,17 @@ export function SearchableSelect({
   }, []);
 
   useEffect(() => {
-    if (!open || !searchable) {
-      if (!open) setQuery("");
+    setActiveIndex(0);
+  }, [filterText, open]);
+
+  useEffect(() => {
+    if (!open || !searchable || combobox) {
+      if (!open && !combobox) setQuery("");
       return;
     }
     const timer = window.setTimeout(() => searchRef.current?.focus(), 0);
     return () => window.clearTimeout(timer);
-  }, [open, searchable]);
+  }, [open, searchable, combobox]);
 
   useEffect(() => {
     if (!open) return;
@@ -117,9 +132,101 @@ export function SearchableSelect({
     };
   }, [open]);
 
+  const choose = (next: string) => {
+    onChange(next);
+    setEditing(false);
+    setQuery("");
+    setOpen(false);
+  };
+
+  const onComboKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      setEditing(false);
+      setQuery("");
+      setOpen(false);
+      return;
+    }
+    if (!filtered.length) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((index) => (index + 1) % filtered.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((index) => (index - 1 + filtered.length) % filtered.length);
+    } else if (event.key === "Enter" && open) {
+      const opt = filtered[activeIndex];
+      if (!opt || opt.disabled) return;
+      event.preventDefault();
+      choose(opt.value);
+    }
+  };
+
   return (
     <div className={className} ref={wrapRef}>
-      <div className="nl-picker-wrap">
+      <div className="nl-picker-wrap" ref={fieldRef}>
+        {combobox ? (
+          <div className="relative">
+            <input
+              ref={searchRef}
+              id={id}
+              type="text"
+              role="combobox"
+              disabled={disabled}
+              value={editing ? query : (selected?.label ?? "")}
+              placeholder={placeholder}
+              autoComplete="off"
+              spellCheck={false}
+              aria-expanded={open}
+              aria-haspopup="listbox"
+              aria-invalid={error ? true : undefined}
+              aria-autocomplete="list"
+              onFocus={(event) => {
+                if (disabled) return;
+                setOpen(true);
+                event.currentTarget.select();
+              }}
+              onBlur={() => {
+                window.setTimeout(() => {
+                  setEditing(false);
+                  setQuery("");
+                  setOpen(false);
+                  onBlur?.();
+                }, 120);
+              }}
+              onChange={(event) => {
+                const next = event.target.value;
+                setEditing(true);
+                setQuery(next);
+                setOpen(true);
+                if (!next.trim()) onChange("");
+              }}
+              onKeyDown={onComboKeyDown}
+              className={[
+                "nl-input box-border h-11 w-full !py-0 pr-10",
+                error ? "border-red-300 ring-1 ring-red-100" : "",
+                disabled ? "cursor-not-allowed opacity-60" : "",
+              ].join(" ")}
+            />
+            <button
+              type="button"
+              tabIndex={-1}
+              disabled={disabled}
+              aria-label="Show categories"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                setEditing(false);
+                setQuery("");
+                setOpen((valueOpen) => !valueOpen);
+                searchRef.current?.focus();
+              }}
+            >
+              <ChevronDown className={`nl-picker-chevron ${open ? "nl-picker-chevron-open" : ""}`} size={14} strokeWidth={2} aria-hidden />
+            </button>
+          </div>
+        ) : (
         <button
           ref={triggerRef}
           id={id}
@@ -155,20 +262,21 @@ export function SearchableSelect({
             aria-hidden
           />
         </button>
+        )}
 
         {open && mounted
           ? createPortal(
               <div
                 ref={popoverRef}
                 className={[
-                  "nl-themed-popover nl-select-popover flex flex-col overflow-hidden p-0",
+                  "nl-themed-popover nl-select-popover overflow-hidden p-0",
                   ready ? "nl-select-popover-open" : "",
                 ].join(" ")}
-                style={{ ...popoverStyle, overflow: "hidden" }}
+                style={popoverStyle}
                 role="listbox"
               >
-                {searchable ? (
-                  <div className="shrink-0 border-b border-slate-100 p-2">
+                {searchable && !combobox ? (
+                  <div className="border-b border-slate-100 p-2">
                     <div className="nl-search-field">
                       <Search className="nl-search-icon" aria-hidden />
                       <ClearableInput
@@ -185,10 +293,7 @@ export function SearchableSelect({
                   </div>
                 ) : null}
 
-                <div
-                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1"
-                  onWheel={(event) => event.stopPropagation()}
-                >
+                <div className="max-h-56 overflow-y-auto p-1">
                   {filtered.length === 0 && !showCustom ? (
                     <p className="px-3 py-4 text-center text-xs text-slate-400">{emptyMessage}</p>
                   ) : (
@@ -197,10 +302,8 @@ export function SearchableSelect({
                       <button
                         type="button"
                         role="option"
-                        onClick={() => {
-                          onChange(customValue);
-                          setOpen(false);
-                        }}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => choose(customValue)}
                         className="nl-select-option w-full text-left"
                       >
                         <span className="min-w-0 flex-1">
@@ -211,23 +314,31 @@ export function SearchableSelect({
                         </span>
                       </button>
                     ) : null}
-                    {filtered.map((opt) => {
+                    {filtered.map((opt, index) => {
                       const active = opt.value === value;
+                      const highlighted = combobox && index === activeIndex;
+                      const showGroup = Boolean(opt.group) && opt.group !== filtered[index - 1]?.group;
                       return (
+                        <Fragment key={opt.value}>
+                        {showGroup ? (
+                          <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                            {opt.group}
+                          </p>
+                        ) : null}
                         <button
-                          key={opt.value}
                           type="button"
                           role="option"
                           aria-selected={active}
                           disabled={opt.disabled}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onMouseEnter={() => setActiveIndex(index)}
                           onClick={() => {
                             if (opt.disabled) return;
-                            onChange(opt.value);
-                            setOpen(false);
+                            choose(opt.value);
                           }}
                           className={[
                             "nl-select-option w-full text-left",
-                            active ? "nl-select-option-selected" : "",
+                            active || highlighted ? "nl-select-option-selected" : "",
                             opt.disabled ? "cursor-not-allowed opacity-50" : "",
                           ].join(" ")}
                         >
@@ -249,6 +360,7 @@ export function SearchableSelect({
                           </span>
                           {active ? <Check size={14} strokeWidth={2.5} aria-hidden className="shrink-0" /> : null}
                         </button>
+                        </Fragment>
                       );
                     })}
                     </>

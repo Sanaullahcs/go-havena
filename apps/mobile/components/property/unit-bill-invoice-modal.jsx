@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Fonts } from "../../constants/font";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { billingFrequencyLabel } from "../../services/property-services-api";
+import { PAY_NOW_ENABLED } from "../../services/payments-api";
 import { formatCommunityMoney } from "../../utils/money";
 import { sf, sw } from "../../utils/responsive";
 
@@ -188,7 +189,7 @@ export default function UnitBillInvoiceModal({
             ) : null}
           </ScrollView>
 
-          {(rejected && bill?.can_submit_proof) || (!rejected && (bill?.can_submit_proof || needsAcknowledgeBeforePay(bill))) ? (
+          {(rejected && bill?.can_submit_proof) || (PAY_NOW_ENABLED && !rejected && (bill?.can_submit_proof || needsAcknowledgeBeforePay(bill))) ? (
             <View style={styles.footer}>
               <Pressable
                 disabled={busy}

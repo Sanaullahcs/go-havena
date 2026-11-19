@@ -1,10 +1,9 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable, Platform } from "react-native";
 import LocaleTextInput from "./locale-text-input";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
-import { PageType } from "../../constants/page-styles";
 import { sw, sf } from "../../utils/responsive";
 
 export default function SearchInput({
@@ -16,6 +15,8 @@ export default function SearchInput({
   onFocus,
   inputRef,
   editable = true,
+  containerStyle,
+  placeholderTextColor = "rgba(10, 10, 10, 0.45)",
 }) {
   const { t } = useTranslation();
   const [internal, setInternal] = useState("");
@@ -28,13 +29,15 @@ export default function SearchInput({
   const clear = () => handleChange("");
 
   return (
-    <View style={styles.searchContainer}>
-      <Ionicons name="search-outline" size={sf(16)} color="#99A1AF" style={styles.icon} />
+    <View style={[styles.searchContainer, containerStyle]}>
+      <View style={styles.iconSlot} pointerEvents="none">
+        <Ionicons name="search-outline" size={sf(17)} color="#99A1AF" />
+      </View>
       <LocaleTextInput
         ref={inputRef}
-        style={[styles.input]}
+        style={styles.input}
         placeholder={placeholder ?? t("common.search")}
-        placeholderTextColor="rgba(10, 10, 10, 0.45)"
+        placeholderTextColor={placeholderTextColor}
         value={value}
         onChangeText={handleChange}
         onFocus={onFocus}
@@ -50,13 +53,22 @@ export default function SearchInput({
         underlineColorAndroid="transparent"
       />
       {value?.length > 0 ? (
-        <Pressable onPress={clear} hitSlop={8} accessibilityLabel={t("common.clearSearch")} style={styles.clearBtn}>
-          <Ionicons name="close-circle" size={sf(18)} color="#99A1AF" />
+        <Pressable
+          onPress={clear}
+          hitSlop={8}
+          accessibilityLabel={t("common.clearSearch")}
+          style={styles.clearBtn}
+        >
+          <View style={styles.clearIconWrap}>
+            <Ionicons name="close-circle" size={sf(18)} color="#99A1AF" />
+          </View>
         </Pressable>
       ) : null}
     </View>
   );
 }
+
+const SEARCH_FONT = sf(14);
 
 const styles = StyleSheet.create({
   searchContainer: {
@@ -65,21 +77,37 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAFB",
     borderRadius: sw(12),
     paddingHorizontal: sw(12),
-    height: sw(42),
+    minHeight: sw(44),
     borderWidth: 1,
     borderColor: "#F3F4F6",
   },
-  icon: { marginEnd: sw(8) },
+  iconSlot: {
+    justifyContent: "center",
+    alignItems: "center",
+    marginEnd: sw(8),
+    height: sw(44),
+  },
   input: {
     flex: 1,
-    fontSize: PageType.bodyMd,
-    lineHeight: PageType.bodyMdLine,
+    alignSelf: "stretch",
+    minHeight: sw(44),
+    fontSize: SEARCH_FONT,
+    lineHeight: Platform.OS === "android" ? SEARCH_FONT + 2 : SEARCH_FONT,
     color: "#101828",
     fontFamily: Fonts.regular,
     paddingVertical: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
+    margin: 0,
   },
   clearBtn: {
     marginStart: sw(4),
-    padding: sw(2),
+    alignSelf: "stretch",
+    justifyContent: "center",
+  },
+  clearIconWrap: {
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: sw(44),
   },
 });

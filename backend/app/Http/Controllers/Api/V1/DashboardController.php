@@ -616,7 +616,7 @@ class DashboardController extends Controller
         AmenitySharedBillService $amenityBills,
         UnitServiceBillService $serviceBills,
     ): array {
-        $memberships = DB::table('community_memberships as cm')
+        $membershipRows = DB::table('community_memberships as cm')
             ->join('users', 'users.id', '=', 'cm.user_id')
             ->leftJoin('communities', 'communities.id', '=', 'cm.community_id')
             ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
@@ -658,11 +658,50 @@ class DashboardController extends Controller
             ->limit(15)
             ->get()
             ->unique('membership_id')
-            ->map(function ($row) {
-                $contact = $this->dashboardContact($row->phone, $row->email, $row->unit_number);
+            ->values();
+
+        $signupUnits = $this->initialSignupUnitsForMemberships($membershipRows);
+
+        $memberships = $membershipRows
+            ->map(function ($row) use ($signupUnits) {
+                $key = $row->user_id.':'.$row->community_id;
+                $units = $signupUnits[$key] ?? [];
+                $profileBill = $this->resolveMediaUrl($row->utility_bill_url ?? null);
+                if ($units === [] && trim((string) $row->unit_number) !== '') {
+                    $units[] = [
+                        'unit_number' => trim((string) $row->unit_number),
+                        'residence_type' => null,
+                        'documents' => $profileBill
+                            ? [['kind' => 'utility_bill', 'file_url' => $profileBill]]
+                            : [],
+                    ];
+                } elseif ($profileBill && $units !== [] && ! $this->unitsAlreadyIncludeBill($units, $profileBill)) {
+                    $units[0]['documents'][] = ['kind' => 'utility_bill', 'file_url' => $profileBill];
+                }
+
+                $unitNumbers = array_values(array_filter(array_map(
+                    fn (array $unit) => trim((string) ($unit['unit_number'] ?? '')),
+                    $units,
+                )));
+                $contact = $this->dashboardContact(
+                    $row->phone,
+                    $row->email,
+                    $unitNumbers !== [] ? implode(', ', $unitNumbers) : $row->unit_number,
+                );
                 $detail = $row->family_number
                     ? "Family add · {$row->family_number} · {$contact}"
                     : $contact;
+                $bill = $profileBill;
+                if (! $bill) {
+                    foreach ($units as $unit) {
+                        foreach ($unit['documents'] as $document) {
+                            if (($document['kind'] ?? '') === 'utility_bill' && ! empty($document['file_url'])) {
+                                $bill = $document['file_url'];
+                                break 2;
+                            }
+                        }
+                    }
+                }
 
                 return [
                     'type'          => 'membership',
@@ -672,7 +711,8 @@ class DashboardController extends Controller
                     'title'         => PhoneNormalizer::displayName($row->name, $row->phone, $row->email),
                     'subtitle'      => $row->community_name ?? 'Unknown community',
                     'detail'        => $detail,
-                    'utility_bill_url' => $this->resolveMediaUrl($row->utility_bill_url ?? null),
+                    'utility_bill_url' => $bill,
+                    'units'         => $units,
                     'created_at'    => $row->created_at,
                     'action_label'  => $row->family_number ? 'Review family member' : 'Review the member',
                     'action_href'   => '/admin/members?status=pending',
@@ -1080,6 +1120,42 @@ class DashboardController extends Controller
         return $contact;
     }
 
+    /**
+     * The profile copy of a signup bill is the same document as the unit proof.
+     * Keep one link even when the stored URLs use different hosts.
+     *
+     * @param  list<array{unit_number: string, residence_type: ?string, documents: list<array{kind: string, file_url: string}>}>  $units
+     */
+    private function unitsAlreadyIncludeBill(array $units, string $billUrl): bool
+    {
+        $billKey = $this->mediaPathKey($billUrl);
+        foreach ($units as $unit) {
+            foreach ($unit['documents'] as $document) {
+                if (($document['kind'] ?? '') === 'utility_bill') {
+                    return true;
+                }
+                if ($billKey !== '' && $this->mediaPathKey($document['file_url'] ?? null) === $billKey) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function mediaPathKey(?string $url): string
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+        $path = is_string($path) && $path !== '' ? $path : $url;
+
+        return strtolower(ltrim($path, '/'));
+    }
+
     private function resolveMediaUrl(?string $url): ?string
     {
         if (! $url) {
@@ -1099,10 +1175,12 @@ class DashboardController extends Controller
             return 0;
         }
 
-        return (int) DB::table('unit_registration_packages')
-            ->where('community_id', $communityId)
-            ->where('status', 'pending')
-            ->count();
+        $query = DB::table('unit_registration_packages as p')
+            ->where('p.community_id', $communityId)
+            ->where('p.status', 'pending');
+        $this->whereStandaloneUnitReview($query);
+
+        return (int) $query->count();
     }
 
     /** @return list<array<string, mixed>> */
@@ -1117,7 +1195,9 @@ class DashboardController extends Controller
             ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
             ->leftJoin('communities', 'communities.id', '=', 'p.community_id')
             ->where('p.community_id', $communityId)
-            ->where('p.status', 'pending')
+            ->where('p.status', 'pending');
+        $this->whereStandaloneUnitReview($packages);
+        $packages = $packages
             ->select([
                 'p.id',
                 'p.community_id',
@@ -1170,5 +1250,110 @@ class DashboardController extends Controller
                 'action_href'  => '/admin/unit-requests',
             ];
         })->all();
+    }
+
+    /**
+     * First-time signup units stay on the resident approval. A unit review is
+     * its own item only for an additional unit, or for an initial package whose
+     * membership is no longer waiting.
+     */
+    private function whereStandaloneUnitReview($query, string $packageAlias = 'p'): void
+    {
+        $query->where(function ($outer) use ($packageAlias) {
+            $outer->where("{$packageAlias}.kind", 'addon')
+                ->orWhere(function ($initial) use ($packageAlias) {
+                    $initial->where("{$packageAlias}.kind", 'initial')
+                        ->whereNotExists(function ($sub) use ($packageAlias) {
+                            $sub->select(DB::raw(1))
+                                ->from('community_memberships as cm')
+                                ->whereColumn('cm.user_id', "{$packageAlias}.user_id")
+                                ->whereColumn('cm.community_id', "{$packageAlias}.community_id")
+                                ->where('cm.status', 'pending');
+                        });
+                });
+        });
+    }
+
+    /**
+     * Pending initial-signup units and their proof documents, keyed by "userId:communityId".
+     *
+     * @param  \Illuminate\Support\Collection<int, object>  $rows
+     * @return array<string, list<array{unit_number: string, residence_type: ?string, documents: list<array{kind: string, file_url: string}>}>>
+     */
+    private function initialSignupUnitsForMemberships($rows): array
+    {
+        if ($rows->isEmpty()
+            || ! Schema::hasTable('unit_registration_packages')
+            || ! Schema::hasTable('unit_registration_package_items')) {
+            return [];
+        }
+
+        $packages = DB::table('unit_registration_packages')
+            ->where('kind', 'initial')
+            ->where('status', 'pending')
+            ->whereIn('user_id', $rows->pluck('user_id')->unique()->all())
+            ->whereIn('community_id', $rows->pluck('community_id')->unique()->all())
+            ->get(['id', 'user_id', 'community_id']);
+
+        if ($packages->isEmpty()) {
+            return [];
+        }
+
+        $items = DB::table('unit_registration_package_items')
+            ->whereIn('package_id', $packages->pluck('id')->all())
+            ->orderBy('id')
+            ->get(['id', 'package_id', 'unit_number', 'residence_type']);
+
+        $proofs = Schema::hasTable('unit_proof_documents')
+            ? DB::table('unit_proof_documents')
+                ->whereIn('package_item_id', $items->pluck('id')->all())
+                ->orderBy('id')
+                ->get(['package_item_id', 'kind', 'file_url'])
+            : collect();
+
+        $proofsByItem = [];
+        foreach ($proofs as $proof) {
+            $url = $this->resolveMediaUrl($proof->file_url ?? null);
+            if (! $url) {
+                continue;
+            }
+            $kind = (string) $proof->kind;
+            $pathKey = $this->mediaPathKey($url);
+            $already = false;
+            foreach ($proofsByItem[$proof->package_item_id] ?? [] as $existing) {
+                $sameKind = ($existing['kind'] ?? '') === $kind;
+                $sameFile = $pathKey !== '' && $this->mediaPathKey($existing['file_url'] ?? null) === $pathKey;
+                if ($sameKind && ($kind === 'utility_bill' || $sameFile)) {
+                    $already = true;
+                    break;
+                }
+            }
+            if ($already) {
+                continue;
+            }
+            $proofsByItem[$proof->package_item_id][] = [
+                'kind' => $kind,
+                'file_url' => $url,
+            ];
+        }
+
+        $itemsByPackage = $items->groupBy('package_id');
+        $out = [];
+        foreach ($packages as $package) {
+            $key = $package->user_id.':'.$package->community_id;
+            foreach ($itemsByPackage->get($package->id, collect()) as $item) {
+                $number = trim((string) $item->unit_number);
+                if ($number === '') {
+                    continue;
+                }
+                $out[$key][] = [
+                    'unit_number' => $number,
+                    'residence_type' => $item->residence_type ? (string) $item->residence_type : null,
+                    'documents' => $proofsByItem[$item->id] ?? [],
+                ];
+            }
+        }
+
+        return $out;
     }
 }

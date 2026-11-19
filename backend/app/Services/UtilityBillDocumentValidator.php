@@ -103,7 +103,10 @@ class UtilityBillDocumentValidator
             return UtilityBillDocumentVerdict::review('ambiguous_document_image');
         }
 
-        if ($features['hasDocumentStructure'] && $features['documentScore'] >= 0.38) {
+        if ($features['hasDocumentStructure']
+            && $features['documentScore'] >= 0.38
+            && $features['textBandCount'] >= 3
+            && $features['textLikeRows'] >= 12) {
             return UtilityBillDocumentVerdict::review('document_structure_review');
         }
 
@@ -227,10 +230,17 @@ class UtilityBillDocumentValidator
         $uniqueColors = count($colorBuckets);
         $solidRowRatio = $solidRows / max(1, $height);
 
+        $aspect = $srcW / max(1, $srcH);
         $looksLikeScreenshot = $solidRowRatio >= 0.28 && $uniqueColors <= 48 && $textLikeRows < 16;
         $looksLikeProduct = $paperRatio >= 0.40 && $textLikeRows < 10 && $centerInkShare >= 0.58 && $textBandCount <= 1;
         $looksLikePortrait = $skinRatio >= 0.10 && $textLikeRows < 14;
         $looksLikeScenery = $meanSaturation >= 0.20 && $paperRatio < 0.30 && $textLikeRows < 12;
+        // A logo or wordmark is a short graphic, not a page of bill or lease lines.
+        $looksLikeLogo = $textBandCount <= 2 && (
+            ($aspect >= 0.80 && $aspect <= 1.40 && $textLikeRows < 40)
+            || ($aspect >= 1.55 && $textLikeRows < 30)
+            || ($centerInkShare >= 0.60 && $textLikeRows < 16 && $paperRatio >= 0.30 && $textBandCount <= 1)
+        );
 
         $documentScore = $this->documentScore(
             $paperRatio,
@@ -266,9 +276,17 @@ class UtilityBillDocumentValidator
             && ! $looksLikeScreenshot
             && ! $looksLikeProduct
             && ! $looksLikePortrait
-            && ! $looksLikeScenery;
+            && ! $looksLikeScenery
+            && ! $looksLikeLogo;
 
-        $looksUnrelated = $looksLikeScreenshot
+        if ($looksLikeLogo) {
+            $looksLikeDocument = false;
+            $looksLikeAmbiguousDocument = false;
+            $hasDocumentStructure = false;
+        }
+
+        $looksUnrelated = $looksLikeLogo
+            || $looksLikeScreenshot
             || $looksLikeProduct
             || $looksLikePortrait
             || $looksLikeScenery
@@ -276,7 +294,9 @@ class UtilityBillDocumentValidator
             || ($meanSaturation >= 0.32 && $textBandCount < 2);
 
         $unrelatedReason = 'unrelated_image';
-        if ($looksLikePortrait) {
+        if ($looksLikeLogo) {
+            $unrelatedReason = 'logo_or_graphic';
+        } elseif ($looksLikePortrait) {
             $unrelatedReason = 'portrait_or_selfie';
         } elseif ($looksLikeScenery) {
             $unrelatedReason = 'scenery_or_photo';

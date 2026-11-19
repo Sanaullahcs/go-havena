@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Keyboard } from "react-native";
+import { WebView } from "react-native-webview";
+import * as FileSystem from "expo-file-system/legacy";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -30,6 +32,7 @@ import { useApiAction } from "../../../../hooks/use-api-action";
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
 import { useTouchedFieldErrors } from "../../../../hooks/use-touched-field-errors";
 import { agreementDateErrors } from "../../../../utils/agreement-dates";
+import { viewerHtml } from "./sign-agreement";
 
 export default function AgreementForm() {
   const { t } = useTranslation();
@@ -56,6 +59,7 @@ export default function AgreementForm() {
   const [selectedUnits, setSelectedUnits] = useState([]);
   const [notify, setNotify] = useState(true);
   const [draftId, setDraftId] = useState(null);
+  const [previewHtml, setPreviewHtml] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -143,6 +147,24 @@ export default function AgreementForm() {
   const categoryOptions = useMemo(() => buildDocumentCategoryOptions(categories), [categories]);
   const category = resolveDocumentCategory(categorySelect, customCategory);
 
+  useEffect(() => {
+    if (step !== 3 || !file?.uri) {
+      setPreviewHtml(null);
+      return undefined;
+    }
+    let cancelled = false;
+    FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 })
+      .then((base64) => {
+        if (!cancelled) setPreviewHtml(viewerHtml(base64));
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewHtml(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, file?.uri]);
+
   const recipientCount = scope === "all"
     ? options.resident_count
     : scope === "residents"
@@ -153,6 +175,18 @@ export default function AgreementForm() {
     <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
       <InternalScreenHeader title={t("propertyMgmt.createAgreement")} />
       <KeyboardScroll ref={scrollRef} footerHeight={sw(76)} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <View style={styles.steps}>
+          {[t("propertyMgmt.agreementDetails"), t("propertyMgmt.residents"), t("propertyMgmt.reviewStep")].map((label, index) => {
+            const current = index + 1;
+            const on = step === current;
+            const done = step > current;
+            return (
+              <View key={label} style={[styles.stepChip, (on || done) && styles.stepChipOn]}>
+                <Text style={[styles.stepText, (on || done) && styles.stepTextOn]}>{current}. {label}</Text>
+              </View>
+            );
+          })}
+        </View>
         {step === 1 ? (
           <>
             <Text style={styles.label}>{t("propertyMgmt.docTitleLabel")}</Text>
@@ -227,7 +261,7 @@ export default function AgreementForm() {
                 </Pressable>
               ))}
             </View>
-            <LocaleTextInput style={styles.input} value={search} onChangeText={setSearch} placeholder={t("propertyMgmt.searchDocuments")} />
+            {scope !== "all" ? <LocaleTextInput style={styles.input} value={search} onChangeText={setSearch} placeholder={t("propertyMgmt.searchDocuments")} /> : null}
             <Text style={styles.hint}>{recipientCount}</Text>
             <ScrollView style={{ maxHeight: hp(40) }}>
               {scope === "residents" ? options.residents.map((person) => (
@@ -248,11 +282,33 @@ export default function AgreementForm() {
             </Pressable>
           </>
         ) : step === 3 ? (
-          <View>
+          <View style={styles.reviewCard}>
             <Text style={styles.choiceTitle}>{title}</Text>
+            {category ? <Text style={styles.hint}>{category}</Text> : null}
             <Text style={styles.hint}>{file?.name}</Text>
+            <Text style={styles.hint}>{dueAt ? formatDisplayDate(dueAt) : t("propertyMgmt.noDueDate")}</Text>
             <Text style={styles.hint}>{effectiveAt ? formatDisplayDate(effectiveAt) : t("propertyMgmt.noEffectiveDate")}</Text>
             <Text style={styles.hint}>{expiresAt ? formatDisplayDate(expiresAt) : t("propertyMgmt.noExpirationDate")}</Text>
+            <Text style={styles.hint}>{recipientCount} · {notify ? t("propertyMgmt.notifyResidents") : t("propertyMgmt.dontNotifyResidents")}</Text>
+            {previewHtml ? (
+              <View style={styles.previewFrame}>
+                <WebView
+                  source={{ html: previewHtml }}
+                  style={styles.previewWeb}
+                  originWhitelist={["*"]}
+                  scalesPageToFit={false}
+                  androidLayerType="hardware"
+                  javaScriptEnabled
+                  domStorageEnabled
+                  setSupportMultipleWindows={false}
+                  scrollEnabled
+                />
+              </View>
+            ) : (
+              <View style={styles.previewFrame}>
+                <ActivityIndicator color="#1B4F8A" />
+              </View>
+            )}
           </View>
         ) : null}
       </KeyboardScroll>
@@ -280,6 +336,24 @@ export default function AgreementForm() {
 
 const styles = StyleSheet.create({
   scroll: { padding: sw(18), paddingBottom: hp(4) },
+  steps: { flexDirection: "row", flexWrap: "wrap", gap: sw(6), marginBottom: sw(8) },
+  stepChip: { borderRadius: sw(999), backgroundColor: "#F1F5F9", paddingHorizontal: sw(10), paddingVertical: sw(6) },
+  stepChipOn: { backgroundColor: "#E8F0F7" },
+  stepText: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#94A3B8" },
+  stepTextOn: { color: "#1B4F8A" },
+  reviewCard: { gap: sw(2) },
+  previewFrame: {
+    height: sw(360),
+    marginTop: sw(12),
+    borderRadius: sw(16),
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F4F7FB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewWeb: { width: "100%", height: "100%", backgroundColor: "#F4F7FB" },
   label: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#374151", marginBottom: sw(6), marginTop: sw(12) },
   input: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: sw(12), padding: sw(12), fontFamily: Fonts.regular, color: "#111827" },
   inputError: { borderColor: "#DC2626" },

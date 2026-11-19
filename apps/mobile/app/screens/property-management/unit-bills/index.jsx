@@ -22,7 +22,7 @@ import {
   defaultBillFilter,
   filterBills,
 } from "../../../../components/payments/bill-list-parts";
-import { PAYABLE } from "../../../../services/payments-api";
+import { PAY_NOW_ENABLED, PAYABLE } from "../../../../services/payments-api";
 import { PAYMENT_RESULT_ROUTE } from "../../../../hooks/use-kuickpay-pay";
 import { propertyStyles } from "../../../../constants/property-styles";
 import { PropertyHubTheme } from "../../../../constants/property-management-theme";
@@ -34,6 +34,7 @@ import { rnShadow } from "../../../../utils/shadow";
 import { billListFields, buildBillDocument, canPayBill, sortBills, summarizeBills } from "../../../../utils/bill-document";
 import {
   acknowledgeServiceBill,
+  billingAccessFromUser,
   fetchServiceBills,
   resolveViewerBillingAccess,
   submitServiceBillProof,
@@ -48,6 +49,13 @@ function payActionLabel(bill, t) {
   if (needsAcknowledgeBeforePay(bill)) return t("bills.list.acknowledgeAndPay");
   if (bill.online_payment?.available) return t("bills.list.payNow");
   return String(bill.status ?? "").toLowerCase() === "rejected" ? t("bills.list.resubmitProof") : t("bills.list.uploadProof");
+}
+
+function showPayAction(bill) {
+  if (!canPayBill(bill)) return false;
+  if (PAY_NOW_ENABLED) return true;
+  if (needsAcknowledgeBeforePay(bill) || bill.online_payment?.available) return false;
+  return true;
 }
 
 function UnitFilterMenu({ units, value, onChange, billCounts, t }) {
@@ -149,6 +157,8 @@ export default function UnitBillsScreen() {
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
+      const known = billingAccessFromUser(sessionUser);
+      const billsPromise = known?.isBillingContact ? fetchServiceBills() : null;
       const {
         unit,
         billingUnits: contactUnits,
@@ -163,14 +173,14 @@ export default function UnitBillsScreen() {
         setBills([]);
         return;
       }
-      setBills(await fetchServiceBills());
+      setBills(await (billsPromise ?? fetchServiceBills()));
     } catch (error) {
       await showFailure(t("services.unitBillsTitle"), error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showFailure, t]);
+  }, [sessionUser, showFailure, t]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
@@ -319,7 +329,7 @@ export default function UnitBillsScreen() {
                         : fields.subtitle
                     }
                     payLabel={payActionLabel(bill, t)}
-                    onPay={() => pay(bill)}
+                    onPay={showPayAction(bill) ? () => pay(bill) : undefined}
                     onPress={() => {
                       const active = bill.online_payment?.active_payment;
                       if (active?.status === "processing") {
@@ -339,7 +349,7 @@ export default function UnitBillsScreen() {
       <BillDetailSheet
         visible={Boolean(detailFor)}
         doc={detailDoc}
-        primaryLabel={detailFor && canPayBill(detailFor) ? payActionLabel(detailFor, t) : null}
+        primaryLabel={detailFor && showPayAction(detailFor) ? payActionLabel(detailFor, t) : null}
         primaryBusy={busyId === detailFor?.id}
         onPrimary={() => detailFor && pay(detailFor)}
         onClose={() => setDetailFor(null)}

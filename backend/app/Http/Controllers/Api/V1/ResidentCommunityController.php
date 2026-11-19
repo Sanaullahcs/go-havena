@@ -21,12 +21,16 @@ class ResidentCommunityController extends Controller
     {
         $user = $request->user()->load(['memberships.community']);
         $activeId = UserActingContextService::currentCommunityId($user);
+        $needsUnits = array_fill_keys(
+            UserActingContextService::pendingInviteCommunityIdsNeedingUnits($user),
+            true,
+        );
 
         $communities = $user->memberships
             ->filter(fn ($membership) => ($membership->role ?? '') !== 'guest')
             ->sortByDesc(fn ($membership) => $membership->updated_at?->timestamp ?? 0)
             ->values()
-            ->map(function ($membership) use ($activeId) {
+            ->map(function ($membership) use ($activeId, $needsUnits) {
                 $community = $membership->community;
 
                 return [
@@ -34,6 +38,7 @@ class ResidentCommunityController extends Controller
                     'community_id' => (int) $membership->community_id,
                     'role' => $membership->role,
                     'status' => $membership->status,
+                    'needs_units' => isset($needsUnits[(int) $membership->community_id]),
                     'is_active' => $activeId !== null && (int) $membership->community_id === (int) $activeId,
                     'invite_code_used' => $membership->invite_code_used,
                     'rejection_reason' => $membership->rejection_reason,
