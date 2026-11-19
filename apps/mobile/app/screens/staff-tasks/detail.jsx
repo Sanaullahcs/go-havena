@@ -13,7 +13,7 @@ import {
   Linking,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useNavigation, usePathname, useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -120,12 +120,16 @@ export default function StaffTaskDetailScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const cached = getCachedUser();
+  const residentShell = usePathname().includes("assigned-tasks");
   const staffOnly = Boolean(cached?.staff_access?.active) && !canAccessDashboard(cached);
   const fallbackPath = staffOnly
     ? STAFF_HOME
-    : isResidentWithStaff(cached)
-      ? "/screens/staff-tasks"
-      : undefined;
+    : residentShell
+      ? "/(tabs)/assigned-tasks"
+      : isResidentWithStaff(cached)
+        ? "/screens/staff-tasks"
+        : undefined;
+  const chatPath = residentShell ? "/(tabs)/assigned-tasks/chat" : "/screens/staff-tasks/chat";
   useSafeModeBack(fallbackPath);
   const goBack = () => safeGoBack(router, navigation, { fallbackPath });
   const insets = useSafeAreaInsets();
@@ -163,7 +167,7 @@ export default function StaffTaskDetailScreen() {
   useEffect(() => {
     if (chat !== "1" || !task || openedChat.current) return;
     openedChat.current = true;
-    router.push({ pathname: "/screens/staff-tasks/chat", params: { id: String(id) } });
+    router.push({ pathname: chatPath, params: { id: String(id) } });
   }, [chat, id, router, task]);
 
   const pending = task?.assignment_state !== "accepted";
@@ -176,6 +180,7 @@ export default function StaffTaskDetailScreen() {
     if (respondLock.current) return;
     respondLock.current = true;
     const declining = decision === "decline";
+    const complaintId = String(Array.isArray(id) ? id[0] : id || "");
     try {
       const choice = await showConfirm(
         declining ? "Decline this task?" : "Accept this task?",
@@ -185,12 +190,28 @@ export default function StaffTaskDetailScreen() {
       if (choice !== "confirm") return;
       setBusyDecision(decision);
       setBusy(true);
-      const updated = await respondToStaffTask(id, decision, declining ? "Unable to take this task." : null);
-      setTask(updated);
+      let updated = null;
+      try {
+        updated = await respondToStaffTask(
+          complaintId,
+          decision,
+          declining ? "Unable to take this task." : undefined,
+        );
+      } catch (err) {
+        // The save can finish even when the phone loses the response. Trust the
+        // task record before showing an assignment error.
+        updated = await fetchStaffTask(complaintId).catch(() => null);
+        const settled = declining
+          ? updated && !updated.assigned_to_user_id
+          : updated?.assignment_state === "accepted";
+        if (!settled) throw err;
+      }
+      if (updated) setTask(updated);
+      setError("");
       setBusy(false);
       setBusyDecision("");
       if (declining) goBack();
-      else showSuccess("Task accepted", "You can update the status when you start work.");
+      else showSuccess("Task accepted", "This complaint is now Pending. You can update the status when you start work.");
     } catch (err) {
       setBusy(false);
       setBusyDecision("");
@@ -377,7 +398,7 @@ export default function StaffTaskDetailScreen() {
                   </Pressable>
                 ) : null}
                 <Pressable
-                  onPress={() => router.push({ pathname: "/screens/staff-tasks/chat", params: { id: String(id) } })}
+                  onPress={() => router.push({ pathname: chatPath, params: { id: String(id) } })}
                   style={styles.messageBtn}
                 >
                   <Text style={styles.messageText}>Chat</Text>

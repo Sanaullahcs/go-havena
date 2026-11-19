@@ -227,7 +227,8 @@ export default function TabLayout() {
       <Tabs.Screen name="create-post" />
       <Tabs.Screen name="wellness" />
       <Tabs.Screen name="notices" options={{ title: t("nav.updates") }} />
-      <Tabs.Screen name="assigned-tasks" options={{ href: null }} />
+      {/* Opened from the side menu for resident staff. Not a floating-nav button. */}
+      <Tabs.Screen name="assigned-tasks" />
     </Tabs>
   );
 }

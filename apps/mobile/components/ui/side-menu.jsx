@@ -37,7 +37,7 @@ import { isResidentFeatureEnabled } from "../../constants/resident-features";
 import { canSwitchModes, canSwitchToAdminMode, currentCommunityId, isCommunityAdmin, isGuestUser, isResidentMode } from "../../services/community-access";
 import { fetchMe, switchActiveContext } from "../../services/profile-api";
 import { syncRoleFromUser } from "../../constants/role-session";
-import { isResidentWithStaff, navigateAfterAuth, STAFF_HOME } from "../../constants/onboarding-routes";
+import { isResidentWithStaff, navigateAfterAuth } from "../../constants/onboarding-routes";
 import { formatResidentUnitLabel, getProfileFields } from "../../utils/profile-display";
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import HavenaLogo from "./havena-logo";
@@ -152,6 +152,7 @@ function searchParam(value) {
 /** Which sidebar row matches the screen the user is actually on. */
 function menuKeyFromPath(pathname, params) {
   const path = String(pathname ?? "");
+  if (path.includes("assigned-tasks")) return "assigned-tasks";
   if (!path || path === "/" || path === "/home" || path.endsWith("/home")) return "home";
 
   if (path.includes("community-feed")) return "feed";
@@ -499,11 +500,11 @@ function SideMenuPanel({ visible, onClose }) {
 
     return [
       { key: "home", iconName: "home", titleKey: "nav.home", route: "/(tabs)/home" },
-      isResidentWithStaff(user)
-        ? { key: "assigned-tasks", iconName: "clipboard", titleKey: "nav.assignedTasks", route: STAFF_HOME }
-        : null,
       community.length
         ? { key: "community", iconName: "users", titleKey: "nav.community", children: community }
+        : null,
+      isResidentWithStaff(user)
+        ? { key: "assigned-tasks", iconName: "clipboard", titleKey: "nav.assignedTasks", route: "/(tabs)/assigned-tasks" }
         : null,
       people.length
         ? { key: "people", iconName: "user", titleKey: "nav.peopleAccess", children: people }
