@@ -29,7 +29,7 @@ import { rnShadow } from "../../../utils/shadow";
 import { useSafeModeBack } from "../../../hooks/use-safe-mode-back";
 import { safeGoBack } from "../../../utils/app-navigation";
 import { canAccessDashboard } from "../../../services/community-access";
-import { STAFF_HOME } from "../../../constants/onboarding-routes";
+import { isResidentWithStaff, STAFF_HOME } from "../../../constants/onboarding-routes";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { getCachedUser, getToken } from "../../../services/auth-session";
 import { parseApiDate } from "../../../utils/parse-api-date";
@@ -121,7 +121,11 @@ export default function StaffTaskDetailScreen() {
   const navigation = useNavigation();
   const cached = getCachedUser();
   const staffOnly = Boolean(cached?.staff_access?.active) && !canAccessDashboard(cached);
-  const fallbackPath = staffOnly ? STAFF_HOME : undefined;
+  const fallbackPath = staffOnly
+    ? STAFF_HOME
+    : isResidentWithStaff(cached)
+      ? "/screens/staff-tasks"
+      : undefined;
   useSafeModeBack(fallbackPath);
   const goBack = () => safeGoBack(router, navigation, { fallbackPath });
   const insets = useSafeAreaInsets();

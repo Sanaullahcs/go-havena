@@ -28,6 +28,11 @@ export function isStaffOnlyUser(user) {
   return Boolean(user?.staff_access?.active) && !canAccessDashboard(user) && !isCommunityAdminRole(user);
 }
 
+/** Approved resident who also has active staff access in at least one community. */
+export function isResidentWithStaff(user) {
+  return Boolean(user?.staff_access?.active) && canAccessDashboard(user) && !isGuestUser(user);
+}
+
 /** A staff invitation is waiting, and this account has no resident home yet. */
 export function hasPendingStaffInvite(user) {
   return Boolean(user?.staff_access?.pending) && !user?.staff_access?.active && !canAccessDashboard(user) && !isCommunityAdminRole(user);

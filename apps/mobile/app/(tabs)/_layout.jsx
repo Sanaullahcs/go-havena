@@ -221,6 +221,7 @@ export default function TabLayout() {
       <Tabs.Screen name="create-post" options={{ href: null }} />
       <Tabs.Screen name="wellness" options={{ href: null }} />
       <Tabs.Screen name="notices" options={{ href: null, title: t("nav.updates") }} />
+      <Tabs.Screen name="assigned-tasks" options={{ href: null }} />
     </Tabs>
   );
 }

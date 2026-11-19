@@ -31,11 +31,11 @@ import { confirmSignOut } from "../../services/sign-out";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 import { getUser, getCachedUser, subscribeSessionUser } from "../../services/auth-session";
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
-import { canSwitchModes, canSwitchToAdminMode, currentCommunityId, isCommunityAdmin, isGuestUser, isResidentMode } from "../../services/community-access";
+import { canAccessDashboard, canSwitchModes, canSwitchToAdminMode, currentCommunityId, isCommunityAdmin, isGuestUser, isResidentMode } from "../../services/community-access";
 import { fetchMe, switchActiveContext } from "../../services/profile-api";
 import { fetchStaffAccess } from "../../services/complaints-api";
 import { syncRoleFromUser } from "../../constants/role-session";
-import { navigateAfterAuth } from "../../constants/onboarding-routes";
+import { navigateAfterAuth, STAFF_HOME } from "../../constants/onboarding-routes";
 import { formatResidentUnitLabel, getProfileFields } from "../../utils/profile-display";
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import HavenaLogo from "./havena-logo";
@@ -388,11 +388,11 @@ function SideMenuPanel({ visible, onClose }) {
           route: isCommunityAdmin(user) ? "/screens/admin-complaints" : "/screens/complaints",
         }
       : null,
-    staffAccess && !isGuestUser(user)
+    staffAccess?.active && canAccessDashboard(user) && !isGuestUser(user)
       ? {
           iconName: "clipboard",
           titleKey: "nav.assignedTasks",
-          route: staffAccess.active ? "/screens/staff-tasks" : "/screens/staff-tasks/invitations",
+          route: STAFF_HOME,
         }
       : null,
     {
