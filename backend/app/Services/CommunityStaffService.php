@@ -89,41 +89,71 @@ class CommunityStaffService
     public function residents(User $admin, Request $request): array
     {
         $communityId = UserActingContextService::requireCurrentCommunityId($admin);
-        $rows = DB::table('community_memberships as cm')
+        $perPage = min(50, max(1, (int) $request->input('per_page', 25)));
+        $page = max(1, (int) $request->input('page', 1));
+        $needle = trim($request->string('search')->toString());
+        $like = '%'.addcslashes($needle, '%_\\').'%';
+
+        $query = DB::table('community_memberships as cm')
             ->join('users', 'users.id', '=', 'cm.user_id')
             ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
             ->where('cm.community_id', $communityId)
             ->where('cm.status', 'approved')
             ->where('cm.role', 'member')
             ->where('users.role', 'resident')
-            ->where('users.status', 'active')
-            ->whereNotExists(function ($query) use ($communityId) {
-                $query->from('community_staff')
-                    ->whereColumn('community_staff.user_id', 'users.id')
-                    ->where('community_staff.community_id', $communityId);
-            })
-            ->orderBy('users.name')
-            ->get([
+            ->where('users.status', 'active');
+        if ($needle !== '') {
+            $query->where(function ($inner) use ($like, $communityId) {
+                $inner->where('users.name', 'like', $like)
+                    ->orWhere('profiles.display_name', 'like', $like)
+                    ->orWhere('users.email', 'like', $like)
+                    ->orWhereExists(function ($units) use ($like, $communityId) {
+                        $units->from('unit_residents')
+                            ->join('units', 'units.id', '=', 'unit_residents.unit_id')
+                            ->whereColumn('unit_residents.user_id', 'users.id')
+                            ->where('unit_residents.community_id', $communityId)
+                            ->where('unit_residents.status', 'active')
+                            ->whereNull('unit_residents.left_at')
+                            ->where('units.unit_number', 'like', $like);
+                    });
+            });
+        }
+
+        $total = (int) (clone $query)->count(DB::raw('distinct users.id'));
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $lastPage);
+        $rows = $query
+            ->select([
                 'users.id',
                 'users.name',
                 'users.email',
                 'users.phone',
                 'profiles.display_name',
-            ]);
+            ])
+            ->distinct()
+            ->orderBy('users.name')
+            ->orderBy('users.id')
+            ->forPage($page, $perPage)
+            ->get();
 
+        $userIds = $rows->pluck('id')->map(fn ($id) => (int) $id)->all() ?: [0];
         $units = DB::table('unit_residents')
             ->join('units', 'units.id', '=', 'unit_residents.unit_id')
             ->where('unit_residents.community_id', $communityId)
             ->where('unit_residents.status', 'active')
             ->whereNull('unit_residents.left_at')
-            ->whereIn('unit_residents.user_id', $rows->pluck('id')->all() ?: [0])
+            ->whereIn('unit_residents.user_id', $userIds)
             ->orderBy('units.unit_number')
             ->get(['unit_residents.user_id', 'units.unit_number'])
             ->groupBy('user_id');
+        $staffIds = DB::table('community_staff')
+            ->where('community_id', $communityId)
+            ->whereIn('user_id', $userIds)
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->flip();
 
-        $needle = mb_strtolower(trim($request->string('search')->toString()));
-
-        return $rows->map(function ($row) use ($units) {
+        $data = $rows->unique('id')->map(function ($row) use ($units, $staffIds) {
             $unit = $units->get($row->id, collect())
                 ->pluck('unit_number')
                 ->map(fn ($unit) => trim((string) $unit))
@@ -137,15 +167,19 @@ class CommunityStaffService
                 'email' => (string) $row->email,
                 'phone' => $row->phone,
                 'unit' => $unit,
+                'already_staff' => $staffIds->has((int) $row->id),
             ];
-        })->filter(function (array $row) use ($needle) {
-            if ($needle === '') {
-                return true;
-            }
-            $haystack = mb_strtolower($row['name'].' '.$row['email'].' '.$row['unit']);
-
-            return str_contains($haystack, $needle);
         })->values()->all();
+
+        return [
+            'data' => $data,
+            'meta' => [
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+            ],
+        ];
     }
 
     public function store(User $admin, array $input): array

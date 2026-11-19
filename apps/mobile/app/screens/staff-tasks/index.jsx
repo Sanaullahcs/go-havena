@@ -10,9 +10,10 @@ import {
   StyleSheet,
   Platform,
   Modal,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { Redirect, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import StaffScreenHeader from "../../../components/layout/staff-screen-header";
 import StaffTabBar from "../../../components/layout/staff-tab-bar";
@@ -26,7 +27,8 @@ import { useSafeModeBack } from "../../../hooks/use-safe-mode-back";
 import { fetchStaffInvitations, fetchStaffTasks } from "../../../services/complaints-api";
 import { getCachedUser } from "../../../services/auth-session";
 import { canAccessDashboard } from "../../../services/community-access";
-import { STAFF_HOME } from "../../../constants/onboarding-routes";
+import { isResidentWithStaff, STAFF_HOME } from "../../../constants/onboarding-routes";
+import { useSessionUser } from "../../../hooks/use-session-user";
 import { parseApiDate } from "../../../utils/parse-api-date";
 import { safeGoBack } from "../../../utils/app-navigation";
 
@@ -64,6 +66,13 @@ function statusBadge(status, workflow) {
   return { bg: tone.bg, color: tone.color, border: tone.bg };
 }
 
+function dialablePhone(value) {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 7 || digits.length > 15) return "";
+  return raw.startsWith("+") ? `+${digits}` : digits;
+}
+
 function priorityTone(priority) {
   if (priority === "urgent") return { bg: "#FDECEC", color: "#E11D48" };
   if (priority === "high") return { bg: "#FEF6E7", color: "#D97706" };
@@ -77,13 +86,22 @@ const STATS = [
   { key: "completed", label: "Completed", icon: "check", tint: "#E7F8EF", color: "#059669", accent: "#34D399" },
 ];
 
-export default function StaffTasksScreen() {
+const RESIDENT_STATS = [
+  { id: "all", label: "All", summaryKey: "all", bg: "#1B4F8A", color: "#FFFFFF" },
+  { id: "assigned", label: "Open", summaryKey: "assigned", bg: "#E8F1FA", color: "#1B4F8A" },
+  { id: "in_progress", label: "In Progress", summaryKey: "in_progress", bg: "#FEF6E7", color: "#D97706" },
+  { id: "completed", label: "Completed", summaryKey: "completed", bg: "#E7F8EF", color: "#059669" },
+];
+
+export function StaffTasksScreen({ asTab = false }) {
   const router = useRouter();
   const navigation = useNavigation();
   const params = useLocalSearchParams();
   const cached = getCachedUser();
+  const sessionUser = useSessionUser() || cached;
   const staffOnly = Boolean(cached?.staff_access?.active) && !canAccessDashboard(cached);
-  useSafeModeBack(staffOnly ? STAFF_HOME : undefined);
+  const residentStaff = isResidentWithStaff(sessionUser);
+  useSafeModeBack(asTab ? "/(tabs)/home" : STAFF_HOME);
   const [status, setStatus] = useState(typeof params.status === "string" ? params.status : "all");
   useEffect(() => {
     if (typeof params.status === "string" && params.status) setStatus(params.status);
@@ -97,9 +115,11 @@ export default function StaffTasksScreen() {
   const [inviteCount, setInviteCount] = useState(0);
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState({});
+  const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [callPhone, setCallPhone] = useState("");
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) {
@@ -114,6 +134,7 @@ export default function StaffTasksScreen() {
       });
       setRows(result.data ?? []);
       setSummary(result.meta?.summary ?? {});
+      setCounts(result.meta?.counts ?? {});
       setCommunities(result.meta?.communities ?? []);
       if (quiet) setError("");
       try {
@@ -137,6 +158,7 @@ export default function StaffTasksScreen() {
   }, [load]));
 
   const communityLabel = communities.find((item) => String(item.id) === String(communityId))?.name || "All communities";
+  const taskPath = asTab ? "/(tabs)/assigned-tasks/detail" : "/screens/staff-tasks/detail";
 
   const toggleCommunity = () => {
     if (communityOpen) {
@@ -158,8 +180,9 @@ export default function StaffTasksScreen() {
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <StaffScreenHeader
         title="My Assigned Tasks"
-        showBack={!staffOnly}
-        onBack={() => safeGoBack(router, navigation)}
+        subtitle={asTab ? (communityId && communityLabel !== "All communities" ? `Staff · ${communityLabel}` : "Staff") : undefined}
+        showBack={asTab || (!staffOnly && !residentStaff)}
+        onBack={() => safeGoBack(router, navigation, { fallbackPath: asTab ? "/(tabs)/home" : undefined })}
         right={(
           <>
             <Pressable onPress={() => router.push("/screens/staff-tasks/notifications")} hitSlop={8} accessibilityRole="button" accessibilityLabel="Notifications">
@@ -177,6 +200,36 @@ export default function StaffTasksScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(true); }} tintColor={NAVY} />}
         keyboardShouldPersistTaps="handled"
       >
+        {asTab ? (
+          <View style={styles.residentSummary}>
+            {RESIDENT_STATS.map((item) => {
+              const active = status === item.id;
+              const value = item.summaryKey === "all" ? (counts.all ?? 0) : (summary[item.summaryKey] ?? 0);
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => setStatus(item.id)}
+                  style={[
+                    styles.residentCard,
+                    { backgroundColor: active ? item.bg : "#F8FAFC" },
+                    active && styles.residentCardOn,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`${item.label}, ${value}`}
+                >
+                  <Text style={[styles.residentCount, { color: active ? item.color : "#334155" }]}>{value}</Text>
+                  <Text
+                    style={[styles.residentLabel, { color: active ? item.color : "#64748B" }]}
+                    numberOfLines={2}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : (
         <View style={styles.summary}>
           <View style={styles.summaryRow}>
             {STATS.map((item, index) => (
@@ -203,6 +256,7 @@ export default function StaffTasksScreen() {
             {STATS.map((item) => <View key={item.key} style={[styles.summaryAccent, { backgroundColor: item.accent }]} />)}
           </View>
         </View>
+        )}
         <View style={styles.findRow}>
           <Text style={styles.findLabel}>FIND A TASK</Text>
           <Text style={styles.findCount}>{rows.length} total</Text>
@@ -276,52 +330,129 @@ export default function StaffTasksScreen() {
           const badge = statusBadge(row.status, row.workflow_status);
           const priority = priorityTone(row.priority);
           const assigned = formatAssigned(row.assigned_at);
+          const phone = dialablePhone(row.reporter_phone);
+          const place = [row.community_name, row.unit_number ? `Unit ${row.unit_number}` : ""].filter(Boolean).join(" · ");
+          if (asTab) {
+            return (
+              <View key={row.id} style={styles.homeTask}>
+                <Pressable onPress={() => router.push({ pathname: taskPath, params: { id: String(row.id) } })} style={styles.homeTaskMain}>
+                  <View style={styles.taskTop}>
+                    <View style={styles.refRow}>
+                      <Feather name="file-text" size={sf(13)} color={NAVY} />
+                      <Text style={styles.homeRef} numberOfLines={1}>{row.reference || "Task"}</Text>
+                    </View>
+                    <View style={[styles.statusPill, { backgroundColor: badge.bg }]}>
+                      <View style={[styles.statusDot, { backgroundColor: badge.color }]} />
+                      <Text style={[styles.statusText, { color: badge.color }]} numberOfLines={1}>{row.status_label || pretty(row.status)}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.titleRow}>
+                    <Text style={styles.homeTitle} numberOfLines={1}>{row.title}</Text>
+                    <Feather name="chevron-right" size={sf(15)} color="#CBD5E1" />
+                  </View>
+                  <View style={styles.homeMetaRow}>
+                    {place ? (
+                      <View style={styles.metaItem}>
+                        <Feather name="home" size={sf(11)} color="#64748B" />
+                        <Text style={styles.homeMeta} numberOfLines={1}>{place}</Text>
+                      </View>
+                    ) : null}
+                    {row.category_label ? (
+                      <View style={styles.metaItem}>
+                        <Feather name={categoryIcon(row.category || row.category_label)} size={sf(11)} color="#64748B" />
+                        <Text style={styles.homeMeta} numberOfLines={1}>{row.category_label}</Text>
+                      </View>
+                    ) : null}
+                    {row.priority ? (
+                      <View style={[styles.homePriority, { backgroundColor: priority.bg }]}>
+                        <Text style={[styles.homePriorityText, { color: priority.color }]} numberOfLines={1}>{pretty(row.priority)}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </Pressable>
+                {assigned || phone ? (
+                  <View style={styles.footerRow}>
+                    {assigned ? (
+                      <View style={styles.metaItem}>
+                        <Feather name="calendar" size={sf(11)} color="#64748B" />
+                        <Text style={styles.homeMeta} numberOfLines={1}>Assigned {assigned}</Text>
+                      </View>
+                    ) : <View style={styles.metaItem} />}
+                    {phone ? (
+                      <Pressable
+                        onPress={() => setCallPhone(phone)}
+                        style={styles.homeCallBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel="Call resident"
+                      >
+                        <Feather name="phone" size={sf(12)} color={NAVY} />
+                        <Text style={styles.callText}>Call</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+            );
+          }
           return (
-            <Pressable key={row.id} onPress={() => router.push({ pathname: "/screens/staff-tasks/detail", params: { id: String(row.id) } })} style={styles.task}>
-              <View style={styles.taskTop}>
-                <View style={styles.refRow}>
-                  <Feather name="file-text" size={sf(14)} color={NAVY} />
-                  <Text style={styles.ref} numberOfLines={1}>{row.reference}</Text>
+            <View key={row.id} style={styles.task}>
+              <Pressable onPress={() => router.push({ pathname: taskPath, params: { id: String(row.id) } })} style={styles.taskMain}>
+                <View style={styles.taskTop}>
+                  <View style={styles.refRow}>
+                    <Feather name="file-text" size={sf(14)} color={NAVY} />
+                    <Text style={styles.ref} numberOfLines={1}>{row.reference}</Text>
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
+                    <Text style={[styles.badgeText, { color: badge.color }]}>{row.status_label || pretty(row.status)}</Text>
+                  </View>
                 </View>
-                <View style={[styles.badge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
-                  <Text style={[styles.badgeText, { color: badge.color }]}>{row.status_label || pretty(row.status)}</Text>
+                <Text style={styles.title} numberOfLines={2}>{row.title}</Text>
+                <View style={styles.metaRow}>
+                  {row.community_name ? (
+                    <View style={styles.metaItem}>
+                      <Feather name="grid" size={sf(12)} color="#64748B" />
+                      <Text style={styles.meta} numberOfLines={1}>{row.community_name}</Text>
+                    </View>
+                  ) : null}
+                  {row.unit_number ? (
+                    <View style={styles.metaItem}>
+                      <Feather name="home" size={sf(12)} color="#64748B" />
+                      <Text style={styles.meta} numberOfLines={1}>Unit {row.unit_number}</Text>
+                    </View>
+                  ) : null}
+                  {row.category_label ? (
+                    <View style={styles.metaItem}>
+                      <Feather name={categoryIcon(row.category || row.category_label)} size={sf(12)} color="#64748B" />
+                      <Text style={styles.meta} numberOfLines={1}>{row.category_label}</Text>
+                    </View>
+                  ) : null}
                 </View>
-              </View>
-              <Text style={styles.title} numberOfLines={2}>{row.title}</Text>
-              <View style={styles.metaRow}>
-                {row.community_name ? (
-                  <View style={styles.metaItem}>
-                    <Feather name="grid" size={sf(12)} color="#64748B" />
-                    <Text style={styles.meta} numberOfLines={1}>{row.community_name}</Text>
-                  </View>
-                ) : null}
-                {row.unit_number ? (
-                  <View style={styles.metaItem}>
-                    <Feather name="home" size={sf(12)} color="#64748B" />
-                    <Text style={styles.meta} numberOfLines={1}>Unit {row.unit_number}</Text>
-                  </View>
-                ) : null}
-                {row.category_label ? (
-                  <View style={styles.metaItem}>
-                    <Feather name={categoryIcon(row.category || row.category_label)} size={sf(12)} color="#64748B" />
-                    <Text style={styles.meta} numberOfLines={1}>{row.category_label}</Text>
-                  </View>
-                ) : null}
-              </View>
-              <View style={styles.assignedRow}>
-                {assigned ? (
-                  <View style={styles.metaItem}>
-                    <Feather name="calendar" size={sf(12)} color="#64748B" />
-                    <Text style={styles.meta}>Assigned {assigned}</Text>
-                  </View>
-                ) : <View style={styles.metaItem} />}
-                {row.priority ? (
-                  <View style={[styles.priority, { backgroundColor: priority.bg }]}>
-                    <Text style={[styles.priorityText, { color: priority.color }]} numberOfLines={1}>{pretty(row.priority)} priority</Text>
-                  </View>
-                ) : null}
-              </View>
-            </Pressable>
+                <View style={styles.assignedRow}>
+                  {assigned ? (
+                    <View style={styles.metaItem}>
+                      <Feather name="calendar" size={sf(12)} color="#64748B" />
+                      <Text style={styles.meta}>Assigned {assigned}</Text>
+                    </View>
+                  ) : <View style={styles.metaItem} />}
+                  {row.priority ? (
+                    <View style={[styles.priority, { backgroundColor: priority.bg }]}>
+                      <Text style={[styles.priorityText, { color: priority.color }]} numberOfLines={1}>{pretty(row.priority)} priority</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </Pressable>
+              {phone ? (
+                <Pressable
+                  onPress={() => setCallPhone(phone)}
+                  style={styles.callBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Call resident"
+                >
+                  <Feather name="phone" size={sf(12)} color={NAVY} />
+                  <Text style={styles.callText}>Call</Text>
+                </Pressable>
+              ) : null}
+            </View>
           );
         }) : null}
         {!loading && !error ? (
@@ -331,9 +462,40 @@ export default function StaffTasksScreen() {
           </View>
         ) : null}
       </ScrollView>
-      {staffOnly ? <StaffTabBar active="tasks" /> : null}
+      {asTab ? null : <StaffTabBar active="tasks" />}
+      <Modal visible={Boolean(callPhone)} transparent animationType="fade" onRequestClose={() => setCallPhone("")}>
+        <Pressable style={styles.callBackdrop} onPress={() => setCallPhone("")}>
+          <Pressable style={styles.callSheet} onPress={() => {}}>
+            <Pressable onPress={() => setCallPhone("")} style={styles.callClose} accessibilityRole="button" accessibilityLabel="Close">
+              <Feather name="x" size={sf(16)} color="#334155" />
+            </Pressable>
+            <View style={styles.callIcon}>
+              <Feather name="phone" size={sf(18)} color={NAVY} />
+            </View>
+            <Text style={styles.callTitle}>Resident phone</Text>
+            <Text style={styles.callNumber}>{callPhone}</Text>
+            <Pressable
+              onPress={() => { void Linking.openURL(`tel:${callPhone}`); }}
+              style={styles.callAction}
+              accessibilityRole="button"
+              accessibilityLabel={`Call ${callPhone}`}
+            >
+              <Feather name="phone" size={sf(15)} color="#FFFFFF" />
+              <Text style={styles.callActionText}>Call</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
+}
+
+export default function StaffTasksRoute() {
+  const user = useSessionUser();
+  if (user && isResidentWithStaff(user)) {
+    return <Redirect href="/(tabs)/assigned-tasks" />;
+  }
+  return <StaffTasksScreen />;
 }
 
 const styles = StyleSheet.create({
@@ -341,6 +503,22 @@ const styles = StyleSheet.create({
   iconHit: { width: sw(28), height: sw(28), alignItems: "center", justifyContent: "center" },
   inviteDot: { position: "absolute", top: 2, right: 1, width: 7, height: 7, borderRadius: 4, backgroundColor: "#F87171" },
   body: { paddingHorizontal: sw(16), paddingTop: sw(14), paddingBottom: sw(20), gap: sw(10) },
+  residentSummary: { flexDirection: "row", gap: sw(8) },
+  residentCard: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: sw(14),
+    paddingVertical: sw(12),
+    paddingHorizontal: sw(4),
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+  },
+  residentCardOn: { borderColor: "#1B4F8A" },
+  residentCount: { fontFamily: Fonts.bold, fontSize: sf(18), lineHeight: sf(22) },
+  residentLabel: { marginTop: 2, fontFamily: Fonts.medium, fontSize: sf(10), lineHeight: sf(13), textAlign: "center" },
   summary: {
     backgroundColor: "#FFFFFF",
     borderRadius: sw(18),
@@ -384,7 +562,49 @@ const styles = StyleSheet.create({
   filterTextOn: { color: "#fff" },
   listHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: sw(2) },
   listTitle: { fontFamily: Fonts.bold, fontSize: sf(16), color: "#0F172A" },
+  homeTask: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: sw(14),
+    borderWidth: 1,
+    borderColor: "#E6EDF5",
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(8),
+    gap: sw(6),
+    ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 6 }, opacity: 0.06, radius: 14 }),
+  },
+  homeTaskMain: { gap: sw(3) },
+  homeRef: { flexShrink: 1, fontFamily: Fonts.semiBold, fontSize: sf(12), color: NAVY },
+  statusPill: { flexDirection: "row", alignItems: "center", gap: sw(4), borderRadius: 999, paddingHorizontal: sw(7), paddingVertical: 2 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontFamily: Fonts.semiBold, fontSize: sf(11) },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: sw(6) },
+  homeTitle: { flex: 1, fontFamily: Fonts.bold, fontSize: sf(15), lineHeight: sf(19), color: "#0F172A", ...(Platform.OS === "android" ? { includeFontPadding: false } : null) },
+  homeMetaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: sw(8) },
+  homeMeta: { flexShrink: 1, fontFamily: Fonts.medium, fontSize: sf(11), color: "#64748B" },
+  homePriority: { borderRadius: 999, paddingHorizontal: sw(6), paddingVertical: 1 },
+  homePriorityText: { fontFamily: Fonts.semiBold, fontSize: sf(10) },
+  footerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: sw(8),
+    paddingTop: sw(6),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E7EEF6",
+  },
+  homeCallBtn: { flexDirection: "row", alignItems: "center", gap: sw(4), height: sw(26), paddingHorizontal: sw(10), borderRadius: 999, backgroundColor: "#E8F1FA" },
   task: { backgroundColor: "#fff", borderRadius: sw(16), borderWidth: 1, borderColor: "#E6EDF5", padding: sw(14), gap: sw(8) },
+  taskMain: { gap: sw(8) },
+  callBtn: { alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: sw(4), height: sw(28), paddingHorizontal: sw(10), borderRadius: 999, backgroundColor: "#E8F1FA" },
+  callText: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: NAVY },
+  callBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.55)", alignItems: "center", justifyContent: "center", paddingHorizontal: sw(24) },
+  callSheet: { width: "100%", maxWidth: 360, backgroundColor: "#FFFFFF", borderRadius: 28, paddingHorizontal: sw(18), paddingTop: sw(22), paddingBottom: sw(16), alignItems: "center" },
+  callClose: { position: "absolute", top: sw(12), right: sw(12), zIndex: 2, width: sw(32), height: sw(32), borderRadius: sw(16), backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
+  callIcon: { width: sw(48), height: sw(48), borderRadius: sw(24), backgroundColor: "#E8F1FA", alignItems: "center", justifyContent: "center", marginBottom: sw(10) },
+  callTitle: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: "#64748B" },
+  callNumber: { marginTop: sw(6), fontFamily: Fonts.bold, fontSize: sf(22), color: NAVY },
+  callAction: { marginTop: sw(16), alignSelf: "stretch", minHeight: sw(48), borderRadius: sw(14), backgroundColor: NAVY, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: sw(6) },
+  callActionText: { fontFamily: Fonts.bold, fontSize: sf(15), color: "#FFFFFF" },
   taskTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: sw(8) },
   refRow: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: sw(6) },
   ref: { flexShrink: 1, fontFamily: Fonts.semiBold, fontSize: sf(13), color: NAVY },

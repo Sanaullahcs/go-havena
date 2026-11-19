@@ -2,6 +2,7 @@
 
 import {
   canAccessDashboard,
+  currentCommunityId,
   hasPendingCommunityRequest,
   hasPendingMembershipApproval,
   hasRejectedCommunityRequest,
@@ -27,6 +28,14 @@ export const STAFF_INVITES = "/screens/staff-tasks/invitations";
 /** Activated staff with no resident or community-admin access. */
 export function isStaffOnlyUser(user) {
   return Boolean(user?.staff_access?.active) && !canAccessDashboard(user) && !isCommunityAdminRole(user);
+}
+
+/** Approved resident who is also active staff in the community they currently have selected. */
+export function isResidentWithStaff(user) {
+  if (!user?.staff_access?.active || !canAccessDashboard(user) || isGuestUser(user)) return false;
+  const communityId = currentCommunityId(user);
+  if (!communityId) return false;
+  return (user.staff_access.communities ?? []).some((community) => Number(community.id) === Number(communityId));
 }
 
 /** A staff invitation is waiting, and this account has no resident home yet. */

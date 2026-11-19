@@ -7,6 +7,8 @@ import ScreenStatusBar from "./screen-status-bar";
 import { getTopInset } from "./system-chrome";
 import { safeGoBack } from "../../utils/app-navigation";
 import { Fonts } from "../../constants/font";
+import { isResidentWithStaff } from "../../constants/onboarding-routes";
+import { useSessionUser } from "../../hooks/use-session-user";
 import { sw, sf } from "../../utils/responsive";
 
 export const STAFF_NAVY = "#1B4F8A";
@@ -16,6 +18,7 @@ export default function StaffScreenHeader({ title, subtitle, showBack = false, o
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const top = getTopInset(insets);
+  const residentApp = isResidentWithStaff(useSessionUser());
   const goBack = onBack ?? (() => safeGoBack(router, navigation));
 
   return (
@@ -37,7 +40,23 @@ export default function StaffScreenHeader({ title, subtitle, showBack = false, o
           <Text style={styles.title} numberOfLines={1}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
         </View>
-        {right ? <View style={styles.right}>{right}</View> : null}
+        {residentApp || right ? (
+          <View style={styles.right}>
+            {residentApp ? (
+              <Pressable
+                onPress={() => router.replace("/(tabs)/home")}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Back to Resident App"
+                style={styles.resident}
+              >
+                <Feather name="home" size={sf(13)} color="#FFFFFF" />
+                <Text style={styles.residentText}>Resident</Text>
+              </Pressable>
+            ) : null}
+            {right}
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -80,5 +99,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: sw(14),
     flexShrink: 0,
+  },
+  resident: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(4),
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(5),
+    borderRadius: sw(12),
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+  residentText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(11),
+    color: "#FFFFFF",
   },
 });

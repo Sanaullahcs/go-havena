@@ -327,7 +327,7 @@ class StaffAssignmentTest extends TestCase
 
     public function test_existing_resident_can_be_added_as_staff_without_losing_membership(): void
     {
-        ['admin' => $admin, 'resident' => $resident] = $this->seedWorld();
+        ['admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
         $resident->update([
             'name' => 'Sara Resident',
             'email' => 'resident.staff@example.com',
@@ -368,7 +368,24 @@ class StaffAssignmentTest extends TestCase
             'specializations' => ['cleaning'],
         ])->assertStatus(422)->assertJsonValidationErrors(['user_id']);
 
-        $this->getJson('/api/v1/admin/staff/residents?search=Sara')->assertOk()->assertJsonCount(0, 'data');
+        $listed = $this->getJson('/api/v1/admin/staff/residents?search=Sara')->assertOk()->json('data');
+        $this->assertCount(1, $listed);
+        $this->assertSame($resident->id, $listed[0]['id']);
+        $this->assertTrue($listed[0]['already_staff']);
+
+        Sanctum::actingAs($resident);
+        $filed = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Own resident complaint',
+            'description' => 'Staff access must not remove this resident complaint.',
+        ])->assertCreated();
+        $this->getJson('/api/v1/complaints/'.$filed->json('data.id'))
+            ->assertOk()
+            ->assertJsonPath('data.title', 'Own resident complaint');
+        Sanctum::actingAs($admin);
 
         $this->postJson('/api/v1/admin/staff', [
             'name' => 'Bad Phone',
@@ -377,6 +394,80 @@ class StaffAssignmentTest extends TestCase
             'staff_type' => 'external',
             'specializations' => ['other'],
         ])->assertStatus(422)->assertJsonValidationErrors(['phone']);
+    }
+
+    public function test_staff_resident_picker_pages_and_searches_every_approved_resident(): void
+    {
+        ['admin' => $admin, 'community' => $community, 'resident' => $resident] = $this->seedWorld();
+        $created = [$resident->id];
+        foreach ([
+            ['Noor', 'noor.resident@example.com', 'B-2'],
+            ['Zara', 'zara.resident@example.com', 'C-9'],
+            ['Imran', 'imran.resident@example.com', 'D-4'],
+        ] as [$name, $email, $unitNumber]) {
+            $user = User::factory()->create([
+                'name' => $name,
+                'email' => $email,
+                'role' => 'resident',
+                'status' => 'active',
+            ]);
+            CommunityMembership::query()->create([
+                'user_id' => $user->id,
+                'community_id' => $community->id,
+                'role' => 'member',
+                'status' => 'approved',
+            ]);
+            $unitId = DB::table('units')->insertGetId([
+                'community_id' => $community->id,
+                'unit_number' => $unitNumber,
+                'unit_number_normalized' => strtolower($unitNumber),
+                'kind' => 'residential',
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            DB::table('unit_residents')->insert([
+                'unit_id' => $unitId,
+                'community_id' => $community->id,
+                'user_id' => $user->id,
+                'status' => 'active',
+                'joined_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $created[] = $user->id;
+        }
+        $pending = User::factory()->create([
+            'name' => 'Pending Person',
+            'email' => 'pending.resident@example.com',
+            'role' => 'resident',
+            'status' => 'active',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $pending->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $first = $this->getJson('/api/v1/admin/staff/residents?per_page=2')->assertOk();
+        $first->assertJsonPath('meta.total', 4);
+        $first->assertJsonPath('meta.last_page', 2);
+        $first->assertJsonCount(2, 'data');
+        $second = $this->getJson('/api/v1/admin/staff/residents?per_page=2&page=2')->assertOk();
+        $second->assertJsonCount(2, 'data');
+        $ids = array_merge(array_column($first->json('data'), 'id'), array_column($second->json('data'), 'id'));
+        $this->assertEqualsCanonicalizing($created, $ids);
+
+        $byEmail = $this->getJson('/api/v1/admin/staff/residents?search=zara.resident@example.com')->assertOk()->json('data');
+        $this->assertCount(1, $byEmail);
+        $this->assertSame('Zara', $byEmail[0]['name']);
+        $this->assertSame('C-9', $byEmail[0]['unit']);
+
+        $byUnit = $this->getJson('/api/v1/admin/staff/residents?search=B-2')->assertOk()->json('data');
+        $this->assertCount(1, $byUnit);
+        $this->assertSame('Noor', $byUnit[0]['name']);
     }
 
     private function staffPhone(): string

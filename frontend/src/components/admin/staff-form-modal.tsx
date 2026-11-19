@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, UserPlus, Users, X } from "lucide-react";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { ClearableInput } from "@/components/admin/clearable-field";
-import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ThemedSelect } from "@/components/ui/themed-select";
 import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
 import { apiError, apiFieldErrors } from "@/lib/api/client";
@@ -84,6 +83,12 @@ export function StaffFormModal({
   const editing = Boolean(member);
   const [source, setSource] = useState<Source>("resident");
   const [residents, setResidents] = useState<StaffResidentOption[]>([]);
+  const [residentQuery, setResidentQuery] = useState("");
+  const [residentPage, setResidentPage] = useState(1);
+  const [residentLastPage, setResidentLastPage] = useState(1);
+  const [residentsLoading, setResidentsLoading] = useState(false);
+  const [selectedResident, setSelectedResident] = useState<StaffResidentOption | null>(null);
+  const residentRequest = useRef(0);
   const [residentId, setResidentId] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -103,10 +108,39 @@ export function StaffFormModal({
   );
   const canSubmit = !hasFieldErrors(liveErrors);
 
+  const loadResidents = useCallback(async (search: string, page: number, append: boolean) => {
+    const token = ++residentRequest.current;
+    setResidentsLoading(true);
+    try {
+      const result = await fetchStaffResidents({ search, page, perPage: 25 });
+      if (token !== residentRequest.current) return;
+      setResidents((current) => {
+        const next = append ? [...current, ...result.data] : result.data;
+        const seen = new Set<number>();
+        return next.filter((item) => {
+          if (seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
+        });
+      });
+      setResidentPage(result.meta.current_page);
+      setResidentLastPage(result.meta.last_page);
+    } catch (err) {
+      if (token === residentRequest.current) toastError(apiError(err));
+    } finally {
+      if (token === residentRequest.current) setResidentsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     setSource("resident");
     setResidentId("");
+    setSelectedResident(null);
+    setResidentQuery("");
+    setResidents([]);
+    setResidentPage(1);
+    setResidentLastPage(1);
     setName(member?.name ?? "");
     setEmail(member?.email ?? "");
     setPhone(phoneFieldFromE164(member?.phone ?? ""));
@@ -118,15 +152,23 @@ export function StaffFormModal({
     setTouched({});
     setSubmitAttempted(false);
     setBusy(false);
-    if (member) return;
-    void fetchStaffResidents()
-      .then(setResidents)
-      .catch((err) => toastError(apiError(err)));
   }, [open, member]);
+
+  useEffect(() => {
+    if (!open || editing || source !== "resident") return;
+    const handle = window.setTimeout(() => {
+      void loadResidents(residentQuery, 1, false);
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [open, editing, source, residentQuery, loadResidents]);
 
   if (!open) return null;
 
   const showError = (field: StaffField) => Boolean((submitAttempted || touched[field]) && errors[field]);
+  const loadMoreResidents = () => {
+    if (residentsLoading || residentPage >= residentLastPage) return;
+    void loadResidents(residentQuery, residentPage + 1, true);
+  };
   const touch = (field: StaffField) => setTouched((prev) => ({ ...prev, [field]: true }));
   const clearError = (field: StaffField) => {
     setErrors((prev) => {
@@ -136,11 +178,12 @@ export function StaffFormModal({
       return next;
     });
   };
-  const selectedResident = residents.find((item) => String(item.id) === residentId);
 
   const chooseSource = (next: Source) => {
     setSource(next);
     setResidentId("");
+    setSelectedResident(null);
+    setResidentQuery("");
     setName("");
     setEmail("");
     setPhone(phoneFieldFromE164(""));
@@ -150,14 +193,14 @@ export function StaffFormModal({
     setTouched({});
   };
 
-  const chooseResident = (value: string) => {
-    const resident = residents.find((item) => String(item.id) === value);
-    setResidentId(value);
+  const chooseResident = (resident: StaffResidentOption) => {
+    setResidentId(String(resident.id));
+    setSelectedResident(resident);
     clearError("resident");
-    setName(resident?.name ?? "");
-    setEmail(resident?.email ?? "");
-    setPhone(phoneFieldFromE164(resident?.phone ?? ""));
-    setPhoneSeed(resident?.phone ?? "");
+    setName(resident.name ?? "");
+    setEmail(resident.email ?? "");
+    setPhone(phoneFieldFromE164(resident.phone ?? ""));
+    setPhoneSeed(resident.phone ?? "");
     setPhoneResetKey((key) => key + 1);
   };
 
@@ -234,7 +277,7 @@ export function StaffFormModal({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4" data-popover-boundary>
           {!editing ? (
             <div>
               <p className="text-[13px] font-medium text-slate-700">Add staff from</p>
@@ -274,20 +317,16 @@ export function StaffFormModal({
           {lockedIdentity ? (
             <Field label="Select resident" required error={showError("resident") ? errors.resident : undefined}>
               <div className={pickerClass}>
-                <SearchableSelect
-                  value={residentId}
-                  onChange={chooseResident}
-                  searchable
-                  placeholder="Search name, email, or unit"
-                  searchPlaceholder="Search name, email, or unit"
-                  emptyMessage="No approved residents match."
-                  error={showError("resident") ? errors.resident : undefined}
-                  valueLabel={selectedResident ? `${selectedResident.name} · ${selectedResident.email}` : undefined}
-                  options={residents.map((item) => ({
-                    value: String(item.id),
-                    label: item.name,
-                    description: [item.email, item.unit ? `Unit ${item.unit}` : ""].filter(Boolean).join(" · "),
-                  }))}
+                <ResidentSelect
+                  residents={residents}
+                  query={residentQuery}
+                  loading={residentsLoading}
+                  hasMore={residentPage < residentLastPage}
+                  selected={selectedResident}
+                  invalid={Boolean(showError("resident"))}
+                  onQuery={setResidentQuery}
+                  onLoadMore={loadMoreResidents}
+                  onSelect={chooseResident}
                 />
               </div>
             </Field>
@@ -425,6 +464,141 @@ export function StaffFormModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ResidentSelect({
+  residents,
+  query,
+  loading,
+  hasMore,
+  selected,
+  invalid,
+  onQuery,
+  onLoadMore,
+  onSelect,
+}: {
+  residents: StaffResidentOption[];
+  query: string;
+  loading: boolean;
+  hasMore: boolean;
+  selected: StaffResidentOption | null;
+  invalid?: boolean;
+  onQuery: (value: string) => void;
+  onLoadMore: () => void;
+  onSelect: (resident: StaffResidentOption) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!open || !list) return;
+    const onWheel = (event: WheelEvent) => {
+      if (list.scrollHeight <= list.clientHeight + 1) return;
+      event.preventDefault();
+      event.stopPropagation();
+      list.scrollTop += event.deltaY;
+      if (list.scrollTop + list.clientHeight >= list.scrollHeight - 32) onLoadMore();
+    };
+    list.addEventListener("wheel", onWheel, { passive: false });
+    return () => list.removeEventListener("wheel", onWheel);
+  }, [open, onLoadMore]);
+
+  useEffect(() => {
+    if (!open) return;
+    const focus = window.setTimeout(() => searchRef.current?.focus(), 0);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    const onPointer = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node) || rootRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointer);
+    return () => {
+      window.clearTimeout(focus);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-invalid={invalid || undefined}
+        onClick={() => setOpen((current) => !current)}
+        className={["nl-picker-trigger w-full", selected ? "has-value" : "", open ? "nl-picker-trigger-open" : "", invalid ? "border-red-300 ring-1 ring-red-100" : ""].join(" ")}
+      >
+        <span className={["nl-picker-text", selected ? "" : "is-placeholder"].join(" ")}>
+          {selected ? `${selected.name} · ${selected.email}` : "Search name, email, or unit"}
+        </span>
+        <ChevronDown className={`nl-picker-chevron ${open ? "nl-picker-chevron-open" : ""}`} size={16} strokeWidth={2} aria-hidden />
+      </button>
+      {open ? (
+        <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 p-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+              <ClearableInput
+                ref={searchRef}
+                value={query}
+                onChange={(event) => onQuery(event.target.value)}
+                placeholder="Search name, email, or unit"
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-8 text-[13px] text-[#0A2A43] outline-none focus:border-[#1B4F8A]"
+              />
+            </div>
+          </div>
+          <div
+            ref={listRef}
+            role="listbox"
+            aria-label="Approved residents"
+            className="nl-dashboard-panel-scroll max-h-60 overflow-y-auto overscroll-contain p-1"
+            onScroll={(event) => {
+              if (!hasMore || loading) return;
+              const el = event.currentTarget;
+              if (el.scrollTop + el.clientHeight >= el.scrollHeight - 32) onLoadMore();
+            }}
+          >
+            {residents.map((resident) => {
+              const active = selected?.id === resident.id;
+              const detail = [resident.email, resident.unit ? `Unit ${resident.unit}` : ""].filter(Boolean).join(" · ");
+              return (
+                <button
+                  key={resident.id}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  disabled={resident.already_staff}
+                  onClick={() => {
+                    if (resident.already_staff) return;
+                    onSelect(resident);
+                    setOpen(false);
+                  }}
+                  className={["flex w-full items-start justify-between gap-2 rounded-lg px-2.5 py-2 text-left", resident.already_staff ? "cursor-default text-slate-400" : active ? "bg-[#E8F1FA] text-[#1B4F8A]" : "text-[#0A2A43] hover:bg-slate-50"].join(" ")}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-[13px] font-semibold">{resident.name}</span>
+                    {detail ? <span className="mt-0.5 block truncate text-[12px] font-normal text-slate-500">{detail}</span> : null}
+                  </span>
+                  {resident.already_staff ? <span className="mt-0.5 shrink-0 text-[11px] font-semibold text-slate-400">Already staff</span> : null}
+                  {active && !resident.already_staff ? <Check size={14} strokeWidth={2.5} className="mt-0.5 shrink-0" aria-hidden /> : null}
+                </button>
+              );
+            })}
+            {loading ? <p className="px-2.5 py-3 text-center text-[12px] text-slate-500">Loading residents…</p> : null}
+            {!loading && residents.length === 0 ? <p className="px-2.5 py-3 text-center text-[12px] text-slate-500">No approved residents match.</p> : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
