@@ -64,13 +64,38 @@ export type StaffResidentOption = {
   email: string;
   phone: string | null;
   unit: string;
+  already_staff?: boolean;
 };
 
-export async function fetchStaffResidents(search = ""): Promise<StaffResidentOption[]> {
+export type StaffResidentPage = {
+  data: StaffResidentOption[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+};
+
+export async function fetchStaffResidents(params?: {
+  search?: string;
+  page?: number;
+  perPage?: number;
+}): Promise<StaffResidentPage> {
   const query = new URLSearchParams();
-  if (search.trim()) query.set("search", search.trim());
+  const search = params?.search?.trim() ?? "";
+  if (search) query.set("search", search);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.perPage) query.set("per_page", String(params.perPage));
   const res = await api.get(`/v1/admin/staff/residents?${query.toString()}`);
-  return res.data.data as StaffResidentOption[];
+  const data = (res.data.data ?? []) as StaffResidentOption[];
+  const meta = res.data.meta ?? {
+    current_page: params?.page ?? 1,
+    last_page: 1,
+    per_page: params?.perPage ?? data.length,
+    total: data.length,
+  };
+  return { data, meta };
 }
 
 export async function createStaff(payload: {

@@ -23,7 +23,7 @@ class CommunityStaffController extends Controller
 
     public function residents(Request $request): JsonResponse
     {
-        return response()->json(['data' => $this->staff->residents($request->user(), $request)]);
+        return response()->json($this->staff->residents($request->user(), $request));
     }
 
     public function store(Request $request): JsonResponse

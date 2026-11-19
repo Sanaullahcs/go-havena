@@ -1,5 +1,5 @@
 import ComplaintChatScreen from "../../../components/complaints/complaint-chat-screen";
 
 export default function StaffComplaintChatScreen() {
-  return <ComplaintChatScreen audience="staff" />;
+  return <ComplaintChatScreen audience="staff" backTo="/screens/staff-tasks" />;
 }
