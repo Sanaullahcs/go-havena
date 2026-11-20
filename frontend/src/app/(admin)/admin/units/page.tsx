@@ -4,15 +4,22 @@ import { ClearableInput } from "@/components/admin/clearable-field";
 
 import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertCircle, Building2, Home, Plus, UserRound, Users, X } from "lucide-react";
-import { NL } from "@/lib/design-tokens";
+import { Calendar, Home, Plus, UserRound, Users, X } from "lucide-react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
-import { AdminBadge, DtPagination, StatTile } from "@/components/admin/ui";
+import {
+  AdminBadge,
+  DataTable,
+  DtCell,
+  DtHead,
+  DtPagination,
+  DtRow,
+  DtTable,
+  StatTile,
+} from "@/components/admin/ui";
 import { PageError, PageLoader } from "@/components/shared/page-states";
-import { TableLoadingOverlay, TableProgressBar } from "@/components/shared/loaders";
-import { ThemedSelect } from "@/components/ui/themed-select";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { adminClientTableBusy } from "@/lib/admin/table-loading";
+import { adminClientTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
+import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import {
@@ -22,13 +29,19 @@ import {
   transferUnitBillingContact,
   type CommunityUnit,
 } from "@/lib/api/property-services";
-import { DUPLICATE_UNIT_MESSAGE, normalizeUnitNumber } from "@/lib/admin/unit-number";
-
-const UNITS_PAGE_SIZE = 6;
+import {
+  adminUnitNumberDuplicateError,
+  adminUnitNumberLengthError,
+  ADMIN_UNIT_NUMBER_MAX,
+} from "@/lib/admin/unit-number";
 
 type ContactFilter = "all" | "assigned" | "missing";
 
-const CONTACT_FILTERS: ContactFilter[] = ["all", "assigned", "missing"];
+const UNIT_CONTACT_FILTERS: { key: ContactFilter; label: string }[] = [
+  { key: "all", label: "All units" },
+  { key: "assigned", label: "Has billing contact" },
+  { key: "missing", label: "No billing contact" },
+];
 
 function contactFilterLabel(filter: ContactFilter) {
   if (filter === "all") return "All units";
@@ -51,6 +64,13 @@ function formatWhen(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString();
+}
+
+function formatShortDate(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export default function AdminUnitsPage() {
@@ -97,17 +117,6 @@ export default function AdminUnitsPage() {
     [units],
   );
 
-  const contactOptions = useMemo(
-    () => CONTACT_FILTERS.map((filter) => {
-      const count = residentialUnits.filter((unit) => matchesContactFilter(unit, filter)).length;
-      return {
-        value: filter,
-        label: count > 0 ? `${contactFilterLabel(filter)} (${count})` : contactFilterLabel(filter),
-      };
-    }),
-    [residentialUnits],
-  );
-
   const filteredUnits = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
     return residentialUnits.filter((unit) => {
@@ -128,14 +137,26 @@ export default function AdminUnitsPage() {
 
   const deferredFilteredUnits = useDeferredValue(filteredUnits);
   const isDeferredPending = deferredFilteredUnits !== filteredUnits;
-  const tableBusy = adminClientTableBusy(isPending, isDeferredPending, searchInput, debouncedSearch, saving, transferringBusy);
 
-  const lastPage = Math.max(1, Math.ceil(deferredFilteredUnits.length / UNITS_PAGE_SIZE));
+  const lastPage = Math.max(1, Math.ceil(deferredFilteredUnits.length / ADMIN_TABLE_PAGE_SIZE));
 
   const pagedUnits = useMemo(() => {
-    const start = (page - 1) * UNITS_PAGE_SIZE;
-    return deferredFilteredUnits.slice(start, start + UNITS_PAGE_SIZE);
+    const start = (page - 1) * ADMIN_TABLE_PAGE_SIZE;
+    return deferredFilteredUnits.slice(start, start + ADMIN_TABLE_PAGE_SIZE);
   }, [deferredFilteredUnits, page]);
+
+  const existingResidentialUnitNumbers = useMemo(
+    () => residentialUnits.map((unit) => unit.unit_number),
+    [residentialUnits],
+  );
+
+  const unitNumberFieldError = useMemo(() => {
+    if (!creating) return null;
+    return (
+      adminUnitNumberLengthError(unitNumber)
+      ?? adminUnitNumberDuplicateError(unitNumber, existingResidentialUnitNumbers)
+    );
+  }, [creating, unitNumber, existingResidentialUnitNumbers]);
 
   const stats = useMemo(() => {
     const residential = units.filter((unit) => unit.kind === "residential");
@@ -157,7 +178,7 @@ export default function AdminUnitsPage() {
     ));
     if (index < 0) return;
     setHighlightedId(residentialUnits[index].id);
-    setPage(Math.floor(index / UNITS_PAGE_SIZE) + 1);
+    setPage(Math.floor(index / ADMIN_TABLE_PAGE_SIZE) + 1);
   }, [focusUnit, residentialUnits]);
 
   function openCreate() {
@@ -175,14 +196,10 @@ export default function AdminUnitsPage() {
     const trimmed = unitNumber.trim();
     if (!trimmed) return;
 
-    const normalized = normalizeUnitNumber(trimmed);
-    const duplicate = residentialUnits.some(
-      (unit) => normalizeUnitNumber(unit.unit_number) === normalized,
-    );
-    if (duplicate) {
-      toastError(DUPLICATE_UNIT_MESSAGE);
-      return;
-    }
+    const fieldError =
+      adminUnitNumberLengthError(unitNumber)
+      ?? adminUnitNumberDuplicateError(unitNumber, existingResidentialUnitNumbers);
+    if (fieldError) return;
 
     setSaving(true);
     try {
@@ -281,131 +298,179 @@ export default function AdminUnitsPage() {
       {residentialUnits.length > 0 ? (
         <>
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile label="Residential units" value={String(stats.total)} icon={<Home className="h-4 w-4" />} />
-        <StatTile label="Missing billing contact" value={String(stats.missing)} icon={<UserRound className="h-4 w-4" />} tone="amber" />
-        <StatTile label="Assigned residents" value={String(stats.residents)} icon={<Users className="h-4 w-4" />} />
+        <StatTile
+          label="Residential units"
+          value={String(stats.total)}
+          hint="Homes in your community"
+          icon={<Home className="h-4 w-4" />}
+        />
+        <StatTile
+          label="Missing billing contact"
+          value={String(stats.missing)}
+          hint="Units without a designated payer"
+          icon={<UserRound className="h-4 w-4" />}
+          tone="amber"
+        />
+        <StatTile
+          label="Assigned residents"
+          value={String(stats.residents)}
+          hint="Residents linked to a unit"
+          icon={<Users className="h-4 w-4" />}
+        />
       </div>
 
-        <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-[#F6F8FB] to-[#E8F0F7]/40 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/60 px-5 py-4">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1B4F8A] text-white shadow-sm">
-                <Building2 className="h-4 w-4" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-slate-900">All units</p>
-                <p className="text-xs text-slate-500">
-                  {deferredFilteredUnits.length}/{residentialUnits.length} shown
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
-                <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-                    <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M10.5 10.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                </span>
-                <ClearableInput
-                  type="text"
-                  placeholder="Search by unit, resident…"
-                  value={searchInput}
-                  hideClear={tableBusy}
-                  onChange={(event) => startTransition(() => {
-                    setSearchInput(event.target.value);
-                    setPage(1);
-                  })}
-                  className="h-8 w-52 rounded-lg border border-slate-200 bg-white py-1.5 pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-                  style={{ paddingLeft: "1.875rem" }}
-                />
-                {tableBusy ? (
-                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
-                    <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
-                  </span>
-                ) : null}
-              </div>
-              <div className="nl-picker-compact w-[196px]">
-                <ThemedSelect
-                  value={contactFilter}
-                  onChange={(value) => startTransition(() => {
-                    setContactFilter(value as ContactFilter);
-                    setPage(1);
-                  })}
-                  options={contactOptions}
-                  placeholder="All units"
-                />
-              </div>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#1B4F8A] ring-1 ring-[#1B4F8A]/15">
-                Page {page} of {lastPage}
-              </span>
-            </div>
-          </div>
-
-          {highlightedId ? (() => {
-            const highlighted = residentialUnits.find((unit) => unit.id === highlightedId);
-            if (!highlighted) return null;
-            return (
-              <div className={`mx-5 mt-4 rounded-xl px-4 py-3 text-sm ${highlighted.billing_contact ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>
-                {highlighted.billing_contact
-                  ? `Unit ${highlighted.unit_number} now has a billing contact: ${highlighted.billing_contact.name}.`
-                  : `Unit ${highlighted.unit_number} still has no billing contact.`}
-              </div>
-            );
-          })() : null}
-
-          <div className="relative" aria-busy={tableBusy || undefined}>
-            {tableBusy ? (
-              deferredFilteredUnits.length === 0 ? (
-                <div className="relative flex min-h-[16rem] flex-col items-center justify-center py-16">
-                  <TableProgressBar />
+        <DataTable
+          title="All units"
+          titleCount={deferredFilteredUnits.length}
+          search={searchInput}
+          onSearch={(value) => startTransition(() => {
+            setSearchInput(value);
+            setPage(1);
+          })}
+          searchPlaceholder="Search by unit, resident, or billing contact…"
+          searchClassName="sm:!w-[320px]"
+          searchDisabled={creating}
+          searching={isAdminSearchPending(searchInput, debouncedSearch)}
+          loading={adminClientTableBusy(
+            isPending,
+            isDeferredPending,
+            searchInput,
+            debouncedSearch,
+            saving,
+            transferringBusy,
+            deletingId !== null,
+          )}
+          filters={UNIT_CONTACT_FILTERS}
+          activeFilter={contactFilter}
+          onFilter={(key) => startTransition(() => {
+            setContactFilter(key as ContactFilter);
+            setPage(1);
+          })}
+          isEmpty={deferredFilteredUnits.length === 0}
+          empty={
+            contactFilter !== "all" && !debouncedSearch.trim()
+              ? `No units with ${contactFilterLabel(contactFilter).toLowerCase()}.`
+              : "No units match your search or filters."
+          }
+          contained
+          intro={
+            highlightedId ? (() => {
+              const highlighted = residentialUnits.find((unit) => unit.id === highlightedId);
+              if (!highlighted) return null;
+              return (
+                <div
+                  className={`rounded-xl px-4 py-3 text-sm ${
+                    highlighted.billing_contact ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"
+                  }`}
+                >
+                  {highlighted.billing_contact
+                    ? `Unit ${highlighted.unit_number} now has a billing contact: ${highlighted.billing_contact.name}.`
+                    : `Unit ${highlighted.unit_number} still has no billing contact.`}
                 </div>
-              ) : (
-                <TableLoadingOverlay />
-              )
-            ) : null}
-            {deferredFilteredUnits.length === 0 ? (
-              tableBusy ? null : (
-                <div className="px-5 py-14 text-center">
-                  <p className="text-sm font-medium text-slate-500">
-                    {contactFilter !== "all" && !debouncedSearch.trim()
-                      ? `No units with ${contactFilterLabel(contactFilter).toLowerCase()}.`
-                      : "No units match your search or filters."}
-                  </p>
-                </div>
-              )
-            ) : (
-              <div className={tableBusy ? "pointer-events-none select-none opacity-55 transition-opacity duration-150" : "transition-opacity duration-150"}>
-                <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {pagedUnits.map((unit, index) => (
-                    <UnitCard
-                      key={unit.id}
-                      unit={unit}
-                      index={index}
-                      highlighted={highlightedId === unit.id}
-                      canDelete={unitCanDelete(unit)}
-                      deleting={deletingId === unit.id}
-                      onView={() => setViewing(unit)}
-                      onTransfer={() => openTransfer(unit)}
-                      onDelete={() => void handleDelete(unit)}
-                    />
-                  ))}
-                </div>
-
-                <div className="border-t border-slate-200/60 bg-white/70">
-                  <DtPagination
-                    showing={pagedUnits.length}
-                    total={deferredFilteredUnits.length}
-                    page={page}
-                    lastPage={lastPage}
-                    pageSize={UNITS_PAGE_SIZE}
-                    onPageChange={(nextPage) => startTransition(() => setPage(nextPage))}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
+              );
+            })() : null
+          }
+        >
+          <DtTable contained>
+            <DtHead
+              cols={[
+                { label: "Unit" },
+                { label: "Billing contact" },
+                { label: "Status" },
+                { label: "Residents" },
+                { label: "Last updated" },
+                { label: "Actions", right: true },
+              ]}
+            />
+            <tbody>
+              {pagedUnits.map((unit) => {
+                const hasContact = Boolean(unit.billing_contact?.name);
+                const residents = unit.residents ?? [];
+                const lastUpdated = unit.updated_at ?? unit.created_at;
+                const canDelete = unitCanDelete(unit);
+                return (
+                  <DtRow
+                    key={unit.id}
+                    className={highlightedId === unit.id ? "bg-emerald-50/60" : undefined}
+                  >
+                    <DtCell first>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1B4F8A]/10 text-[#1B4F8A]">
+                          <Home className="h-4 w-4" aria-hidden />
+                        </span>
+                        <p className="truncate font-semibold text-slate-900">{unit.unit_number}</p>
+                      </div>
+                    </DtCell>
+                    <DtCell>
+                      {hasContact ? (
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-slate-900">{unit.billing_contact!.name}</p>
+                          <p className="truncate text-xs text-slate-500">Designated payer</p>
+                        </div>
+                      ) : (
+                        <div className="min-w-0">
+                          <p className="font-medium text-amber-800">Not assigned</p>
+                          <p className="text-xs text-amber-700/80">No billing contact</p>
+                        </div>
+                      )}
+                    </DtCell>
+                    <DtCell>
+                      <AdminBadge tone={unit.status === "active" ? "green" : "slate"}>
+                        {unit.status === "active" ? "Active" : unit.status}
+                      </AdminBadge>
+                    </DtCell>
+                    <DtCell>
+                      <span className="inline-flex items-center gap-1.5 text-slate-700">
+                        <Users className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+                        <span className="font-semibold tabular-nums">{unit.resident_count ?? residents.length}</span>
+                      </span>
+                    </DtCell>
+                    <DtCell>
+                      <div className="min-w-0">
+                        <p className="inline-flex items-center gap-1.5 font-medium text-slate-800">
+                          <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+                          {formatShortDate(lastUpdated)}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {hasContact ? "Billing contact assigned" : "Awaiting billing contact"}
+                        </p>
+                      </div>
+                    </DtCell>
+                    <DtCell right>
+                      <AdminActionsMenu
+                        actions={[
+                          { label: "View details", icon: "view", onClick: () => setViewing(unit) },
+                          {
+                            label: "Change billing contact",
+                            icon: "edit",
+                            onClick: () => openTransfer(unit),
+                            disabled: residents.length === 0,
+                          },
+                          {
+                            label: deletingId === unit.id ? "Deleting…" : "Delete unit",
+                            icon: "delete",
+                            tone: "danger",
+                            onClick: () => void handleDelete(unit),
+                            hidden: !canDelete,
+                            disabled: deletingId === unit.id,
+                          },
+                        ]}
+                      />
+                    </DtCell>
+                  </DtRow>
+                );
+              })}
+            </tbody>
+          </DtTable>
+          <DtPagination
+            showing={pagedUnits.length}
+            total={deferredFilteredUnits.length}
+            page={page}
+            lastPage={lastPage}
+            pageSize={ADMIN_TABLE_PAGE_SIZE}
+            onPageChange={(nextPage) => startTransition(() => setPage(nextPage))}
+          />
+        </DataTable>
         </>
       ) : null}
 
@@ -445,12 +510,27 @@ export default function AdminUnitsPage() {
                   autoFocus
                   required
                   value={unitNumber}
+                  maxLength={ADMIN_UNIT_NUMBER_MAX}
                   onChange={(e) => setUnitNumber(e.target.value)}
-                  className="nl-input mt-1.5"
+                  aria-invalid={unitNumberFieldError ? true : undefined}
+                  aria-describedby={unitNumberFieldError ? "unit-number-error" : undefined}
+                  className={[
+                    "nl-input mt-1.5",
+                    unitNumberFieldError ? "border-red-300 ring-1 ring-red-100 focus:border-red-400 focus:ring-red-100" : "",
+                  ].join(" ")}
                   placeholder="4B"
                   disabled={saving}
                 />
               </label>
+              {unitNumberFieldError ? (
+                <p id="unit-number-error" className="mt-1.5 text-xs text-red-600" role="alert">
+                  {unitNumberFieldError}
+                </p>
+              ) : (
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Up to {ADMIN_UNIT_NUMBER_MAX} characters.
+                </p>
+              )}
             </form>
 
             <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/80 px-6 py-4 sm:flex-row sm:justify-end">
@@ -459,7 +539,7 @@ export default function AdminUnitsPage() {
               </button>
               <button
                 type="button"
-                disabled={saving || !unitNumber.trim()}
+                disabled={saving || !unitNumber.trim() || Boolean(unitNumberFieldError)}
                 onClick={() => void handleCreate()}
                 className="nl-btn-primary w-full sm:w-auto disabled:opacity-50"
               >
@@ -620,133 +700,6 @@ export default function AdminUnitsPage() {
         </div>
       )}
     </div>
-  );
-}
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
-  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
-}
-
-const UNIT_CARD_BLOBS = [
-  "bg-[#1B4F8A]/10",
-  "bg-emerald-500/10",
-  "bg-violet-500/10",
-  "bg-sky-500/10",
-  "bg-rose-500/10",
-  "bg-amber-500/10",
-] as const;
-
-function UnitCard({
-  unit,
-  index,
-  highlighted = false,
-  canDelete = false,
-  deleting = false,
-  onView,
-  onTransfer,
-  onDelete,
-}: {
-  unit: CommunityUnit;
-  index: number;
-  highlighted?: boolean;
-  canDelete?: boolean;
-  deleting?: boolean;
-  onView: () => void;
-  onTransfer: () => void;
-  onDelete: () => void;
-}) {
-  const hasContact = Boolean(unit.billing_contact?.name);
-  const residents = unit.residents ?? [];
-  const blobAccent = UNIT_CARD_BLOBS[index % UNIT_CARD_BLOBS.length];
-
-  return (
-    <article
-      className={`group relative flex h-full min-h-[168px] flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-sm ring-1 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
-        highlighted
-          ? "ring-2 ring-emerald-400"
-          : hasContact
-            ? "ring-slate-200/80 hover:ring-[#1B4F8A]/25"
-            : "ring-amber-200/80 hover:ring-amber-300/60"
-      }`}
-    >
-      <div className={`pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full blur-2xl ${blobAccent}`} aria-hidden />
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#1B4F8A]/20 to-transparent"
-        aria-hidden
-      />
-
-      <div className="relative flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Unit</p>
-          <h2 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
-            {unit.unit_number}
-          </h2>
-        </div>
-        <div className="rounded-xl bg-white/90 opacity-90 shadow-sm ring-1 ring-slate-100 transition-opacity group-hover:opacity-100">
-          <AdminActionsMenu
-            actions={[
-              { label: "View details", icon: "view", onClick: onView },
-              {
-                label: "Change billing contact",
-                icon: "edit",
-                onClick: onTransfer,
-                disabled: residents.length === 0,
-              },
-              {
-                label: deleting ? "Deleting…" : "Delete unit",
-                icon: "delete",
-                tone: "danger",
-                onClick: onDelete,
-                hidden: !canDelete,
-                disabled: deleting,
-              },
-            ]}
-          />
-        </div>
-      </div>
-
-      <div className="relative mt-auto pt-5">
-        {hasContact ? (
-          <div className="rounded-xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-3 shadow-inner">
-            <div className="flex items-center gap-3">
-              <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm"
-                style={{ background: NL.fillCta }}
-              >
-                {initials(unit.billing_contact!.name)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                  Billing contact
-                </p>
-                <p className="truncate text-sm font-bold text-slate-900">{unit.billing_contact!.name}</p>
-              </div>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
-                Active
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-dashed border-amber-200 bg-gradient-to-br from-amber-50/90 to-orange-50/40 p-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                <AlertCircle className="h-4 w-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-700/80">
-                  Billing contact
-                </p>
-                <p className="text-sm font-semibold text-amber-900">Not assigned</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </article>
   );
 }
 
