@@ -23,7 +23,17 @@ class AgreementController extends Controller
     {
         $communityId = $this->communityId($request);
 
-        return response()->json($this->agreements->options($communityId, $request->string('search')->trim()->toString() ?: null));
+        $resident = $request->filled('resident') ? $request->string('resident')->trim()->toString() : '';
+        $unit = $request->filled('unit') ? $request->string('unit')->trim()->toString() : '';
+        $search = $request->filled('search') ? $request->string('search')->trim()->toString() : '';
+        $split = $resident !== '' || $unit !== '';
+
+        return response()->json($this->agreements->options(
+            $communityId,
+            $split ? ($resident !== '' ? $resident : null) : ($search !== '' ? $search : null),
+            $split ? ($unit !== '' ? $unit : null) : ($search !== '' ? $search : null),
+            $split,
+        ));
     }
 
     public function index(Request $request): JsonResponse
@@ -78,6 +88,30 @@ class AgreementController extends Controller
                 $inner->where('title', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%")
                     ->orWhere('category', 'like', "%{$search}%");
+            });
+        }
+        $resident = trim((string) $request->input('resident', ''));
+        if ($resident !== '') {
+            $like = '%'.$resident.'%';
+            $query->whereExists(function ($sub) use ($like) {
+                $sub->selectRaw('1')
+                    ->from('community_document_assignments as a')
+                    ->join('users as u', 'u.id', '=', 'a.user_id')
+                    ->whereColumn('a.document_id', 'community_documents.id')
+                    ->where(function ($match) use ($like) {
+                        $match->where('u.name', 'like', $like)
+                            ->orWhere('u.email', 'like', $like);
+                    });
+            });
+        }
+        $unit = trim((string) $request->input('unit', ''));
+        if ($unit !== '') {
+            $like = '%'.$unit.'%';
+            $query->whereExists(function ($sub) use ($like) {
+                $sub->selectRaw('1')
+                    ->from('community_document_assignments as a')
+                    ->whereColumn('a.document_id', 'community_documents.id')
+                    ->where('a.unit_label', 'like', $like);
             });
         }
         if ($request->filled('due_from')) {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { AlarmClock, ArrowLeft, ArrowRight, Bell, Check, CheckCircle2, ClipboardCheck, Clock, Download, FileText, Files, Home, PenLine, Search, Upload, Users, X } from "lucide-react";
+import { AlarmClock, ArrowLeft, ArrowRight, Bell, Building2, Check, CheckCircle2, ClipboardCheck, Clock, Download, FileText, Files, Home, PenLine, RotateCcw, Search, SlidersHorizontal, Upload, UserRound, Users, X } from "lucide-react";
 import { CharCount } from "@/components/admin/char-count";
 import { AdminActionsMenu, type AdminMenuAction } from "@/components/admin/admin-actions-menu";
 import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
@@ -144,6 +144,10 @@ export function AgreementsPanel({
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0, counts: EMPTY_COUNTS });
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [personDraft, setPersonDraft] = useState("");
+  const [unitDraft, setUnitDraft] = useState("");
+  const [person, setPerson] = useState("");
+  const [unit, setUnit] = useState("");
   const [category, setCategory] = useState("all");
   const [status, setStatus] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -162,6 +166,8 @@ export function AgreementsPanel({
       const res = await fetchAgreements({
         status,
         search,
+        resident: person,
+        unit,
         category,
         page: nextPage,
       });
@@ -177,7 +183,7 @@ export function AgreementsPanel({
   useEffect(() => {
     void load(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, status, search, category]);
+  }, [page, status, search, category, person, unit]);
 
   useEffect(() => {
     if (!initialId) return;
@@ -377,6 +383,20 @@ export function AgreementsPanel({
   };
 
   const counts = meta.counts ?? EMPTY_COUNTS;
+  const applyRecipientSearch = () => {
+    setPerson(personDraft.trim());
+    setUnit(unitDraft.trim());
+    setPage(1);
+  };
+
+  const clearRecipientSearch = () => {
+    setPersonDraft("");
+    setUnitDraft("");
+    setPerson("");
+    setUnit("");
+    setPage(1);
+  };
+
   const filters = [
     { key: "all", label: "All", count: counts.all, icon: <Files strokeWidth={2.25} /> },
     { key: "draft", label: "Drafts", count: counts.draft, icon: <PenLine strokeWidth={2.25} /> },
@@ -386,6 +406,59 @@ export function AgreementsPanel({
 
   return (
     <div className="space-y-4">
+      <form
+        className="overflow-hidden rounded-2xl border border-[color:var(--brand-border)] bg-gradient-to-r from-white via-[var(--mint)]/40 to-[var(--canvas)] p-4 shadow-sm"
+        onSubmit={(event) => {
+          event.preventDefault();
+          applyRecipientSearch();
+        }}
+      >
+        <div className="mb-3 flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--deep-teal)] shadow-sm ring-1 ring-[var(--mint)]">
+            <SlidersHorizontal className="h-4 w-4" strokeWidth={2.25} />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Filter &amp; Search Agreements</p>
+            <p className="text-xs text-slate-500">Find agreements by person or unit</p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <label className="min-w-0 flex-1">
+            <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+              <UserRound className="h-3.5 w-3.5 text-slate-400" strokeWidth={2.25} />
+              First Name / Email
+            </span>
+            <input
+              value={personDraft}
+              onChange={(event) => setPersonDraft(event.target.value)}
+              placeholder="Search by first name or email"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none ring-[var(--mint)] placeholder:text-slate-400 focus:border-[var(--teal)] focus:ring-2"
+            />
+          </label>
+          <label className="min-w-0 flex-1">
+            <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+              <Building2 className="h-3.5 w-3.5 text-slate-400" strokeWidth={2.25} />
+              Unit
+            </span>
+            <input
+              value={unitDraft}
+              onChange={(event) => setUnitDraft(event.target.value)}
+              placeholder="e.g. A-101"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none ring-[var(--mint)] placeholder:text-slate-400 focus:border-[var(--teal)] focus:ring-2"
+            />
+          </label>
+          <div className="flex shrink-0 gap-2">
+            <button type="submit" className="nl-btn-primary h-11">
+              <Search className="h-4 w-4" strokeWidth={2.25} />
+              Search
+            </button>
+            <button type="button" onClick={clearRecipientSearch} className="nl-btn-secondary h-11">
+              <RotateCcw className="h-4 w-4" strokeWidth={2.25} />
+              Clear
+            </button>
+          </div>
+        </div>
+      </form>
       <div className="grid gap-3 sm:grid-cols-3">
         <StatTile label="Agreements" value={String(counts.all)} hint="Everything in this community" tone="blue" icon={<FileText className="h-5 w-5" />} />
         <StatTile label="Waiting" value={String(counts.pending ?? 0)} hint="Still need a signature" tone="amber" icon={<Clock className="h-5 w-5" />} />
@@ -482,7 +555,7 @@ export function AgreementsPanel({
           setPage(1);
         }}
         isEmpty={!loading && rows.length === 0}
-        empty={search || category !== "all" ? "No agreements match your filters." : "No agreements yet."}
+        empty={search || person || unit || category !== "all" ? "No agreements match your filters." : "No agreements yet."}
       >
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">

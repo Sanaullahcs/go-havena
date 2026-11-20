@@ -35,4 +35,9 @@ const fromErr = extractOtpRateLimitFromError(err);
 assert(fromErr?.lockType === "resend_limit", "error extract lock type");
 assert(fromErr?.retryAfterSeconds === 900, "error extract retry");
 
+const mailFailed = new ApiError("We could not send a verification email. Please try again.", 503, {
+  code: "OTP_MAIL_FAILED",
+});
+assert(extractOtpRateLimitFromError(mailFailed) === null, "mail failure is not a resend cooldown");
+
 console.log("OTP rate-limit UI helpers: all checks passed.");

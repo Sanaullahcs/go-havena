@@ -154,11 +154,13 @@ class CommunityFeatureService
             ));
         }
 
+        $includeRequests = $viewer && AdminRoleService::isCommunityAdminRole($viewer);
+
         return [
             'configured' => $this->isConfigured($communityId),
             'features' => $flags,
-            'pending_requests' => $this->pendingRequestsForCommunity($communityId),
-            'requests' => $this->recentRequestsForCommunity($communityId),
+            'pending_requests' => $includeRequests ? $this->pendingRequestsForCommunity($communityId) : [],
+            'requests' => $includeRequests ? $this->recentRequestsForCommunity($communityId) : [],
             'catalog' => $catalog,
         ];
     }

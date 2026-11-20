@@ -84,16 +84,54 @@ class UnitRegistrationPackageService
 
     public function hasApprovedInitialOrActiveUnit(int $userId, int $communityId): bool
     {
-        if ($this->units->activeUnitCountForUser($userId, $communityId) > 0) {
-            return true;
+        return in_array($communityId, $this->communityIdsWithApprovedInitialOrActiveUnit($userId, [$communityId]), true);
+    }
+
+    /**
+     * Communities where this resident already has an active residential unit
+     * or an approved initial registration. One lookup for the whole switch list.
+     *
+     * @param  list<int>  $communityIds
+     * @return list<int>
+     */
+    public function communityIdsWithApprovedInitialOrActiveUnit(int $userId, array $communityIds): array
+    {
+        $communityIds = array_values(array_unique(array_filter(
+            array_map(static fn ($id) => (int) $id, $communityIds),
+            static fn (int $id) => $id > 0,
+        )));
+
+        if ($userId < 1 || $communityIds === []) {
+            return [];
         }
 
-        return DB::table('unit_registration_packages')
+        $fromUnits = DB::table('unit_residents as ur')
+            ->join('units', 'units.id', '=', 'ur.unit_id')
+            ->where('ur.user_id', $userId)
+            ->whereIn('ur.community_id', $communityIds)
+            ->where('ur.status', UnitAssignmentService::RESIDENT_ACTIVE)
+            ->where('units.kind', UnitAssignmentService::KIND_RESIDENTIAL)
+            ->distinct()
+            ->pluck('ur.community_id')
+            ->map(static fn ($id) => (int) $id)
+            ->all();
+
+        $remaining = array_values(array_diff($communityIds, $fromUnits));
+        if ($remaining === []) {
+            return $fromUnits;
+        }
+
+        $fromPackages = DB::table('unit_registration_packages')
             ->where('user_id', $userId)
-            ->where('community_id', $communityId)
+            ->whereIn('community_id', $remaining)
             ->where('kind', self::KIND_INITIAL)
             ->where('status', self::STATUS_APPROVED)
-            ->exists();
+            ->distinct()
+            ->pluck('community_id')
+            ->map(static fn ($id) => (int) $id)
+            ->all();
+
+        return array_values(array_unique(array_merge($fromUnits, $fromPackages)));
     }
 
     /**

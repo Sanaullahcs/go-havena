@@ -116,6 +116,10 @@ class AmenitySlotsTest extends TestCase
             '٦:٠٠ صباحاً - ٩:٠٠ مساءً',
             AmenitySlots::formatHoursDisplay('06:00', '21:00', '٦:٠٠ صباحاً – ٩:٠٠ مساءً'),
         );
+        $this->assertSame(
+            'Sat - Thu 8:00 AM - 11:00 AM. Closed Friday morning.',
+            AmenitySlots::formatHoursDisplay('08:00', '11:00', 'Sat–Thu 8:00 AM – 11:00 AM. Closed Friday morning.'),
+        );
     }
 
     public function test_slot_labels_match_hyphen_and_en_dash(): void

@@ -222,11 +222,15 @@ function QuickActionsRow() {
   });
   const gap = frame.size(4);
   const fitW = actions.length > 0 ? (frame.contentWidth - gap * (actions.length - 1)) / actions.length : 0;
-  const tileW = Math.min(frame.size(68), Math.max(frame.size(56), Math.floor(fitW)));
+  // Tile floor is wide enough for "Amenities" on a Pro Max. The label uses the
+  // same scale as the tile, so the last letter stays on the first line.
+  const tileW = Math.min(frame.size(86), Math.max(frame.size(74), Math.floor(fitW)));
   const rowWidth = actions.length * tileW + Math.max(0, actions.length - 1) * gap;
   const centerRow = actions.length > 0 && rowWidth <= frame.contentWidth;
-  const labelLine = arabic ? sf(16) : sf(14);
-  const listHeight = sw(44) + sw(8) + labelLine * 2;
+  const labelSize = frame.size(10.5);
+  const labelLine = arabic ? frame.size(16) : frame.size(14);
+  const labelLines = arabic ? 2 : 1;
+  const listHeight = sw(44) + sw(8) + labelLine * labelLines;
 
   const openAction = useCallback(
     (item) => {
@@ -318,10 +322,12 @@ function QuickActionsRow() {
                 style={[
                   styles.qaLabel,
                   arabic && styles.qaLabelAr,
-                  { width: tileW, maxWidth: tileW, lineHeight: labelLine },
+                  { width: tileW, maxWidth: tileW, fontSize: labelSize, lineHeight: labelLine },
                 ]}
-                numberOfLines={2}
-                ellipsizeMode="tail"
+                numberOfLines={labelLines}
+                adjustsFontSizeToFit={!arabic}
+                minimumFontScale={0.9}
+                ellipsizeMode="clip"
               >
                 {t(item.titleKey)}
               </Text>

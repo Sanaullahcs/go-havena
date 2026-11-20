@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\EmailOtp;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -383,6 +384,55 @@ class AuthOtpTest extends TestCase
             ->assertJsonPath('code', 'INVALID_OTP');
     }
 
+    public function test_showcase_login_continues_when_the_mailbox_rejects_the_message(): void
+    {
+        Config::set('otp.require_mail', true);
+        config(['mail.default' => 'smtp']);
+
+        $resident = 'resident@gohavena.com';
+        User::factory()->create([
+            'email' => $resident,
+            'email_verified_at' => now(),
+            'phone' => '+16175551901',
+            'role' => 'resident',
+        ]);
+
+        Mail::shouldReceive('to')->once()->andReturnSelf();
+        Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException(
+            '550 5.1.1 <resident@gohavena.com>: Recipient address rejected: User unknown in virtual mailbox table',
+        ));
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => $resident,
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => $resident,
+            'code' => '221322',
+            'intent' => 'login',
+        ])->assertOk()
+            ->assertJsonPath('user.email', $resident);
+    }
+
+    public function test_real_user_is_told_when_the_verification_email_cannot_be_sent(): void
+    {
+        Config::set('otp.require_mail', true);
+        config(['mail.default' => 'smtp']);
+
+        Mail::shouldReceive('to')->once()->andReturnSelf();
+        Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException(
+            '550 5.1.1 <real.user@example.com>: Recipient address rejected: User unknown',
+        ));
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => 'real.user@example.com',
+            'intent' => 'signup',
+            'role' => 'resident',
+        ])->assertStatus(503)
+            ->assertJsonPath('code', 'OTP_MAIL_FAILED');
+    }
+
     public function test_gohavena_demo_otp_works_only_for_showcase_emails(): void
     {
         $resident = 'resident@gohavena.com';
@@ -410,7 +460,9 @@ class AuthOtpTest extends TestCase
             'intent' => 'login',
         ])->assertStatus(202);
 
-        Mail::assertNothingSent();
+        Mail::assertSent(\App\Mail\AuthOtpMail::class, function ($mail) use ($resident) {
+            return $mail->hasTo($resident);
+        });
 
         $this->postJson('/api/v1/auth/otp/verify', [
             'email' => $resident,
@@ -445,13 +497,17 @@ class AuthOtpTest extends TestCase
             'intent' => 'signup',
         ])->assertStatus(202);
 
+        Mail::assertSent(\App\Mail\AuthOtpMail::class, function ($mail) {
+            return $mail->hasTo('real.user@example.com');
+        });
+
         $this->postJson('/api/v1/auth/otp/verify', [
             'email' => 'real.user@example.com',
             'code' => '221322',
             'intent' => 'signup',
             'role' => 'resident',
-        ])->assertStatus(422)
-            ->assertJsonPath('code', 'INVALID_OTP');
+        ])->assertOk()
+            ->assertJsonPath('user.email', 'real.user@example.com');
     }
 
     public function test_client_fallback_otp_does_not_replace_emailed_code(): void

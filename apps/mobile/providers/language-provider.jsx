@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { ActivityIndicator, I18nManager, StyleSheet, View } from "react-native";
+import { ActivityIndicator, DevSettings, I18nManager, StyleSheet, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import * as Updates from "expo-updates";
 import i18n, { initI18n, saveLanguage, SUPPORTED } from "../i18n";
 import { Colors } from "../constants/tokens";
 import { setNativeAppLocale } from "../utils/native-app-locale";
@@ -29,27 +30,43 @@ function languageNeedsRTL(lng) {
 }
 
 /**
- * Layout stays LTR app-wide (no I18nManager.forceRTL / no root `direction:'rtl'`)
- * so screens are not mirrored. Poppins and Noto Sans Arabic are both loaded at
- * boot, and line heights stay the same so a language switch does not reflow
- * the screen. Text clip fixes run from index.js.
- *
- * I18nManager.forceRTL must stay false. If a previous build left native
- * isRTL=true, clear it with forceRTL(false) (applies fully on the next cold start).
+ * Native layout direction is fixed when the process starts. Changing language
+ * updates the strings immediately, but I18nManager.isRTL stays at the old
+ * value until the JS runtime loads again. Sync the flag, then reload once.
  */
-async function ensureNativeRtlIsOff() {
-  if (!I18nManager.isRTL) return;
-  // forceRTL() reloads the native host. On Expo Go (especially SDK 56) that
-  // reload often kills the process right after the first screen appears.
-  if (isExpoGo()) return;
+function nativeDirectionMatches(lng) {
+  return I18nManager.isRTL === languageNeedsRTL(lng);
+}
 
-  I18nManager.allowRTL(false);
-  I18nManager.forceRTL(false);
+function applyNativeDirection(lng) {
+  const rtl = languageNeedsRTL(lng);
+  I18nManager.allowRTL(rtl);
+  I18nManager.forceRTL(rtl);
+}
 
+async function reloadApp() {
+  if (typeof __DEV__ !== "undefined" && __DEV__ && DevSettings?.reload) {
+    DevSettings.reload();
+    return;
+  }
+  await Updates.reloadAsync();
+}
+
+/** @returns {Promise<boolean>} true when a reload was started */
+async function syncNativeDirection(lng) {
+  if (nativeDirectionMatches(lng) || isExpoGo()) return false;
+  applyNativeDirection(lng);
   try {
-    await SecureStore.setItemAsync(STALE_RTL_KEY, "done");
+    await SecureStore.setItemAsync(STALE_RTL_KEY, languageNeedsRTL(lng) ? "rtl" : "ltr");
   } catch {
-    // forceRTL(false) still applies on the next cold start
+    // The direction flag is already stored by I18nManager.
+  }
+  try {
+    await reloadApp();
+    return true;
+  } catch (err) {
+    console.warn("[LanguageProvider] direction reload failed", err);
+    return false;
   }
 }
 
@@ -63,10 +80,9 @@ export default function LanguageProvider({ children }) {
 
     (async () => {
       try {
-        await ensureNativeRtlIsOff();
-
         const lng = await initI18n();
         if (cancelled) return;
+        if (await syncNativeDirection(lng)) return;
 
         setLanguage(lng);
         setIsRTL(languageNeedsRTL(lng));
@@ -95,12 +111,14 @@ export default function LanguageProvider({ children }) {
     if (!SUPPORTED.includes(lng) || lng === language) return;
 
     await saveLanguage(lng);
+    setNativeAppLocale(lng);
+    const rtl = languageNeedsRTL(lng);
     // Flip the font before React re-renders so Arabic and English share one layout pass.
-    setArabicTextMetricsEnabled(languageNeedsRTL(lng));
+    setArabicTextMetricsEnabled(rtl);
     await i18n.changeLanguage(lng);
     setLanguage(lng);
-    setIsRTL(languageNeedsRTL(lng));
-    setNativeAppLocale(lng);
+    setIsRTL(rtl);
+    if (await syncNativeDirection(lng)) return;
   }, [language]);
 
   useEffect(() => {
@@ -131,7 +149,7 @@ export default function LanguageProvider({ children }) {
   return (
     <LanguageContext.Provider value={{ language, isRTL, changeLanguage, ready }}>
       {ready ? (
-        <View style={styles.directionRoot}>
+        <View style={[styles.directionRoot, isRTL ? styles.directionRtl : styles.directionLtr]}>
           {children}
         </View>
       ) : (
@@ -146,7 +164,12 @@ export default function LanguageProvider({ children }) {
 const styles = StyleSheet.create({
   directionRoot: {
     flex: 1,
+  },
+  directionLtr: {
     direction: "ltr",
+  },
+  directionRtl: {
+    direction: "rtl",
   },
   boot: {
     flex: 1,

@@ -197,6 +197,7 @@ export function DataTable<K extends string>({
   onSearch,
   searchPlaceholder = "Search…",
   searchClassName,
+  searchSlot,
   searchDisabled = false,
   searching = false,
   loading,
@@ -226,6 +227,8 @@ export function DataTable<K extends string>({
   searchPlaceholder?: string;
   /** Replaces the default search width when a longer placeholder must stay visible. */
   searchClassName?: string;
+  /** Replaces the single search field. Use when the table needs more than one lookup. */
+  searchSlot?: ReactNode;
   /** While a modal owns keyboard focus, keep the table search inert so typing does not filter the list. */
   searchDisabled?: boolean;
   searching?: boolean;
@@ -260,7 +263,7 @@ export function DataTable<K extends string>({
   const showProgress = isFetching || isSearchingOnly;
   const showOverlay = isFetching;
 
-  const searchField = (
+  const searchField = searchSlot ?? (
           <div className={stacked ? "relative min-w-0 flex-1" : "relative min-w-0 flex-1 sm:w-auto sm:flex-none"}>
             <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>

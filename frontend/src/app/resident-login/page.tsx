@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { acceptStaffInvite } from "@/lib/api/staff";
 import { requestResidentOtp, verifyResidentOtp } from "@/lib/api/auth";
@@ -21,7 +21,7 @@ const DEMO_ACCOUNTS = [
 
 type OtpStep = "email" | "code";
 
-export default function ResidentLoginPage() {
+function ResidentLoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const emailRef = useRef<HTMLInputElement>(null);
@@ -362,6 +362,14 @@ export default function ResidentLoginPage() {
         .resident-header-cta:hover { background: #99f6e4; }
       `}</style>
     </main>
+  );
+}
+
+export default function ResidentLoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#f4f8fd]" />}>
+      <ResidentLoginPageInner />
+    </Suspense>
   );
 }
 

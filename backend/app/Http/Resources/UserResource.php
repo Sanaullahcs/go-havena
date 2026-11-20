@@ -56,6 +56,9 @@ class UserResource extends JsonResource
                 ] : null,
             ],
             'memberships' => $this->whenLoaded('memberships', function () {
+                $currency = app(\App\Services\CommunityCurrencyService::class);
+                $routing = app(\App\Services\Payments\PaymentRouting::class);
+
                 return $this->memberships->map(fn ($m) => [
                     'id' => $m->id,
                     'community_id' => $m->community_id,
@@ -66,7 +69,7 @@ class UserResource extends JsonResource
                     'rejected_by' => $m->rejected_by,
                     'created_at' => $m->created_at,
                     'updated_at' => $m->updated_at,
-                    'community' => $m->relationLoaded('community') ? [
+                    'community' => $m->relationLoaded('community') && $m->community ? [
                         'id' => $m->community->id,
                         'name' => $m->community->name,
                         'region' => $m->community->region,
@@ -75,10 +78,8 @@ class UserResource extends JsonResource
                         'status' => $m->community->status,
                         'review_status' => $m->community->review_status,
                         'rejection_reason' => $m->community->rejection_reason,
-                        'currency' => app(\App\Services\CommunityCurrencyService::class)
-                            ->forCommunity($m->community),
-                        'payment_provider' => app(\App\Services\Payments\PaymentRouting::class)
-                            ->provider((int) $m->community->id),
+                        'currency' => $currency->forCommunity($m->community),
+                        'payment_provider' => $routing->provider((int) $m->community->id),
                     ] : null,
                 ]);
             }),

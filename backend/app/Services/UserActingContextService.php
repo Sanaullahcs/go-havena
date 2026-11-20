@@ -88,41 +88,49 @@ class UserActingContextService
      */
     public static function residentAccessibleCommunityIds(User $user): array
     {
-        $rows = DB::table('community_memberships as cm')
-            ->join('communities as c', 'c.id', '=', 'cm.community_id')
-            ->where('cm.user_id', $user->id)
-            ->where('cm.status', 'approved')
-            ->whereNull('c.deleted_at')
-            ->where(function ($query) {
-                $query->whereNull('c.status')->orWhere('c.status', 'active');
-            })
-            ->orderBy('cm.created_at')
-            ->orderBy('cm.id')
-            ->get(['cm.community_id', 'cm.role']);
+        return self::rememberedIds($user, 'accessible', function () use ($user): array {
+            $rows = DB::table('community_memberships as cm')
+                ->join('communities as c', 'c.id', '=', 'cm.community_id')
+                ->where('cm.user_id', $user->id)
+                ->where('cm.status', 'approved')
+                ->whereNull('c.deleted_at')
+                ->where(function ($query) {
+                    $query->whereNull('c.status')->orWhere('c.status', 'active');
+                })
+                ->orderBy('cm.created_at')
+                ->orderBy('cm.id')
+                ->get(['cm.community_id', 'cm.role']);
 
-        if ($rows->isEmpty()) {
-            return [];
-        }
-
-        $packages = app(UnitRegistrationPackageService::class);
-        $userId = (int) $user->id;
-        $accessible = [];
-
-        foreach ($rows as $row) {
-            $communityId = (int) $row->community_id;
-            $role = (string) ($row->role ?? 'member');
-            if (in_array($role, ['admin', 'moderator'], true)) {
-                $accessible[] = $communityId;
-
-                continue;
+            if ($rows->isEmpty()) {
+                return [];
             }
 
-            if ($packages->hasApprovedInitialOrActiveUnit($userId, $communityId)) {
-                $accessible[] = $communityId;
+            $memberIds = [];
+            foreach ($rows as $row) {
+                $role = (string) ($row->role ?? 'member');
+                if (! in_array($role, ['admin', 'moderator'], true)) {
+                    $memberIds[] = (int) $row->community_id;
+                }
             }
-        }
 
-        return array_values(array_unique($accessible));
+            $unlocked = $memberIds === []
+                ? []
+                : array_fill_keys(
+                    app(UnitRegistrationPackageService::class)->communityIdsWithApprovedInitialOrActiveUnit((int) $user->id, $memberIds),
+                    true,
+                );
+
+            $accessible = [];
+            foreach ($rows as $row) {
+                $communityId = (int) $row->community_id;
+                $role = (string) ($row->role ?? 'member');
+                if (in_array($role, ['admin', 'moderator'], true) || isset($unlocked[$communityId])) {
+                    $accessible[] = $communityId;
+                }
+            }
+
+            return array_values(array_unique($accessible));
+        });
     }
 
     /**
@@ -132,34 +140,42 @@ class UserActingContextService
      */
     public static function pendingInviteCommunityIdsNeedingUnits(User $user): array
     {
-        $rows = DB::table('community_memberships as cm')
-            ->join('communities as c', 'c.id', '=', 'cm.community_id')
-            ->where('cm.user_id', $user->id)
-            ->where('cm.status', 'pending')
-            ->whereNotNull('cm.invite_code_used')
-            ->where('cm.invite_code_used', '!=', '')
-            ->whereNull('c.deleted_at')
-            ->where(function ($query) {
-                $query->whereNull('c.review_status')
-                    ->orWhereNotIn('c.review_status', ['pending', 'rejected']);
-            })
-            ->where(function ($query) {
-                $query->whereNull('c.status')->orWhere('c.status', 'active');
-            })
-            ->pluck('cm.community_id');
+        return self::rememberedIds($user, 'pending_invites', function () use ($user): array {
+            $rows = DB::table('community_memberships as cm')
+                ->join('communities as c', 'c.id', '=', 'cm.community_id')
+                ->where('cm.user_id', $user->id)
+                ->where('cm.status', 'pending')
+                ->whereNotNull('cm.invite_code_used')
+                ->where('cm.invite_code_used', '!=', '')
+                ->whereNull('c.deleted_at')
+                ->where(function ($query) {
+                    $query->whereNull('c.review_status')
+                        ->orWhereNotIn('c.review_status', ['pending', 'rejected']);
+                })
+                ->where(function ($query) {
+                    $query->whereNull('c.status')->orWhere('c.status', 'active');
+                })
+                ->pluck('cm.community_id');
 
-        $packages = app(UnitRegistrationPackageService::class);
-        $userId = (int) $user->id;
-        $ids = [];
-
-        foreach ($rows as $communityId) {
-            $communityId = (int) $communityId;
-            if (! $packages->hasApprovedInitialOrActiveUnit($userId, $communityId)) {
-                $ids[] = $communityId;
+            $pending = array_values(array_unique(array_map(fn ($id) => (int) $id, $rows->all())));
+            if ($pending === []) {
+                return [];
             }
-        }
 
-        return array_values(array_unique($ids));
+            $unlocked = array_fill_keys(
+                app(UnitRegistrationPackageService::class)->communityIdsWithApprovedInitialOrActiveUnit((int) $user->id, $pending),
+                true,
+            );
+
+            $ids = [];
+            foreach ($pending as $communityId) {
+                if (! isset($unlocked[$communityId])) {
+                    $ids[] = $communityId;
+                }
+            }
+
+            return $ids;
+        });
     }
 
     /**
@@ -427,5 +443,34 @@ class UserActingContextService
                 ? self::residentModeCommunities($user)
                 : [],
         ];
+    }
+
+    /**
+     * One switch loads the profile, the community list, and the feature flags.
+     * Remember the membership lookup for the rest of this HTTP request so those
+     * reads share a single query instead of repeating it.
+     *
+     * @param  callable(): list<int>  $resolve
+     * @return list<int>
+     */
+    private static function rememberedIds(User $user, string $bucket, callable $resolve): array
+    {
+        if (app()->runningInConsole() || ! app()->bound('request')) {
+            return $resolve();
+        }
+
+        $key = 'havena.community_ids.'.$bucket.'.'.$user->id;
+        $request = request();
+        if ($request->attributes->has($key)) {
+            /** @var list<int> $cached */
+            $cached = $request->attributes->get($key);
+
+            return $cached;
+        }
+
+        $ids = $resolve();
+        $request->attributes->set($key, $ids);
+
+        return $ids;
     }
 }

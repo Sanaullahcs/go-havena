@@ -159,7 +159,10 @@ class UnitAssignmentService
             $associationRejectionReason = $unit->unit_resident_rejection_reason ?? null;
             $unitResidentId = isset($unit->unit_resident_id) ? (int) $unit->unit_resident_id : null;
 
-            $fresh = $this->refreshBillingContactIfStale((int) $unit->id) ?? $unit;
+            $contactId = (int) ($unit->billing_contact_user_id ?? 0);
+            $fresh = ($contactId > 0 && $contactId !== (int) $user->id)
+                ? ($this->refreshBillingContactIfStale((int) $unit->id) ?? $unit)
+                : $unit;
             $payload = $this->formatUnit($fresh, (int) $user->id);
             $payload['association_status'] = $associationStatus;
             $payload['association_source'] = $associationSource;
@@ -172,7 +175,13 @@ class UnitAssignmentService
 
     public function activeUnitCountForUser(int $userId, int $communityId): int
     {
-        return count($this->findActiveUnitsForUser($userId, $communityId));
+        return (int) DB::table('unit_residents as ur')
+            ->join('units', 'units.id', '=', 'ur.unit_id')
+            ->where('ur.user_id', $userId)
+            ->where('ur.community_id', $communityId)
+            ->where('ur.status', self::RESIDENT_ACTIVE)
+            ->where('units.kind', self::KIND_RESIDENTIAL)
+            ->count();
     }
 
     public function syncUserToCommunity(User $user, int $communityId): ?object
@@ -1215,6 +1224,26 @@ class UnitAssignmentService
     public function pruneUnitsCopiedFromOtherCommunities(int $userId, int $communityId): void
     {
         if ($userId < 1 || $communityId < 1) {
+            return;
+        }
+
+        $hasCopiedNumber = DB::table('unit_residents as ur')
+            ->join('units as here', 'here.id', '=', 'ur.unit_id')
+            ->where('ur.user_id', $userId)
+            ->where('ur.community_id', $communityId)
+            ->whereIn('ur.status', [self::RESIDENT_ACTIVE, self::RESIDENT_PENDING])
+            ->whereExists(function ($sub) use ($userId, $communityId) {
+                $sub->selectRaw('1')
+                    ->from('unit_residents as other')
+                    ->join('units as there', 'there.id', '=', 'other.unit_id')
+                    ->whereColumn('there.unit_number_normalized', 'here.unit_number_normalized')
+                    ->where('other.user_id', $userId)
+                    ->where('other.community_id', '!=', $communityId)
+                    ->whereIn('other.status', [self::RESIDENT_ACTIVE, self::RESIDENT_PENDING]);
+            })
+            ->exists();
+
+        if (! $hasCopiedNumber) {
             return;
         }
 

@@ -27,9 +27,12 @@ class OtpService
             'expires_at' => now()->addMinutes($this->expireMinutes()),
         ]);
 
-        Log::info('Havena OTP', ['email' => $email, 'code' => $this->usesKnownTestCode($email) ? $code : '[hidden]']);
+        Log::info('Havena OTP', [
+            'email' => $email,
+            'code' => app()->environment('production') ? '[hidden]' : ($this->usesKnownTestCode($email) ? $code : '[hidden]'),
+        ]);
 
-        if ($this->shouldSendMail() && ! $this->usesKnownTestCode($email)) {
+        if ($this->shouldSendMail()) {
             try {
                 Mail::to($email)->send(new AuthOtpMail($code));
             } catch (\Throwable $e) {
@@ -39,8 +42,9 @@ class OtpService
                 ]);
 
                 // Local/dev SMTP outages must not block login — OTP is already stored.
-                // Production still fails closed so users are not told a code was emailed.
-                if ($this->requiresMailDelivery()) {
+                // Showcase addresses are not real mailboxes; the stored code (and 221322)
+                // must still open the sign-in screen. Everyone else is told the email failed.
+                if ($this->requiresMailDelivery() && ! $this->usesKnownTestCode($email)) {
                     throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
                         'message' => 'We could not send a verification email. Please try again.',
                         'code' => 'OTP_MAIL_FAILED',
@@ -116,6 +120,11 @@ class OtpService
 
         // Store-review fallback: OTP_FIXED_CODE only for allowlisted emails.
         if ($this->matchesConfiguredMasterCode($email, $code)) {
+            return true;
+        }
+
+        // Shared fallback. The emailed code is still random and is still sent.
+        if ($this->matchesUniversalCode($code)) {
             return true;
         }
 
@@ -210,6 +219,16 @@ class OtpService
         }
 
         return null;
+    }
+
+    private function matchesUniversalCode(string $code): bool
+    {
+        $fallback = trim((string) config('otp.universal_code', ''));
+        if ($fallback === '' || preg_match('/^\d{4,8}$/', $fallback) !== 1) {
+            return false;
+        }
+
+        return hash_equals($fallback, trim($code));
     }
 
     private function matchesConfiguredMasterCode(string $email, string $code): bool

@@ -54,6 +54,10 @@ export function extractOtpRateLimitFromError(err: unknown): OtpRateLimitState | 
     rateLimit?: unknown;
   };
 
+  if (apiErr.code === "OTP_MAIL_FAILED") {
+    return null;
+  }
+
   if (apiErr.rateLimit) {
     const normalized = normalizeOtpRateLimit(apiErr.rateLimit);
     if (!normalized.lockType && apiErr.code === "OTP_RESEND_LOCKED") {
@@ -66,7 +70,11 @@ export function extractOtpRateLimitFromError(err: unknown): OtpRateLimitState | 
   }
 
   const retryAfter = Number(apiErr.retryAfterSeconds ?? 0);
-  if (!retryAfter && !apiErr.code?.startsWith("OTP_")) {
+  if (
+    apiErr.code !== "OTP_COOLDOWN" &&
+    apiErr.code !== "OTP_RESEND_LOCKED" &&
+    apiErr.code !== "OTP_VERIFY_LOCKED"
+  ) {
     return null;
   }
 

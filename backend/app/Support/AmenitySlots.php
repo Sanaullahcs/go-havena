@@ -157,6 +157,7 @@ final class AmenitySlots
         $normalized = self::normalizeHoursText($fallback);
         if (
             $normalized === 'Open 24 Hours'
+            || self::hoursTextCarriesDetail($normalized)
             || (is_string($normalized) && preg_match('/\p{Arabic}/u', $normalized))
             || (is_string($normalized) && preg_match('/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}\b/', $normalized))
         ) {
@@ -172,6 +173,19 @@ final class AmenitySlots
         }
 
         return self::normalizeHoursText($fallback);
+    }
+
+    /** A note such as "closed Friday" or "and 4:00 PM" is the hours, not a single range. */
+    private static function hoursTextCarriesDetail(?string $value): bool
+    {
+        if (! is_string($value) || $value === '') {
+            return false;
+        }
+
+        $stripped = preg_replace('/\b(?:AM|PM|am|pm)\b/u', '', $value) ?? $value;
+        $stripped = preg_replace('/[\d:\s.\-–—,]+/u', '', $stripped) ?? $stripped;
+
+        return $stripped !== '';
     }
 
     /** Repair common en-dash mojibake in stored amenity hour strings. */

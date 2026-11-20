@@ -41,7 +41,19 @@ export function extractOtpRateLimitFromResponse(body) {
   return rateLimit ? normalizeOtpRateLimit(rateLimit) : null;
 }
 
+const OTP_RATE_LIMIT_CODES = new Set([
+  "OTP_COOLDOWN",
+  "OTP_RESEND_LOCKED",
+  "OTP_VERIFY_LOCKED",
+]);
+
 export function extractOtpRateLimitFromError(error) {
+  // A failed send is not a resend wait. Treating every OTP_* code as a
+  // cooldown showed "Please wait 58s" when the mailbox rejected the message.
+  if (error?.code === "OTP_MAIL_FAILED") {
+    return null;
+  }
+
   if (error?.rateLimit) {
     const normalized = normalizeOtpRateLimit(error.rateLimit);
     if (!normalized.lockType && error?.code === "OTP_RESEND_LOCKED") {
@@ -54,7 +66,7 @@ export function extractOtpRateLimitFromError(error) {
   }
 
   const retryAfter = Number(error?.retryAfterSeconds ?? 0);
-  if (!retryAfter && !error?.code?.startsWith?.("OTP_")) {
+  if (!OTP_RATE_LIMIT_CODES.has(error?.code)) {
     return null;
   }
 

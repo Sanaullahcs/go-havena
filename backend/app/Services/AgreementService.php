@@ -51,10 +51,10 @@ class AgreementService
         ];
     }
 
-    public function options(int $communityId, ?string $search): array
+    public function options(int $communityId, ?string $resident = null, ?string $unit = null, bool $crossFilter = true): array
     {
-        $residents = $this->eligibleResidents($communityId, $search);
-        $units = $this->eligibleUnits($communityId, $search);
+        $residents = $this->eligibleResidents($communityId, $resident, $crossFilter ? $unit : null);
+        $units = $this->eligibleUnits($communityId, $crossFilter ? $resident : null, $unit);
 
         return [
             'residents' => $residents,
@@ -534,13 +534,14 @@ class AgreementService
             ->join('users as u', 'u.id', '=', 'a.user_id')
             ->where('a.document_id', $documentId)
             ->orderBy('u.name')
-            ->get(['a.*', 'u.name as resident_name']);
+            ->get(['a.*', 'u.name as resident_name', 'u.email as resident_email']);
 
         return $rows->map(function ($row) use ($document, $request) {
             return [
                 'id' => (int) $row->id,
                 'user_id' => (int) $row->user_id,
                 'resident_name' => $row->resident_name,
+                'resident_email' => $row->resident_email,
                 'unit_id' => $row->unit_id ? (int) $row->unit_id : null,
                 'unit_label' => $row->unit_label,
                 'delivery_status' => $row->notified_at ? 'delivered' : 'assigned',
@@ -931,7 +932,7 @@ class AgreementService
         return array_values($rows);
     }
 
-    private function eligibleResidents(int $communityId, ?string $search): array
+    private function eligibleResidents(int $communityId, ?string $resident, ?string $unit = null): array
     {
         $query = DB::table('community_memberships as m')
             ->join('users as u', 'u.id', '=', 'm.user_id')
@@ -940,9 +941,26 @@ class AgreementService
             ->whereIn('m.role', ['member', 'resident'])
             ->where('u.status', 'active')
             ->orderBy('u.name')
-            ->select(['u.id', 'u.name', 'm.status']);
-        if ($search) {
-            $query->where('u.name', 'like', '%'.$search.'%');
+            ->select(['u.id', 'u.name', 'u.email', 'm.status']);
+        if ($resident) {
+            $like = '%'.$resident.'%';
+            $query->where(function ($match) use ($like) {
+                $match->where('u.name', 'like', $like)
+                    ->orWhere('u.email', 'like', $like);
+            });
+        }
+        if ($unit) {
+            $like = '%'.$unit.'%';
+            $query->whereExists(function ($sub) use ($communityId, $like) {
+                $sub->selectRaw('1')
+                    ->from('unit_residents as ur')
+                    ->join('units as un', 'un.id', '=', 'ur.unit_id')
+                    ->whereColumn('ur.user_id', 'u.id')
+                    ->where('ur.community_id', $communityId)
+                    ->where('ur.status', 'active')
+                    ->whereNull('ur.left_at')
+                    ->where('un.unit_number', 'like', $like);
+            });
         }
         $people = $query->limit(200)->get();
         $units = DB::table('unit_residents as ur')
@@ -959,6 +977,7 @@ class AgreementService
             return [
                 'id' => (int) $person->id,
                 'name' => $person->name,
+                'email' => $person->email,
                 'status' => $person->status,
                 'units' => $byUser->get($person->id, collect())->map(fn ($unit) => [
                     'id' => (int) $unit->unit_id,
@@ -968,14 +987,30 @@ class AgreementService
         })->all();
     }
 
-    private function eligibleUnits(int $communityId, ?string $search): array
+    private function eligibleUnits(int $communityId, ?string $resident = null, ?string $unit = null): array
     {
         $query = DB::table('units')
             ->where('community_id', $communityId)
             ->where('status', 'active')
             ->orderBy('unit_number');
-        if ($search) {
-            $query->where('unit_number', 'like', '%'.$search.'%');
+        if ($unit) {
+            $query->where('unit_number', 'like', '%'.$unit.'%');
+        }
+        if ($resident) {
+            $like = '%'.$resident.'%';
+            $query->whereExists(function ($sub) use ($communityId, $like) {
+                $sub->selectRaw('1')
+                    ->from('unit_residents as ur')
+                    ->join('users as u', 'u.id', '=', 'ur.user_id')
+                    ->whereColumn('ur.unit_id', 'units.id')
+                    ->where('ur.community_id', $communityId)
+                    ->where('ur.status', 'active')
+                    ->whereNull('ur.left_at')
+                    ->where(function ($match) use ($like) {
+                        $match->where('u.name', 'like', $like)
+                            ->orWhere('u.email', 'like', $like);
+                    });
+            });
         }
         $units = $query->limit(200)->get();
         $links = DB::table('unit_residents as ur')

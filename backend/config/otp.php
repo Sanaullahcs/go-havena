@@ -8,12 +8,19 @@ return [
     |--------------------------------------------------------------------------
     |
     | OTP_FIXED_CODE is accepted only for emails in OTP_FIXED_EMAILS
-    | (Play / App Store review accounts). Everyone else gets a random
-    | emailed code in production.
+    | (Play / App Store review accounts). Everyone else is emailed a
+    | random code. OTP_UNIVERSAL_CODE is also accepted for every user
+    | while that emailed code is still valid.
     |
     */
 
     'fixed_code' => env('OTP_FIXED_CODE'),
+
+    /*
+    | Accepted for every account in addition to the emailed code.
+    | It does not replace the code that is sent.
+    */
+    'universal_code' => env('OTP_UNIVERSAL_CODE', '221322'),
 
     'fixed_emails' => env(
         'OTP_FIXED_EMAILS',
@@ -28,10 +35,16 @@ return [
     'demo_email_codes' => (static function (): array {
         $codes = [
             'resident@gohavena.com' => env('OTP_DEMO_RESIDENT_CODE', '221322'),
+            'syed@gohavena.com' => env('OTP_DEMO_SYED_CODE', '221322'),
             'admin@gohavena.com' => env('OTP_DEMO_ADMIN_CODE', '221322'),
             'community@gohavena.com' => env('OTP_DEMO_COMMUNITY_CODE', '221322'),
             'acton@gohavena.com' => env('OTP_DEMO_ACTON_CODE', '221322'),
             'resident.acton@gohavena.com' => env('OTP_DEMO_ACTON_RESIDENT_CODE', '221322'),
+            'admin.muscat@gohavena.com' => env('OTP_DEMO_MUSCAT_CODE', '221322'),
+            'admin.doha@gohavena.com' => env('OTP_DEMO_DOHA_CODE', '221322'),
+            'admin.jeddah@gohavena.com' => env('OTP_DEMO_JEDDAH_CODE', '221322'),
+            'faisalaljamil@gmail.com' => env('OTP_DEMO_FAISAL_CODE', '221322'),
+            'zaeem.chaudhry@gmail.com' => env('OTP_DEMO_ZAEEM_CODE', '221322'),
             'haly@gohavena.com' => env('OTP_DEMO_HALY_CODE', '221322'),
             'haly.resident@gohavena.com' => env('OTP_DEMO_HALY_RESIDENT_CODE', '221322'),
             'umer@namuve.com' => env('OTP_DEMO_UMER_CODE', '221322'),

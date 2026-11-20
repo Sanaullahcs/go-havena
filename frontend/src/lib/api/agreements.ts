@@ -80,6 +80,8 @@ export type AgreementCounts = {
 export async function fetchAgreements(params?: {
   status?: string;
   search?: string;
+  resident?: string;
+  unit?: string;
   category?: string;
   due_from?: string;
   due_to?: string;
@@ -89,6 +91,8 @@ export async function fetchAgreements(params?: {
   if (params?.status && params.status !== "all") p.set("status", params.status);
   if (params?.category && params.category !== "all") p.set("category", params.category);
   if (params?.search?.trim()) p.set("search", params.search.trim());
+  if (params?.resident?.trim()) p.set("resident", params.resident.trim());
+  if (params?.unit?.trim()) p.set("unit", params.unit.trim());
   if (params?.due_from) p.set("due_from", params.due_from);
   if (params?.due_to) p.set("due_to", params.due_to);
   p.set("page", String(params?.page ?? 1));
