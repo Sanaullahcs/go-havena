@@ -19,6 +19,8 @@ type AnchoredPopoverOptions = {
   zIndex?: number;
   constrainToViewport?: boolean;
   constrainToBoundary?: boolean;
+  /** Stay below the anchor and inside the nearest [data-popover-boundary]. Never flips upward. */
+  lockBelowBoundary?: boolean;
   preferBelow?: boolean;
   maxHeight?: number;
 };
@@ -69,6 +71,53 @@ export function useAnchoredPopover(
 
       let left = alignEnd ? rect.right - width : rect.left;
       left = Math.max(viewportPadding, Math.min(left, window.innerWidth - width - viewportPadding));
+
+      if (options?.lockBelowBoundary) {
+        const boundaryEl = anchor.closest("[data-popover-boundary]");
+        if (boundaryEl instanceof HTMLElement && (boundaryEl.dataset.menuPadBase != null || boundaryEl.style.paddingBottom)) {
+          boundaryEl.style.paddingBottom = "";
+          delete boundaryEl.dataset.menuPadBase;
+        }
+        const anchorRect = anchor.getBoundingClientRect();
+        const preferredMax = options.maxHeight ?? 280;
+        const spaceBelow = window.innerHeight - viewportPadding - anchorRect.bottom - gap;
+        const maxHeight = Math.max(0, Math.floor(Math.min(preferredMax, spaceBelow)));
+        const top = anchorRect.bottom + gap;
+        const placement: PopoverPlacement = alignEnd ? "bottom-end" : "bottom-start";
+
+        setResult((prev) => {
+          const prevStyle = prev.style;
+          if (
+            prev.ready &&
+            prev.placement === placement &&
+            prevStyle.top === top &&
+            prevStyle.left === left &&
+            prevStyle.width === width &&
+            prevStyle.maxHeight === maxHeight &&
+            prevStyle.zIndex === zIndex
+          ) {
+            return prev;
+          }
+
+          return {
+            ready: true,
+            placement,
+            style: {
+              position: "fixed",
+              top,
+              left,
+              width,
+              zIndex,
+              maxHeight,
+              opacity: 1,
+              pointerEvents: "auto",
+              visibility: "visible",
+              transformOrigin: alignEnd ? "top right" : "top left",
+            },
+          };
+        });
+        return;
+      }
 
       const measuredHeight =
         options?.popoverRef?.current?.offsetHeight ??
@@ -176,6 +225,11 @@ export function useAnchoredPopover(
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", onScroll, true);
       resizeObserver?.disconnect();
+      const boundaryEl = anchorRef.current?.closest("[data-popover-boundary]");
+      if (boundaryEl instanceof HTMLElement) {
+        boundaryEl.style.paddingBottom = "";
+        delete boundaryEl.dataset.menuPadBase;
+      }
     };
   }, [
     open,
@@ -187,6 +241,7 @@ export function useAnchoredPopover(
     options?.zIndex,
     options?.constrainToViewport,
     options?.constrainToBoundary,
+    options?.lockBelowBoundary,
     options?.preferBelow,
     options?.maxHeight,
   ]);

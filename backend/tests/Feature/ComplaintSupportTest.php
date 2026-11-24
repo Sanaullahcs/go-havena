@@ -81,7 +81,7 @@ class ComplaintSupportTest extends TestCase
 
     public function test_validation_membership_and_feature_flag(): void
     {
-        ['community' => $community, 'resident' => $resident, 'pending' => $pending, 'suspended' => $suspended, 'guest' => $guest] = $this->seedWorld();
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident, 'pending' => $pending, 'suspended' => $suspended, 'guest' => $guest] = $this->seedWorld();
 
         Sanctum::actingAs($resident);
         $this->postJson('/api/v1/complaints', [
@@ -97,6 +97,51 @@ class ComplaintSupportTest extends TestCase
             'title' => 'No',
             'description' => 'Too short',
         ])->assertStatus(422);
+
+        $created = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'security_safety',
+            'title' => 'Gate left open',
+            'description' => 'The side gate was open overnight and nobody was on duty.',
+        ])->assertCreated();
+        $this->assertSame('security_safety', $created->json('data.category'));
+        $this->assertSame('Security & Safety', $created->json('data.category_label'));
+
+        $renamed = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'cleaning',
+            'title' => 'Lobby needs cleaning',
+            'description' => 'The lobby bins were not emptied this morning.',
+        ])->assertCreated();
+        $this->assertSame('cleaning', $renamed->json('data.category'));
+        $this->assertSame('Cleaning & Sanitation', $renamed->json('data.category_label'));
+
+        $lifts = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'lifts',
+            'title' => 'Lift stopped',
+            'description' => 'The passenger lift is stuck on the third floor.',
+        ])->assertCreated();
+        $this->assertSame('lifts', $lifts->json('data.category'));
+        $this->assertSame('Elevators / Lifts', $lifts->json('data.category_label'));
+
+        $this->postJson('/api/v1/complaints', [
+            'type' => 'technical',
+            'category' => 'pest_control',
+            'title' => 'Wrong type',
+            'description' => 'Pest control belongs to maintenance, not technical support.',
+        ])->assertStatus(422);
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/complaints?category=security_safety')
+            ->assertOk()
+            ->assertJsonPath('data.0.category', 'security_safety')
+            ->assertJsonPath('data.0.category_label', 'Security & Safety')
+            ->assertJsonPath('meta.total', 1);
+        $this->getJson('/api/v1/admin/complaints?category=cleaning')
+            ->assertOk()
+            ->assertJsonPath('data.0.category', 'cleaning')
+            ->assertJsonPath('data.0.category_label', 'Cleaning & Sanitation');
 
         Sanctum::actingAs($pending);
         $this->postJson('/api/v1/complaints', $this->maintenancePayload())->assertForbidden();
@@ -162,6 +207,15 @@ class ComplaintSupportTest extends TestCase
         Sanctum::actingAs($systemAdmin);
         $this->getJson('/api/v1/admin/complaints/'.$id)->assertNotFound();
 
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/complaints/'.$id)
+            ->assertOk()
+            ->assertJsonPath('data.resident_chat_available', false)
+            ->assertJsonPath('data.messages', []);
+        $this->postJson('/api/v1/complaints/'.$id.'/messages', [
+            'body' => 'Can someone reply?',
+        ])->assertStatus(403);
+
         Sanctum::actingAs($admin);
         $this->postJson('/api/v1/admin/complaints/'.$id.'/status', ['status' => 'resolved'])
             ->assertForbidden();
@@ -188,14 +242,19 @@ class ComplaintSupportTest extends TestCase
 
         Sanctum::actingAs($resident);
         $detail = $this->getJson('/api/v1/complaints/'.$id)->assertOk();
+        $detail->assertJsonPath('data.resident_chat_available', true);
         $bodies = collect($detail->json('data.messages'))->pluck('body');
         $this->assertTrue($bodies->contains('We are checking the pipe.'));
         $this->assertFalse($bodies->contains('Vendor arrives after 6.'));
         $this->assertNotContains('internal_note', collect($detail->json('data.events'))->pluck('action')->all());
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $resident->id,
-            'title' => 'New reply on your complaint',
+            'title' => 'Complaint chat started',
         ]);
+
+        $this->postJson('/api/v1/complaints/'.$id.'/messages', [
+            'body' => 'Thank you, we will be home after 5.',
+        ])->assertOk();
 
         $this->postJson('/api/v1/admin/complaints/'.$id.'/messages', [
             'body' => 'The leak is still there.',
@@ -206,14 +265,111 @@ class ComplaintSupportTest extends TestCase
             'comment' => 'The visit was helpful.',
         ])->assertOk();
         $this->postJson('/api/v1/complaints/'.$id.'/status', ['status' => 'reopened'])
+            ->assertStatus(422);
+        $this->postJson('/api/v1/complaints/'.$id.'/status', [
+            'status' => 'reopened',
+            'note' => 'The leak came back overnight',
+        ])
             ->assertOk()
-            ->assertJsonPath('data.status', 'reopened');
+            ->assertJsonPath('data.status', 'reopened')
+            ->assertJsonPath('data.reopen_reason', 'The leak came back overnight')
+            ->assertJsonPath('data.assigned_to_user_id', null);
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $admin->id,
             'title' => 'Complaint Reopened',
         ]);
+        $this->assertDatabaseHas('complaint_events', [
+            'complaint_id' => $id,
+            'action' => 'status_changed',
+            'to_status' => 'reopened',
+            'note' => 'The leak came back overnight',
+        ]);
 
         $this->get('/api/v1/complaints/'.$id.'/attachments/'.$attachmentId)->assertOk();
+    }
+
+    public function test_summary_counts_follow_status_and_configured_deadlines(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+
+        Sanctum::actingAs($resident);
+        $submitted = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Old leak',
+            'description' => 'This leak has been waiting without a deadline.',
+        ])->assertCreated();
+        $review = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'electrical',
+            'priority' => 'high',
+            'unit_id' => $unit->id,
+            'title' => 'Hall light',
+            'description' => 'The hall light is still out after the first report.',
+        ])->assertCreated();
+        DB::table('complaints')->where('id', $review->json('data.id'))->update(['status' => 'in_review']);
+        $resolved = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'parking',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Space cleared',
+            'description' => 'The blocked parking space has been cleared.',
+        ])->assertCreated();
+        DB::table('complaints')->where('id', $resolved->json('data.id'))->update([
+            'status' => 'resolved',
+            'resolution_due_at' => now()->subDay(),
+        ]);
+        $closed = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'cleaning',
+            'priority' => 'low',
+            'unit_id' => $unit->id,
+            'title' => 'Lobby cleaned',
+            'description' => 'The lobby was cleaned and the resident confirmed it.',
+        ])->assertCreated();
+        DB::table('complaints')->where('id', $closed->json('data.id'))->update(['status' => 'closed']);
+        DB::table('complaints')->where('id', $submitted->json('data.id'))->update([
+            'created_at' => now()->subDays(30),
+            'resolution_due_at' => null,
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/complaints')
+            ->assertOk()
+            ->assertJsonPath('meta.counts.all', 4)
+            ->assertJsonPath('meta.counts.open_queue', 2)
+            ->assertJsonPath('meta.counts.in_review', 1)
+            ->assertJsonPath('meta.counts.resolved', 1)
+            ->assertJsonPath('meta.counts.closed', 1)
+            ->assertJsonPath('meta.counts.overdue', 0);
+
+        $this->getJson('/api/v1/admin/complaints?summary=open')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 2);
+
+        DB::table('complaints')->where('id', $submitted->json('data.id'))->update([
+            'resolution_due_at' => now()->subHour(),
+        ]);
+        $overdue = $this->getJson('/api/v1/admin/complaints?summary=overdue')
+            ->assertOk()
+            ->assertJsonPath('meta.counts.overdue', 1)
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $submitted->json('data.id'));
+        $this->assertSame('submitted', $overdue->json('data.0.status'));
+
+        $community->forceFill([
+            'settings' => ['complaint_resolution_hours' => ['normal' => 2]],
+        ])->save();
+        DB::table('complaints')->where('id', $review->json('data.id'))->update([
+            'created_at' => now()->subHours(5),
+            'resolution_due_at' => null,
+        ]);
+        $this->getJson('/api/v1/admin/complaints')
+            ->assertOk()
+            ->assertJsonPath('meta.counts.overdue', 1);
     }
 
     public function test_community_admin_in_resident_mode_cannot_open_the_admin_queue(): void
@@ -240,6 +396,67 @@ class ComplaintSupportTest extends TestCase
     }
 
     /** @return array<string, mixed> */
+    public function test_technical_categories_keep_old_records_and_accept_the_expanded_list(): void
+    {
+        ['resident' => $resident, 'systemAdmin' => $systemAdmin] = $this->seedWorld();
+
+        Sanctum::actingAs($resident);
+        $labels = [
+            'app_bug' => 'App Bug',
+            'login' => 'Login & Authentication',
+            'account' => 'Account & Access',
+            'performance' => 'Performance Issues',
+            'payment' => 'Payment Technical Issues',
+            'notifications' => 'Notification Issues',
+            'data_display' => 'Data & Display Issues',
+            'file_upload' => 'File & Upload Issues',
+            'other' => 'Other Technical Issues',
+        ];
+        foreach ($labels as $key => $label) {
+            $created = $this->postJson('/api/v1/complaints', [
+                'type' => 'technical',
+                'category' => $key,
+                'title' => 'Technical '.$key,
+                'description' => 'Checking the technical category label and stored value.',
+            ])->assertCreated();
+            $this->assertSame($key, $created->json('data.category'));
+            $this->assertSame($label, $created->json('data.category_label'));
+        }
+
+        $maintenanceOther = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'other',
+            'title' => 'Something else',
+            'description' => 'This maintenance complaint stays in the Other category.',
+        ])->assertCreated();
+        $this->assertSame('other', $maintenanceOther->json('data.category'));
+        $this->assertSame('Other', $maintenanceOther->json('data.category_label'));
+
+        $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'performance',
+            'title' => 'Not maintenance',
+            'description' => 'Performance issues belong to technical support.',
+        ])->assertStatus(422);
+
+        Sanctum::actingAs($systemAdmin);
+        $this->getJson('/api/v1/admin/complaints?category=login')
+            ->assertOk()
+            ->assertJsonPath('data.0.category', 'login')
+            ->assertJsonPath('data.0.category_label', 'Login & Authentication')
+            ->assertJsonPath('meta.total', 1);
+        $this->getJson('/api/v1/admin/complaints?category=file_upload')
+            ->assertOk()
+            ->assertJsonPath('data.0.category', 'file_upload')
+            ->assertJsonPath('data.0.category_label', 'File & Upload Issues')
+            ->assertJsonPath('meta.total', 1);
+        $this->getJson('/api/v1/admin/complaints?category=other')
+            ->assertOk()
+            ->assertJsonPath('data.0.category', 'other')
+            ->assertJsonPath('data.0.category_label', 'Other Technical Issues')
+            ->assertJsonPath('meta.total', 1);
+    }
+
     private function seedWorld(): array
     {
         $region = Region::query()->create([

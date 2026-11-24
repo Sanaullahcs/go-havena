@@ -769,7 +769,7 @@ export default function DocumentsPage() {
           <p className="mt-1 text-sm text-slate-500">
             {section === "documents"
               ? "Upload and organize community documents by category. Residents can browse and download from the mobile app."
-              : "Send a PDF, choose who signs it, and follow the signatures in one list."}
+              : "Create and share agreements with residents to establish community rules, policies, and responsibilities, and collect their signatures for acknowledgment and consent."}
           </p>
         </div>
         {section === "documents" ? (

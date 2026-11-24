@@ -1,42 +1,37 @@
+/** Keep in sync with backend DocumentCategories::PRESETS and frontend document-categories.ts */
+
 export const DOCUMENT_OTHER_CATEGORY = "Others";
 
 export const DOCUMENT_PRESET_CATEGORIES = [
   "Rules & Policies",
   "Maintenance",
-  "Legal",
   "Financial",
   "Property",
-  "Community Notices",
-  "Consent Forms",
-  "Agreements",
 ];
 
 /** @deprecated Use DOCUMENT_PRESET_CATEGORIES */
 export const PRESET_DOCUMENT_CATEGORIES = DOCUMENT_PRESET_CATEGORIES;
+
+export function isPresetDocumentCategory(value) {
+  const key = String(value ?? "").trim().toLowerCase();
+  return DOCUMENT_PRESET_CATEGORIES.some((name) => name.toLowerCase() === key);
+}
 
 export function isDocumentOtherCategory(value) {
   const key = String(value ?? "").trim().toLowerCase();
   return key === "other" || key === "others";
 }
 
-/**
- * Preset categories, then any extra names already used by the community, then Others.
- */
-export function buildDocumentCategoryOptions(managedNames = []) {
-  const seen = new Set(DOCUMENT_PRESET_CATEGORIES.map((name) => name.toLowerCase()));
-  const extras = [];
+/** The four named categories, then Others for a custom name — matches Community Admin. */
+export function buildDocumentCategoryOptions(_managedNames = []) {
+  return [...DOCUMENT_PRESET_CATEGORIES, DOCUMENT_OTHER_CATEGORY];
+}
 
-  for (const name of managedNames) {
-    const trimmed = String(name ?? "").trim();
-    if (!trimmed || isDocumentOtherCategory(trimmed)) continue;
-    const key = trimmed.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    extras.push(trimmed);
-  }
-
-  extras.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  return [...DOCUMENT_PRESET_CATEGORIES, ...extras, DOCUMENT_OTHER_CATEGORY];
+/** Filter helper: Others matches any non-preset stored category. */
+export function documentMatchesCategory(category, filter) {
+  if (!filter || filter === "all") return true;
+  if (isDocumentOtherCategory(filter)) return !isPresetDocumentCategory(category);
+  return String(category ?? "").trim().toLowerCase() === String(filter ?? "").trim().toLowerCase();
 }
 
 export function resolveDocumentCategory(selection, customName) {

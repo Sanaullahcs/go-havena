@@ -523,7 +523,8 @@ class LifecycleMailService
                 ->where('context_key', $contextKey)
                 ->exists();
             if ($alreadySent) {
-                return false;
+                // Idempotent success: this invitation/message was already delivered.
+                return true;
             }
         } catch (Throwable $e) {
             Log::warning('Transactional email lock check failed', [

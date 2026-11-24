@@ -8,10 +8,12 @@ const COMMUNITY_KEY = "nbr_community_id";
 const BIOMETRIC_TOKEN_KEY = "nbr_biometric_token";
 const BIOMETRIC_USER_KEY = "nbr_biometric_user";
 const BLOCKED_NOTICE_KEY = "nbr_blocked_notice";
+const PENDING_STAFF_INVITE_KEY = "nbr_pending_staff_invite";
 
 let memoryToken = null;
 let memoryUser = null;
 let memoryCommunityId = null;
+let memoryPendingStaffInvite = null;
 let guestSessionTerminatedHandler = null;
 const sessionUserListeners = new Set();
 
@@ -246,4 +248,41 @@ export async function consumeBlockedAccountNotice() {
   } catch {
     return null;
   }
+}
+
+/** Keep a staff-invite token across login so acceptance can resume after OTP. */
+export async function setPendingStaffInviteToken(token) {
+  const value = String(token || "").trim();
+  memoryPendingStaffInvite = value || null;
+  if (!value) {
+    await deleteKeyBestEffort(PENDING_STAFF_INVITE_KEY);
+    return;
+  }
+  try {
+    await storageSet(PENDING_STAFF_INVITE_KEY, value);
+  } catch (err) {
+    console.warn("[auth] failed to store pending staff invite", err);
+  }
+}
+
+export function getPendingStaffInviteTokenSync() {
+  return memoryPendingStaffInvite;
+}
+
+export async function loadPendingStaffInviteToken() {
+  if (memoryPendingStaffInvite) return memoryPendingStaffInvite;
+  try {
+    const stored = await storageGet(PENDING_STAFF_INVITE_KEY);
+    memoryPendingStaffInvite = stored && stored.length > 0 ? stored : null;
+  } catch {
+    memoryPendingStaffInvite = null;
+  }
+  return memoryPendingStaffInvite;
+}
+
+export async function consumePendingStaffInviteToken() {
+  const token = await loadPendingStaffInviteToken();
+  memoryPendingStaffInvite = null;
+  await deleteKeyBestEffort(PENDING_STAFF_INVITE_KEY);
+  return token;
 }

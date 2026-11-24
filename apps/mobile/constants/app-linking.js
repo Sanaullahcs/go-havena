@@ -3,6 +3,7 @@ import * as Linking from "expo-linking";
 
 const BILLING_RETURN_PATH = "screens/complete-billing";
 const PAYMENT_RETURN_PATH = "screens/payment-result";
+const STAFF_INVITE_PATH = "screens/staff-invite";
 
 function getPackagerHostUri() {
   return (
@@ -24,6 +25,13 @@ export function createBillingReturnUrl() {
 /** Where KuickPay checkout sends the resident back to; the result screen reads ?id=. */
 export function createPaymentReturnUrl() {
   return createAppReturnUrl(PAYMENT_RETURN_PATH);
+}
+
+/** Deep link into the staff invitation acceptance screen (`?token=`). */
+export function createStaffInviteDeepLink(token) {
+  const base = createAppReturnUrl(STAFF_INVITE_PATH);
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}token=${encodeURIComponent(String(token || ""))}`;
 }
 
 function createAppReturnUrl(path) {

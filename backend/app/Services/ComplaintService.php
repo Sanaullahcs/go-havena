@@ -3,17 +3,59 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Services\ContactIdentityService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ComplaintService
 {
-    public const MAINTENANCE_CATEGORIES = ['plumbing', 'electrical', 'cleaning', 'lifts', 'parking', 'other'];
+    /**
+     * Maintenance complaint categories. cleaning and lifts keep their stored
+     * keys so older complaints remain valid after the display names changed.
+     *
+     * @var list<string>
+     */
+    public const MAINTENANCE_CATEGORIES = [
+        'plumbing',
+        'electrical',
+        'cleaning',
+        'lifts',
+        'parking',
+        'security_safety',
+        'noise_disturbance',
+        'common_areas',
+        'building_maintenance',
+        'landscaping',
+        'pest_control',
+        'billing_payments',
+        'resident_behavior',
+        'other',
+    ];
 
-    public const TECHNICAL_CATEGORIES = ['app_bug', 'account', 'login', 'payment', 'other'];
+    /**
+     * Technical categories for system-admin support. The original keys stay
+     * stored as-is so older complaints still filter and display:
+     * app_bug, login, account, payment, and other. other is shared with
+     * maintenance and only reads as "Other Technical Issues" on technical complaints.
+     *
+     * @var list<string>
+     */
+    public const TECHNICAL_CATEGORIES = [
+        'app_bug',
+        'login',
+        'account',
+        'performance',
+        'payment',
+        'notifications',
+        'data_display',
+        'file_upload',
+        'other',
+    ];
 
     public const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 
@@ -28,6 +70,25 @@ class ComplaintService
         'closed',
         'cancelled',
     ];
+
+    /**
+     * Dashboard "Open" bucket. Requested and Pending stay workflow labels:
+     * Requested is an unaccepted assignment on submitted, in_review, or reopened,
+     * and Pending is in_review. Not Resolved stays its own status and is counted
+     * here because it still needs action.
+     *
+     * @var list<string>
+     */
+    public const OPEN_QUEUE_STATUSES = [
+        'submitted',
+        'in_review',
+        'reopened',
+        'waiting_on_resident',
+        'not_resolved',
+    ];
+
+    /** @var list<string> */
+    private const FINISHED_STATUSES = ['resolved', 'closed', 'cancelled'];
 
     /** @var array<string, list<string>> */
     private const TRANSITIONS = [
@@ -185,7 +246,12 @@ class ComplaintService
         $this->scopeAdmin($query, $user);
         $this->applyFilters($query, $request);
         $counts = $this->counts(clone $query);
-        if ($request->filled('status') && $request->string('status')->toString() !== 'all') {
+        $summary = $request->string('summary')->toString();
+        if ($summary === 'open') {
+            $query->whereIn('status', self::OPEN_QUEUE_STATUSES);
+        } elseif ($summary === 'overdue') {
+            $query->whereIn('id', $this->overdueIds(clone $query) ?: [0]);
+        } elseif ($request->filled('status') && $request->string('status')->toString() !== 'all') {
             $query->where('status', $request->string('status')->toString());
         }
 
@@ -212,6 +278,18 @@ class ComplaintService
         } else {
             $visibility = 'public';
         }
+        if (! $admin && (int) $complaint->reporter_user_id === (int) $user->id && $this->residentChatGoverned($complaint)) {
+            abort_unless(
+                $this->residentChatAvailable($complaint),
+                403,
+                'Chat is not open yet. Your community admin will start the conversation.',
+            );
+        }
+
+        $opensResidentChat = $admin
+            && $visibility === 'public'
+            && $this->residentChatGoverned($complaint)
+            && ! $this->hasCommunityAdminPublicMessage($complaint);
 
         $messageId = DB::table('complaint_messages')->insertGetId([
             'complaint_id' => $id,
@@ -233,7 +311,19 @@ class ComplaintService
             if ((int) $complaint->reporter_user_id === (int) $user->id) {
                 $this->notifyQueue($complaint, 'New complaint reply', $complaint->reference.' has a new message.', $user->id, true);
             } else {
-                $this->notifyUser((int) $complaint->reporter_user_id, $complaint, 'New reply on your complaint', 'There is an update on '.$complaint->reference.'.', false, true);
+                if ($opensResidentChat) {
+                    $this->notifyUser(
+                        (int) $complaint->reporter_user_id,
+                        $complaint,
+                        'Complaint chat started',
+                        'Your community admin sent the first message on '.$complaint->reference.'. Open the complaint to reply.',
+                        false,
+                        true,
+                        'resident',
+                    );
+                } else {
+                    $this->notifyUser((int) $complaint->reporter_user_id, $complaint, 'New reply on your complaint', 'There is an update on '.$complaint->reference.'.', false, true);
+                }
                 if ($this->isAssignedStaff($user, $complaint)) {
                     $this->notifyQueue($complaint, 'Staff work update', $complaint->reference.' has a work update.', $user->id, true);
                 }
@@ -250,21 +340,23 @@ class ComplaintService
         return $this->show($user, $id, $asAdmin);
     }
 
-    public function transition(User $user, int $id, string $to, ?string $note = null, bool $asAdmin = false): array
+    public function transition(User $user, int $id, string $to, ?string $note = null, bool $asAdmin = false, array $files = []): array
     {
         $complaint = $this->visibleComplaint($user, $id);
         $admin = $asAdmin && $this->isQueueAdmin($user, $complaint);
         $byStaff = $this->isAssignedStaff($user, $complaint) && ! $admin;
         $from = (string) $complaint->status;
+        $note = $note !== null ? trim($note) : null;
+        if ($note === '') {
+            $note = null;
+        }
         if ($admin && $this->communityStaffOwnsStatus($complaint)) {
             abort(403, 'Assigned staff update the work status. Reassign the complaint if someone else should take it.');
         }
         if ($byStaff) {
             abort_unless(in_array($to, $this->staffTransitions($complaint), true), 422, 'That status change is not available.');
-            if (in_array($to, ['resolved', 'not_resolved'], true) && mb_strlen(trim((string) $note)) < 3) {
-                abort(422, $to === 'resolved'
-                    ? 'Add a completion note before marking this complaint resolved.'
-                    : 'Add a note explaining why this complaint is not resolved.');
+            if ($to === 'not_resolved' && mb_strlen((string) $note) < 3) {
+                abort(422, 'Add a note explaining why this complaint is not resolved.');
             }
         } else {
             abort_unless(in_array($to, self::TRANSITIONS[$from] ?? [], true), 422, 'That status change is not available.');
@@ -277,10 +369,15 @@ class ComplaintService
                 if ($to === 'closed' || $to === 'reopened') {
                     abort_unless($from === 'resolved', 422, 'Only a resolved complaint can be confirmed or reopened.');
                 }
+                if ($to === 'reopened' && mb_strlen((string) $note) < 3) {
+                    abort(422, 'Add a reason for reopening this complaint.');
+                }
             }
         }
 
-        $eventId = DB::transaction(function () use ($id, $user, $from, $to, $note) {
+        $previousAssigneeId = $complaint->assigned_to_user_id ? (int) $complaint->assigned_to_user_id : null;
+        $clearedAssignee = false;
+        $eventId = DB::transaction(function () use ($id, $user, $from, $to, $note, $files, &$clearedAssignee) {
             $locked = DB::table('complaints')->where('id', $id)->lockForUpdate()->first();
             abort_unless($locked && $locked->status === $from, 409, 'This complaint was updated by someone else. Refresh and try again.');
             $updates = ['status' => $to, 'updated_at' => now()];
@@ -293,26 +390,65 @@ class ComplaintService
             if ($to === 'cancelled') {
                 $updates['cancelled_at'] = now();
             }
+            if ($to === 'reopened') {
+                // Keep prior resolution history in events; clear the active resolved stamp
+                // and staff assignment so Community Admin must assign same/new staff.
+                $updates['resolved_at'] = null;
+                if ($locked->assigned_to_user_id || $locked->assigned_staff_id) {
+                    $clearedAssignee = true;
+                    $updates['assigned_to_user_id'] = null;
+                    $updates['assigned_staff_id'] = null;
+                    if ($locked->assigned_to_user_id) {
+                        DB::table('complaint_assignments')->insert([
+                            'complaint_id' => $id,
+                            'staff_id' => $locked->assigned_staff_id,
+                            'user_id' => $locked->assigned_to_user_id,
+                            'assigned_by' => $user->id,
+                            'action' => 'unassigned',
+                            'note' => 'Cleared after resident reopen',
+                            'created_at' => now(),
+                        ]);
+                    }
+                }
+            }
             DB::table('complaints')->where('id', $id)->update($updates);
 
-            return $this->event($id, $user->id, 'status_changed', $from, $to, $note);
+            $eventId = $this->event($id, $user->id, 'status_changed', $from, $to, $note);
+            if ($to === 'reopened' && $clearedAssignee) {
+                $this->event($id, $user->id, 'unassigned', $to, $to, 'Waiting for Community Admin to assign staff');
+            }
+            foreach ($files as $file) {
+                if ($file instanceof UploadedFile) {
+                    $this->storeFile($id, null, $user, $file);
+                }
+            }
+
+            return $eventId;
         });
 
         $fresh = $this->find($id);
+        $payload = $this->present($fresh, $user, $admin || $byStaff);
         $label = $this->statusLabel($to);
-        if ((int) $fresh->reporter_user_id !== (int) $user->id) {
-            $this->notifyUser((int) $fresh->reporter_user_id, $fresh, 'Complaint '.$label, $fresh->reference.' is now '.$label.'.', false);
-        }
-        if ($byStaff || (int) $fresh->reporter_user_id === (int) $user->id) {
-            $this->notifyQueue($fresh, 'Complaint '.$label, $fresh->reference.' is now '.$label.'.', $user->id);
-        }
-        if ($fresh->assigned_to_user_id && (int) $fresh->assigned_to_user_id !== (int) $user->id) {
-            $this->notifyUser((int) $fresh->assigned_to_user_id, $fresh, 'Complaint '.$label, $fresh->reference.' is now '.$label.'.', false, false, 'staff');
-        }
-        app(ComplaintMailer::class)->statusChanged($fresh, $from, $to, $user, $eventId, $note, $byStaff);
-        ActivityLogService::recordStatusChange('complaint_status_changed', 'Complaint', $id, $from, $to, 'Status', $fresh->title, (int) $fresh->reporter_user_id);
+        $queueBody = $to === 'reopened' && $note
+            ? $fresh->reference.' was reopened: '.$note
+            : $fresh->reference.' is now '.$label.'.';
+        $this->afterResponse(function () use ($fresh, $user, $from, $to, $note, $byStaff, $eventId, $label, $queueBody, $clearedAssignee, $previousAssigneeId, $id) {
+            if ((int) $fresh->reporter_user_id !== (int) $user->id) {
+                $this->notifyUser((int) $fresh->reporter_user_id, $fresh, 'Complaint '.$label, $fresh->reference.' is now '.$label.'.', false);
+            }
+            if ($byStaff || (int) $fresh->reporter_user_id === (int) $user->id) {
+                $this->notifyQueue($fresh, 'Complaint '.$label, $queueBody, $user->id);
+            }
+            if ($clearedAssignee && $previousAssigneeId && $previousAssigneeId !== (int) $user->id) {
+                $this->notifyUser($previousAssigneeId, $fresh, 'Assignment removed', $fresh->reference.' was reopened and is waiting for a new staff assignment.', false, false, 'staff');
+            } elseif ($fresh->assigned_to_user_id && (int) $fresh->assigned_to_user_id !== (int) $user->id) {
+                $this->notifyUser((int) $fresh->assigned_to_user_id, $fresh, 'Complaint '.$label, $fresh->reference.' is now '.$label.'.', false, false, 'staff');
+            }
+            app(ComplaintMailer::class)->statusChanged($fresh, $from, $to, $user, $eventId, $note, $byStaff);
+            ActivityLogService::recordStatusChange('complaint_status_changed', 'Complaint', $id, $from, $to, 'Status', $fresh->title, (int) $fresh->reporter_user_id);
+        });
 
-        return $this->present($fresh, $user, $admin || $byStaff);
+        return $payload;
     }
 
     public function staffTransition(User $user, int $id, string $to, ?string $note = null): array
@@ -335,8 +471,27 @@ class ComplaintService
         }
         $allowed = collect($this->assignees($complaint))->keyBy('id');
         $choice = $allowed->get($assigneeId);
-        abort_unless($choice, 422, 'Choose an active staff member for this community.');
+        if (! $choice) {
+            if ($complaint->status === 'reopened' && ! $complaint->assigned_to_user_id) {
+                $previous = $this->lookupPreviousReopenAssigneeMeta($complaint);
+                if ($previous && (int) $previous['previous_assigned_to_user_id'] === $assigneeId) {
+                    abort(422, 'The previously assigned staff member is no longer available. Use Change Staff to pick someone else.');
+                }
+            }
+            abort(422, 'Choose an active staff member for this community.');
+        }
         abort_if(in_array($complaint->status, ['closed', 'cancelled'], true), 422, 'This complaint can no longer be assigned.');
+
+        if ($complaint->assigned_to_user_id && (int) $complaint->assigned_to_user_id === $assigneeId) {
+            $lastAction = DB::table('complaint_assignments')
+                ->where('complaint_id', $complaint->id)
+                ->where('user_id', $assigneeId)
+                ->orderByDesc('id')
+                ->value('action');
+            if (in_array($lastAction, ['assigned', 'reassigned'], true)) {
+                abort(422, 'This staff member already has a pending assignment request.');
+            }
+        }
 
         $previousUserId = $complaint->assigned_to_user_id ? (int) $complaint->assigned_to_user_id : null;
         $reassigned = $previousUserId && $previousUserId !== $assigneeId;
@@ -362,14 +517,19 @@ class ComplaintService
         });
 
         $fresh = $this->find($id);
-        $this->notifyUser($assigneeId, $fresh, 'Complaint assigned to you', $fresh->reference.' was assigned to you.', false, false, 'staff');
+        $reopenReason = $fresh->status === 'reopened' ? $this->latestReopenReason((int) $fresh->id) : null;
+        $staffMessage = $fresh->reference.' was assigned to you.';
+        if ($reopenReason) {
+            $staffMessage .= ' Resident reopen reason: '.$reopenReason;
+        }
+        $this->notifyUser($assigneeId, $fresh, 'Complaint assigned to you', $staffMessage, false, false, 'staff');
         if ((int) $fresh->reporter_user_id !== $assigneeId) {
             $this->notifyUser((int) $fresh->reporter_user_id, $fresh, 'Staff assigned', $fresh->reference.' was assigned to '.$choice['name'].'.', false);
         }
         if ($reassigned && $previousUserId) {
             $this->notifyUser($previousUserId, $fresh, 'Assignment updated', $fresh->reference.' was reassigned.', false);
         }
-        app(ComplaintMailer::class)->assigned($fresh, $user, $eventId, $reassigned);
+        app(ComplaintMailer::class)->assigned($fresh, $user, $eventId, $reassigned, $reopenReason);
 
         return $this->present($fresh, $user, true);
     }
@@ -718,6 +878,9 @@ class ComplaintService
         $page = $query->orderByDesc('updated_at')->paginate($perPage);
         $data = collect($page->items())->map(fn ($row) => $this->summary($row, $user, $admin))->values()->all();
         $data = $this->decorateWorkflow($data);
+        if ($admin) {
+            $data = $this->attachReopenPreviousAssignees($data);
+        }
         $unread = $this->unreadCounts($user, array_column($data, 'id'));
         $data = collect($data)->map(function (array $row) use ($unread) {
             $row['unread_count'] = (int) ($unread[$row['id']] ?? 0);
@@ -771,8 +934,103 @@ class ComplaintService
         foreach (self::STATUSES as $status) {
             $counts[$status] = (clone $base)->where('status', $status)->count();
         }
+        $counts['open_queue'] = 0;
+        foreach (self::OPEN_QUEUE_STATUSES as $status) {
+            $counts['open_queue'] += $counts[$status];
+        }
+        $counts['overdue'] = count($this->overdueIds(clone $base));
 
         return $counts;
+    }
+
+    /**
+     * Unresolved complaints whose configured deadline has passed.
+     * A missing deadline is not overdue, and age alone is not a deadline.
+     *
+     * @return list<int>
+     */
+    private function overdueIds($query): array
+    {
+        $columns = ['id', 'community_id', 'priority', 'created_at'];
+        $hasDueColumn = Schema::hasColumn('complaints', 'resolution_due_at');
+        if ($hasDueColumn) {
+            $columns[] = 'resolution_due_at';
+        }
+        $rows = (clone $query)->whereNotIn('status', self::FINISHED_STATUSES)->get($columns);
+        if ($rows->isEmpty()) {
+            return [];
+        }
+        $hoursByCommunity = $this->resolutionHoursByCommunity(
+            $rows->pluck('community_id')->filter()->map(fn ($id) => (int) $id)->unique()->values()->all()
+        );
+        $now = now();
+        $ids = [];
+        foreach ($rows as $row) {
+            $deadline = $this->resolutionDeadline($row, $hoursByCommunity[(int) ($row->community_id ?? 0)] ?? [], $hasDueColumn);
+            if ($deadline instanceof Carbon && $deadline->lt($now)) {
+                $ids[] = (int) $row->id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param  list<int>  $communityIds
+     * @return array<int, array<string, int>>
+     */
+    private function resolutionHoursByCommunity(array $communityIds): array
+    {
+        if ($communityIds === []) {
+            return [];
+        }
+        $map = [];
+        $rows = DB::table('communities')->whereIn('id', $communityIds)->get(['id', 'settings']);
+        foreach ($rows as $row) {
+            $settings = json_decode((string) $row->settings, true);
+            $map[(int) $row->id] = $this->resolutionHours(is_array($settings) ? $settings : []);
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     * @return array<string, int>
+     */
+    private function resolutionHours(array $settings): array
+    {
+        $raw = $settings['complaint_resolution_hours'] ?? null;
+        if (is_numeric($raw) && (int) $raw > 0) {
+            return ['*' => (int) $raw];
+        }
+        if (! is_array($raw)) {
+            return [];
+        }
+        $hours = [];
+        foreach ($raw as $priority => $value) {
+            if (is_numeric($value) && (int) $value > 0) {
+                $hours[(string) $priority] = (int) $value;
+            }
+        }
+
+        return $hours;
+    }
+
+    /**
+     * @param  array<string, int>  $hours
+     */
+    private function resolutionDeadline(object $row, array $hours, bool $hasDueColumn): ?Carbon
+    {
+        if ($hasDueColumn && ! empty($row->resolution_due_at)) {
+            return Carbon::parse($row->resolution_due_at);
+        }
+        $configured = $hours[(string) ($row->priority ?? '')] ?? $hours['*'] ?? null;
+        if ($configured === null || empty($row->created_at)) {
+            return null;
+        }
+
+        return Carbon::parse($row->created_at)->addHours($configured);
     }
 
     private function staffRosterRevision(User $user): ?string
@@ -955,6 +1213,15 @@ class ComplaintService
         $summary['feedback_rating'] = $complaint->feedback_rating ? (int) $complaint->feedback_rating : null;
         $summary['feedback_comment'] = $complaint->feedback_comment;
         $summary['allowed_transitions'] = $this->allowedTransitions($complaint, $user, $admin);
+        $residentChatAvailable = $this->residentChatAvailable($complaint);
+        if (! $admin) {
+            $governed = $this->residentChatGoverned($complaint);
+            $summary['resident_chat_available'] = $governed ? $residentChatAvailable : true;
+            if ($governed && ! $residentChatAvailable) {
+                $messages = collect();
+                $attachments = $attachments->filter(fn ($file) => ! $file->message_id)->values();
+            }
+        }
         $summary['messages'] = $messages->map(fn ($message) => [
             'id' => (int) $message->id,
             'sender_id' => (int) $message->sender_id,
@@ -980,8 +1247,24 @@ class ComplaintService
             'actor_name' => $event->actor_id ? ($actorNames[$event->actor_id] ?? null) : null,
             'created_at' => $event->created_at,
         ])->values()->all();
+        $latestReopen = $events->reverse()->first(fn ($event) => $event->action === 'status_changed' && $event->to_status === 'reopened');
+        $summary['reopen_reason'] = $latestReopen?->note;
+        $summary['reopened_at'] = $latestReopen?->created_at;
+        $summary['reopened_by_name'] = $latestReopen && $latestReopen->actor_id
+            ? ($actorNames[$latestReopen->actor_id] ?? null)
+            : null;
         if ($admin) {
             $summary['assignees'] = $this->assignees($complaint);
+            if ($complaint->status === 'reopened' && ! $complaint->assigned_to_user_id) {
+                $summary = array_merge($summary, $this->lookupPreviousReopenAssigneeMeta($complaint));
+            }
+            $reporter = DB::table('users')->where('id', $complaint->reporter_user_id)->first(['email', 'phone']);
+            $email = $reporter && filled($reporter->email) ? (string) $reporter->email : null;
+            if ($email && ContactIdentityService::isPlaceholderEmail($email)) {
+                $email = null;
+            }
+            $summary['reporter_email'] = $email;
+            $summary['reporter_phone'] = $this->dialablePhone($reporter->phone ?? null);
         }
 
         return $summary;
@@ -1004,7 +1287,7 @@ class ComplaintService
             'reporter_user_id' => (int) $complaint->reporter_user_id,
             'reporter_name' => $complaint->reporter_name_snapshot,
             'category' => $complaint->category,
-            'category_label' => $this->categoryLabel($complaint->category),
+            'category_label' => $this->categoryLabel($complaint->category, $complaint->type),
             'priority' => $complaint->priority,
             'title' => $complaint->title,
             'status' => $complaint->status,
@@ -1192,6 +1475,84 @@ class ComplaintService
             ->value('action');
 
         return $action === 'accepted';
+    }
+
+    private function residentChatGoverned(object $complaint): bool
+    {
+        return $complaint->type === 'maintenance' && $complaint->routed_to === 'community_admin';
+    }
+
+    private function residentChatAvailable(object $complaint): bool
+    {
+        if (! $this->residentChatGoverned($complaint)) {
+            return true;
+        }
+
+        return $this->hasCommunityAdminPublicMessage($complaint);
+    }
+
+    private function hasCommunityAdminPublicMessage(object $complaint): bool
+    {
+        return DB::table('complaint_messages as m')
+            ->join('users as u', 'u.id', '=', 'm.sender_id')
+            ->where('m.complaint_id', $complaint->id)
+            ->where('m.visibility', 'public')
+            ->where('m.sender_id', '!=', (int) $complaint->reporter_user_id)
+            ->where('u.role', 'community_admin')
+            ->exists();
+    }
+
+    private function latestReopenReason(int $complaintId): ?string
+    {
+        $note = DB::table('complaint_events')
+            ->where('complaint_id', $complaintId)
+            ->where('action', 'status_changed')
+            ->where('to_status', 'reopened')
+            ->orderByDesc('id')
+            ->value('note');
+
+        return filled($note) ? (string) $note : null;
+    }
+
+    /** @return array{previous_assigned_to_user_id?: int, previous_assigned_to_name?: string, previous_assignee_available?: bool} */
+    private function lookupPreviousReopenAssigneeMeta(object $complaint): array
+    {
+        $userId = DB::table('complaint_assignments')
+            ->where('complaint_id', $complaint->id)
+            ->where('action', 'unassigned')
+            ->where('note', 'Cleared after resident reopen')
+            ->orderByDesc('id')
+            ->value('user_id');
+        if (! $userId) {
+            return [];
+        }
+        $userId = (int) $userId;
+        $name = DB::table('users')->where('id', $userId)->value('name');
+        $available = collect($this->assignees($complaint))->contains(fn ($row) => (int) $row['id'] === $userId);
+
+        return [
+            'previous_assigned_to_user_id' => $userId,
+            'previous_assigned_to_name' => $name ? (string) $name : null,
+            'previous_assignee_available' => $available,
+        ];
+    }
+
+    /** @param list<array<string, mixed>> $rows */
+    private function attachReopenPreviousAssignees(array $rows): array
+    {
+        return array_map(function (array $row) {
+            if (($row['status'] ?? '') === 'reopened' && empty($row['assigned_to_user_id'])) {
+                $row = array_merge($row, $this->lookupPreviousReopenAssigneeMeta((object) [
+                    'id' => $row['id'],
+                    'community_id' => $row['community_id'] ?? null,
+                    'category' => $row['category'] ?? '',
+                    'type' => $row['type'] ?? 'maintenance',
+                    'routed_to' => $row['routed_to'] ?? 'community_admin',
+                ]));
+            }
+
+            return $row;
+        }, $rows);
     }
 
     private function assignedStaffLabel(object $complaint): ?string
@@ -1416,11 +1777,35 @@ class ComplaintService
         };
     }
 
-    private function categoryLabel(string $category): string
+    private function categoryLabel(string $category, ?string $type = null): string
     {
+        if ($type === 'technical') {
+            return match ($category) {
+                'app_bug' => 'App Bug',
+                'login' => 'Login & Authentication',
+                'account' => 'Account & Access',
+                'performance' => 'Performance Issues',
+                'payment' => 'Payment Technical Issues',
+                'notifications' => 'Notification Issues',
+                'data_display' => 'Data & Display Issues',
+                'file_upload' => 'File & Upload Issues',
+                'other' => 'Other Technical Issues',
+                default => ucfirst(str_replace('_', ' ', $category)),
+            };
+        }
+
         return match ($category) {
             'app_bug' => 'App Bug',
-            'lifts' => 'Lifts',
+            'cleaning' => 'Cleaning & Sanitation',
+            'lifts' => 'Elevators / Lifts',
+            'security_safety' => 'Security & Safety',
+            'noise_disturbance' => 'Noise Disturbance',
+            'common_areas' => 'Common Areas & Amenities',
+            'building_maintenance' => 'Building Maintenance',
+            'landscaping' => 'Landscaping & Outdoor Areas',
+            'pest_control' => 'Pest Control',
+            'billing_payments' => 'Billing & Payments',
+            'resident_behavior' => 'Resident Behavior',
             default => ucfirst(str_replace('_', ' ', $category)),
         };
     }

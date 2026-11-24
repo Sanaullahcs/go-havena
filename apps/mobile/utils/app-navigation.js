@@ -5,6 +5,7 @@ import modeBack from "./mode-back.cjs";
 const {
   backContextFromNavigation,
   isAdminStackRoute,
+  isSameDestination,
   resolveBackAction,
 } = modeBack;
 
@@ -54,7 +55,7 @@ export function safeGoBack(router, navigation, { fallbackPath } = {}) {
   const fromStack = backContextFromNavigation(navigation);
   const isAdminMode = isCommunityAdmin(getCachedUser());
   const action = resolveBackAction({
-    canGoBack: fromStack.canGoBack || Boolean(router.canGoBack?.()),
+    canGoBack: Boolean(router.canGoBack?.()),
     previousRouteName: fromStack.previousRouteName,
     currentRouteName: fromStack.currentRouteName,
     isAdminMode,
@@ -62,12 +63,23 @@ export function safeGoBack(router, navigation, { fallbackPath } = {}) {
   });
 
   try {
-    if (action.type === "back") {
+    // Only pop when the router itself can go back — parent-stack heuristics can
+    // be true while router.back() still logs "GO_BACK was not handled".
+    if (action.type === "back" && router.canGoBack?.()) {
       router.back();
       return true;
     }
-    if (action.type === "replace" && action.path) {
-      router.replace(action.path);
+    if (action.type === "stay") {
+      return false;
+    }
+    const replacePath =
+      (action.type === "replace" && action.path)
+      || fallbackPath
+      || (isAdminStackRoute(fromStack.currentRouteName) && isAdminMode
+        ? "/screens/admin-dashboard"
+        : "/(tabs)/home");
+    if (replacePath && !isSameDestination(fromStack.currentRouteName, replacePath)) {
+      router.replace(replacePath);
       return true;
     }
   } catch {

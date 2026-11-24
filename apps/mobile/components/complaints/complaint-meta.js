@@ -12,20 +12,32 @@ export const COMPLAINT_STATUSES = [
 ];
 
 export const MAINTENANCE_CATEGORIES = [
-  ["plumbing", "Plumbing"],
-  ["electrical", "Electrical"],
-  ["cleaning", "Cleaning"],
-  ["lifts", "Lifts"],
-  ["parking", "Parking"],
-  ["other", "Other"],
+  ["plumbing", "Plumbing", "Water leakage, drainage, and pipe issues."],
+  ["electrical", "Electrical", "Power failures, wiring, and lighting issues."],
+  ["cleaning", "Cleaning & Sanitation", "Garbage, cleanliness, and hygiene issues."],
+  ["lifts", "Elevators / Lifts", "Elevator breakdowns and maintenance."],
+  ["parking", "Parking", "Parking violations and blocked spaces."],
+  ["security_safety", "Security & Safety", "Security concerns and unauthorized access."],
+  ["noise_disturbance", "Noise Disturbance", "Loud music and excessive noise."],
+  ["common_areas", "Common Areas & Amenities", "Shared facility issues."],
+  ["building_maintenance", "Building Maintenance", "Structural damage and general repairs."],
+  ["landscaping", "Landscaping & Outdoor Areas", "Gardens and outdoor maintenance."],
+  ["pest_control", "Pest Control", "Rodents, insects, and infestations."],
+  ["billing_payments", "Billing & Payments", "Incorrect charges and payment issues."],
+  ["resident_behavior", "Resident Behavior", "Neighbor disputes and rule violations."],
+  ["other", "Other", "Complaints not covered by existing categories."],
 ];
 
 export const TECHNICAL_CATEGORIES = [
-  ["app_bug", "App Bug"],
-  ["account", "Account"],
-  ["login", "Login"],
-  ["payment", "Payment"],
-  ["other", "Other"],
+  ["app_bug", "App Bug", "Something in the app is not working as expected."],
+  ["login", "Login & Authentication", "Trouble signing in or verifying an account."],
+  ["account", "Account & Access", "Account details, permissions, or access problems."],
+  ["performance", "Performance Issues", "The app is slow, freezing, or unresponsive."],
+  ["payment", "Payment Technical Issues", "A payment failed or did not show correctly in the app."],
+  ["notifications", "Notification Issues", "Missing, delayed, or incorrect notifications."],
+  ["data_display", "Data & Display Issues", "Information looks wrong or does not display correctly."],
+  ["file_upload", "File & Upload Issues", "A file will not upload, open, or download."],
+  ["other", "Other Technical Issues", "A technical problem that does not fit the other categories."],
 ];
 
 export const PRIORITIES = [

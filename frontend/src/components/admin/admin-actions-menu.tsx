@@ -79,9 +79,12 @@ export function AdminActionsMenu({
 
   if (visible.length === 0) return null;
 
-  const runAction = async (action: AdminMenuAction) => {
+  const runAction = (action: AdminMenuAction) => {
     setOpen(false);
-    await action.onClick();
+    // Let the menu click finish before a confirmation dialog opens, so the same click does not dismiss it.
+    window.setTimeout(() => {
+      void action.onClick();
+    }, 0);
   };
 
   return (

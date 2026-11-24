@@ -69,16 +69,17 @@ export default function TabLayout() {
 
     const redirectIfBlocked = (user) => {
       if (!user || cancelled) return false;
-      if (canAccessDashboard(user) && !needsCompleteProfile(user)) {
-        return false;
+      // Pending staff invite must be accepted before resident tabs (incl. dual-role).
+      if (hasPendingStaffInvite(user)) {
+        routerRef.current.replace(STAFF_INVITES);
+        return true;
       }
       if (isStaffOnlyUser(user)) {
         routerRef.current.replace(STAFF_HOME);
         return true;
       }
-      if (hasPendingStaffInvite(user)) {
-        routerRef.current.replace(STAFF_INVITES);
-        return true;
+      if (canAccessDashboard(user) && !needsCompleteProfile(user)) {
+        return false;
       }
       const route = getPostAuthRoute(user);
       routerRef.current.replace({ pathname: route.pathname, params: route.params });

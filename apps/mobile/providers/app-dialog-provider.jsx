@@ -238,6 +238,9 @@ function AppDialogModal({ config, onClose }) {
                     />
                   ) : (
                     <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit={isInlineActions}
+                      minimumFontScale={0.88}
                       style={[
                         styles.actionText,
                         isInlineActions && styles.actionTextInline,

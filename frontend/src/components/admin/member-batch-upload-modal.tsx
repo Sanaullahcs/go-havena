@@ -322,15 +322,20 @@ export function MemberBatchUploadModal({
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
+        <div
+          className={[
+            "flex flex-wrap items-center gap-2 border-t border-slate-100 px-6 py-4",
+            step === "upload" ? "justify-between" : "justify-end",
+          ].join(" ")}
+        >
           {step === "upload" ? (
             <>
-              <button type="button" className="nl-btn-secondary" onClick={close} disabled={busy}>
+              <button type="button" className="nl-btn-secondary shrink-0" onClick={close} disabled={busy}>
                 Cancel
               </button>
               <button
                 type="button"
-                className="nl-btn-primary disabled:opacity-60"
+                className="nl-btn-primary ml-auto shrink-0 disabled:opacity-60"
                 onClick={() => void validateFile()}
                 disabled={busy || !file}
               >

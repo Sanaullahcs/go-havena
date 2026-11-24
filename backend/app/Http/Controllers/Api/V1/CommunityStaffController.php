@@ -43,6 +43,20 @@ class CommunityStaffController extends Controller
         return response()->json(['data' => $this->staff->update($request->user(), $id, $request->all())]);
     }
 
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $this->staff->remove($request->user(), $id);
+
+        return response()->json(['message' => 'Staff member removed.']);
+    }
+
+    public function cancelInvitation(Request $request, int $id): JsonResponse
+    {
+        $this->staff->cancelInvitation($request->user(), $id);
+
+        return response()->json(['message' => 'Invitation cancelled.']);
+    }
+
     public function resend(Request $request, int $id): JsonResponse
     {
         $data = $this->staff->resend($request->user(), $id);
@@ -59,10 +73,17 @@ class CommunityStaffController extends Controller
         ]);
     }
 
+    public function preview(Request $request): JsonResponse
+    {
+        $data = $request->validate(['token' => 'required|string|max:80']);
+
+        return response()->json(['data' => $this->staff->previewInvitation($data['token'])]);
+    }
+
     public function accept(Request $request): JsonResponse
     {
         $data = $request->validate(['token' => 'required|string|max:80']);
 
-        return response()->json($this->staff->acceptInvitation($data['token']));
+        return response()->json($this->staff->acceptInvitation($data['token'], $request->user()));
     }
 }

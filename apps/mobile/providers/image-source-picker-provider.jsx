@@ -38,7 +38,11 @@ const SOURCE_OPTIONS = {
   },
 };
 
-function ImageSourcePickerDialog({
+/**
+ * Shared camera / gallery / file chooser UI.
+ * Use `embedded` to render inside an already-open modal (avoids nested RN Modals).
+ */
+export function ImageSourcePickerDialog({
   visible,
   title,
   message,
@@ -46,6 +50,7 @@ function ImageSourcePickerDialog({
   allowCamera,
   allowFile,
   cameraFirst = false,
+  embedded = false,
   onSelect,
   onDismiss,
 }) {
@@ -57,49 +62,59 @@ function ImageSourcePickerDialog({
     allowFile ? SOURCE_OPTIONS.file : null,
   ].filter(Boolean);
 
+  if (!visible) return null;
+
+  const body = (
+    <View style={styles.overlay}>
+      <Pressable style={StyleSheet.absoluteFillObject} onPress={onDismiss} />
+      <View style={styles.card}>
+        <View style={styles.iconRing}>
+          <Ionicons name="image-outline" size={sf(32)} color={Colors.brandPrimaryDeep} />
+        </View>
+
+        <Text style={styles.title}>{title}</Text>
+        {message ? <Text style={styles.message}>{message}</Text> : null}
+
+        <View style={styles.actions}>
+          {options.map((option) => (
+            <TouchableOpacity
+              key={option.id}
+              style={styles.optionBtn}
+              activeOpacity={0.88}
+              onPress={() => onSelect(option.id)}
+            >
+              <Ionicons name={option.icon} size={sf(18)} color={Colors.brandPrimaryDeep} />
+              <Text style={optionLabelStyle}>
+                {i18n.t(option.labelKey)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            activeOpacity={0.88}
+            onPress={onDismiss}
+          >
+            <Text style={cancelLabelStyle}>
+              {i18n.t("common.cancel")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
+  if (embedded) {
+    return <View style={styles.embeddedHost}>{body}</View>;
+  }
+
   return (
     <AppModal
       visible={visible}
       animationType="fade"
       onRequestClose={onDismiss}
     >
-      <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onDismiss} />
-        <View style={styles.card}>
-          <View style={styles.iconRing}>
-            <Ionicons name="image-outline" size={sf(32)} color={Colors.brandPrimaryDeep} />
-          </View>
-
-          <Text style={styles.title}>{title}</Text>
-          {message ? <Text style={styles.message}>{message}</Text> : null}
-
-          <View style={styles.actions}>
-            {options.map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                style={styles.optionBtn}
-                activeOpacity={0.88}
-                onPress={() => onSelect(option.id)}
-              >
-                <Ionicons name={option.icon} size={sf(18)} color={Colors.brandPrimaryDeep} />
-                <Text style={optionLabelStyle}>
-                  {i18n.t(option.labelKey)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              activeOpacity={0.88}
-              onPress={onDismiss}
-            >
-              <Text style={cancelLabelStyle}>
-                {i18n.t("common.cancel")}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+      {body}
     </AppModal>
   );
 }
@@ -220,6 +235,11 @@ const cancelLabelStyle = {
 };
 
 const styles = StyleSheet.create({
+  embeddedHost: {
+    flex: 1,
+    zIndex: 80,
+    elevation: 80,
+  },
   overlay: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.52)",

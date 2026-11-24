@@ -74,11 +74,26 @@ class ComplaintController extends Controller
     {
         $data = $request->validate([
             'status' => 'required|string|max:32',
-            'note' => 'nullable|string|max:1000',
+            'note' => [
+                \Illuminate\Validation\Rule::requiredIf(fn () => $request->input('status') === 'reopened'),
+                'nullable',
+                'string',
+                'max:1000',
+            ],
+            'files' => 'nullable|array|max:5',
+            'files.*' => 'file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,webp',
         ]);
+        $files = $request->file('files');
 
         return response()->json([
-            'data' => $this->complaints->transition($request->user(), $id, $data['status'], $data['note'] ?? null),
+            'data' => $this->complaints->transition(
+                $request->user(),
+                $id,
+                $data['status'],
+                $data['note'] ?? null,
+                false,
+                is_array($files) ? array_values($files) : ($files ? [$files] : []),
+            ),
         ]);
     }
 
