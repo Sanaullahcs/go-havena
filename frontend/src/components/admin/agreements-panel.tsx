@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { isAdminSearchPending } from "@/lib/admin/table-loading";
 import { createPortal } from "react-dom";
 import { AlarmClock, ArrowLeft, ArrowRight, Bell, Building2, Check, CheckCircle2, ClipboardCheck, Clock, Download, FileText, Files, Home, PenLine, RotateCcw, Search, SlidersHorizontal, Upload, UserRound, Users, X } from "lucide-react";
 import { CharCount } from "@/components/admin/char-count";
@@ -143,11 +145,19 @@ export function AgreementsPanel({
   const [rows, setRows] = useState<AgreementSummary[]>([]);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0, counts: EMPTY_COUNTS });
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [personDraft, setPersonDraft] = useState("");
-  const [unitDraft, setUnitDraft] = useState("");
-  const [person, setPerson] = useState("");
-  const [unit, setUnit] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [personInput, setPersonInput] = useState("");
+  const [unitInput, setUnitInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const debouncedPerson = useDebouncedValue(personInput, 400);
+  const debouncedUnit = useDebouncedValue(unitInput, 400);
+  const search = debouncedSearch.trim();
+  const person = debouncedPerson.trim();
+  const unit = debouncedUnit.trim();
+  const isSearchPending =
+    isAdminSearchPending(searchInput, debouncedSearch) ||
+    isAdminSearchPending(personInput, debouncedPerson) ||
+    isAdminSearchPending(unitInput, debouncedUnit);
   const [category, setCategory] = useState("all");
   const [status, setStatus] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -179,6 +189,10 @@ export function AgreementsPanel({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, person, unit, category, status]);
 
   useEffect(() => {
     void load(page);
@@ -383,19 +397,15 @@ export function AgreementsPanel({
   };
 
   const counts = meta.counts ?? EMPTY_COUNTS;
-  const applyRecipientSearch = () => {
-    setPerson(personDraft.trim());
-    setUnit(unitDraft.trim());
+
+  const clearRecipientSearch = () => {
+    setSearchInput("");
+    setPersonInput("");
+    setUnitInput("");
     setPage(1);
   };
 
-  const clearRecipientSearch = () => {
-    setPersonDraft("");
-    setUnitDraft("");
-    setPerson("");
-    setUnit("");
-    setPage(1);
-  };
+  const filtersActive = Boolean(search || person || unit);
 
   const filters = [
     { key: "all", label: "All", count: counts.all, icon: <Files strokeWidth={2.25} /> },
@@ -406,59 +416,66 @@ export function AgreementsPanel({
 
   return (
     <div className="space-y-4">
-      <form
+      <section
         className="overflow-hidden rounded-2xl border border-[color:var(--brand-border)] bg-gradient-to-r from-white via-[var(--mint)]/40 to-[var(--canvas)] p-4 shadow-sm"
-        onSubmit={(event) => {
-          event.preventDefault();
-          applyRecipientSearch();
-        }}
+        aria-label="Search agreements"
       >
-        <div className="mb-3 flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--deep-teal)] shadow-sm ring-1 ring-[var(--mint)]">
-            <SlidersHorizontal className="h-4 w-4" strokeWidth={2.25} />
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Filter &amp; Search Agreements</p>
-            <p className="text-xs text-slate-500">Find agreements by person or unit</p>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--deep-teal)] shadow-sm ring-1 ring-[var(--mint)]">
+              <SlidersHorizontal className="h-4 w-4" strokeWidth={2.25} />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Search agreements</p>
+              <p className="text-xs text-slate-500">Matches title, resident name, email, or unit number — updates as you type</p>
+            </div>
           </div>
+          {filtersActive || isSearchPending ? (
+            <button type="button" onClick={clearRecipientSearch} className="nl-btn-secondary h-9 px-3 text-xs">
+              <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.25} />
+              Clear filters
+            </button>
+          ) : null}
         </div>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-          <label className="min-w-0 flex-1">
+        <div className="grid gap-3 lg:grid-cols-3">
+          <label className="min-w-0">
             <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-              <UserRound className="h-3.5 w-3.5 text-slate-400" strokeWidth={2.25} />
-              First Name / Email
+              <FileText className="h-3.5 w-3.5 text-slate-400" strokeWidth={2.25} />
+              Agreement
             </span>
             <input
-              value={personDraft}
-              onChange={(event) => setPersonDraft(event.target.value)}
-              placeholder="Search by first name or email"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Title, category, or description"
               className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none ring-[var(--mint)] placeholder:text-slate-400 focus:border-[var(--teal)] focus:ring-2"
             />
           </label>
-          <label className="min-w-0 flex-1">
+          <label className="min-w-0">
             <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-              <Building2 className="h-3.5 w-3.5 text-slate-400" strokeWidth={2.25} />
-              Unit
+              <UserRound className="h-3.5 w-3.5 text-slate-400" strokeWidth={2.25} />
+              Resident name or email
             </span>
             <input
-              value={unitDraft}
-              onChange={(event) => setUnitDraft(event.target.value)}
+              value={personInput}
+              onChange={(event) => setPersonInput(event.target.value)}
+              placeholder="e.g. Syed or syed@gohavena.com"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none ring-[var(--mint)] placeholder:text-slate-400 focus:border-[var(--teal)] focus:ring-2"
+            />
+          </label>
+          <label className="min-w-0">
+            <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+              <Building2 className="h-3.5 w-3.5 text-slate-400" strokeWidth={2.25} />
+              Unit number
+            </span>
+            <input
+              value={unitInput}
+              onChange={(event) => setUnitInput(event.target.value)}
               placeholder="e.g. A-101"
               className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none ring-[var(--mint)] placeholder:text-slate-400 focus:border-[var(--teal)] focus:ring-2"
             />
           </label>
-          <div className="flex shrink-0 gap-2">
-            <button type="submit" className="nl-btn-primary h-11">
-              <Search className="h-4 w-4" strokeWidth={2.25} />
-              Search
-            </button>
-            <button type="button" onClick={clearRecipientSearch} className="nl-btn-secondary h-11">
-              <RotateCcw className="h-4 w-4" strokeWidth={2.25} />
-              Clear
-            </button>
-          </div>
         </div>
-      </form>
+      </section>
       <div className="grid gap-3 sm:grid-cols-3">
         <StatTile label="Agreements" value={String(counts.all)} hint="Everything in this community" tone="blue" icon={<FileText className="h-5 w-5" />} />
         <StatTile label="Waiting" value={String(counts.pending ?? 0)} hint="Still need a signature" tone="amber" icon={<Clock className="h-5 w-5" />} />
@@ -521,13 +538,13 @@ export function AgreementsPanel({
 
       <DataTable
         title="Agreements"
-        search={search}
-        onSearch={(value) => {
-          setSearch(value);
-          setPage(1);
-        }}
-        searchPlaceholder="Search agreements"
-        searchClassName="min-w-0 w-full sm:w-56"
+        search=""
+        onSearch={() => undefined}
+        searchSlot={
+          <p className="hidden text-[12px] text-slate-500 sm:block">
+            {filtersActive ? "Filtered list" : "Use the search panel above to narrow by agreement, resident, or unit"}
+          </p>
+        }
         beforeSearch={
           <div className="w-52 shrink-0">
             <ThemedSelect
@@ -546,6 +563,7 @@ export function AgreementsPanel({
           </div>
         }
         loading={loading}
+        searching={isSearchPending}
         filters={filters}
         activeFilter={status}
         onFilter={(key) => {
@@ -560,6 +578,7 @@ export function AgreementsPanel({
             <thead className="border-b border-slate-100 text-[11px] uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-3 font-semibold">Agreement</th>
+                <th className="px-4 py-3 font-semibold">Audience / Units</th>
                 <th className="px-4 py-3 font-semibold">Signatures</th>
                 <th className="px-4 py-3 font-semibold">Due</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
@@ -584,6 +603,9 @@ export function AgreementsPanel({
                         <div className="text-xs text-slate-400">{[row.category, `Version ${row.version}`].filter(Boolean).join(" · ")}</div>
                       </div>
                     </div>
+                  </td>
+                  <td className="max-w-[14rem] px-4 py-3 text-slate-600">
+                    <p className="text-sm font-medium text-slate-700">{row.audience_label || "—"}</p>
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-sm text-slate-700">{recipients === 0 ? "Not assigned" : `${signed} of ${recipients} signed`}</p>

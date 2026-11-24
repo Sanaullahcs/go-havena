@@ -198,13 +198,32 @@ class CommunityAdminAccessService
             return false;
         }
 
-        return $profile->updated_at->getTimestamp() <= $profile->created_at->getTimestamp() + 2;
+        if ($profile->updated_at->getTimestamp() > $profile->created_at->getTimestamp() + 2) {
+            return false;
+        }
+
+        // Seeded / provisioned community-office profiles keep created_at = updated_at but already have identity.
+        if (filled($profile->display_name) && $this->hasCommunityAdminLocation($profile)) {
+            return false;
+        }
+
+        return true;
     }
 
     private function hasRequiredUtilityBill(User $user): bool
     {
         if (AdminRoleService::isGuest($user) || AdminRoleService::isSystemAdmin($user)) {
             return true;
+        }
+
+        if (AdminRoleService::isCommunityAdminRole($user)
+            && ($user->community_admin_status ?? '') === 'approved') {
+            $user->unsetRelation('profile');
+            $user->load('profile');
+
+            if ($this->hasCommunityAdminLocation($user->profile)) {
+                return true;
+            }
         }
 
         $user->unsetRelation('profile');

@@ -186,9 +186,11 @@ class GulfCommunitiesSeeder extends Seeder
         $this->upsertProfile($user, [
             'display_name' => $city['admin_name'],
             'unit_number' => $city['office'],
+            'office_address' => $city['address'],
             'residence_type' => 'Management',
             'bio' => $city['admin_bio'],
             'region_id' => $region->id,
+            'utility_bill_url' => '/storage/seed/utility-bill-admin.jpg',
         ]);
 
         $this->upsertMembership($user, $community, 'admin', 'approved', $joined);

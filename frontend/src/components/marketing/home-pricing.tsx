@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Building, Building2, Calendar, Check, Home, Landmark, Sparkles, Users, X, Zap } from "lucide-react";
+import axios from "axios";
 import api from "@/lib/api/client";
 
 type Tier = { min: number; max: number | null; unit_cents: number | null; fixed_cents: number | null };
@@ -60,7 +62,7 @@ const PACKAGES = [
     residents: null,
     title: "Custom",
     capacity: "5,000+ residents or multi-site",
-    note: "Volume, sites, and rollout — scoped in a written quote before you go live.",
+    note: "Tell us your headcount, sites, and timeline — we reply with a fixed written price before anything goes live.",
   },
 ] as const;
 
@@ -282,14 +284,12 @@ export function MarketingPricing() {
   };
 
   const loadCatalog = useCallback(async () => {
-    setCatalogLoading(true);
     setCatalogError(false);
     try {
       const res = await api.get("/v1/billing/saas/catalog", { params: { currency: "USD" } });
       setDiscountBps(res.data.annual_discount_bps ?? 0);
       setRateCard(res.data.rate_card ?? {});
     } catch {
-      setRateCard({});
       setCatalogError(true);
     } finally {
       setCatalogLoading(false);
@@ -297,8 +297,33 @@ export function MarketingPricing() {
   }, []);
 
   useEffect(() => {
-    void loadCatalog();
-  }, [loadCatalog]);
+    let alive = true;
+    const controller = new AbortController();
+
+    (async () => {
+      setCatalogError(false);
+      try {
+        const res = await api.get("/v1/billing/saas/catalog", {
+          params: { currency: "USD" },
+          signal: controller.signal,
+        });
+        if (!alive) return;
+        setDiscountBps(res.data.annual_discount_bps ?? 0);
+        setRateCard(res.data.rate_card ?? {});
+      } catch (error) {
+        if (!alive) return;
+        if (axios.isCancel(error)) return;
+        setCatalogError(true);
+      } finally {
+        if (alive) setCatalogLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+      controller.abort();
+    };
+  }, []);
 
   const communityBook = rateCard.per_community?.[RATE_PLAN_SLUG];
   const residentBook = rateCard.per_resident?.[RATE_PLAN_SLUG];
@@ -382,7 +407,7 @@ export function MarketingPricing() {
     const featured = "featured" in pack && pack.featured;
     const Icon = PACKAGE_ICONS[pack.id];
     const needsQuote = communityReady && Boolean(price?.quote);
-    const waiting = catalogLoading && !communityReady;
+    const waiting = !communityReady && catalogLoading;
     return (
       <article
         key={pack.id}
@@ -478,12 +503,14 @@ export function MarketingPricing() {
               <span className="lp-pricing__title-accent">Every community.</span>
             </h2>
             <p className="lp-pricing__lead">
-              <span>
+              <span className="lp-pricing__lead-line">
                 {model === "per_community"
-                  ? "Pick a package that matches your headcount — every capability included from day one."
-                  : "Model pricing from resident count — one total invoice to the association."}
+                  ? "Headcount-matched packages — full platform from day one."
+                  : "Price from resident count — one invoice to the association."}
               </span>
-              <span>Havena is billed to the community. Residents are never charged.</span>
+              <span className="lp-pricing__lead-line lp-pricing__lead-line--note">
+                Havena is billed to the community. Residents are never charged.
+              </span>
             </p>
           </div>
         </div>
@@ -498,7 +525,9 @@ export function MarketingPricing() {
                 className={model === "per_community" ? "is-on" : ""}
                 onClick={() => setModel("per_community")}
               >
-                <Building2 className="h-3.5 w-3.5" aria-hidden />
+                <span className="lp-pricing__mode-chip" aria-hidden>
+                  <Building2 className="h-3.5 w-3.5" />
+                </span>
                 Per Community
               </button>
               <button
@@ -508,7 +537,9 @@ export function MarketingPricing() {
                 className={model === "per_resident" ? "is-on" : ""}
                 onClick={() => setModel("per_resident")}
               >
-                <Users className="h-3.5 w-3.5" aria-hidden />
+                <span className="lp-pricing__mode-chip" aria-hidden>
+                  <Users className="h-3.5 w-3.5" />
+                </span>
                 Per Resident
               </button>
             </div>
@@ -524,7 +555,12 @@ export function MarketingPricing() {
                 </button>
                 <button type="button" aria-pressed={interval === "year"} className={interval === "year" ? "is-on" : ""} onClick={() => setInterval("year")}>
                   Yearly
-                  {discountBps > 0 ? <span className="lp-pricing__save">−{discountBps / 100}%</span> : null}
+                  <span
+                    className={`lp-pricing__save${discountBps > 0 ? "" : " lp-pricing__save--reserve"}`}
+                    aria-hidden={discountBps <= 0}
+                  >
+                    {discountBps > 0 ? `−${discountBps / 100}%` : "−0%"}
+                  </span>
                 </button>
               </div>
             </div>
@@ -540,13 +576,18 @@ export function MarketingPricing() {
           </div>
         ) : null}
 
-        {model === "per_community" ? (
-          <div className="lp-pricing__deck">
+        <div className="lp-pricing__decks">
+          <div className="lp-pricing__deck lp-pricing__deck--community" hidden={model !== "per_community"}>
             <div className="lp-pricing__platform">
               <div className="lp-pricing__grid">{TIER_PACKAGES.map((pack) => renderTierCard(pack))}</div>
               <div className="lp-pricing__platform-row">
-                <PricingFeatureSheet id="pricing-platform-features" split />
-                <article className="lp-pricing__card is-custom lp-pricing__custom-panel">
+                <div className="lp-pricing__platform-duo">
+                  <PricingFeatureSheet
+                    id="pricing-platform-features"
+                    split
+                    className="lp-pricing__platform-duo-features"
+                  />
+                  <article className="lp-pricing__card is-custom lp-pricing__custom-panel lp-pricing__platform-duo-custom">
                   <div className="lp-pricing__card-top">
                     <span className="lp-pricing__glyph" aria-hidden>
                       <Sparkles className="h-4 w-4" />
@@ -557,19 +598,19 @@ export function MarketingPricing() {
                     </div>
                   </div>
                   <div className="lp-pricing__custom-panel-body">
-                    <p className="lp-pricing__custom-title">Pricing built with you</p>
+                    <p className="lp-pricing__custom-title">Too large or multi-site for a tier?</p>
                     <p className="lp-pricing__bill-note">{CUSTOM_PACKAGE.note}</p>
                     <p className="lp-pricing__custom-footnote">Same full platform — no reduced feature set.</p>
                   </div>
                   <button type="button" className="lp-pricing__cta" onClick={() => openQuote(CUSTOM_PACKAGE)}>
                     Request a quote
                   </button>
-                </article>
+                  </article>
+                </div>
               </div>
             </div>
           </div>
-        ) : (
-          <div className="lp-pricing__deck">
+          <div className="lp-pricing__deck lp-pricing__deck--resident" hidden={model !== "per_resident"}>
             <div className="lp-pricing__platform lp-pricing__platform--resident">
               <div className="lp-pricing__resident-studio">
                 <div className="lp-pricing__resident-row-one">
@@ -729,71 +770,120 @@ export function MarketingPricing() {
                       className="lp-pricing__resident-features-visual-img"
                     />
                   </div>
-                  <PricingFeatureSheet id="pricing-platform-features" className="lp-pricing__resident-features-row" />
+                  <PricingFeatureSheet id="pricing-platform-features-resident" className="lp-pricing__resident-features-row" />
                 </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {quoteOpen ? (
-          <div className="lp-quote" role="presentation">
-            <button type="button" className="lp-quote__backdrop" aria-label="Close quote request" onClick={() => setQuoteOpen(false)} />
-            <div className="lp-quote__card" role="dialog" aria-modal="true" aria-labelledby="lp-quote-title">
-              <button type="button" className="lp-quote__close" aria-label="Close" onClick={() => setQuoteOpen(false)}>
-                <X className="h-4 w-4" />
-              </button>
-              <aside className="lp-quote__aside">
-                <p className="lp-quote__eyebrow">Custom quote</p>
-                <h2 id="lp-quote-title">{quotePackage.title} package</h2>
-                <p>We write the price with you. Nothing is switched on until you accept it.</p>
-                <ul>
-                  <li><span>Package</span><strong>{quotePackage.title}</strong></li>
-                  <li><span>Size</span><strong>{quotePackage.capacity}</strong></li>
-                  <li><span>How you pay</span><strong>{billingModelLabel(model)}</strong></li>
-                  <li><span>Billing</span><strong>{interval === "year" ? "Yearly" : "Monthly"}</strong></li>
-                </ul>
-              </aside>
-              {quoteSent ? (
-                <div className="lp-quote__form">
-                  <p className="lp-quote__eyebrow">Request received</p>
-                  <h3>We’ll reply with a written price.</h3>
-                  <p className="lp-quote__hint">A note is on its way to {quoteForm.email.trim()}.</p>
-                  <button type="button" className="lp-quote__submit" onClick={() => setQuoteOpen(false)}>Done</button>
+        {quoteOpen
+          ? createPortal(
+              <div className="marketing-landing lp-quote-host">
+                <div className="lp-quote" role="presentation">
+                  <button
+                    type="button"
+                    className="lp-quote__backdrop"
+                    aria-label="Close quote request"
+                    onClick={() => setQuoteOpen(false)}
+                  />
+                  <div className="lp-quote__card" role="dialog" aria-modal="true" aria-labelledby="lp-quote-title">
+                    <button type="button" className="lp-quote__close" aria-label="Close" onClick={() => setQuoteOpen(false)}>
+                      <X className="h-4 w-4" />
+                    </button>
+                    <aside className="lp-quote__aside">
+                      <p className="lp-quote__eyebrow">Custom quote</p>
+                      <h2 id="lp-quote-title">{quotePackage.title} package</h2>
+                      <p>We write the price with you. Nothing is switched on until you accept it.</p>
+                      <ul>
+                        <li>
+                          <span>Package</span>
+                          <strong>{quotePackage.title}</strong>
+                        </li>
+                        <li>
+                          <span>Size</span>
+                          <strong>{quotePackage.capacity}</strong>
+                        </li>
+                        <li>
+                          <span>How you pay</span>
+                          <strong>{billingModelLabel(model)}</strong>
+                        </li>
+                        <li>
+                          <span>Billing</span>
+                          <strong>{interval === "year" ? "Yearly" : "Monthly"}</strong>
+                        </li>
+                      </ul>
+                    </aside>
+                    {quoteSent ? (
+                      <div className="lp-quote__form">
+                        <p className="lp-quote__eyebrow">Request received</p>
+                        <h3>We’ll reply with a written price.</h3>
+                        <p className="lp-quote__hint">A note is on its way to {quoteForm.email.trim()}.</p>
+                        <button type="button" className="lp-quote__submit" onClick={() => setQuoteOpen(false)}>
+                          Done
+                        </button>
+                      </div>
+                    ) : (
+                      <form className="lp-quote__form" onSubmit={submitQuote}>
+                        <div className="lp-quote__form-head">
+                          <p className="lp-quote__eyebrow">Where should we send it?</p>
+                          <h3>A few details, then we write the price.</h3>
+                        </div>
+                        <div className="lp-quote__fields">
+                          <label>
+                            Organization
+                            <input
+                              value={quoteForm.organization_name}
+                              autoComplete="organization"
+                              onChange={(event) => setQuoteForm({ ...quoteForm, organization_name: event.target.value })}
+                              placeholder="Harbour House HOA"
+                            />
+                          </label>
+                          <label>
+                            Your name
+                            <input
+                              value={quoteForm.contact_name}
+                              autoComplete="name"
+                              onChange={(event) => setQuoteForm({ ...quoteForm, contact_name: event.target.value })}
+                              placeholder="Jordan Hale"
+                            />
+                          </label>
+                          <label className="lp-quote__field--wide">
+                            Work email
+                            <input
+                              type="email"
+                              value={quoteForm.email}
+                              autoComplete="email"
+                              onChange={(event) => setQuoteForm({ ...quoteForm, email: event.target.value })}
+                              placeholder="jordan@harbourhouse.com"
+                            />
+                          </label>
+                          <label className="lp-quote__field--wide">
+                            Anything we should know
+                            <textarea
+                              value={quoteForm.notes}
+                              rows={4}
+                              onChange={(event) => setQuoteForm({ ...quoteForm, notes: event.target.value })}
+                              placeholder="Communities, integrations, or a date you have in mind."
+                            />
+                          </label>
+                        </div>
+                        {quoteError ? (
+                          <p className="lp-quote__error" role="alert">
+                            {quoteError}
+                          </p>
+                        ) : null}
+                        <button type="submit" className="lp-quote__submit" disabled={quoteSending}>
+                          {quoteSending ? "Sending…" : "Send the request"}
+                        </button>
+                      </form>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <form className="lp-quote__form" onSubmit={submitQuote}>
-                  <div className="lp-quote__form-head">
-                    <p className="lp-quote__eyebrow">Where should we send it?</p>
-                    <h3>A few details, then we write the price.</h3>
-                  </div>
-                  <div className="lp-quote__fields">
-                    <label>
-                      Organization
-                      <input value={quoteForm.organization_name} autoComplete="organization" onChange={(event) => setQuoteForm({ ...quoteForm, organization_name: event.target.value })} placeholder="Harbour House HOA" />
-                    </label>
-                    <label>
-                      Your name
-                      <input value={quoteForm.contact_name} autoComplete="name" onChange={(event) => setQuoteForm({ ...quoteForm, contact_name: event.target.value })} placeholder="Jordan Hale" />
-                    </label>
-                    <label className="lp-quote__field--wide">
-                      Work email
-                      <input type="email" value={quoteForm.email} autoComplete="email" onChange={(event) => setQuoteForm({ ...quoteForm, email: event.target.value })} placeholder="jordan@harbourhouse.com" />
-                    </label>
-                    <label className="lp-quote__field--wide">
-                      Anything we should know
-                      <textarea value={quoteForm.notes} rows={4} onChange={(event) => setQuoteForm({ ...quoteForm, notes: event.target.value })} placeholder="Communities, integrations, or a date you have in mind." />
-                    </label>
-                  </div>
-                  {quoteError ? <p className="lp-quote__error" role="alert">{quoteError}</p> : null}
-                  <button type="submit" className="lp-quote__submit" disabled={quoteSending}>
-                    {quoteSending ? "Sending…" : "Send the request"}
-                  </button>
-                </form>
-              )}
-            </div>
-          </div>
-        ) : null}
+              </div>,
+              document.body,
+            )
+          : null}
       </div>
     </section>
   );

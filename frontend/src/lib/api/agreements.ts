@@ -33,6 +33,7 @@ export type AgreementSummary = {
     overdue: number;
     expired: number;
   } | null;
+  audience_label?: string;
 };
 
 export type AgreementRecipient = {

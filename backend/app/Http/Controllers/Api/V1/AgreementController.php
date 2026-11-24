@@ -65,7 +65,15 @@ class AgreementController extends Controller
             : 'updated_at';
         $direction = $request->input('direction') === 'asc' ? 'asc' : 'desc';
         $page = $query->orderBy($sort, $direction)->paginate($perPage);
-        $data = collect($page->items())->map(fn ($doc) => $this->summary($doc, $request))->values();
+        $documentIds = collect($page->items())->map(fn ($doc) => (int) $doc->id)->all();
+        $audienceLabels = $this->agreements->audienceLabels($documentIds);
+        $data = collect($page->items())->map(function ($doc) use ($request, $audienceLabels) {
+            $id = (int) $doc->id;
+
+            return array_merge($this->summary($doc, $request), [
+                'audience_label' => $audienceLabels[$id] ?? '',
+            ]);
+        })->values();
 
         return response()->json([
             'data' => $data,
@@ -82,36 +90,29 @@ class AgreementController extends Controller
 
     private function applyAgreementSearch($query, Request $request): void
     {
-        if ($request->filled('search')) {
-            $search = $request->string('search')->toString();
-            $query->where(function ($inner) use ($search) {
-                $inner->where('title', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhere('category', 'like', "%{$search}%");
+        $search = trim((string) $request->input('search', ''));
+        if ($search !== '') {
+            $like = '%'.$search.'%';
+            $query->where(function ($inner) use ($like) {
+                $inner->where('title', 'like', $like)
+                    ->orWhere('description', 'like', $like)
+                    ->orWhere('category', 'like', $like);
+                $this->whereAgreementMatchesResident($inner, $like, true);
+                $this->whereAgreementMatchesUnit($inner, $like, true);
             });
         }
         $resident = trim((string) $request->input('resident', ''));
         if ($resident !== '') {
             $like = '%'.$resident.'%';
-            $query->whereExists(function ($sub) use ($like) {
-                $sub->selectRaw('1')
-                    ->from('community_document_assignments as a')
-                    ->join('users as u', 'u.id', '=', 'a.user_id')
-                    ->whereColumn('a.document_id', 'community_documents.id')
-                    ->where(function ($match) use ($like) {
-                        $match->where('u.name', 'like', $like)
-                            ->orWhere('u.email', 'like', $like);
-                    });
+            $query->where(function ($inner) use ($like) {
+                $this->whereAgreementMatchesResident($inner, $like, false);
             });
         }
         $unit = trim((string) $request->input('unit', ''));
         if ($unit !== '') {
             $like = '%'.$unit.'%';
-            $query->whereExists(function ($sub) use ($like) {
-                $sub->selectRaw('1')
-                    ->from('community_document_assignments as a')
-                    ->whereColumn('a.document_id', 'community_documents.id')
-                    ->where('a.unit_label', 'like', $like);
+            $query->where(function ($inner) use ($like) {
+                $this->whereAgreementMatchesUnit($inner, $like, false);
             });
         }
         if ($request->filled('due_from')) {
@@ -120,6 +121,52 @@ class AgreementController extends Controller
         if ($request->filled('due_to')) {
             $query->whereDate('due_at', '<=', $request->input('due_to'));
         }
+    }
+
+    /**
+     * @param  \Illuminate\Database\Query\Builder  $query
+     */
+    private function whereAgreementMatchesResident($query, string $like, bool $asOr): void
+    {
+        $constraint = function ($sub) use ($like) {
+            $sub->selectRaw('1')
+                ->from('community_document_assignments as a')
+                ->join('users as u', 'u.id', '=', 'a.user_id')
+                ->whereColumn('a.document_id', 'community_documents.id')
+                ->where(function ($match) use ($like) {
+                    $match->where('u.name', 'like', $like)
+                        ->orWhere('u.email', 'like', $like);
+                });
+        };
+        if ($asOr) {
+            $query->orWhereExists($constraint);
+
+            return;
+        }
+        $query->whereExists($constraint);
+    }
+
+    /**
+     * @param  \Illuminate\Database\Query\Builder  $query
+     */
+    private function whereAgreementMatchesUnit($query, string $like, bool $asOr): void
+    {
+        $constraint = function ($sub) use ($like) {
+            $sub->selectRaw('1')
+                ->from('community_document_assignments as a')
+                ->leftJoin('units as un', 'un.id', '=', 'a.unit_id')
+                ->whereColumn('a.document_id', 'community_documents.id')
+                ->where(function ($match) use ($like) {
+                    $match->where('a.unit_label', 'like', $like)
+                        ->orWhere('un.unit_number', 'like', $like);
+                });
+        };
+        if ($asOr) {
+            $query->orWhereExists($constraint);
+
+            return;
+        }
+        $query->whereExists($constraint);
     }
 
     private function applyAgreementCategory($query, Request $request): void

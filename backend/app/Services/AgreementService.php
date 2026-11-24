@@ -483,6 +483,77 @@ class AgreementService
         return $this->fresh((int) $document->id);
     }
 
+    /**
+     * @param  list<int>  $documentIds
+     * @return array<int, string>
+     */
+    public function audienceLabels(array $documentIds): array
+    {
+        if ($documentIds === []) {
+            return [];
+        }
+        $documents = DB::table('community_documents')
+            ->whereIn('id', $documentIds)
+            ->get(['id', 'assignment_scope', 'publication_status']);
+        $scopes = $documents->keyBy('id');
+        $rows = DB::table('community_document_assignments as a')
+            ->leftJoin('units as un', 'un.id', '=', 'a.unit_id')
+            ->whereIn('a.document_id', $documentIds)
+            ->get([
+                'a.document_id',
+                'a.user_id',
+                DB::raw('COALESCE(NULLIF(a.unit_label, ""), un.unit_number) as unit_number'),
+            ]);
+        $byDoc = $rows->groupBy('document_id');
+        $labels = [];
+        foreach ($documentIds as $documentId) {
+            $doc = $scopes->get($documentId);
+            $scope = $doc ? (string) ($doc->assignment_scope ?? '') : '';
+            $group = $byDoc->get($documentId, collect());
+            $labels[$documentId] = $this->formatAudienceLabel($scope, $group);
+        }
+
+        return $labels;
+    }
+
+    private function formatAudienceLabel(string $scope, $assignments): string
+    {
+        if ($scope === 'all' || $scope === '') {
+            return 'All eligible residents';
+        }
+        $recipientCount = $assignments->unique('user_id')->count();
+        $units = $assignments
+            ->pluck('unit_number')
+            ->filter(static fn ($value) => is_string($value) && trim($value) !== '')
+            ->map(static fn ($value) => trim((string) $value))
+            ->unique()
+            ->sort()
+            ->values();
+        if ($scope === 'units') {
+            if ($units->isEmpty()) {
+                return $recipientCount > 0 ? "{$recipientCount} unit recipients" : 'Selected units';
+            }
+            $preview = $units->take(3)->join(', ');
+
+            return $units->count() > 3
+                ? "Units {$preview} +".($units->count() - 3).' more'
+                : "Units {$preview}";
+        }
+        if ($scope === 'residents') {
+            if ($units->isNotEmpty()) {
+                $preview = $units->take(2)->join(', ');
+
+                return $recipientCount > 0
+                    ? "{$recipientCount} residents · {$preview}".($units->count() > 2 ? '…' : '')
+                    : 'Selected residents';
+            }
+
+            return $recipientCount > 0 ? "{$recipientCount} selected residents" : 'Selected residents';
+        }
+
+        return ucfirst($scope);
+    }
+
     public function stats(int $documentId): array
     {
         $document = DB::table('community_documents')->where('id', $documentId)->first();

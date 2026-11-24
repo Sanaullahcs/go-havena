@@ -4053,6 +4053,7 @@
   overflow: visible;
   padding-block: clamp(3.5rem, 6vw, 5.25rem);
   background: var(--lp-mist);
+  contain: layout style;
 }
 
 .marketing-landing .lp-pricing__inner {
@@ -4127,18 +4128,30 @@
 }
 
 .marketing-landing .lp-pricing__lead {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  max-width: 36rem;
+  display: block;
+  max-width: min(52rem, 100%);
   margin: 0;
   color: #64748b;
-  font-size: 1.05rem;
-  line-height: 1.55;
+  font-size: clamp(0.98rem, 0.9rem + 0.25vw, 1.05rem);
+  line-height: 1.5;
 }
 
-.marketing-landing .lp-pricing__lead span {
+.marketing-landing .lp-pricing__lead-line {
   display: block;
+}
+
+.marketing-landing .lp-pricing__lead-line--note {
+  margin-top: 0.2rem;
+  font-size: 0.94em;
+  color: #7c8fa0;
+}
+
+.marketing-landing .lp-pricing__decks {
+  margin-top: 1rem;
+}
+
+.marketing-landing .lp-pricing__deck[hidden] {
+  display: none !important;
 }
 
 .marketing-landing .lp-pricing__toolbar {
@@ -4177,32 +4190,95 @@
 }
 
 .marketing-landing .lp-pricing__controls {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0;
   margin-top: 1.85rem;
-  padding: 0.7rem;
-  border: 1px solid #e6edf5;
-  border-radius: 1.6rem;
-  background: #fff;
-  box-shadow: var(--lp-shadow-card);
+  padding: 0.9rem 1rem;
+  overflow: hidden;
+  border: 1px solid #d2dee8;
+  border-radius: 1.5rem;
+  background: #ffffff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 1) inset,
+    0 14px 32px rgba(15, 42, 67, 0.07);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.marketing-landing .lp-pricing__controls::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--lp-teal);
+}
+
+.marketing-landing .lp-pricing.is-resident .lp-pricing__controls::before {
+  background: var(--lp-blue);
 }
 
 .marketing-landing .lp-pricing__controls .lp-pricing__modes {
-  padding: 0.28rem;
+  padding: 0.3rem;
   border-radius: 999px;
-  background: #f4f7fb;
+  border: 1px solid #dce4ec;
+  background: #eef2f6;
+  box-shadow: inset 0 1px 0 #f8fafc;
 }
 
 .marketing-landing .lp-pricing__controls .lp-pricing__modes button {
   justify-content: center;
-  font-size: 0.82rem;
-  font-weight: 650;
-  color: #475569;
+  font-size: 0.84rem;
+  font-weight: 680;
+  color: #4b6378;
+}
+
+.marketing-landing .lp-pricing__controls .lp-pricing__modes button:hover:not(.is-on) {
+  border-color: #b8d4eb;
+  background: #ffffff;
+  color: var(--lp-navy);
 }
 
 .marketing-landing .lp-pricing__controls .lp-pricing__modes button.is-on {
+  border-color: #b8cce8;
+  background: #ffffff;
   color: var(--lp-navy);
+  font-weight: 740;
+  box-shadow:
+    0 2px 10px rgba(15, 42, 67, 0.1),
+    inset 0 1px 0 #ffffff;
+}
+
+.marketing-landing .lp-pricing__mode-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.95rem;
+  height: 1.95rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #5a6f80;
+  box-shadow: inset 0 0 0 1px #d5dee8;
+  transition:
+    background 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.22s ease;
+}
+
+.marketing-landing .lp-pricing__modes button:hover:not(.is-on) .lp-pricing__mode-chip {
+  color: var(--lp-blue);
+  box-shadow: inset 0 0 0 1px rgba(36, 99, 235, 0.28);
+}
+
+.marketing-landing .lp-pricing__modes button.is-on .lp-pricing__mode-chip {
+  background: var(--lp-blue);
+  color: #fff;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.12);
 }
 
 .marketing-landing .lp-pricing__controls-top {
@@ -4253,7 +4329,9 @@
   transition:
     border-color 0.28s cubic-bezier(0.22, 1, 0.36, 1),
     background 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.22s ease,
+    transform 0.18s ease;
 }
 
 .marketing-landing .lp-pricing__modes button strong,
@@ -4280,9 +4358,13 @@
 }
 
 .marketing-landing .lp-pricing__modes button.is-on {
-  border-color: rgba(255, 255, 255, 0.9);
-  background: #fff;
-  box-shadow: 0 4px 16px rgba(15, 42, 67, 0.08);
+  border-color: #b8cce8;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 42, 67, 0.09);
+}
+
+.marketing-landing .lp-pricing__modes button:active {
+  transform: scale(0.985);
 }
 
 .marketing-landing .lp-pricing__modes button.is-on strong {
@@ -4313,22 +4395,51 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   margin-left: auto;
-  padding: 0.7rem 0.8rem;
+  padding: 0.7rem 0.85rem;
   border-radius: 1.1rem;
-  background: #f7f9fc;
+  border: 1px solid #dce4ec;
+  background: #f6f8fb;
+  box-shadow: inset 0 1px 0 #ffffff;
+}
+
+.marketing-landing .lp-pricing__controls .lp-pricing__toggle {
+  padding: 0.26rem;
+  border: 1px solid #d5dee8;
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 #f8fafc;
+}
+
+.marketing-landing .lp-pricing__controls .lp-pricing__toggle button:hover:not(.is-on) {
+  background: #eef4ff;
+  color: var(--lp-blue);
+}
+
+.marketing-landing .lp-pricing__controls .lp-pricing__toggle button.is-on {
+  background: var(--lp-blue);
+  box-shadow: 0 2px 8px rgba(36, 99, 235, 0.28);
+}
+
+.marketing-landing .lp-pricing__controls-top .lp-pricing__divider {
+  width: 1px;
+  background: #d5dee8;
+  opacity: 1;
 }
 
 .marketing-landing .lp-pricing__cycle-label {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: #64748b;
+  color: var(--lp-blue);
   font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 750;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.marketing-landing .lp-pricing__cycle-label svg {
+  color: var(--lp-teal);
 }
 
 .marketing-landing .lp-pricing__bench {
@@ -4484,14 +4595,22 @@
   font-weight: 650;
   color: #334155;
   cursor: pointer;
-  transition: color 0.2s ease;
+  transition:
+    color 0.2s ease,
+    background 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.18s ease;
   white-space: nowrap;
 }
 
 .marketing-landing .lp-pricing__toggle button.is-on {
-  background: #2463eb;
+  background: var(--lp-blue);
   color: #fff;
-  box-shadow: 0 6px 16px rgba(36, 99, 235, 0.28);
+  box-shadow: 0 2px 8px rgba(36, 99, 235, 0.28);
+}
+
+.marketing-landing .lp-pricing__toggle button:active {
+  transform: scale(0.97);
 }
 
 .marketing-landing .lp-pricing__sizes {
@@ -4557,12 +4676,19 @@
 }
 
 .marketing-landing .lp-pricing__save {
+  display: inline-block;
+  min-width: 2.35rem;
   border-radius: 999px;
   background: #dcfce7;
   color: #15803d;
   padding: 0.12rem 0.4rem;
   font-size: 0.68rem;
   font-weight: 700;
+  text-align: center;
+}
+
+.marketing-landing .lp-pricing__save--reserve {
+  visibility: hidden;
 }
 
 .marketing-landing .lp-pricing__toggle button.is-on .lp-pricing__save {
@@ -5149,7 +5275,8 @@
 
 @media (min-width: 1100px) {
   .marketing-landing .lp-pricing__card.is-recommended {
-    transform: translateY(-0.25rem);
+    transform: none;
+    border-color: #60a5fa;
   }
 }
 
@@ -5163,7 +5290,7 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  margin-top: 1rem;
+  margin-top: 0;
 }
 
 .marketing-landing .lp-pricing__deck .lp-pricing__grid {
@@ -5282,13 +5409,85 @@
 }
 
 .marketing-landing .lp-pricing__platform-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid #eef2f6;
+}
+
+.marketing-landing .lp-pricing__platform-duo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
   align-items: stretch;
+}
+
+@media (min-width: 768px) {
+  .marketing-landing .lp-pricing__platform-duo {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(14.5rem, 0.82fr);
+    gap: 0;
+    border-radius: 1.35rem;
+    border: 1px solid #d8e3ef;
+    overflow: hidden;
+    background: linear-gradient(165deg, #fbfcfe 0%, #f3f7fb 100%);
+    box-shadow:
+      0 18px 42px rgba(15, 42, 67, 0.07),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .marketing-landing .lp-pricing__platform-duo-features {
+    margin-top: 0;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 1.1rem 1.15rem 1.15rem;
+    border-right: 1px solid #e2eaf2;
+    box-shadow: none;
+  }
+
+  .marketing-landing .lp-pricing__platform-duo-features .lp-pricing__feature-sheet-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 0.9rem;
+    margin-top: 0.75rem;
+  }
+
+  .marketing-landing .lp-pricing__platform-duo-custom {
+    margin-top: 0;
+    min-height: 100%;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 1.15rem 1.1rem 1.1rem 1.2rem;
+    background: linear-gradient(165deg, #1a5570 0%, #0f3d57 52%, #0c3449 100%);
+  }
+
+  .marketing-landing .lp-pricing__platform-duo-custom::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 14%;
+    bottom: 14%;
+    width: 3px;
+    border-radius: 0 4px 4px 0;
+    background: linear-gradient(180deg, #6fd4c8, #5b9fff);
+    opacity: 0.95;
+  }
+}
+
+@media (min-width: 1024px) {
+  .marketing-landing .lp-pricing__platform-duo {
+    grid-template-columns: minmax(0, 1.62fr) minmax(16.5rem, 0.78fr);
+  }
+
+  .marketing-landing .lp-pricing__platform-duo-features .lp-pricing__feature-sheet-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem 1rem;
+  }
+
+  .marketing-landing .lp-pricing__platform-duo-features {
+    padding: 1.15rem 1.25rem 1.2rem;
+  }
 }
 
 .marketing-landing .lp-pricing__platform-row .lp-pricing__feature-sheet {
@@ -6110,7 +6309,9 @@
   font-weight: 780;
   letter-spacing: -0.04em;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
   animation: none;
+  min-height: 2rem;
 }
 
 @keyframes lp-price-in {
@@ -6220,10 +6421,24 @@
   }
 }
 
+body > .marketing-landing.lp-quote-host {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  min-height: 0;
+  overflow: visible;
+  pointer-events: none;
+  background: transparent;
+}
+
+body > .marketing-landing.lp-quote-host .lp-quote {
+  pointer-events: auto;
+}
+
 .marketing-landing .lp-quote {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 200;
   display: grid;
   place-items: center;
   padding: 1.25rem;
