@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\V1\GuestController;
 use App\Http\Controllers\Api\V1\ResidentGuestController;
 use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\StripeWebhookController;
+use App\Http\Controllers\Api\V1\SaasPricingController;
 use App\Http\Controllers\Api\V1\SubscriptionPlanController;
 use App\Http\Controllers\Api\V1\SubscriptionCouponController;
 use App\Http\Controllers\Api\V1\ReferralController;
@@ -95,6 +96,10 @@ Route::prefix('v1')->group(function () {
     Route::post('/integrations/kuickpay/bill-inquiry', [KuickpayInstitutionController::class, 'inquiry'])->middleware('throttle:120,1');
     Route::post('/integrations/kuickpay/bill-payment', [KuickpayInstitutionController::class, 'payment'])->middleware('throttle:120,1');
     Route::get('/billing/plans', [SubscriptionPlanController::class, 'publicIndex']);
+    Route::get('/billing/saas/catalog', [SaasPricingController::class, 'catalog']);
+    Route::post('/billing/saas/preview', [SaasPricingController::class, 'preview'])->middleware('throttle:60,1');
+    Route::post('/billing/saas/preview-bundle', [SaasPricingController::class, 'previewBundle'])->middleware('throttle:60,1');
+    Route::post('/billing/saas/inquiries', [SaasPricingController::class, 'inquire'])->middleware('throttle:10,1');
     Route::get('/app/version-policy', [AppVersionController::class, 'policy']);
     Route::get('/public/invite-qr.png', [InviteQrImageController::class, 'show'])
         ->name('public.invite-qr');

@@ -13,7 +13,11 @@ export function MarketingTrustSection() {
             <span className="lp-trust__eyebrow-line" aria-hidden />
             {trustCopy.eyebrow}
           </p>
-          <h2 className="lp-trust__title">{trustCopy.title}</h2>
+          <h2 className="lp-trust__title">
+            {trustCopy.titleLines.map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </h2>
           <p className="lp-trust__lead">{trustCopy.lead}</p>
           <ul className="lp-trust__list">
             {trustFeatures.map((item, index) => (
@@ -32,7 +36,7 @@ export function MarketingTrustSection() {
         <Reveal className="lp-trust__visual lp-reveal--scale" delay={120}>
           <div className="lp-trust__shield-wrap">
             <div className="lp-trust__shield-glow" aria-hidden />
-            <ShieldCheck className="lp-trust__shield" strokeWidth={1.35} aria-hidden />
+            <ShieldCheck className="lp-trust__shield" strokeWidth={1.5} aria-hidden />
           </div>
         </Reveal>
       </div>
@@ -46,7 +50,14 @@ export function MarketingTestimonials() {
       <div className="lp-container">
         <Reveal className="lp-quotes__header">
           <p className="lp-eyebrow">{quotesCopy.eyebrow}</p>
-          <h2 className="lp-h2 mt-3">{quotesCopy.title}</h2>
+          <h2 className="lp-quotes__title lp-section-headline">
+            {quotesCopy.titleLines.map((line, index) => (
+              <span key={line} className={index === 1 ? "lp-section-accent" : undefined}>
+                {line}
+              </span>
+            ))}
+          </h2>
+          <p className="lp-quotes__lead">{quotesCopy.lead}</p>
         </Reveal>
 
         <QuotesCarousel />
@@ -60,15 +71,33 @@ export function MarketingCtaBanner() {
     <section className="lp-cta">
       <div className="lp-container">
         <Reveal className="lp-cta-banner lp-reveal--scale">
-          <div className="lp-cta-banner__glow" aria-hidden />
-          <div className="lp-cta-banner__copy">
-            <h2>{ctaCopy.title}</h2>
+          <div className="lp-cta-banner__glow lp-parallax-decor" data-depth="12" aria-hidden />
+          <div className="lp-cta-banner__main">
+            <p className="lp-cta-banner__eyebrow">{ctaCopy.eyebrow}</p>
+            <h2>
+              {ctaCopy.titleLines.map((line) => (
+                <span key={line}>{line}</span>
+              ))}
+            </h2>
             <p>{ctaCopy.lead}</p>
           </div>
-          <Link href="/request-demo" className="lp-btn-white lp-cta-banner__btn">
-            {ctaCopy.button}
-            <ArrowRight className="h-4 w-4" aria-hidden />
-          </Link>
+          <aside className="lp-cta-banner__aside">
+            <p className="lp-cta-banner__aside-kicker">A written conversation</p>
+            <p>Share a little about the community. We’ll come back with a time to talk.</p>
+            <Link href="/request-demo" className="lp-btn-primary lp-cta-banner__btn">
+              {ctaCopy.button}
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+          </aside>
+          <ol className="lp-cta-banner__steps">
+            {ctaCopy.steps.map((step, index) => (
+              <li key={step.title}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <strong>{step.title}</strong>
+                <em>{step.detail}</em>
+              </li>
+            ))}
+          </ol>
         </Reveal>
       </div>
     </section>

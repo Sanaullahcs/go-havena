@@ -9,10 +9,12 @@ function HeroMockup() {
       <div className="lp-hero-visual__back" aria-hidden />
 
       <div className="lp-hero-visual__card lp-hero-visual__card--shot lp-hero-visual__card--phones">
+        <span className="lp-hero-visual__shine" aria-hidden />
         <img
           src="/marketing/app-phones-hero.png?v=5"
           alt="Havena mobile app screens for community feed, events, home, marketplace, and local deals"
           className="lp-hero-visual__shot lp-hero-visual__shot--phones"
+          data-depth="18"
           width={1792}
           height={1008}
         />
@@ -24,8 +26,8 @@ function HeroMockup() {
 export function MarketingHero() {
   return (
     <section className="lp-hero">
-      <div className="lp-container">
-        <div className="lp-hero__grid">
+      <div className="lp-hero__grid">
+        <div className="lp-hero__copy">
           <div className="lp-hero__intro">
             <p className="lp-hero__eyebrow">{heroCopy.eyebrow}</p>
 
@@ -34,11 +36,21 @@ export function MarketingHero() {
               <span className="lp-hero__title-line lp-hero__title-accent">{heroCopy.titleAccent}</span>
             </h1>
 
-            <p className="lp-hero__lead">{heroCopy.lead}</p>
+            <p className="lp-hero__lead">
+              {heroCopy.leadLines.map((line) => (
+                <span key={line}>{line}</span>
+              ))}
+            </p>
           </div>
 
-          <div className="lp-hero__media">
-            <HeroMockup />
+          <div className="lp-hero__actions">
+            <Link href="/register" className="lp-btn-primary lp-hero__cta">
+              {heroCopy.cta}
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+            <MarketingNavLink href="/#product" className="lp-hero__link">
+              {heroCopy.secondary}
+            </MarketingNavLink>
           </div>
 
           <div className="lp-hero__proof">
@@ -67,16 +79,10 @@ export function MarketingHero() {
             </div>
             <p>{heroCopy.proof}</p>
           </div>
+        </div>
 
-          <div className="lp-hero__actions">
-            <Link href="/register" className="lp-btn-primary lp-hero__cta">
-              {heroCopy.cta}
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
-            <MarketingNavLink href="/#product" className="lp-hero__link">
-              {heroCopy.secondary}
-            </MarketingNavLink>
-          </div>
+        <div className="lp-hero__media">
+          <HeroMockup />
         </div>
       </div>
     </section>

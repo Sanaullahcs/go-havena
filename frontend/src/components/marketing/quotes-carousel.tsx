@@ -1,10 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { testimonials } from "@/lib/marketing/content";
 
-const AUTO_MS = 6500;
+const AUTO_MS = 7000;
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("");
+}
 
 export function QuotesCarousel() {
   const count = testimonials.length;
@@ -22,71 +29,64 @@ export function QuotesCarousel() {
     if (paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       return undefined;
     }
-
     const timer = window.setInterval(() => go(index + 1), AUTO_MS);
     return () => window.clearInterval(timer);
   }, [go, index, paused]);
 
   const current = testimonials[index];
+  const others = testimonials
+    .map((item, itemIndex) => ({ item, itemIndex }))
+    .filter((entry) => entry.itemIndex !== index);
 
   return (
     <div
-      className="lp-quotes-carousel"
+      className={`lp-quotes-stage${paused ? " is-paused" : ""}`}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
-      onFocusCapture={() => setPaused(true)}
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setPaused(false);
-        }
-      }}
     >
-      <div
-        className="lp-quotes-carousel__card"
-        aria-roledescription="carousel"
-        aria-label="Community leader quotes"
-      >
-        <blockquote key={current.name} className="lp-quotes-carousel__quote">
-          <p>&ldquo;{current.quote}&rdquo;</p>
-          <footer>
+      <article className="lp-quotes-feature" aria-live="polite">
+        <span className="lp-quotes-feature__mark" aria-hidden>&ldquo;</span>
+        <blockquote key={current.name} className="lp-quotes-feature__quote">
+          <p>{current.quote}</p>
+        </blockquote>
+        <footer key={`${current.name}-footer`} className="lp-quotes-feature__meta">
+          <span className="lp-quotes-feature__avatar" aria-hidden>{initials(current.name)}</span>
+          <span>
             <strong>{current.name}</strong>
             <span>{current.role}</span>
-          </footer>
-        </blockquote>
-      </div>
+          </span>
+        </footer>
+      </article>
 
-      <div className="lp-quotes-carousel__controls">
-        <button
-          type="button"
-          className="lp-quotes-carousel__nav"
-          aria-label="Previous quote"
-          onClick={() => go(index - 1)}
-        >
-          <ChevronLeft className="h-4 w-4" strokeWidth={2} />
-        </button>
-
-        <div className="lp-quotes-carousel__dots" role="tablist" aria-label="Choose a quote">
+      <div className="lp-quotes-rail" role="tablist" aria-label="More from community leaders">
+        {others.map(({ item, itemIndex }) => (
+          <button
+            key={item.name}
+            type="button"
+            role="tab"
+            aria-selected={false}
+            className="lp-quotes-rail__card"
+            onClick={() => go(itemIndex)}
+          >
+            <span className="lp-quotes-rail__avatar" aria-hidden>{initials(item.name)}</span>
+            <span>
+              <strong>{item.name}</strong>
+              <span>{item.role}</span>
+              <em>{item.quote}</em>
+            </span>
+          </button>
+        ))}
+        <div className="lp-quotes-rail__progress" aria-hidden>
           {testimonials.map((item, slideIndex) => (
             <button
               key={item.name}
               type="button"
-              role="tab"
-              aria-selected={slideIndex === index}
+              className={slideIndex === index ? "is-active" : ""}
               aria-label={`Show quote from ${item.name}`}
-              className={`lp-quotes-carousel__dot${slideIndex === index ? " is-active" : ""}`}
               onClick={() => go(slideIndex)}
             />
           ))}
         </div>
-
-        <button
-          type="button"
-          className="lp-quotes-carousel__nav"
-          aria-label="Next quote"
-          onClick={() => go(index + 1)}
-        >
-          <ChevronRight className="h-4 w-4" strokeWidth={2} />
-        </button>
       </div>
     </div>
   );
