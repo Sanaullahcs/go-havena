@@ -83,7 +83,8 @@ class LifecycleMailTest extends TestCase
         $this->withToken($system->createToken('sys')->plainTextToken)
             ->postJson('/api/v1/admin/users', [
             'type' => 'community_admin',
-            'name' => 'Ahmed Admin',
+            'first_name' => 'Ahmed',
+            'last_name' => 'Admin',
             'email' => 'ahmed.admin@example.com',
             'phone' => '+2017777777',
             'region_id' => $region->id,

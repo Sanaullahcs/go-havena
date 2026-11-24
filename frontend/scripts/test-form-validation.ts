@@ -1124,7 +1124,8 @@ console.log("\nProvision user validation");
 {
   const invalidAdmin = validateCommunityAdminForm(
     {
-      name: "",
+      firstName: "",
+      lastName: "",
       email: "bad",
       phone: "",
       region_id: "",
@@ -1136,7 +1137,8 @@ console.log("\nProvision user validation");
     },
     emptyPhoneField(),
   );
-  assertHasError(invalidAdmin, "name", "admin name required");
+  assertHasError(invalidAdmin, "firstName", "admin first name required");
+  assertHasError(invalidAdmin, "lastName", "admin last name required");
   assertHasError(invalidAdmin, "email", "admin email");
   assertHasError(invalidAdmin, "phone", "admin phone");
   assertHasError(invalidAdmin, "region_id", "admin region");
@@ -1145,7 +1147,8 @@ console.log("\nProvision user validation");
 
   const missingCommunity = validateCommunityAdminForm(
     {
-      name: "Jane Admin",
+      firstName: "Jane",
+      lastName: "Admin",
       email: "jane@example.com",
       phone: "",
       region_id: 1,
@@ -1161,7 +1164,8 @@ console.log("\nProvision user validation");
 
   const okExistingCommunity = validateCommunityAdminForm(
     {
-      name: "Jane Admin",
+      firstName: "Jane",
+      lastName: "Admin",
       email: "jane@example.com",
       phone: "",
       region_id: 1,
@@ -1185,7 +1189,8 @@ console.log("\nProvision user validation");
 
   const okAdmin = validateCommunityAdminForm(
     {
-      name: "Jane Admin",
+      firstName: "Jane",
+      lastName: "Admin",
       email: "jane@example.com",
       phone: "",
       region_id: 1,

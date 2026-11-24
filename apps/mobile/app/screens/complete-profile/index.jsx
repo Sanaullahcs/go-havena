@@ -44,6 +44,7 @@ import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { applyCharacterLimit, hasFieldErrors, LIMITS, validateCompleteProfileForm } from "../../../utils/form-validation";
 import { splitStoredPhone, toE164 } from "../../../utils/phone";
 import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
+import { composePersonName } from "../../../utils/person-name";
 import { getProfileFields, isPlaceholderDisplayName, isPlaceholderResidenceType, isPlaceholderUnitNumber } from "../../../utils/profile-display";
 import { getPendingInvitedMembership } from "../../../services/community-access";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
@@ -137,7 +138,8 @@ export default function CompleteProfile() {
     return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
   })();
 
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneDigits, setPhoneDigits] = useState("");
   const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
@@ -265,7 +267,8 @@ export default function CompleteProfile() {
 
   const scrollRef = useRef(null);
   const contentRef = useRef(null);
-  const nameFieldRef = useRef(null);
+  const firstNameFieldRef = useRef(null);
+  const lastNameFieldRef = useRef(null);
   const emailFieldRef = useRef(null);
   const phoneFieldRef = useRef(null);
   const bioFieldRef = useRef(null);
@@ -593,7 +596,13 @@ export default function CompleteProfile() {
           }),
         );
         const fields = getProfileFields(user);
-        setName(isPlaceholderDisplayName(fields.displayName) ? "" : fields.displayName);
+        if (isPlaceholderDisplayName(fields.displayName) && !fields.firstName && !fields.lastName) {
+          setFirstName("");
+          setLastName("");
+        } else {
+          setFirstName(fields.firstName ?? "");
+          setLastName(fields.lastName ?? "");
+        }
         setEmail(fields.displayEmail ?? "");
         const rawPhone = user.phone ?? "";
         if (rawPhone) {
@@ -660,11 +669,18 @@ export default function CompleteProfile() {
     };
   }, [isEditMode, router, dialog, role, invitedParam, isAdminClaim, isCommunityRequest, resolvedCommunityId, communityId]);
 
+  const combinedNameLength = useMemo(
+    () => composePersonName(firstName, lastName).length,
+    [firstName, lastName],
+  );
+
   useEffect(() => {
-    if (name && isPlaceholderDisplayName(name)) {
-      setName("");
+    const composed = composePersonName(firstName, lastName);
+    if (composed && isPlaceholderDisplayName(composed)) {
+      setFirstName("");
+      setLastName("");
     }
-  }, [name]);
+  }, [firstName, lastName]);
 
   const multiUnitFieldErrors = useMemo(() => {
     if (!useMultiUnitOnboarding) return {};
@@ -703,11 +719,12 @@ export default function CompleteProfile() {
 
   const liveErrors = useMemo(() => {
     const base = validateCompleteProfileForm({
-      name,
+      firstName,
+      lastName,
       email,
       phoneDigits,
       phoneCountry,
-      bio,
+      bio: isEditMode ? bio : "",
       unitNumber: useMultiUnitOnboarding
         ? (unitEntries[0]?.unit_number || "")
         : unitLocked
@@ -731,7 +748,8 @@ export default function CompleteProfile() {
     });
     return { ...base, ...multiUnitFieldErrors };
   }, [
-    name,
+    firstName,
+    lastName,
     email,
     phoneDigits,
     phoneCountry,
@@ -864,10 +882,11 @@ export default function CompleteProfile() {
         }
 
         const profileResult = await updateProfile({
-          display_name: name.trim(),
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
           ...(isEditMode ? {} : { email: email.trim().toLowerCase() }),
           phone: toE164(phoneDigits, phoneCountry),
-          bio: bio.trim(),
+          ...(isEditMode ? { bio: bio.trim() } : {}),
           ...(showOfficeAddress
             ? { office_address: officeAddress.trim() }
             : isEditMode || hasOtherApprovedMembership
@@ -1221,43 +1240,86 @@ export default function CompleteProfile() {
           {!profileLoading ? (
           <>
           <View style={styles.form}>
-            <View ref={nameFieldRef} collapsable={false} style={styles.fieldGroup}>
-              <Text style={styles.inputText}>
-                {t("onboarding.fullName")} <Text style={styles.requiredMark}>*</Text>
-              </Text>
-              <View style={[styles.inputBox, showError("name", liveErrors) && styles.inputError]}>
-                <LocaleTextInput
-                  style={fieldTextStyle}
-                  placeholder={t("onboarding.namePlaceholder")}
-                  placeholderTextColor={PLACEHOLDER_COLOR}
-                  value={name}
-                  onChangeText={(text) => {
-                    setName(applyCharacterLimit(name, text, nameMax));
-                    clearError("name");
-                  }}
-                  onBlur={() => touch("name")}
-                  onFocus={() => {
-                    if (name && isPlaceholderDisplayName(name)) {
-                      setName("");
-                    }
-                    handleFieldFocus(nameFieldRef);
-                  }}
-                  autoComplete="off"
-                  textContentType="none"
-                  importantForAutofill="no"
-                  autoCorrect={false}
-                  maxLength={name.length > nameMax ? undefined : nameMax}
-                  underlineColorAndroid="transparent"
-                  textAlignVertical="center"
-                />
-              </View>
-              {isCommunityAdminProfile ? (
-                <Text style={[styles.helperText, name.length > nameMax && styles.errorText]}>
-                  {name.length} / {nameMax}
+            <View style={styles.nameRow}>
+              <View ref={firstNameFieldRef} collapsable={false} style={[styles.fieldGroup, styles.nameFieldHalf]}>
+                <Text style={styles.inputText}>
+                  {t("onboarding.firstName")} <Text style={styles.requiredMark}>*</Text>
                 </Text>
-              ) : null}
-              {showError("name", liveErrors) ? <Text style={styles.errorText}>{showError("name", liveErrors)}</Text> : null}
+                <View style={[styles.inputBox, showError("firstName", liveErrors) && styles.inputError]}>
+                  <LocaleTextInput
+                    style={fieldTextStyle}
+                    placeholder={t("onboarding.firstNamePlaceholder")}
+                    placeholderTextColor={PLACEHOLDER_COLOR}
+                    value={firstName}
+                    onChangeText={(text) => {
+                      setFirstName(applyCharacterLimit(firstName, text, nameMax));
+                      clearError("firstName");
+                    }}
+                    onBlur={() => touch("firstName")}
+                    onFocus={() => {
+                      if (firstName && isPlaceholderDisplayName(firstName)) {
+                        setFirstName("");
+                      }
+                      handleFieldFocus(firstNameFieldRef);
+                    }}
+                    autoComplete="name-given"
+                    textContentType="givenName"
+                    autoCorrect={false}
+                    maxLength={firstName.length > nameMax ? undefined : nameMax}
+                    underlineColorAndroid="transparent"
+                    textAlignVertical="center"
+                  />
+                </View>
+                {showError("firstName", liveErrors) ? (
+                  <Text style={styles.errorText}>{showError("firstName", liveErrors)}</Text>
+                ) : null}
+              </View>
+
+              <View ref={lastNameFieldRef} collapsable={false} style={[styles.fieldGroup, styles.nameFieldHalf]}>
+                <Text style={styles.inputText}>
+                  {t("onboarding.lastName")} <Text style={styles.requiredMark}>*</Text>
+                </Text>
+                <View style={[styles.inputBox, showError("lastName", liveErrors) && styles.inputError]}>
+                  <LocaleTextInput
+                    style={fieldTextStyle}
+                    placeholder={t("onboarding.lastNamePlaceholder")}
+                    placeholderTextColor={PLACEHOLDER_COLOR}
+                    value={lastName}
+                    onChangeText={(text) => {
+                      setLastName(applyCharacterLimit(lastName, text, nameMax));
+                      clearError("lastName");
+                    }}
+                    onBlur={() => touch("lastName")}
+                    onFocus={() => {
+                      if (lastName && isPlaceholderDisplayName(lastName)) {
+                        setLastName("");
+                      }
+                      handleFieldFocus(lastNameFieldRef);
+                    }}
+                    autoComplete="name-family"
+                    textContentType="familyName"
+                    autoCorrect={false}
+                    maxLength={lastName.length > nameMax ? undefined : nameMax}
+                    underlineColorAndroid="transparent"
+                    textAlignVertical="center"
+                  />
+                </View>
+                {showError("lastName", liveErrors) ? (
+                  <Text style={styles.errorText}>{showError("lastName", liveErrors)}</Text>
+                ) : null}
+              </View>
             </View>
+            {isCommunityAdminProfile && combinedNameLength > 0 ? (
+              <Text
+                style={[
+                  styles.helperText,
+                  { marginTop: -8, marginBottom: 8, textAlign: "right" },
+                  combinedNameLength > nameMax && styles.errorText,
+                ]}
+              >
+                {t("onboarding.nameCombinedHint", { count: combinedNameLength, max: nameMax })}
+              </Text>
+            ) : null}
 
             <View ref={emailFieldRef} collapsable={false} style={styles.fieldGroup}>
               <Text style={styles.inputText}>
@@ -1334,36 +1396,42 @@ export default function CompleteProfile() {
               {showError("phone", liveErrors) ? <Text style={styles.errorText}>{showError("phone", liveErrors)}</Text> : null}
             </View>
 
-            <View ref={bioFieldRef} collapsable={false} style={styles.fieldGroup}>
-              <Text style={styles.inputText}>{t("onboarding.bio")}</Text>
-              <View style={[styles.textAreaBox, showError("bio", liveErrors) && styles.inputError]}>
-                {bio.length === 0 ? (
-                  <Text style={[styles.bioPlaceholder, { pointerEvents: "none" }]}>
-                    {t("onboarding.bioPlaceholder")}
+            {isEditMode ? (
+              <View ref={bioFieldRef} collapsable={false} style={styles.fieldGroup}>
+                <Text style={styles.inputText}>{t("onboarding.bio")}</Text>
+                <View style={[styles.textAreaBox, showError("bio", liveErrors) && styles.inputError]}>
+                  {bio.length === 0 ? (
+                    <Text style={[styles.bioPlaceholder, { pointerEvents: "none" }]}>
+                      {t("onboarding.bioPlaceholder")}
+                    </Text>
+                  ) : null}
+                  <LocaleTextInput
+                    style={bioFieldTextStyle}
+                    placeholder=""
+                    placeholderTextColor="transparent"
+                    value={bio}
+                    onChangeText={(text) => {
+                      setBio(text);
+                      clearError("bio");
+                    }}
+                    onBlur={() => touch("bio")}
+                    onFocus={() => handleFieldFocus(bioFieldRef)}
+                    multiline
+                    textAlignVertical="top"
+                    maxLength={LIMITS.profileBio}
+                    underlineColorAndroid="transparent"
+                  />
+                </View>
+                {bio.length > 0 ? (
+                  <Text style={styles.helperText}>
+                    {t("onboarding.characters", { count: bio.length, max: LIMITS.profileBio })}
                   </Text>
                 ) : null}
-                <LocaleTextInput
-                  style={bioFieldTextStyle}
-                  placeholder=""
-                  placeholderTextColor="transparent"
-                  value={bio}
-                  onChangeText={(text) => {
-                    setBio(text);
-                    clearError("bio");
-                  }}
-                  onBlur={() => touch("bio")}
-                  onFocus={() => handleFieldFocus(bioFieldRef)}
-                  multiline
-                  textAlignVertical="top"
-                  maxLength={LIMITS.profileBio}
-                  underlineColorAndroid="transparent"
-                />
+                {showError("bio", liveErrors) ? (
+                  <Text style={styles.errorText}>{showError("bio", liveErrors)}</Text>
+                ) : null}
               </View>
-              {bio.length > 0 ? (
-                <Text style={styles.helperText}>{t("onboarding.characters", { count: bio.length, max: LIMITS.profileBio })}</Text>
-              ) : null}
-              {showError("bio", liveErrors) ? <Text style={styles.errorText}>{showError("bio", liveErrors)}</Text> : null}
-            </View>
+            ) : null}
 
             {showOfficeAddress ? (
             <View ref={unitFieldRef} collapsable={false} style={styles.fieldGroup}>
@@ -2020,6 +2088,15 @@ const styles = StyleSheet.create({
   fieldGroup: {
     flexDirection: "column",
     gap: 8,
+  },
+  nameRow: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  nameFieldHalf: {
+    flex: 1,
+    minWidth: 0,
   },
   fieldHint: {
     fontFamily: Fonts.regular,

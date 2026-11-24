@@ -12,6 +12,7 @@ import {
   COMMUNITY_ADMIN_UNIT_MAX_MESSAGE,
   exceedsCharacterLimit,
 } from "@/lib/admin/community-admin-field-limits";
+import { composePersonName, splitPersonName } from "@/lib/admin/person-name";
 import { EMAIL_RE, type FieldErrors } from "@/lib/admin/form-validation-utils";
 import { getPhoneValidationError } from "@/lib/phone/format";
 
@@ -101,7 +102,10 @@ export function validateUserEmail(email: string): string | null {
 }
 
 export function validateCompleteProfileForm(input: {
-  name: string;
+  firstName?: string;
+  lastName?: string;
+  /** @deprecated Legacy single full-name field */
+  name?: string;
   email: string;
   phoneDigits?: string;
   phoneCountry?: string;
@@ -121,6 +125,8 @@ export function validateCompleteProfileForm(input: {
 }): FieldErrors {
   const errors: FieldErrors = {};
   const {
+    firstName: firstNameInput,
+    lastName: lastNameInput,
     name,
     email,
     phoneDigits,
@@ -145,15 +151,39 @@ export function validateCompleteProfileForm(input: {
   const nameMax = communityAdmin ? COMMUNITY_ADMIN_NAME_MAX : COMPLETE_PROFILE_LIMITS.profileName;
   const unitMax = communityAdmin ? COMMUNITY_ADMIN_UNIT_MAX : COMPLETE_PROFILE_LIMITS.profileUnit;
 
-  const nameErr = requiredText(name, "Full name", {
-    min: 2,
-    max: nameMax,
-  });
-  if (nameErr) {
-    errors.name =
-      communityAdmin && exceedsCharacterLimit(name, nameMax)
+  const legacyName = String(name ?? "").trim();
+  const firstName =
+    String(firstNameInput ?? "").trim()
+    || (legacyName ? splitPersonName(legacyName).firstName : "");
+  const lastName =
+    String(lastNameInput ?? "").trim()
+    || (legacyName ? splitPersonName(legacyName).lastName : "");
+
+  const firstErr = requiredText(firstName, "First name", { min: 1, max: nameMax });
+  if (firstErr) {
+    errors.firstName =
+      communityAdmin && exceedsCharacterLimit(firstName, nameMax)
         ? COMMUNITY_ADMIN_NAME_MAX_MESSAGE
-        : nameErr;
+        : firstErr;
+  }
+
+  const lastErr = requiredText(lastName, "Last name", { min: 1, max: nameMax });
+  if (lastErr) {
+    errors.lastName =
+      communityAdmin && exceedsCharacterLimit(lastName, nameMax)
+        ? COMMUNITY_ADMIN_NAME_MAX_MESSAGE
+        : lastErr;
+  }
+
+  const combinedName = composePersonName(firstName, lastName);
+  if (
+    combinedName
+    && communityAdmin
+    && combinedName.length > COMMUNITY_ADMIN_NAME_MAX
+  ) {
+    errors.lastName = COMMUNITY_ADMIN_NAME_MAX_MESSAGE;
+  } else if (combinedName && !communityAdmin && combinedName.length > COMPLETE_PROFILE_LIMITS.profileName) {
+    errors.lastName = `Full name must be ${COMPLETE_PROFILE_LIMITS.profileName} characters or less.`;
   }
 
   const emailErr = validateUserEmail(email);

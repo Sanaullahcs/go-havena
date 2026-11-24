@@ -41,6 +41,8 @@ class UserResource extends JsonResource
             'status' => $this->status ?? 'active',
             'profile' => [
                 'display_name' => $profile?->display_name ?? $this->name ?? '',
+                'first_name' => $profile?->first_name,
+                'last_name' => $profile?->last_name,
                 'avatar_url' => MediaUrl::toPublic($profile?->avatar_url, $request),
                 'utility_bill_url' => MediaUrl::toPublic($profile?->utility_bill_url, $request),
                 'bio' => $profile?->bio,

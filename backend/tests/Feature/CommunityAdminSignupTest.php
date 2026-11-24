@@ -86,6 +86,37 @@ class CommunityAdminSignupTest extends TestCase
         $this->assertTrue($assignedRow['has_admin']);
     }
 
+    public function test_search_supports_pagination_when_page_requested(): void
+    {
+        $region = $this->seedRegion();
+        foreach (range(1, 20) as $i) {
+            $this->seedUnassignedCommunity($region, "Community {$i}");
+        }
+
+        $page1 = $this->getJson('/api/v1/communities/search?'.http_build_query([
+            'region_id' => $region->id,
+            'page' => 1,
+            'per_page' => 10,
+        ]));
+
+        $page1->assertOk();
+        $page1->assertJsonCount(10, 'data');
+        $page1->assertJsonPath('meta.current_page', 1);
+        $page1->assertJsonPath('meta.per_page', 10);
+        $page1->assertJsonPath('meta.total', 20);
+        $page1->assertJsonPath('meta.has_more', true);
+
+        $page2 = $this->getJson('/api/v1/communities/search?'.http_build_query([
+            'region_id' => $region->id,
+            'page' => 2,
+            'per_page' => 10,
+        ]));
+
+        $page2->assertOk();
+        $page2->assertJsonCount(10, 'data');
+        $page2->assertJsonPath('meta.has_more', false);
+    }
+
     public function test_search_unassigned_only_excludes_communities_with_admin(): void
     {
         $region = $this->seedRegion();

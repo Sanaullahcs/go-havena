@@ -37,6 +37,8 @@ export type MeProfile = {
   community_admin_status?: string | null;
   profile?: {
     display_name?: string;
+    first_name?: string | null;
+    last_name?: string | null;
     avatar_url?: string | null;
     bio?: string | null;
     unit_number?: string | null;
@@ -128,6 +130,8 @@ export async function updateMe(data: {
   email?: string;
   phone?: string;
   display_name?: string;
+  first_name?: string;
+  last_name?: string;
   bio?: string;
   unit_number?: string;
   residence_type?: string;

@@ -18,6 +18,7 @@ use App\Services\OsmGeocodingService;
 use App\Services\ResidentInviteService;
 use App\Support\CommunityLocation;
 use App\Support\CommunityNameUniqueness;
+use App\Support\PersonName;
 use App\Support\RegionHierarchy;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
@@ -35,7 +36,26 @@ class AdminUserController extends Controller
     {
         $validated = $request->validate([
             'type' => ['required', 'string', Rule::in(['community_admin', 'resident'])],
-            'name' => ['required', 'string', 'max:100'],
+            'name' => [
+                Rule::requiredIf(fn () => $request->input('type') === 'resident'),
+                'nullable',
+                'string',
+                'max:100',
+            ],
+            'first_name' => [
+                Rule::requiredIf(fn () => $request->input('type') === 'community_admin'),
+                'nullable',
+                'string',
+                'min:1',
+                'max:50',
+            ],
+            'last_name' => [
+                Rule::requiredIf(fn () => $request->input('type') === 'community_admin'),
+                'nullable',
+                'string',
+                'min:1',
+                'max:50',
+            ],
             'unit_number' => ['nullable', 'string', 'max:20'],
             'email' => [
                 'required',
@@ -89,11 +109,20 @@ class AdminUserController extends Controller
             $region = app(LocationCatalog::class)->ensureCityRegion($region->stateRecord, (string) $region->area);
         }
         $displayName = trim($validated['name'] ?? '') ?: 'Neighbor';
+        $nameParts = null;
+        if ($validated['type'] === 'community_admin') {
+            $nameParts = PersonName::fromParts(
+                (string) ($validated['first_name'] ?? ''),
+                (string) ($validated['last_name'] ?? ''),
+                50,
+            );
+            $displayName = $nameParts['display_name'];
+        }
         $actor = $request->user();
 
-        $result = DB::transaction(function () use ($validated, $phone, $region, $displayName, $restorableUser, $actor) {
+        $result = DB::transaction(function () use ($validated, $phone, $region, $displayName, $nameParts, $restorableUser, $actor) {
             if ($validated['type'] === 'community_admin') {
-                return $this->createCommunityAdmin($validated, $phone, $region, $displayName);
+                return $this->createCommunityAdmin($validated, $phone, $region, $displayName, $nameParts);
             }
 
             return $this->createResident($validated, $phone, $region, $displayName, $restorableUser, $actor);
@@ -140,7 +169,10 @@ class AdminUserController extends Controller
         ], 201);
     }
 
-    private function createCommunityAdmin(array $validated, ?string $phone, Region $region, string $displayName): array
+    /**
+     * @param  array{first_name: string, last_name: string, display_name: string}|null  $nameParts
+     */
+    private function createCommunityAdmin(array $validated, ?string $phone, Region $region, string $displayName, ?array $nameParts = null): array
     {
         $community = $this->resolveCommunityForAdmin($validated, $region);
         $createdCommunity = empty($validated['community_id']);
@@ -160,6 +192,8 @@ class AdminUserController extends Controller
         Profile::query()->create([
             'user_id' => $user->id,
             'display_name' => $displayName,
+            'first_name' => $nameParts['first_name'] ?? null,
+            'last_name' => $nameParts['last_name'] ?? null,
             'region_id' => $region->id,
             'unit_number' => null,
             'residence_type' => null,

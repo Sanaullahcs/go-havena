@@ -34,6 +34,24 @@ class AdminRoleService
         return ($user->role ?? '') === 'community_admin';
     }
 
+    /** Community admins may auto-create a city region when none exists (residents may not). */
+    public static function mayEnsureCityRegion(?User $user): bool
+    {
+        if (! $user || self::isGuest($user)) {
+            return false;
+        }
+
+        if (self::isSystemAdmin($user)) {
+            return true;
+        }
+
+        if (($user->role ?? '') === 'resident') {
+            return false;
+        }
+
+        return self::isCommunityAdminRole($user) && ! self::isCommunityAdminRejected($user);
+    }
+
     public static function isCommunityAdminApproved(?User $user): bool
     {
         if (! self::isCommunityAdminRole($user)) {

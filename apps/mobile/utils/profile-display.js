@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "../constants/api-config";
 import { resolveSeedMediaSource } from "../constants/seed-media";
 import { formatDisplayEmail } from "./form-validation";
+import { splitPersonName } from "./person-name";
 import { toDisplayPhone } from "./phone";
 import { currentCommunityId, isGuestUser, isResidentMode } from "../services/community-access";
 import i18n from "../i18n";
@@ -232,6 +233,8 @@ export function getProfileFields(user, preferredCommunityId) {
   if (!user) {
     return {
       displayName: "",
+      firstName: "",
+      lastName: "",
       avatarUrl: null,
       utilityBillUrl: null,
       unitNumber: null,
@@ -250,9 +253,14 @@ export function getProfileFields(user, preferredCommunityId) {
 
   const profile = user.profile ?? user;
   const rawName = profile.display_name || user.name || "";
+  const profileFirst = String(profile.first_name ?? "").trim();
+  const profileLast = String(profile.last_name ?? "").trim();
+  const split = isPlaceholderDisplayName(rawName) ? { firstName: "", lastName: "" } : splitPersonName(rawName);
 
   return {
     displayName: isPlaceholderDisplayName(rawName) ? "" : rawName,
+    firstName: profileFirst || split.firstName,
+    lastName: profileLast || split.lastName,
     avatarUrl: resolveMediaUrl(profile.avatar_url ?? user.avatar_url),
     utilityBillUrl: resolveMediaUrl(profile.utility_bill_url ?? user.utility_bill_url),
     unitNumber: profile.unit_number ?? user.unit_number ?? null,

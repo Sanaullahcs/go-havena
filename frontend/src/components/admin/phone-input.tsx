@@ -34,6 +34,8 @@ export type AdminPhoneInputProps = {
   showError?: boolean;
   resetKey?: string | number;
   hint?: string;
+  /** When false, hide progress/success hints; validation errors still show. */
+  showHelper?: boolean;
 };
 
 export function AdminPhoneInput({
@@ -47,6 +49,7 @@ export function AdminPhoneInput({
   showError = false,
   resetKey = "",
   hint,
+  showHelper = true,
 }: AdminPhoneInputProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
@@ -154,13 +157,15 @@ export function AdminPhoneInput({
 
   const helperText = showValidation
     ? validationError
-    : field.valid && field.e164
-      ? `Saved as ${formatPhoneDisplay(field.e164)}`
-      : progressHint
-        ?? hint
-        ?? (field.country === "US" || field.country === "CA"
-          ? "Enter your 10-digit number — country code is already selected."
-          : `Enter your ${selected.name} number without the country code.`);
+    : showHelper
+      ? field.valid && field.e164
+        ? `Saved as ${formatPhoneDisplay(field.e164)}`
+        : progressHint
+          ?? hint
+          ?? (field.country === "US" || field.country === "CA"
+            ? "Enter your 10-digit number — country code is already selected."
+            : `Enter your ${selected.name} number without the country code.`)
+      : null;
 
   const handleInputChange = (text: string) => {
     updateField(
@@ -367,15 +372,17 @@ export function AdminPhoneInput({
         </div>
       </div>
 
-      <p
-        id={hintId}
-        className={[
-          "mt-1.5 text-[12px] leading-relaxed",
-          showValidation ? "font-medium text-red-600" : field.valid ? "text-emerald-700" : "text-slate-500",
-        ].join(" ")}
-      >
-        {helperText}
-      </p>
+      {helperText ? (
+        <p
+          id={hintId}
+          className={[
+            "mt-1.5 text-[12px] leading-relaxed",
+            showValidation ? "font-medium text-red-600" : field.valid ? "text-emerald-700" : "text-slate-500",
+          ].join(" ")}
+        >
+          {helperText}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -91,7 +91,7 @@ export function OnboardingField({
   children: ReactNode;
 }) {
   return (
-    <div>
+    <div className="min-w-0 max-w-full">
       <div className="mb-1.5">
         <label htmlFor={id} className="block text-sm font-semibold leading-tight text-slate-700">
           {label}

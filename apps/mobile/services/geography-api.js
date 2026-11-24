@@ -53,6 +53,34 @@ export async function fetchCountryStates(countryId) {
   return asPlaces(result.data);
 }
 
+/** Ensure city region exists — community admin onboarding only (auth required). */
+export async function ensureCommunityAdminCityRegion({ countryId, stateId, city }) {
+  const resolvedStateId = Number(stateId);
+  const cityName = String(city ?? "").trim();
+  if (!Number.isFinite(resolvedStateId) || resolvedStateId <= 0 || !cityName) {
+    throw new Error("State and city are required.");
+  }
+
+  const body = {
+    state_id: resolvedStateId,
+    city: cityName,
+    ...(Number(countryId) > 0 ? { country_id: Number(countryId) } : {}),
+  };
+
+  const result = await apiRequest("/locations/ensure", {
+    method: "POST",
+    body,
+    auth: true,
+    community: false,
+  });
+
+  const row = result?.data;
+  if (!row || row.type !== "region") {
+    return null;
+  }
+  return row;
+}
+
 /** Find an existing city region for filters — does not create regions. */
 export async function findCityRegion({ countryId, stateId, city }) {
   const resolvedStateId = Number(stateId);
@@ -70,6 +98,13 @@ export async function findCityRegion({ countryId, stateId, city }) {
   });
   const list = Array.isArray(result.data) ? result.data : [];
   return list.find((item) => item?.type === "region") ?? null;
+}
+
+/** Admin onboarding: find existing region or create one (no duplicates server-side). */
+export async function findOrEnsureCityRegionForCommunityAdmin(args) {
+  const existing = await findCityRegion(args);
+  if (existing) return existing;
+  return ensureCommunityAdminCityRegion(args);
 }
 
 /** @deprecated Use findCityRegion — retained as alias for older screens. */

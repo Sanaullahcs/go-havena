@@ -54,6 +54,8 @@ return [
         'secret' => env('STRIPE_SECRET'),
         'publishable' => env('STRIPE_KEY'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        /** Create missing Stripe product/price IDs from DB plan amounts before checkout. */
+        'auto_provision_missing_prices' => (bool) env('STRIPE_AUTO_PROVISION_PRICES', true),
     ],
 
     'checkout_success_url' => env(

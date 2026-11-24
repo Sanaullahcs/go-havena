@@ -40,7 +40,8 @@ class AdminUserCreationTest extends TestCase
 
         $response = $this->postJson('/api/v1/admin/users', [
             'type' => 'community_admin',
-            'name' => 'Ahmed Admin',
+            'first_name' => 'Ahmed',
+            'last_name' => 'Admin',
             'email' => 'ahmed.admin@example.com',
             'phone' => '+14155552671',
             'region_id' => $region->id,
@@ -84,7 +85,8 @@ class AdminUserCreationTest extends TestCase
 
         $this->postJson('/api/v1/admin/users', [
             'type' => 'community_admin',
-            'name' => 'Ahmed Admin',
+            'first_name' => 'Ahmed',
+            'last_name' => 'Admin',
             'email' => 'ahmed.login@example.com',
             'phone' => '+14155552671',
             'region_id' => $region->id,
@@ -152,7 +154,8 @@ class AdminUserCreationTest extends TestCase
 
         $response = $this->postJson('/api/v1/admin/users', [
             'type' => 'community_admin',
-            'name' => 'Lina Admin',
+            'first_name' => 'Lina',
+            'last_name' => 'Admin',
             'email' => 'lina.admin@example.com',
             'phone' => '+14155552672',
             'region_id' => $region->id,
@@ -211,7 +214,8 @@ class AdminUserCreationTest extends TestCase
 
         $this->postJson('/api/v1/admin/users', [
             'type' => 'community_admin',
-            'name' => 'Second Admin',
+            'first_name' => 'Second',
+            'last_name' => 'Admin',
             'email' => 'second.admin@example.com',
             'phone' => '+14155552674',
             'region_id' => $region->id,
@@ -250,7 +254,8 @@ class AdminUserCreationTest extends TestCase
 
         $this->postJson('/api/v1/admin/users', [
             'type' => 'community_admin',
-            'name' => 'Wrong Region Admin',
+            'first_name' => 'Wrong',
+            'last_name' => 'Region Admin',
             'email' => 'wrong.admin@example.com',
             'phone' => '+14155552675',
             'region_id' => $regionA->id,

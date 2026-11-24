@@ -1,10 +1,10 @@
 "use client";
 
-import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+import { ClearableInput } from "@/components/admin/clearable-field";
 
 import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, Home, Upload, User } from "lucide-react";
+import { FileText, Home, Upload, User, X } from "lucide-react";
 import { RingSpinner, ShimmerBlock } from "@/components/shared/loaders";
 import { OnboardingField } from "@/components/admin/onboarding/onboarding-ui";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
@@ -12,6 +12,7 @@ import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import {
   completeProfileOnboardingRole,
+  COMPLETE_PROFILE_UTILITY_BILL_REQUIRED,
   getCompleteProfileFieldVisibility,
   isPlaceholderResidenceType,
   isPlaceholderUnitNumber,
@@ -30,6 +31,7 @@ import {
   validateCompleteProfileForm,
   type UtilityFileInput,
 } from "@/lib/admin/complete-profile-validation";
+import { composePersonName, splitPersonName } from "@/lib/admin/person-name";
 import { hasFieldErrors, inputClass, type FieldErrors } from "@/lib/admin/form-validation-utils";
 import {
   fetchMe,
@@ -39,7 +41,6 @@ import {
   type MeProfile,
 } from "@/lib/api/profile";
 import { apiError, apiFieldErrors } from "@/lib/api/client";
-import { COMPLETE_PROFILE_SIGN_OUT_MESSAGE, confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
 import {
   canAccessCommunityDashboard,
   getCommunityAdminNextStep,
@@ -48,6 +49,7 @@ import {
   updateUser,
 } from "@/lib/auth/session";
 import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
+import { CompleteProfileLiveSummary } from "@/components/admin/complete-profile-live-summary";
 import { UnitPickerField } from "@/components/admin/unit-picker-field";
 import { createAdminUnit, fetchAdminUnits } from "@/lib/api/property-services";
 
@@ -75,16 +77,15 @@ function CompleteProfileInner() {
   const [formError, setFormError] = useState<string | null>(null);
   const [profileUser, setProfileUser] = useState<MeProfile | null>(null);
 
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState<PhoneFieldState>(emptyPhoneField);
-  const [bio, setBio] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
   const [residenceType, setResidenceType] = useState("");
   const [officeAddress, setOfficeAddress] = useState("");
   const [utilityFile, setUtilityFile] = useState<File | null>(null);
   const [existingUtilityBillUrl, setExistingUtilityBillUrl] = useState<string | null>(null);
-  const [communityName, setCommunityName] = useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -133,19 +134,35 @@ function CompleteProfileInner() {
     };
   }, [utilityPreviewUrl]);
 
+  const hasUtilitySelection = Boolean(utilityFile || existingUtilityBillUrl);
+
+  function clearUtilitySelection() {
+    setUtilityFile(null);
+    setExistingUtilityBillUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    clearError("utilityFile");
+    setFormError(null);
+  }
+
   const liveErrors = useMemo(
     () =>
       validateCompleteProfileForm({
-        name,
+        firstName,
+        lastName,
         email,
         phoneDigits: phone.digits,
         phoneCountry: phone.country,
-        bio,
+        bio: "",
         unitNumber,
         residenceType,
         officeAddress,
         utilityFile: utilityInput,
-        requireUtilityFile: fields.showUtilityBill && !existingUtilityBillUrl,
+        requireUtilityFile:
+          COMPLETE_PROFILE_UTILITY_BILL_REQUIRED &&
+          fields.showUtilityBill &&
+          !existingUtilityBillUrl,
         requireResidenceType: fields.showResidenceType,
         requireUnitNumber: fields.showUnitNumber,
         requireOfficeAddress: fields.showOfficeAddress,
@@ -155,11 +172,11 @@ function CompleteProfileInner() {
         communityAdmin: isCommunityAdminProfile,
       }),
     [
-      name,
+      firstName,
+      lastName,
       email,
       phone.digits,
       phone.country,
-      bio,
       unitNumber,
       residenceType,
       officeAddress,
@@ -196,11 +213,21 @@ function CompleteProfileInner() {
 
     void fetchMe()
       .then((me) => {
-        const displayName = me.profile?.display_name ?? me.name ?? "";
-        setName(isPlaceholderDisplayName(displayName) ? "" : displayName.trim());
+        const profileFirst = me.profile?.first_name?.trim() ?? "";
+        const profileLast = me.profile?.last_name?.trim() ?? "";
+        if (profileFirst || profileLast) {
+          setFirstName(profileFirst);
+          setLastName(profileLast);
+        } else {
+          const displayName = me.profile?.display_name ?? me.name ?? "";
+          const split = isPlaceholderDisplayName(displayName)
+            ? { firstName: "", lastName: "" }
+            : splitPersonName(displayName);
+          setFirstName(split.firstName);
+          setLastName(split.lastName);
+        }
         setEmail(isPlaceholderEmail(me.email) ? "" : (me.email ?? "").trim());
         setPhone(me.phone ? phoneFieldFromE164(me.phone) : emptyPhoneField());
-        setBio(me.profile?.bio?.trim() ?? "");
         setUnitNumber(
           isPlaceholderUnitNumber(me.profile?.unit_number) ? "" : (me.profile?.unit_number?.trim() ?? ""),
         );
@@ -209,10 +236,6 @@ function CompleteProfileInner() {
         setResidenceType(isPlaceholderResidenceType(rawResidence) ? "" : rawResidence);
         setExistingUtilityBillUrl(me.profile?.utility_bill_url ?? null);
         setProfileUser(me);
-
-        const membership = me.memberships?.find((m) => m.role === "admin") ?? me.memberships?.[0];
-        setCommunityName(membership?.community?.name ?? null);
-
         updateUser(meToSessionUser(me));
       })
       .catch(() => setFormError("Could not load your profile. Refresh and try again."))
@@ -232,12 +255,14 @@ function CompleteProfileInner() {
         await uploadUtilityBill(utilityFile);
       }
 
+      const displayName = composePersonName(firstName, lastName);
       const me = await updateMe({
-        display_name: name.trim(),
-        name: name.trim(),
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        display_name: displayName,
+        name: displayName,
         email: email.trim().toLowerCase(),
         phone: phone.e164,
-        bio: bio.trim(),
         ...(fields.showOfficeAddress
           ? { office_address: officeAddress.trim() }
           : {
@@ -262,10 +287,11 @@ function CompleteProfileInner() {
     );
   }
 
-  const nameErr = showError("name", liveErrors);
+  const firstNameErr = showError("firstName", liveErrors);
+  const lastNameErr = showError("lastName", liveErrors);
   const emailErr = showError("email", liveErrors);
+  const combinedNameLength = composePersonName(firstName, lastName).length;
   const phoneErr = showError("phone", liveErrors);
-  const bioErr = showError("bio", liveErrors);
   const unitErr = showError("unitNumber", liveErrors);
   const officeErr = showError("officeAddress", liveErrors);
   const residenceErr = showError("residenceType", liveErrors);
@@ -273,31 +299,31 @@ function CompleteProfileInner() {
   const termsErr = showError("acceptedTerms", liveErrors);
 
   return (
-    <div className="w-full min-w-0">
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[minmax(18rem,26rem)_minmax(0,1fr)]">
-        <aside className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#1B4F8A]">
-            Your profile
-          </p>
-          <h1 className="mt-2 font-[family-name:var(--font-brand)] text-[1.75rem] font-bold tracking-tight text-slate-900 sm:text-[2.1rem]">
-            Complete your profile
-          </h1>
-          <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-600 sm:text-[15px]">
-            {communityName ? (
-              <>
-                Almost there — complete your profile for{" "}
-                <span className="font-semibold text-slate-800">{communityName}</span>.
-              </>
-            ) : (
-              "Tell us about yourself as the community administrator. These details help Havena verify your account."
-            )}
-          </p>
-        </aside>
+    <div className="w-full min-w-0 overflow-x-hidden">
+      <div className="grid w-full min-w-0 items-start gap-6 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] lg:gap-8">
+        <CompleteProfileLiveSummary
+          className="order-2 min-w-0 max-w-full lg:order-1 lg:sticky lg:top-6"
+          firstName={firstName}
+          lastName={lastName}
+          email={email}
+          phone={phone}
+          officeAddress={officeAddress}
+          unitNumber={unitNumber}
+          residenceType={residenceType}
+          utilityFile={utilityFile}
+          existingUtilityBillUrl={existingUtilityBillUrl}
+          utilityPreviewUrl={utilityPreviewUrl}
+          acceptedTerms={acceptedTerms}
+          showOfficeAddress={fields.showOfficeAddress}
+          showUnitNumber={fields.showUnitNumber}
+          showResidenceType={fields.showResidenceType}
+          showUtilityBill={fields.showUtilityBill}
+        />
 
       <form
         onSubmit={onSubmit}
         noValidate
-        className="min-w-0 space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:p-8"
+        className="order-1 min-w-0 max-w-full overflow-hidden space-y-5 rounded-2xl border border-slate-200 bg-white p-4 pb-4 shadow-sm sm:p-6 sm:pb-5 lg:order-2 lg:px-8 lg:pt-8 lg:pb-5"
       >
         {formError ? (
           <div
@@ -308,118 +334,122 @@ function CompleteProfileInner() {
           </div>
         ) : null}
 
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid min-w-0 gap-5 sm:grid-cols-2">
         <OnboardingField
-          id="profile-name"
-          label="Full name"
+          id="profile-first-name"
+          label="First name"
           required
-          error={nameErr}
-          hint="Your name as it appears to residents and system administrators"
+          error={firstNameErr}
         >
           <ClearableInput
-            id="profile-name"
+            id="profile-first-name"
             type="text"
-            autoComplete="name"
-            maxLength={name.length > nameMax ? undefined : nameMax}
+            autoComplete="given-name"
+            maxLength={firstName.length > nameMax ? undefined : nameMax}
             className={inputClass(
-              nameErr,
-              "h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
+              firstNameErr,
+              "h-11 w-full max-w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
             )}
-            value={name}
+            value={firstName}
             onChange={(e) => {
-              setName(applyCharacterLimit(name, e.target.value, nameMax));
-              clearError("name");
+              setFirstName(applyCharacterLimit(firstName, e.target.value, nameMax));
+              clearError("firstName");
               setFormError(null);
             }}
-            onBlur={() => touch("name")}
-            placeholder="Jane Doe"
-            aria-invalid={Boolean(nameErr)}
+            onBlur={() => touch("firstName")}
+            placeholder="Jane"
+            aria-invalid={Boolean(firstNameErr)}
           />
-          {isCommunityAdminProfile && name.length > 0 ? (
-            <p className={`mt-2 text-right text-[11px] tabular-nums ${name.length > nameMax ? "text-red-600" : "text-slate-500"}`}>
-              {name.length} / {nameMax}
+        </OnboardingField>
+
+        <OnboardingField
+          id="profile-last-name"
+          label="Last name"
+          required
+          error={lastNameErr}
+        >
+          <ClearableInput
+            id="profile-last-name"
+            type="text"
+            autoComplete="family-name"
+            maxLength={lastName.length > nameMax ? undefined : nameMax}
+            className={inputClass(
+              lastNameErr,
+              "h-11 w-full max-w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
+            )}
+            value={lastName}
+            onChange={(e) => {
+              setLastName(applyCharacterLimit(lastName, e.target.value, nameMax));
+              clearError("lastName");
+              setFormError(null);
+            }}
+            onBlur={() => touch("lastName")}
+            placeholder="Doe"
+            aria-invalid={Boolean(lastNameErr)}
+          />
+          {isCommunityAdminProfile && combinedNameLength > 0 ? (
+            <p
+              className={`mt-2 text-right text-[11px] tabular-nums ${
+                combinedNameLength > nameMax ? "text-red-600" : "text-slate-500"
+              }`}
+            >
+              {combinedNameLength} / {nameMax} combined
             </p>
           ) : null}
         </OnboardingField>
 
-        <OnboardingField
-          id="profile-email"
-          label="Email address"
-          required
-          error={emailErr}
-          hint="Used for important account notifications."
-        >
-          <ClearableInput
-            id="profile-email"
-            type="email"
-            autoComplete="email"
-            maxLength={COMPLETE_PROFILE_LIMITS.profileEmail}
-            className={inputClass(
-              emailErr,
-              "h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
-            )}
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              clearError("email");
-              setFormError(null);
-            }}
-            onBlur={() => touch("email")}
-            placeholder="you@example.com"
-            aria-invalid={Boolean(emailErr)}
-          />
-        </OnboardingField>
         </div>
 
-        <OnboardingField
-          id="profile-phone"
-          label="Phone number"
-          required
-          hint="Your primary phone number for community-related communication."
-        >
-          <AdminPhoneInput
-            id="profile-phone"
-            value={phone.e164}
+        <div className="grid min-w-0 gap-5 sm:grid-cols-2">
+          <OnboardingField
+            id="profile-email"
+            label="Email address"
             required
-            showError={Boolean(phoneErr)}
-            onChange={(state) => {
-              setPhone(state);
-              clearError("phone");
-              setFormError(null);
-            }}
-            onBlur={() => touch("phone")}
-          />
-        </OnboardingField>
+            error={emailErr}
+          >
+            <ClearableInput
+              id="profile-email"
+              type="email"
+              autoComplete="email"
+              maxLength={COMPLETE_PROFILE_LIMITS.profileEmail}
+              className={inputClass(
+                emailErr,
+                "h-11 w-full max-w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
+              )}
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                clearError("email");
+                setFormError(null);
+              }}
+              onBlur={() => touch("email")}
+              placeholder="you@example.com"
+              aria-invalid={Boolean(emailErr)}
+            />
+          </OnboardingField>
 
-        <OnboardingField
-          id="profile-bio"
-          label="Bio"
-          error={bioErr}
-          hint="Optional — a short introduction for your community"
-        >
-          <ClearableTextarea
-            id="profile-bio"
-            rows={3}
-            maxLength={COMPLETE_PROFILE_LIMITS.profileBio}
-            className={inputClass(
-              bioErr,
-              "min-h-[88px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
-            )}
-            value={bio}
-            onChange={(e) => {
-              setBio(e.target.value);
-              clearError("bio");
-            }}
-            onBlur={() => touch("bio")}
-            placeholder="Community manager for Palm Court HOA…"
-            aria-invalid={Boolean(bioErr)}
-          />
-          {bio.length > 0 ? (
-            <p className="text-[11px] text-slate-500">
-              {bio.length} / {COMPLETE_PROFILE_LIMITS.profileBio} characters
-            </p>
-          ) : null}
-        </OnboardingField>
+          <OnboardingField
+            id="profile-phone"
+            label="Phone number"
+            required
+          >
+            <div className="min-w-0">
+              <AdminPhoneInput
+                id="profile-phone"
+                value={phone.e164}
+                required
+                showHelper={false}
+                showError={Boolean(phoneErr)}
+                onChange={(state) => {
+                  setPhone(state);
+                  clearError("phone");
+                  setFormError(null);
+                }}
+                onBlur={() => touch("phone")}
+              />
+            </div>
+          </OnboardingField>
+        </div>
 
         {fields.showOfficeAddress ? (
           <OnboardingField
@@ -427,7 +457,6 @@ function CompleteProfileInner() {
             label="Office address"
             required
             error={officeErr}
-            hint="The community office address residents can use to reach you"
           >
             <ClearableInput
               id="profile-office"
@@ -435,7 +464,7 @@ function CompleteProfileInner() {
               maxLength={officeAddress.length > officeMax ? undefined : officeMax}
               className={inputClass(
                 officeErr,
-                "h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
+                "h-11 w-full max-w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
               )}
               value={officeAddress}
               onChange={(e) => {
@@ -461,7 +490,6 @@ function CompleteProfileInner() {
           label="Unit number"
           required={fields.unitRequired}
           error={unitErr}
-          hint="Your unit or office identifier within the community"
         >
           <UnitPickerField
             id="profile-unit"
@@ -565,9 +593,10 @@ function CompleteProfileInner() {
           <OnboardingField
             id="profile-utility"
             label="Upload lease or utility bill"
-            required={!existingUtilityBillUrl}
+            required={
+              COMPLETE_PROFILE_UTILITY_BILL_REQUIRED && !existingUtilityBillUrl
+            }
             error={utilityErr}
-            hint="Used to verify you live in this community. JPG, JFIF, PNG, or PDF — 10 MB max."
           >
             <ClearableInput
               ref={fileInputRef}
@@ -583,23 +612,36 @@ function CompleteProfileInner() {
                 setFormError(null);
               }}
             />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className={[
-                "flex min-h-[140px] w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-6 text-center transition",
-                utilityErr
-                  ? "border-red-300 bg-red-50/40"
-                  : utilityFile || existingUtilityBillUrl
-                    ? "border-teal-400 bg-teal-50/50"
-                    : "border-slate-300 bg-slate-50 hover:border-teal-400 hover:bg-teal-50/40",
-              ].join(" ")}
-            >
+            <div className="relative">
+              {hasUtilitySelection ? (
+                <button
+                  type="button"
+                  onClick={clearUtilitySelection}
+                  className="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200/60"
+                  aria-label="Remove uploaded file"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className={[
+                  "flex min-h-[140px] w-full min-w-0 max-w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-dashed px-4 py-6 text-center transition",
+                  utilityErr
+                    ? "border-red-300 bg-red-50/40"
+                    : hasUtilitySelection
+                      ? "border-teal-400 bg-teal-50/50"
+                      : "border-slate-300 bg-slate-50 hover:border-teal-400 hover:bg-teal-50/40",
+                ].join(" ")}
+              >
               {utilityFile ? (
                 isPdfFile(utilityFile) ? (
                   <>
                     <FileText className="h-10 w-10 text-slate-700" />
-                    <p className="text-sm font-medium text-slate-700">{utilityFile.name}</p>
+                    <p className="max-w-full truncate px-2 text-sm font-medium text-slate-700" title={utilityFile.name}>
+                      {utilityFile.name}
+                    </p>
                   </>
                 ) : (
                   <>
@@ -611,7 +653,9 @@ function CompleteProfileInner() {
                         className="max-h-44 w-full rounded-lg object-contain"
                       />
                     ) : null}
-                    <p className="text-xs text-slate-500">{utilityFile.name}</p>
+                    <p className="max-w-full truncate px-2 text-xs text-slate-500" title={utilityFile.name}>
+                      {utilityFile.name}
+                    </p>
                   </>
                 )
               ) : existingUtilityBillUrl ? (
@@ -641,79 +685,69 @@ function CompleteProfileInner() {
                   </p>
                 </>
               )}
-            </button>
+              </button>
+            </div>
             <p className="text-[11px] text-slate-500">
               Verification may take a short time after you submit.
             </p>
           </OnboardingField>
         ) : null}
 
-        <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <button
-            type="button"
-            className="order-2 text-center text-xs font-semibold text-slate-500 transition hover:text-slate-800 sm:order-1 sm:text-left"
-            onClick={() => {
-              void confirmAdminSignOutAndRedirect(router, "/login", {
-                text: COMPLETE_PROFILE_SIGN_OUT_MESSAGE,
-              });
-            }}
-          >
-            Sign out
-          </button>
+        <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="min-w-0 flex-1">
+            <label className="flex cursor-pointer items-center gap-2.5">
+              <ClearableInput
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => {
+                  setAcceptedTerms(e.target.checked);
+                  clearError("acceptedTerms");
+                  if (!e.target.checked) touch("acceptedTerms");
+                }}
+                onBlur={() => touch("acceptedTerms")}
+                className={`h-4 w-4 shrink-0 rounded border-slate-300 text-[#1B4F8A] focus:ring-[#1B4F8A]/30 ${
+                  termsErr ? "border-rose-400" : ""
+                }`}
+                aria-invalid={Boolean(termsErr)}
+                aria-describedby={termsErr ? "accepted-terms-error" : undefined}
+              />
+              <span className="text-[11px] leading-snug text-slate-500">
+                By continuing, you agree to Havena&apos;s{" "}
+                <a
+                  href="/terms-and-conditions"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-[#1B4F8A] underline underline-offset-2 hover:text-[#163A66]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Terms of Service
+                </a>{" "}
+                and{" "}
+                <a
+                  href="/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-[#1B4F8A] underline underline-offset-2 hover:text-[#163A66]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Privacy Policy
+                </a>
+                .
+              </span>
+            </label>
+            {termsErr ? (
+              <p id="accepted-terms-error" className="mt-1 pl-6 text-[11px] text-rose-600">
+                {termsErr}
+              </p>
+            ) : null}
+          </div>
           <button
             type="submit"
             disabled={busy || hasFieldErrors(liveErrors)}
-            className="order-1 inline-flex h-12 w-full items-center justify-center rounded-xl bg-[#1B4F8A] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#163A66] focus:outline-none focus:ring-2 focus:ring-[#1B4F8A]/30 disabled:cursor-not-allowed disabled:opacity-60 sm:order-2 sm:w-auto sm:min-w-[14rem]"
+            className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-[#1B4F8A] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#163A66] focus:outline-none focus:ring-2 focus:ring-[#1B4F8A]/30 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[10.5rem]"
           >
             {busy ? "Saving profile…" : useSimpleSubmitLabel ? "Submit" : "Save & continue"}
           </button>
-        </div>
-        <div className="space-y-1.5">
-          <label className="flex cursor-pointer items-start gap-2.5">
-            <ClearableInput
-              type="checkbox"
-              checked={acceptedTerms}
-              onChange={(e) => {
-                setAcceptedTerms(e.target.checked);
-                clearError("acceptedTerms");
-                if (!e.target.checked) touch("acceptedTerms");
-              }}
-              onBlur={() => touch("acceptedTerms")}
-              className={`mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-[#1B4F8A] focus:ring-[#1B4F8A]/30 ${
-                termsErr ? "border-rose-400" : ""
-              }`}
-              aria-invalid={Boolean(termsErr)}
-              aria-describedby={termsErr ? "accepted-terms-error" : undefined}
-            />
-            <span className="text-[11px] leading-relaxed text-slate-500">
-              By continuing, you agree to Havena&apos;s{" "}
-              <a
-                href="/terms-and-conditions"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-[#1B4F8A] underline underline-offset-2 hover:text-[#163A66]"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Terms of Service
-              </a>{" "}
-              and{" "}
-              <a
-                href="/privacy-policy"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-[#1B4F8A] underline underline-offset-2 hover:text-[#163A66]"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Privacy Policy
-              </a>
-              .
-            </span>
-          </label>
-          {termsErr ? (
-            <p id="accepted-terms-error" className="pl-6 text-[11px] text-rose-600">
-              {termsErr}
-            </p>
-          ) : null}
         </div>
       </form>
       </div>

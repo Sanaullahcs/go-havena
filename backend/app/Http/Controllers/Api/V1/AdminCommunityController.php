@@ -548,6 +548,8 @@ class AdminCommunityController extends Controller
         $validated = $request->validate([
             'user_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
             'name'    => ['nullable', 'string', 'max:100'],
+            'first_name' => ['nullable', 'string', 'min:1', 'max:50', 'required_with:last_name'],
+            'last_name' => ['nullable', 'string', 'min:1', 'max:50', 'required_with:first_name'],
             'email'   => ['nullable', 'email', 'max:255'],
             'phone'   => ['nullable', 'string', 'max:30'],
         ]);
@@ -597,7 +599,17 @@ class AdminCommunityController extends Controller
                 $keepSystemRole = AdminRoleService::isSystemAdmin($existingUser);
             } else {
                 ContactIdentityService::assertAvailableForRegistration($validated['email'], $phone);
-                $displayName = trim($validated['name'] ?? '') ?: 'Neighbor';
+                if ($request->hasAny(['first_name', 'last_name'])) {
+                    $nameParts = \App\Support\PersonName::fromParts(
+                        (string) $request->input('first_name', ''),
+                        (string) $request->input('last_name', ''),
+                        50,
+                    );
+                    $displayName = $nameParts['display_name'];
+                } else {
+                    $displayName = trim($validated['name'] ?? '') ?: 'Neighbor';
+                    $nameParts = null;
+                }
                 $newAdmin = User::query()->create([
                     'name'                   => $displayName,
                     'email'                  => $validated['email'],
@@ -610,6 +622,8 @@ class AdminCommunityController extends Controller
                 Profile::query()->create([
                     'user_id'      => $newAdmin->id,
                     'display_name' => $displayName,
+                    'first_name'   => $nameParts['first_name'] ?? null,
+                    'last_name'    => $nameParts['last_name'] ?? null,
                 ]);
                 $keepSystemRole = false;
                 $createdNewAdmin = true;

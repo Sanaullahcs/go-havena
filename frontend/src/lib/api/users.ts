@@ -5,6 +5,8 @@ export type ProvisionUserType = "community_admin" | "resident";
 export interface ProvisionUserPayload {
   type: ProvisionUserType;
   name?: string;
+  first_name?: string;
+  last_name?: string;
   email: string;
   phone: string;
   region_id: number;

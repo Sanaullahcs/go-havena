@@ -212,6 +212,10 @@ class CommunityAdminAccessService
 
     private function hasRequiredUtilityBill(User $user): bool
     {
+        if (! config('utility_bill.required_on_profile_complete', false)) {
+            return true;
+        }
+
         if (AdminRoleService::isGuest($user) || AdminRoleService::isSystemAdmin($user)) {
             return true;
         }

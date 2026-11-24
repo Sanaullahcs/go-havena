@@ -126,6 +126,34 @@ class SubscriptionPlanAdminService
         return $plan->fresh();
     }
 
+    /**
+     * Create Stripe product/price IDs when the plan row is missing them (e.g. after migrate or slug rename).
+     */
+    public function ensureMissingStripePrices(SubscriptionPlan $plan): SubscriptionPlan
+    {
+        if (! $this->billing->stripeConfigured()) {
+            return $plan;
+        }
+
+        if (filled($plan->stripe_price_monthly) && filled($plan->stripe_price_yearly)) {
+            return $plan;
+        }
+
+        $beforeMonthly = $plan->stripe_price_monthly;
+        $beforeYearly = $plan->stripe_price_yearly;
+
+        $this->syncStripeCatalog($plan, rotateMonthly: false, rotateYearly: false);
+
+        $plan->save();
+        $this->recordCurrentPrices(
+            $plan,
+            ! filled($beforeMonthly) && filled($plan->stripe_price_monthly),
+            ! filled($beforeYearly) && filled($plan->stripe_price_yearly),
+        );
+
+        return $plan->fresh();
+    }
+
     protected function subscriberCount(string $slug): int
     {
         return CommunitySubscription::query()

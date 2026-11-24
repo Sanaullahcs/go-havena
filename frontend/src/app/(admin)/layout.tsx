@@ -315,9 +315,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Onboarding shell: no sidebar until full access is unlocked.
   if (onboardingOnly) {
     const onboardingStep = onboardingStepFromPath(pathname);
+    const setupViewportLock = pathname.startsWith("/admin/setup");
     return (
       <ForegroundNotificationProvider>
-        <div className="min-h-screen overflow-x-hidden bg-[#F6F8FB]">
+        <div
+          className={[
+            "flex flex-col overflow-x-hidden bg-[#F6F8FB]",
+            setupViewportLock ? "h-dvh max-h-dvh overflow-hidden" : "min-h-screen",
+          ].join(" ")}
+        >
           <AdminOnboardingTopBar
             title={title}
             step={onboardingStep}
@@ -334,8 +340,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           />
           <main
             className={[
-              "mx-auto w-full min-w-0 overflow-x-hidden sm:px-6 sm:py-6 lg:px-8 lg:py-8",
-              pathname.startsWith("/admin/billing") ? "px-3 py-3" : "px-4 py-4",
+              "mx-auto w-full min-w-0 overflow-x-hidden",
+              pathname.startsWith("/admin/setup")
+                ? "flex min-h-0 flex-1 flex-col px-3 py-2 sm:px-5 sm:py-3 lg:px-6 lg:py-3"
+                : pathname.startsWith("/admin/billing")
+                  ? "flex min-h-0 flex-1 flex-col px-3 py-2 sm:px-4 sm:py-3"
+                  : "px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8",
             ].join(" ")}
           >
             {children}

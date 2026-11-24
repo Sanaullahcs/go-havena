@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Country;
+use App\Models\Region;
 use App\Models\State;
+use App\Services\AdminRoleService;
 use App\Services\LocationCatalog;
 use App\Services\OpenCityDirectory;
 use App\Support\RegionHierarchy;
@@ -90,19 +92,68 @@ class GeographyController extends Controller
         $region->load('stateRecord.country');
 
         return response()->json([
-            'data' => [
-                'id' => $region->id,
-                'title' => $region->title,
-                'hierarchy_label' => RegionHierarchy::hierarchyLabel($region),
-                'area' => $region->area,
-                'state_id' => $region->state_id,
-                'state_name' => $region->stateRecord?->name ?? $region->state,
-                'country_id' => $region->stateRecord?->country?->id,
-                'country_name' => $region->stateRecord?->country?->name,
-                'is_city_level' => RegionHierarchy::isCityLevelRegion($region),
-                'status' => $region->status,
-            ],
+            'data' => $this->formatResolvedCityRegion($region),
         ]);
+    }
+
+    /** POST /v1/locations/ensure — find or create city region (community admins only). */
+    public function ensureCityRegion(Request $request, LocationCatalog $catalog): JsonResponse
+    {
+        $user = $request->user();
+        if (! AdminRoleService::mayEnsureCityRegion($user)) {
+            return response()->json([
+                'message' => 'Only community admins can create a service region for a city.',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'country_id' => ['nullable', 'integer', 'exists:countries,id'],
+            'state_id' => ['required', 'integer', 'exists:states,id'],
+            'city' => ['required', 'string', 'min:2', 'max:150'],
+        ]);
+
+        $state = State::query()
+            ->where('status', 'active')
+            ->with('country')
+            ->findOrFail((int) $validated['state_id']);
+
+        if (isset($validated['country_id']) && (int) $state->country_id !== (int) $validated['country_id']) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'state_id' => ['State does not belong to the selected country.'],
+            ]);
+        }
+
+        $city = trim($validated['city']);
+        $existed = $catalog->findCityRegion($state, $city) !== null;
+        $region = $catalog->ensureCityRegion($state, $city);
+        $region->load('stateRecord.country');
+
+        return response()->json([
+            'data' => $this->formatResolvedCityRegion($region),
+            'meta' => ['created' => ! $existed],
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatResolvedCityRegion(Region $region): array
+    {
+        $region->loadMissing('stateRecord.country');
+
+        return [
+            'type' => 'region',
+            'id' => $region->id,
+            'title' => $region->title,
+            'hierarchy_label' => RegionHierarchy::hierarchyLabel($region),
+            'area' => $region->area,
+            'state_id' => $region->state_id,
+            'state_name' => $region->stateRecord?->name ?? $region->state,
+            'country_id' => $region->stateRecord?->country?->id,
+            'country_name' => $region->stateRecord?->country?->name,
+            'is_city_level' => RegionHierarchy::isCityLevelRegion($region),
+            'status' => $region->status,
+        ];
     }
 
     /** GET /v1/admin/countries */

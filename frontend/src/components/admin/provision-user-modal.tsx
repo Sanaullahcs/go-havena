@@ -18,8 +18,13 @@ import { useResidentInviteEmailStep } from "@/lib/admin/use-resident-invite-emai
 import { lookupResidentForInvite, type MemberInviteResult } from "@/lib/api/members";
 import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
 import {
+  COMMUNITY_ADMIN_NAME_MAX,
+} from "@/lib/admin/community-admin-field-limits";
+import { composePersonName } from "@/lib/admin/person-name";
+import {
   hasProvisionErrors,
   provisionInputClass,
+  provisionNameCharacterLimit,
   validateCommunityAdminForm,
   validateResidentForm,
   type ProvisionFieldErrors,
@@ -33,7 +38,8 @@ import { alertError, confirmAction, toastError, toastSuccess } from "@/lib/alert
 import { CommunityAddressPicker } from "@/components/admin/community-address-picker";
 
 const emptyAdminForm = {
-  name: "",
+  firstName: "",
+  lastName: "",
   email: "",
   phone: "",
   region_id: "" as number | "",
@@ -106,6 +112,7 @@ export function ProvisionUserModal({
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<ProvisionFieldErrors>({});
   const [touched, setTouched] = useState<TouchedFields>({});
+  const [focused, setFocused] = useState<TouchedFields>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [assignmentSource, setAssignmentSource] = useState<AssignmentSource>("create");
   const [existingAdmins, setExistingAdmins] = useState<CommunityAdminApplicant[]>([]);
@@ -189,6 +196,7 @@ export function ProvisionUserModal({
       setSubmitting(false);
       setErrors({});
       setTouched({});
+      setFocused({});
       setSubmitAttempted(false);
       setAssignmentSource("create");
       setExistingAdmins([]);
@@ -242,6 +250,15 @@ export function ProvisionUserModal({
 
   const touch = (field: string) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const focusField = (field: string) => {
+    setFocused((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const blurField = (field: string) => {
+    setFocused((prev) => ({ ...prev, [field]: false }));
+    touch(field);
   };
 
   const clearFieldError = (field: string) => {
@@ -371,7 +388,8 @@ export function ProvisionUserModal({
         }
 
         const res = await assignCommunityAdmin(presetCommunity.id, {
-          name: adminForm.name.trim() || undefined,
+          first_name: adminForm.firstName.trim(),
+          last_name: adminForm.lastName.trim(),
           email: adminForm.email.trim(),
           phone: adminPhone.e164,
         });
@@ -406,7 +424,8 @@ export function ProvisionUserModal({
           adminForm.community_mode === "existing"
             ? {
                 type: "community_admin",
-                name: adminForm.name.trim() || undefined,
+                first_name: adminForm.firstName.trim(),
+                last_name: adminForm.lastName.trim(),
                 email: adminForm.email.trim(),
                 phone: adminPhone.e164,
                 region_id: Number(adminForm.region_id),
@@ -414,7 +433,8 @@ export function ProvisionUserModal({
               }
             : {
                 type: "community_admin",
-                name: adminForm.name.trim() || undefined,
+                first_name: adminForm.firstName.trim(),
+                last_name: adminForm.lastName.trim(),
                 email: adminForm.email.trim(),
                 phone: adminPhone.e164,
                 region_id: Number(adminForm.region_id),
@@ -463,6 +483,16 @@ export function ProvisionUserModal({
 
   const liveErrors = useMemo(() => collectLiveErrors(), [collectLiveErrors]);
 
+  const showValidationError = useCallback(
+    (field: string): string | undefined => {
+      const message = liveErrors[field as keyof ProvisionFieldErrors];
+      if (!message) return undefined;
+      if (submitAttempted || touched[field] || focused[field]) return message;
+      return undefined;
+    },
+    [liveErrors, submitAttempted, touched, focused],
+  );
+
   const canSubmit = !hasProvisionErrors(liveErrors);
 
   const handleResidentEmailContinue = async () => {
@@ -495,6 +525,12 @@ export function ProvisionUserModal({
     [communities],
   );
 
+  const adminCombinedNameLength = useMemo(
+    () => composePersonName(adminForm.firstName, adminForm.lastName).length,
+    [adminForm.firstName, adminForm.lastName],
+  );
+  const adminNameMax = COMMUNITY_ADMIN_NAME_MAX;
+
   if (!open) return null;
 
   const title = isPresetAssign
@@ -510,7 +546,7 @@ export function ProvisionUserModal({
         ? "Start with the resident’s email address."
         : "Add a resident to an existing community.";
 
-  const nameValue = type === "community_admin" ? adminForm.name : residentForm.name;
+  const nameValue = residentForm.name;
   const emailValue = type === "community_admin" ? adminForm.email : residentForm.email;
   const regionValue = type === "community_admin" ? adminForm.region_id : residentForm.region_id;
 
@@ -680,34 +716,95 @@ export function ProvisionUserModal({
             </div>
           ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Full name" required error={liveErrors.name}>
-              <ClearableInput
-                data-field="name"
-                className={provisionInputClass(liveErrors.name)}
-                value={nameValue}
-                maxLength={100}
-                onBlur={() => {
-                  touch("name");
-                  const next =
-                    type === "community_admin"
-                      ? validateCommunityAdminForm(adminForm, adminPhone)
-                      : validateResidentForm(residentForm, residentPhone);
-                  setErrors((prev) => ({ ...prev, name: next.name }));
-                }}
-                readOnly={type === "resident" && residentProfileLocked}
-                onChange={(e) => {
-                  if (type === "resident" && residentProfileLocked) return;
-                  if (type === "community_admin") {
-                    setAdminForm((f) => ({ ...f, name: e.target.value }));
-                  } else {
-                    setResidentForm((f) => ({ ...f, name: e.target.value }));
-                  }
-                }}
-                placeholder="e.g. Ahmed Hassan"
-              />
-            </Field>
             {type === "community_admin" ? (
-            <Field label="Email address" required error={showError("email") ? errors.email : undefined}>
+              <>
+                <Field label="First name" required error={showValidationError("firstName")}>
+                  <ClearableInput
+                    data-field="firstName"
+                    className={provisionInputClass(showValidationError("firstName"))}
+                    value={adminForm.firstName}
+                    maxLength={adminForm.firstName.length > adminNameMax ? undefined : adminNameMax}
+                    onFocus={() => focusField("firstName")}
+                    onBlur={() => {
+                      blurField("firstName");
+                      const next = validateCommunityAdminForm(adminForm, adminPhone);
+                      setErrors((prev) => ({
+                        ...prev,
+                        firstName: next.firstName,
+                        lastName: next.lastName,
+                      }));
+                    }}
+                    onChange={(e) => {
+                      clearFieldError("firstName");
+                      setAdminForm((f) => ({
+                        ...f,
+                        firstName: provisionNameCharacterLimit(f.firstName, e.target.value, adminNameMax),
+                      }));
+                    }}
+                    placeholder="Ahmed"
+                  />
+                </Field>
+                <Field label="Last name" required error={showValidationError("lastName")}>
+                  <ClearableInput
+                    data-field="lastName"
+                    className={provisionInputClass(showValidationError("lastName"))}
+                    value={adminForm.lastName}
+                    maxLength={adminForm.lastName.length > adminNameMax ? undefined : adminNameMax}
+                    onFocus={() => focusField("lastName")}
+                    onBlur={() => {
+                      blurField("lastName");
+                      const next = validateCommunityAdminForm(adminForm, adminPhone);
+                      setErrors((prev) => ({
+                        ...prev,
+                        firstName: next.firstName,
+                        lastName: next.lastName,
+                      }));
+                    }}
+                    onChange={(e) => {
+                      clearFieldError("lastName");
+                      setAdminForm((f) => ({
+                        ...f,
+                        lastName: provisionNameCharacterLimit(f.lastName, e.target.value, adminNameMax),
+                      }));
+                    }}
+                    placeholder="Hassan"
+                  />
+                  {adminCombinedNameLength > 0 ? (
+                    <p
+                      className={[
+                        "mt-1.5 text-right text-[11px] tabular-nums",
+                        adminCombinedNameLength > adminNameMax ? "text-red-600" : "text-slate-400",
+                      ].join(" ")}
+                    >
+                      {adminCombinedNameLength} / {adminNameMax} combined
+                    </p>
+                  ) : null}
+                </Field>
+              </>
+            ) : (
+              <Field label="Full name" required error={showValidationError("name")}>
+                <ClearableInput
+                  data-field="name"
+                  className={provisionInputClass(showValidationError("name"))}
+                  value={nameValue}
+                  maxLength={100}
+                  onFocus={() => focusField("name")}
+                  onBlur={() => {
+                    blurField("name");
+                    const next = validateResidentForm(residentForm, residentPhone);
+                    setErrors((prev) => ({ ...prev, name: next.name }));
+                  }}
+                  readOnly={residentProfileLocked}
+                  onChange={(e) => {
+                    if (residentProfileLocked) return;
+                    setResidentForm((f) => ({ ...f, name: e.target.value }));
+                  }}
+                  placeholder="e.g. Ahmed Hassan"
+                />
+              </Field>
+            )}
+            {type === "community_admin" ? (
+            <Field label="Email address" required error={showError("email") ? errors.email : undefined} className="sm:col-span-2">
               <ClearableInput
                 data-field="email"
                 type="email"

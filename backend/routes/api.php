@@ -157,6 +157,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/me/avatar',         [ProfileController::class, 'uploadAvatar']);
         Route::post('/me/utility-bill',   [ProfileController::class, 'uploadUtilityBill']);
         Route::put('/me/password',        [ProfileController::class, 'changePassword']);
+        Route::post('/locations/ensure',  [GeographyController::class, 'ensureCityRegion']);
 
         /* Points & leaderboard */
         Route::middleware('resident.feature:points')->group(function () {

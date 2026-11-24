@@ -18,7 +18,11 @@ import { getCurrentRole } from "../../../constants/role-session";
 import { saveRegionSelection } from "../../../services/auth-api";
 import { ionChevronForward } from "../../../utils/rtl";
 import { normalizeRegion } from "../../../services/regions-api";
-import { prefetchCountries, findCityRegion } from "../../../services/geography-api";
+import {
+  prefetchCountries,
+  findCityRegion,
+  findOrEnsureCityRegionForCommunityAdmin,
+} from "../../../services/geography-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import BackButton from "../../../components/ui/back-button";
 import RegionFilterSheet, {
@@ -76,11 +80,19 @@ export default function RegionScreen() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    findCityRegion({
-      countryId: countryFilter?.id,
-      stateId: stateFilter.id,
-      city: cityFilter.name,
-    })
+    const resolveRegion = isResident
+      ? findCityRegion({
+          countryId: countryFilter?.id,
+          stateId: stateFilter.id,
+          city: cityFilter.name,
+        })
+      : findOrEnsureCityRegionForCommunityAdmin({
+          countryId: countryFilter?.id,
+          stateId: stateFilter.id,
+          city: cityFilter.name,
+        });
+
+    resolveRegion
       .then((row) => {
         if (!cancelled) {
           if (row) {
@@ -109,7 +121,7 @@ export default function RegionScreen() {
     return () => {
       cancelled = true;
     };
-  }, [countryFilter?.id, stateFilter?.id, cityFilter?.name]);
+  }, [countryFilter?.id, stateFilter?.id, cityFilter?.name, isResident, t]);
 
   const handleRegionSelect = async (region) => {
     if (!region?.id || selectingId) return;

@@ -8,6 +8,7 @@ import { getPhoneValidationError } from "./phone";
 import { normalizeGuestPermissions } from "../constants/guest-permissions";
 import i18n from "../i18n";
 import { noticePlainTextError } from "./notice-text-validation";
+import { composePersonName, splitPersonName } from "./person-name";
 import { isScheduleEndBeforeStart, resolveEffectiveEndDate } from "./notice-schedule-window";
 
 export const LIMITS = {
@@ -405,6 +406,9 @@ export function defaultEndTimeFromStart(startDate) {
 }
 
 export function validateCompleteProfileForm({
+  firstName: firstNameInput,
+  lastName: lastNameInput,
+  /** @deprecated Legacy single full-name field */
   name,
   email,
   phoneDigits,
@@ -428,11 +432,35 @@ export function validateCompleteProfileForm({
   const unitIsRequired = requireUnitNumber ?? (!guestMode && !communityAdmin);
   const officeIsRequired = requireOfficeAddress ?? communityAdmin;
 
-  const nameErr = requiredText(name, "validation.fields.fullName", { min: 2, max: nameMax });
-  if (nameErr) {
-    errors.name = communityAdmin && exceedsCharacterLimit(name, nameMax)
-      ? i18n.t("validation.communityAdminNameMax")
-      : nameErr;
+  const legacyName = String(name ?? "").trim();
+  const firstName =
+    String(firstNameInput ?? "").trim()
+    || (legacyName ? splitPersonName(legacyName).firstName : "");
+  const lastName =
+    String(lastNameInput ?? "").trim()
+    || (legacyName ? splitPersonName(legacyName).lastName : "");
+
+  const firstErr = requiredText(firstName, "validation.fields.firstName", { min: 1, max: nameMax });
+  if (firstErr) {
+    errors.firstName =
+      communityAdmin && exceedsCharacterLimit(firstName, nameMax)
+        ? i18n.t("validation.communityAdminNameMax")
+        : firstErr;
+  }
+
+  const lastErr = requiredText(lastName, "validation.fields.lastName", { min: 1, max: nameMax });
+  if (lastErr) {
+    errors.lastName =
+      communityAdmin && exceedsCharacterLimit(lastName, nameMax)
+        ? i18n.t("validation.communityAdminNameMax")
+        : lastErr;
+  }
+
+  const combinedName = composePersonName(firstName, lastName);
+  if (combinedName && communityAdmin && combinedName.length > nameMax) {
+    errors.lastName = i18n.t("validation.communityAdminNameMax");
+  } else if (combinedName && !communityAdmin && combinedName.length > nameMax) {
+    errors.lastName = i18n.t("validation.profileNameCombinedMax", { max: nameMax });
   }
 
   const emailErr = validateUserEmail(email);

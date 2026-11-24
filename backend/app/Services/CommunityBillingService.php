@@ -580,6 +580,28 @@ class CommunityBillingService
         return new StripeClient(config('billing.stripe.secret'));
     }
 
+    protected function provisionMissingStripePricesForPlan(string $planSlug): void
+    {
+        if (! (bool) config('billing.stripe.auto_provision_missing_prices', true)) {
+            return;
+        }
+
+        if (! $this->stripeConfigured() || ! Schema::hasTable('subscription_plans')) {
+            return;
+        }
+
+        $row = SubscriptionPlan::query()->where('slug', $planSlug)->first();
+        if (! $row) {
+            return;
+        }
+
+        if (filled($row->stripe_price_monthly) && filled($row->stripe_price_yearly)) {
+            return;
+        }
+
+        app(SubscriptionPlanAdminService::class)->ensureMissingStripePrices($row);
+    }
+
     public function createCheckoutSession(
         Community $community,
         User $admin,
@@ -631,6 +653,14 @@ class CommunityBillingService
 
         if (! $this->stripeConfigured()) {
             throw BillingException::stripeNotConfigured();
+        }
+
+        if (! filled($priceId)) {
+            $this->provisionMissingStripePricesForPlan($planSlug);
+            $plan = $this->assertPlanAvailable($this->plan($planSlug), $existing);
+            $priceId = $interval === 'year'
+                ? ($plan['stripe_price_yearly'] ?? null)
+                : ($plan['stripe_price_monthly'] ?? null);
         }
 
         if (! filled($priceId)) {

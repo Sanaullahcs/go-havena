@@ -67,18 +67,37 @@ class CommunityController extends Controller
         }
 
         $lifecycle = app(CommunityLifecycleService::class);
+        $mapRow = fn (Community $c) => [
+            'id' => $c->id,
+            'name' => $c->name,
+            'region' => $c->region,
+            'region_id' => $c->region_id,
+            'description' => $c->description,
+            'address' => $c->address,
+            'has_admin' => $lifecycle->hasCommunityAdminAssigned($c),
+        ];
+
+        if ($request->has('page') || $request->has('per_page')) {
+            $perPage = min(max($request->integer('per_page', 15), 1), 50);
+            $page = max($request->integer('page', 1), 1);
+            $paginator = $query->orderBy('name')->paginate($perPage, ['*'], 'page', $page);
+
+            return response()->json([
+                'data' => $paginator->getCollection()->map($mapRow)->values(),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'has_more' => $paginator->currentPage() < $paginator->lastPage(),
+                ],
+            ]);
+        }
+
         $communities = $query->orderBy('name')->limit(50)->get();
 
         return response()->json([
-            'data' => $communities->map(fn (Community $c) => [
-                'id' => $c->id,
-                'name' => $c->name,
-                'region' => $c->region,
-                'region_id' => $c->region_id,
-                'description' => $c->description,
-                'address' => $c->address,
-                'has_admin' => $lifecycle->hasCommunityAdminAssigned($c),
-            ]),
+            'data' => $communities->map($mapRow)->values(),
         ]);
     }
 

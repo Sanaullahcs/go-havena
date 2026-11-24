@@ -78,6 +78,9 @@ export function shouldUseSimpleCompleteProfileSubmit(
   return false;
 }
 
+/** When false, lease/utility upload is shown but not required to submit (temporary). */
+export const COMPLETE_PROFILE_UTILITY_BILL_REQUIRED = false;
+
 /**
  * Utility bill is required for every resident and community-admin path.
  * Guests are the only role that skips it.

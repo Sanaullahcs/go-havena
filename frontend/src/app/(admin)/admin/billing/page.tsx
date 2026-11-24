@@ -147,7 +147,7 @@ function PlanPriceStack({
   note?: string | null;
 }) {
   return (
-    <div className="mt-4 rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white px-3.5 py-3.5">
+    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/50 px-3.5 py-3.5">
       <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Plan price</p>
       <p className="mt-1 font-[family-name:var(--font-brand)] text-[2rem] font-bold leading-none tracking-tight text-slate-900">
         {formatMoney(priceCents, currency)}
@@ -182,86 +182,58 @@ function OnboardingBillingHero({
   trialEligible: boolean;
 }) {
   const steps = trialEligible
-    ? [
-        { label: "Today", value: "Save a card" },
-        { label: "After approval", value: `${trialDays}-day trial` },
-        { label: `Day ${trialDays + 1}+`, value: "First charge" },
-      ]
-    : [
-        { label: "Today", value: "Save a card" },
-        { label: "After approval", value: "Paid plan starts" },
-        { label: "Ongoing", value: "Recurring billing" },
-      ];
+    ? ["Save card", `Trial after approval (${trialDays}d)`, "First charge after trial"]
+    : ["Save card", "Paid plan after approval", "Recurring billing"];
 
   return (
-    <section className="relative overflow-hidden rounded-2xl bg-[#1B4F8A] px-4 py-5 text-white sm:rounded-[28px] sm:px-8 sm:py-8 lg:px-10 lg:py-9">
-      <div
-        className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-white/10 blur-3xl"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-teal-300/20 blur-3xl"
-        aria-hidden
-      />
-
-      <div className="relative grid min-w-0 items-end gap-5 sm:gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(16rem,20rem)]">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-teal-100 ring-1 ring-white/15">
-              {trialEligible ? <Gift className="h-3 w-3" aria-hidden /> : <CreditCard className="h-3 w-3" aria-hidden />}
-              {trialEligible ? `First ${trialDays} days on us` : "Paid subscription"}
-            </span>
-            <span className="max-w-full truncate text-[13px] font-medium text-white/70">{communityName}</span>
-          </div>
-          <h1 className="mt-3 max-w-2xl font-[family-name:var(--font-brand)] text-[1.45rem] font-bold leading-[1.12] tracking-tight sm:mt-4 sm:text-[2.55rem] sm:leading-[1.08]">
-            {trialEligible
-              ? priceLabel
-                ? `${priceLabel} — try it first`
-                : "See the full plan. Try it first."
-              : "Restart billing on your plan"}
-          </h1>
-          <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-white/72 sm:text-[15px]">
-            {trialEligible
-              ? "Pick a seat pack, then add a card. The trial clock starts only after Havena approves you — the first charge is after that trial ends."
-              : "Your community already used its one-time free trial. Add a card to resume a paid plan after approval."}
-          </p>
-          <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[12px] text-white/75">
-            <li className="inline-flex items-center gap-1.5">
-              <Check className="h-3.5 w-3.5 text-teal-200" aria-hidden />
-              {trialEligible ? "Cancel anytime during trial" : "No second free trial"}
-            </li>
-            <li className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-teal-200" aria-hidden />
-              Secured by Stripe
-            </li>
-            <li className="inline-flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 text-teal-200" aria-hidden />
-              Residents never pay Havena
-            </li>
-          </ul>
+    <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5 sm:py-5">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+            {trialEligible ? <Gift className="h-3 w-3 text-slate-500" aria-hidden /> : <CreditCard className="h-3 w-3 text-slate-500" aria-hidden />}
+            {trialEligible ? `${trialDays}-day trial` : "Paid subscription"}
+          </span>
+          <span className="max-w-full truncate text-[12px] text-slate-500">{communityName}</span>
         </div>
+        <h1 className="mt-2 font-[family-name:var(--font-brand)] text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+          {trialEligible
+            ? priceLabel
+              ? `${priceLabel} — start with a trial`
+              : "Pick a plan and add your card"
+            : "Restart billing"}
+        </h1>
+        <p className="mt-1.5 max-w-2xl text-[13px] leading-relaxed text-slate-600">
+          {trialEligible
+            ? "Choose a seat pack, then enter card details. The trial begins after Havena approves your community."
+            : "This community already used its free trial. Add a card to continue on a paid plan after approval."}
+        </p>
 
-        <ol className="relative grid grid-cols-3 gap-2 lg:block lg:space-y-0">
+        <ol className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-600">
           {steps.map((step, index) => (
-            <li key={step.label} className="flex min-w-0 gap-2 lg:gap-3">
-              <div className="hidden w-6 flex-col items-center lg:flex">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[11px] font-bold text-[#1B4F8A]">
-                  {index + 1}
-                </span>
-                {index < steps.length - 1 ? <span className="w-px flex-1 bg-white/25" aria-hidden /> : null}
-              </div>
-              <div className={index < steps.length - 1 ? "lg:pb-4" : ""}>
-                <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-teal-100/90 sm:text-[10px]">
-                  <span className="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white text-[9px] font-bold text-[#1B4F8A] lg:hidden">
-                    {index + 1}
-                  </span>
-                  {step.label}
-                </p>
-                <p className="mt-0.5 text-[12px] font-semibold leading-snug sm:text-[14px]">{step.value}</p>
-              </div>
+            <li
+              key={step}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50/80 px-2 py-1"
+            >
+              <span className="font-semibold tabular-nums text-slate-400">{index + 1}.</span>
+              {step}
             </li>
           ))}
         </ol>
+
+        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+          <span className="inline-flex items-center gap-1">
+            <ShieldCheck className="h-3 w-3" aria-hidden />
+            Stripe secure checkout
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Users className="h-3 w-3" aria-hidden />
+            Residents join free
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Check className="h-3 w-3" aria-hidden />
+            {trialEligible ? "Cancel during trial" : "No second trial"}
+          </span>
+        </p>
       </div>
     </section>
   );
@@ -293,7 +265,7 @@ function BillingIntervalToggle({
           className={[
             "flex-1 rounded-full px-4 py-2 text-[12px] font-semibold transition sm:flex-none sm:min-w-[7.5rem]",
             interval === value
-              ? "bg-white text-slate-900 shadow-sm"
+              ? "bg-[#1B4F8A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900",
           ].join(" ")}
         >
@@ -302,7 +274,7 @@ function BillingIntervalToggle({
             <span
               className={[
                 "ml-1.5 text-[10px] font-bold uppercase tracking-wide",
-                interval === "year" ? "text-teal-700" : "text-teal-600",
+                interval === "year" ? "text-white/85" : "text-slate-500",
               ].join(" ")}
             >
               Save
@@ -334,8 +306,6 @@ function OnboardingPlanOption({
       ? Math.max(0, plan.price_monthly_cents * 12 - plan.price_yearly_cents)
       : 0;
 
-  const featured = selected;
-
   return (
     <button
       type="button"
@@ -343,92 +313,61 @@ function OnboardingPlanOption({
       aria-checked={selected}
       onClick={onSelect}
       className={[
-        "relative flex h-full w-full min-w-0 flex-col rounded-2xl p-4 text-left transition-all duration-200 sm:rounded-[24px] sm:p-6",
-        featured
-          ? "bg-[#1B4F8A] text-white shadow-[0_18px_40px_-18px_rgba(27,79,138,0.55)] ring-1 ring-[#1B4F8A]"
-          : "bg-white text-slate-900 ring-1 ring-slate-200 hover:ring-[#1B4F8A]/35",
+        "relative flex h-full w-full min-w-0 flex-col rounded-lg border p-3.5 text-left transition-colors sm:p-4",
+        selected
+          ? "border-[#1B4F8A] bg-white ring-1 ring-[#1B4F8A]/25"
+          : "border-slate-200 bg-white hover:border-slate-300",
       ].join(" ")}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           {plan.recommended ? (
-            <span
-              className={[
-                "mb-2 inline-flex rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em]",
-                featured ? "bg-white/15 text-teal-100" : "bg-[#1B4F8A] text-white",
-              ].join(" ")}
-            >
-              Most chosen
-            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Recommended</span>
           ) : (
-            <span className={["mb-2 inline-flex text-[9px] font-bold uppercase tracking-[0.14em]", featured ? "text-white/50" : "text-slate-400"].join(" ")}>
-              Seat pack
-            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Seat pack</span>
           )}
-          <p className="font-[family-name:var(--font-brand)] text-[1.4rem] font-bold leading-none tracking-tight sm:text-[1.65rem]">
+          <p className="mt-0.5 font-[family-name:var(--font-brand)] text-lg font-semibold tracking-tight text-slate-900">
             {plan.name}
           </p>
-          <p className={["mt-2 text-[13px] leading-snug", featured ? "text-white/70" : "text-slate-500"].join(" ")}>
-            {plan.description}
-          </p>
+          <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-slate-500">{plan.description}</p>
         </div>
         <span
           className={[
-            "mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2",
-            selected
-              ? featured
-                ? "border-white bg-white text-[#1B4F8A]"
-                : "border-[#1B4F8A] bg-[#1B4F8A] text-white"
-              : featured
-                ? "border-white/40"
-                : "border-slate-300",
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+            selected ? "border-[#1B4F8A] bg-[#1B4F8A] text-white" : "border-slate-300 bg-white",
           ].join(" ")}
           aria-hidden
         >
-          {selected ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : null}
+          {selected ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
         </span>
       </div>
 
-      <div className="mt-6">
-        <p className="font-[family-name:var(--font-brand)] text-[1.85rem] font-bold leading-none tracking-tight sm:text-[2.4rem]">
+      <div className="mt-3 border-t border-slate-100 pt-3">
+        <p className="text-2xl font-semibold leading-none tracking-tight text-slate-900">
           {formatMoney(price, plan.currency)}
-          <span className={["ml-1 text-[15px] font-medium", featured ? "text-white/60" : "text-slate-400"].join(" ")}>
-            /{periodShort}
-          </span>
+          <span className="ml-0.5 text-sm font-medium text-slate-400">/{periodShort}</span>
         </p>
         {trialEligible ? (
-          <p className={["mt-2 text-[12px] font-semibold", featured ? "text-teal-100" : "text-[#1B4F8A]"].join(" ")}>
-            First {planTrialDays(plan)} days on us
-          </p>
+          <p className="mt-1 text-[11px] text-slate-600">First {planTrialDays(plan)} days free</p>
         ) : (
-          <p className={["mt-2 text-[12px] leading-snug", featured ? "text-white/65" : "text-slate-500"].join(" ")}>
-            Paid after approval — trial already used
-          </p>
+          <p className="mt-1 text-[11px] text-slate-500">Billed after approval</p>
         )}
         {yearlySavings > 0 ? (
-          <p className={["mt-1 text-[11px] font-semibold", featured ? "text-teal-100" : "text-emerald-700"].join(" ")}>
+          <p className="mt-0.5 text-[10px] text-slate-500">
             Save {formatMoney(yearlySavings, plan.currency)}/yr vs monthly
           </p>
         ) : null}
       </div>
 
-      <p
-        className={[
-          "mt-5 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold",
-          featured ? "bg-white/12 text-white" : "bg-slate-100 text-slate-700",
-        ].join(" ")}
-      >
-        <Users className="h-3.5 w-3.5" aria-hidden />
-        {plan.seat_limit} resident seats
+      <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+        <Users className="h-3 w-3 text-slate-400" aria-hidden />
+        {plan.seat_limit} seats
       </p>
 
-      <ul className="mt-5 space-y-2">
-        {planHighlights(plan, trialEligible).map((item) => (
-          <li
-            key={item}
-            className={["flex items-start gap-2 text-[13px] leading-snug", featured ? "text-white/80" : "text-slate-600"].join(" ")}
-          >
-            <Check className={["mt-0.5 h-3.5 w-3.5 shrink-0", featured ? "text-teal-200" : "text-[#1B4F8A]"].join(" ")} aria-hidden />
+      <ul className="mt-2 space-y-1 border-t border-slate-100 pt-2">
+        {planHighlights(plan, trialEligible).slice(0, 3).map((item) => (
+          <li key={item} className="flex items-start gap-1.5 text-[11px] leading-snug text-slate-600">
+            <Check className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" aria-hidden />
             {item}
           </li>
         ))}
@@ -468,24 +407,22 @@ function OnboardingPlanPicker({
     : 0;
 
   return (
-    <section className="space-y-5">
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+    <section className="space-y-4">
+      <div className="flex flex-col items-start justify-between gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-center">
         <div className="min-w-0">
-          <h2 className="font-[family-name:var(--font-brand)] text-[1.35rem] font-bold tracking-tight text-slate-900">
-            Choose a seat pack
-          </h2>
-          <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-slate-500">
+          <h2 className="text-base font-semibold tracking-tight text-slate-900 sm:text-lg">Seat packs</h2>
+          <p className="mt-0.5 max-w-xl text-[12px] leading-relaxed text-slate-500">
             {estimatedHint ??
               (trialEligible
-                ? `Same trial on every plan. You only pay if you keep it after ${planTrialDays(selectedPlan)} days.`
-                : "Pick the seat pack that fits your community. Billing starts after approval.")}
+                ? `Trial included on every plan (${planTrialDays(selectedPlan)} days).`
+                : "Billing starts after platform approval.")}
           </p>
         </div>
-        <BillingIntervalToggle interval={interval} onChange={onIntervalChange} />
+        <BillingIntervalToggle interval={interval} onChange={onIntervalChange} className="shrink-0" />
       </div>
 
       <div
-        className="grid grid-cols-1 gap-4 lg:grid-cols-3"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
         role="radiogroup"
         aria-label="Subscription plans"
       >
@@ -503,10 +440,10 @@ function OnboardingPlanPicker({
 
       {selectedPlan ? (
         <>
-          <div className="hidden items-center justify-between gap-4 rounded-[22px] bg-[#1B4F8A] px-5 py-4 text-white sm:flex">
+          <div className="sticky bottom-0 z-20 hidden items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-teal-100">Ready to continue</p>
-              <p className="mt-1 truncate text-[15px] font-semibold">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Selected</p>
+              <p className="truncate text-sm font-semibold text-slate-900">
                 {selectedPlan.name} · {formatMoney(selectedPrice, selectedPlan.currency)}/{interval === "year" ? "yr" : "mo"}
               </p>
             </div>
@@ -514,38 +451,36 @@ function OnboardingPlanPicker({
               type="button"
               disabled={busy || checkoutDisabled}
               onClick={() => onCheckout(selectedPlan.slug)}
-              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-[#1B4F8A] shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#1B4F8A] px-4 text-sm font-semibold text-white transition hover:bg-[#163A66] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {busy ? "Starting checkout…" : "Continue to card details"}
+              {busy ? "Starting checkout…" : "Add card"}
               {!busy ? <ArrowRight className="h-4 w-4" aria-hidden /> : null}
             </button>
           </div>
 
-          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:hidden">
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-2px_12px_rgba(15,23,42,0.06)] sm:hidden">
             <div className="flex min-w-0 items-center gap-3">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-bold text-slate-900">{selectedPlan.name}</p>
+                <p className="truncate text-[13px] font-semibold text-slate-900">{selectedPlan.name}</p>
                 <p className="truncate text-[11px] text-slate-500">
-                  {trialEligible
-                    ? `${formatMoney(selectedPrice, selectedPlan.currency)}/${interval === "year" ? "yr" : "mo"} · first ${planTrialDays(selectedPlan)} days on us`
-                    : `${formatMoney(selectedPrice, selectedPlan.currency)}/${interval === "year" ? "yr" : "mo"} after approval`}
+                  {formatMoney(selectedPrice, selectedPlan.currency)}/{interval === "year" ? "yr" : "mo"}
                 </p>
               </div>
               <button
                 type="button"
                 disabled={busy || checkoutDisabled}
                 onClick={() => onCheckout(selectedPlan.slug)}
-                className="inline-flex h-11 min-w-[6.75rem] shrink-0 items-center justify-center rounded-xl bg-[#1B4F8A] px-3 text-[13px] font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-10 min-w-[5.5rem] shrink-0 items-center justify-center rounded-lg bg-[#1B4F8A] px-3 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {busy ? "Starting…" : "Add card"}
+                {busy ? "…" : "Add card"}
               </button>
             </div>
           </div>
-          <div className="h-20 sm:hidden" aria-hidden />
+          <div className="h-[4.5rem] sm:hidden" aria-hidden />
         </>
       ) : null}
 
-      <p className="text-center text-[11px] leading-relaxed text-slate-500 sm:text-[12px]">
+      <p className="pb-1 text-center text-[10px] leading-relaxed text-slate-400 sm:text-[11px]">
         {trialEligible
           ? `By continuing you agree to enter a card. Havena charges that card after ${planTrialDays(selectedPlan)} days unless you cancel. Secure checkout powered by Stripe.`
           : "By continuing you agree to enter a card for a paid subscription. Billing starts after system approval. Secure checkout powered by Stripe."}
@@ -583,9 +518,9 @@ function PlanCard({
       className={[
         "relative flex h-full flex-col rounded-2xl border p-5 transition-all duration-200",
         selected
-          ? "border-teal-500 bg-gradient-to-b from-teal-50/90 to-white shadow-md ring-2 ring-teal-500/25"
-          : "border-slate-200 bg-white hover:border-teal-200 hover:shadow-sm",
-        plan.recommended && !selected ? "border-teal-200/80" : "",
+          ? "border-[#1B4F8A] bg-white shadow-sm ring-1 ring-[#1B4F8A]/20"
+          : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm",
+        plan.recommended && !selected ? "border-slate-300" : "",
       ].join(" ")}
     >
       {plan.recommended ? (
@@ -1065,7 +1000,7 @@ function BillingPageInner() {
         </header>
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="h-1.5 bg-gradient-to-r from-[#1B4F8A] via-teal-600 to-teal-400" aria-hidden />
+          <div className="h-0.5 bg-slate-200" aria-hidden />
           <div className="p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
@@ -1079,7 +1014,7 @@ function BillingPageInner() {
                   Billing is not required here. Invite as many residents as you need — there is no seat pack or card on file.
                 </p>
               </div>
-              <div className="w-full min-w-[12rem] rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white px-4 py-3.5 sm:w-auto sm:min-w-[13.5rem]">
+              <div className="w-full min-w-[12rem] rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3.5 sm:w-auto sm:min-w-[13.5rem]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-teal-700">
                   Seats used
                 </p>
@@ -1138,8 +1073,14 @@ function BillingPageInner() {
             : "Confirming your subscription…"
           : null);
 
+  const onboardingLayout = !checkoutComplete && !needsReplacementCard;
+
   return (
-    <div className="space-y-6 lg:space-y-8">
+    <div
+      className={[
+        onboardingLayout ? "mx-auto max-w-6xl space-y-4" : "space-y-6 lg:space-y-8",
+      ].join(" ")}
+    >
       {checkoutComplete ? (
         <header>
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#1B4F8A]">Billing</p>
@@ -1241,7 +1182,7 @@ function BillingPageInner() {
 
       {checkoutComplete ? (
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="h-1.5 bg-gradient-to-r from-[#1B4F8A] via-teal-600 to-teal-400" aria-hidden />
+          <div className="h-0.5 bg-slate-200" aria-hidden />
           <div className="p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
@@ -1274,7 +1215,7 @@ function BillingPageInner() {
                 </p>
               </div>
 
-              <div className="w-full min-w-[12rem] rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white px-4 py-3.5 sm:w-auto sm:min-w-[13.5rem]">
+              <div className="w-full min-w-[12rem] rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3.5 sm:w-auto sm:min-w-[13.5rem]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-teal-700">
                   Seats used
                 </p>

@@ -211,6 +211,8 @@ export async function assignCommunityAdmin(
   payload: {
     user_id?: number;
     name?: string;
+    first_name?: string;
+    last_name?: string;
     email?: string;
     phone?: string;
   },
@@ -293,10 +295,34 @@ export async function fetchPublicRegions(params?: {
   ).filter((row) => row.type === "region" || row.type == null);
 }
 
-export async function searchPublicCommunities(params?: { region_id?: number; q?: string }) {
+export type PublicCommunitiesSearchMeta = {
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+  has_more: boolean;
+};
+
+export async function searchPublicCommunities(params?: {
+  region_id?: number;
+  q?: string;
+  page?: number;
+  per_page?: number;
+}) {
   const res = await api.get("/v1/communities/search", { params });
   const rows = Array.isArray(res.data?.data) ? res.data.data : [];
-  return rows as PublicCommunity[];
+  const meta = res.data?.meta as PublicCommunitiesSearchMeta | undefined;
+  return {
+    data: rows as PublicCommunity[],
+    meta:
+      meta ?? {
+        current_page: 1,
+        last_page: 1,
+        per_page: rows.length,
+        total: rows.length,
+        has_more: false,
+      },
+  };
 }
 
 export async function joinCommunity(communityId: number) {

@@ -297,13 +297,20 @@ export async function updateProfile(payload) {
   } catch (err) {
     if (await isDevOfflineSession()) {
       const user = await getUser();
+      const display =
+        payload.display_name
+        ?? [payload.first_name, payload.last_name].filter(Boolean).join(" ")
+        ?? user?.profile?.display_name
+        ?? "";
       const next = {
         ...user,
-        name: payload.display_name ?? user?.name,
+        name: display || user?.name,
         email: payload.email ?? user?.email,
         profile: {
           ...user?.profile,
-          display_name: payload.display_name ?? user?.profile?.display_name ?? "",
+          display_name: display,
+          first_name: payload.first_name ?? user?.profile?.first_name ?? "",
+          last_name: payload.last_name ?? user?.profile?.last_name ?? "",
           bio: payload.bio ?? user?.profile?.bio ?? "",
           unit_number: payload.unit_number ?? user?.profile?.unit_number ?? "",
           residence_type: payload.residence_type ?? user?.profile?.residence_type ?? null,

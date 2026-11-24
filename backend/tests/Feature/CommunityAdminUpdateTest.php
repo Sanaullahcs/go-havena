@@ -154,6 +154,29 @@ class CommunityAdminUpdateTest extends TestCase
             ->assertJsonPath('data.profile.office_address', str_repeat('1', 255));
     }
 
+    public function test_profile_update_persists_first_and_last_name(): void
+    {
+        $admin = $this->communityAdmin();
+        $admin->profile()->update([
+            'utility_bill_url' => '/storage/utility-bills/existing.pdf',
+        ]);
+        Sanctum::actingAs($admin->fresh());
+
+        $this->putJson('/api/v1/me', [
+            'first_name' => 'Jane',
+            'last_name' => 'Doe',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Jane Doe')
+            ->assertJsonPath('data.profile.first_name', 'Jane')
+            ->assertJsonPath('data.profile.last_name', 'Doe')
+            ->assertJsonPath('data.profile.display_name', 'Jane Doe');
+
+        $admin->refresh();
+        $this->assertSame('Jane', $admin->profile->first_name);
+        $this->assertSame('Doe', $admin->profile->last_name);
+    }
+
     public function test_profile_update_does_not_require_office_address_when_it_is_not_submitted(): void
     {
         $admin = $this->communityAdmin();

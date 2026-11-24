@@ -4,8 +4,10 @@ import {
   COMMUNITY_ADMIN_NAME_MAX_MESSAGE,
   COMMUNITY_ADMIN_OFFICE_MAX,
   COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE,
+  applyCharacterLimit,
   exceedsCharacterLimit,
 } from "@/lib/admin/community-admin-field-limits";
+import { composePersonName } from "@/lib/admin/person-name";
 import {
   type FieldErrors,
   fieldInputClass,
@@ -17,7 +19,8 @@ import {
 export type CommunityAssignmentMode = "" | "existing" | "new";
 
 export type ProvisionAdminForm = {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone: string;
   region_id: number | "";
@@ -53,14 +56,42 @@ function validateRegion(regionId: number | ""): string | null {
   return null;
 }
 
+function validateCommunityAdminNameParts(
+  firstNameInput: string,
+  lastNameInput: string,
+): Pick<ProvisionFieldErrors, "firstName" | "lastName"> {
+  const errors: Pick<ProvisionFieldErrors, "firstName" | "lastName"> = {};
+  const nameMax = COMMUNITY_ADMIN_NAME_MAX;
+  const firstName = String(firstNameInput ?? "").trim();
+  const lastName = String(lastNameInput ?? "").trim();
+
+  if (!firstName) {
+    errors.firstName = "First name is required.";
+  } else if (exceedsCharacterLimit(firstName, nameMax)) {
+    errors.firstName = COMMUNITY_ADMIN_NAME_MAX_MESSAGE;
+  }
+
+  if (!lastName) {
+    errors.lastName = "Last name is required.";
+  } else if (exceedsCharacterLimit(lastName, nameMax)) {
+    errors.lastName = COMMUNITY_ADMIN_NAME_MAX_MESSAGE;
+  }
+
+  const combinedName = composePersonName(firstName, lastName);
+  if (combinedName.length > nameMax) {
+    errors.lastName = COMMUNITY_ADMIN_NAME_MAX_MESSAGE;
+  }
+
+  return errors;
+}
+
 export function validateCommunityAdminForm(
   form: ProvisionAdminForm,
   phone: PhoneFieldState,
 ): ProvisionFieldErrors {
-  const errors: ProvisionFieldErrors = {};
-
-  const nameError = validateRequiredName(form.name, "Full name");
-  if (nameError) errors.name = nameError;
+  const errors: ProvisionFieldErrors = {
+    ...validateCommunityAdminNameParts(form.firstName, form.lastName),
+  };
 
   const emailError = validateEmailField(form.email);
   if (emailError) errors.email = emailError;
@@ -104,6 +135,8 @@ export function validateCommunityAdminForm(
 
   return errors;
 }
+
+export { applyCharacterLimit as provisionNameCharacterLimit };
 
 export function validateResidentForm(
   form: ProvisionResidentForm,

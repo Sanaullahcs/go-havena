@@ -20,6 +20,7 @@ use App\Services\UserBlockService;
 use App\Services\UtilityBillStorage;
 use App\Services\UtilityBillUploadService;
 use App\Support\MediaUrl;
+use App\Support\PersonName;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -182,6 +183,8 @@ class ProfileController extends Controller
                 },
             ],
             'display_name'   => 'sometimes|string|max:50',
+            'first_name'     => 'sometimes|string|min:1|max:50|required_with:last_name',
+            'last_name'      => 'sometimes|string|min:1|max:50|required_with:first_name',
             'bio'            => 'sometimes|nullable|string|max:500',
             'unit_number'    => 'sometimes|nullable|string|max:'.($isCommunityAdmin ? '20' : '50'),
             'residence_type' => 'sometimes|nullable|string|in:homeowner,tenant',
@@ -218,7 +221,16 @@ class ProfileController extends Controller
             'region' => $user->profile?->region?->title ?? $user->profile?->region_id,
         ];
 
-        if ($request->filled('name')) {
+        $combinedNameMax = $isCommunityAdmin ? 50 : 100;
+
+        if ($request->hasAny(['first_name', 'last_name'])) {
+            $parts = PersonName::fromParts(
+                (string) $request->input('first_name', ''),
+                (string) $request->input('last_name', ''),
+                $combinedNameMax,
+            );
+            $user->update(['name' => $parts['display_name']]);
+        } elseif ($request->filled('name')) {
             $user->update(['name' => $request->name]);
         }
         if ($request->has('phone')) {
@@ -253,9 +265,31 @@ class ProfileController extends Controller
         }
 
         $profileData = array_filter([
-            'display_name'   => $request->display_name,
-            'bio'            => $request->bio,
+            'bio' => $request->bio,
         ], fn ($v) => $v !== null);
+
+        if ($request->hasAny(['first_name', 'last_name'])) {
+            $parts = PersonName::fromParts(
+                (string) $request->input('first_name', ''),
+                (string) $request->input('last_name', ''),
+                $combinedNameMax,
+            );
+            $profileData['first_name'] = $parts['first_name'];
+            $profileData['last_name'] = $parts['last_name'];
+            $profileData['display_name'] = $parts['display_name'];
+        } elseif ($request->filled('display_name')) {
+            $display = trim((string) $request->display_name);
+            [$first, $last] = PersonName::split($display);
+            $profileData['display_name'] = $display;
+            $profileData['first_name'] = $first !== '' ? $first : null;
+            $profileData['last_name'] = $last !== '' ? $last : null;
+        } elseif ($request->filled('name')) {
+            $display = trim((string) $request->name);
+            [$first, $last] = PersonName::split($display);
+            $profileData['display_name'] = $display;
+            $profileData['first_name'] = $first !== '' ? $first : null;
+            $profileData['last_name'] = $last !== '' ? $last : null;
+        }
 
         if ($isCommunityAdmin) {
             if ($request->has('office_address')) {
@@ -498,7 +532,12 @@ class ProfileController extends Controller
 
     private function assertUtilityBillPresentIfRequired(User $user, Request $request): void
     {
+        if (! config('utility_bill.required_on_profile_complete', false)) {
+            return;
+        }
+
         $isCompletingProfile = $request->filled('display_name')
+            || $request->hasAny(['first_name', 'last_name'])
             || $request->filled('unit_number')
             || $request->filled('office_address');
         if (! $isCompletingProfile) {

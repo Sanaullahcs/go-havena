@@ -57,6 +57,33 @@ export type PublicCityRegion = {
   status: string;
 };
 
+/** Create city region when missing — community admins only (auth required). */
+export async function ensureCommunityAdminCityRegion(payload: {
+  country_id?: number;
+  state_id: number;
+  city: string;
+}) {
+  const res = await api.post("/v1/locations/ensure", {
+    state_id: payload.state_id,
+    city: payload.city.trim(),
+    ...(payload.country_id ? { country_id: payload.country_id } : {}),
+  });
+  return res.data as { data: PublicCityRegion; meta?: { created?: boolean } };
+}
+
+/** Find existing region, or ensure one for community admin onboarding. */
+export async function findOrEnsureCityRegionForCommunityAdmin(payload: {
+  country_id?: number;
+  state_id: number;
+  city: string;
+}) {
+  try {
+    return await searchPublicCityRegion(payload);
+  } catch {
+    return await ensureCommunityAdminCityRegion(payload);
+  }
+}
+
 /** Search an existing city region — does not create new regions. */
 export async function searchPublicCityRegion(payload: {
   country_id?: number;

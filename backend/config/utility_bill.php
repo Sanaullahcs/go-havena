@@ -1,6 +1,12 @@
 <?php
 
 return [
+    /**
+     * When false, complete-profile may be saved without an uploaded lease/utility bill.
+     * Re-enable when verification is required again.
+     */
+    'required_on_profile_complete' => env('UTILITY_BILL_REQUIRED_ON_COMPLETE', false),
+
     /** Run Tesseract after heuristic middleware validation. */
     'ocr_enabled' => env('UTILITY_BILL_OCR_ENABLED', true),
 

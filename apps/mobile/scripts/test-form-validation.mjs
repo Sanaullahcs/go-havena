@@ -301,20 +301,23 @@ console.log("\nNotice / event / alert validation");
 console.log("\nComplete profile validation");
 {
   const empty = validateCompleteProfileForm({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     phoneDigits: "",
     unitNumber: "",
     residenceType: "",
     utilityFile: null,
   });
-  assertHasError(empty, "name", "name required");
+  assertHasError(empty, "firstName", "first name required");
+  assertHasError(empty, "lastName", "last name required");
   assertHasError(empty, "email", "email required");
   assertHasError(empty, "phone", "phone required");
   assertHasError(empty, "utilityFile", "bill required");
 
   const ok = validateCompleteProfileForm({
-    name: "Jane Doe",
+    firstName: "Jane",
+    lastName: "Doe",
     email: "jane@example.com",
     phoneDigits: "5551234567",
     phoneCountry: "US",
@@ -325,7 +328,8 @@ console.log("\nComplete profile validation");
   assertNoErrors(ok, "valid profile");
 
   const adminMissingOffice = validateCompleteProfileForm({
-    name: "Jane Doe",
+    firstName: "Jane",
+    lastName: "Doe",
     email: "jane@example.com",
     phoneDigits: "5551234567",
     phoneCountry: "US",
@@ -341,7 +345,8 @@ console.log("\nComplete profile validation");
   assert(!adminMissingOffice.residenceType, "community admin does not require residence");
 
   const adminOk = validateCompleteProfileForm({
-    name: "Jane Doe",
+    firstName: "Jane",
+    lastName: "Doe",
     email: "jane@example.com",
     phoneDigits: "5551234567",
     phoneCountry: "US",
