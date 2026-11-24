@@ -83,6 +83,36 @@ class CommunityRegionHierarchyTest extends TestCase
             ->assertJsonPath('data.region_title', 'Pakistan - Punjab - Lahore');
     }
 
+    public function test_inferred_city_from_region_when_city_matches_emirate_name(): void
+    {
+        $country = Country::query()->where('code', 'AE')->firstOrFail();
+        $state = State::query()->firstOrCreate(
+            ['country_id' => $country->id, 'name' => 'Dubai'],
+            ['status' => 'active'],
+        );
+
+        $region = Region::query()->create([
+            'state_id' => $state->id,
+            'title' => 'United Arab Emirates - Dubai - Dubai',
+            'area' => 'Dubai',
+            'state' => 'Dubai',
+            'users_label' => 'Open',
+            'sort_order' => 1,
+            'status' => 'active',
+        ]);
+        $region->load('stateRecord');
+
+        $this->assertFalse(\App\Support\RegionHierarchy::isCityLevelRegion($region));
+        $this->assertSame('Dubai', \App\Support\RegionHierarchy::inferredCityFromRegion($region));
+
+        $resolved = \App\Support\RegionHierarchy::assignRegionForCommunity(
+            $region,
+            null,
+            app(LocationCatalog::class),
+        );
+        $this->assertSame($region->id, $resolved->id);
+    }
+
     public function test_admin_regions_city_level_filter_does_not_error(): void
     {
         Sanctum::actingAs($this->systemAdmin());

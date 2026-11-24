@@ -32,6 +32,29 @@ class RegionHierarchy
         return ! self::isStateLevelRegion($region);
     }
 
+    /**
+     * City name implied by a region row (e.g. Dubai emirate where area and state share the name
+     * but the title is Country - State - City).
+     */
+    public static function inferredCityFromRegion(Region $region): ?string
+    {
+        $area = trim((string) $region->area);
+        if ($area === '') {
+            return null;
+        }
+
+        if (self::isCityLevelRegion($region)) {
+            return $area;
+        }
+
+        $parts = array_map('trim', explode(' - ', trim($region->title ?? '')));
+        if (count($parts) >= 3 && mb_strtolower((string) end($parts)) === mb_strtolower($area)) {
+            return $area;
+        }
+
+        return null;
+    }
+
     public static function hierarchyLabel(Region $region): string
     {
         $region->loadMissing('stateRecord.country');
@@ -95,8 +118,9 @@ class RegionHierarchy
         /** @var State $state */
         $state = $region->stateRecord ?? State::query()->findOrFail($region->state_id);
 
-        if (self::isCityLevelRegion($region)) {
-            return $catalog->ensureCityRegion($state, (string) $region->area);
+        $inferred = self::inferredCityFromRegion($region);
+        if ($inferred !== null) {
+            return $catalog->ensureCityRegion($state, $inferred);
         }
 
         $cityName = trim((string) $cityName);

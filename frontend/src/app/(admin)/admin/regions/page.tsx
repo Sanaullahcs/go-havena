@@ -14,7 +14,7 @@ import {
   DtTable,
   StatTile,
 } from "@/components/admin/ui";
-import { confirmDelete, toastError, toastSuccess } from "@/lib/alert";
+import { alertWarning, confirmDelete, toastError, toastSuccess } from "@/lib/alert";
 import { Check, X } from "lucide-react";
 import {
   createRegion,
@@ -24,14 +24,27 @@ import {
   type Region,
 } from "@/lib/api/regions";
 import { RegionFilterBar, RegionGeographyFields } from "@/components/admin/region-geography-fields";
-import { fetchCountries, fetchStates, createState, type Country, type State } from "@/lib/api/geography";
+import {
+  fetchCountries,
+  fetchPublicStateCities,
+  fetchStates,
+  type City,
+  type Country,
+  type State,
+} from "@/lib/api/geography";
 import { apiError } from "@/lib/api/client";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { adminTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
-import { validateRegionForm } from "@/lib/admin/region-form-validation";
+import {
+  DUPLICATE_REGION_TITLE,
+  duplicateRegionPopupMessage,
+  findDuplicateCityRegion,
+  isDuplicateRegionApiError,
+  validateRegionForm,
+} from "@/lib/admin/region-form-validation";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -40,8 +53,8 @@ type GeographyFilter = "all" | number;
 const emptyForm = {
   country_id: "" as number | "",
   state_id: "" as number | "",
+  city: "",
   title: "",
-  area: "",
   users_label: "0 users",
   sort_order: 0,
   status: "active" as Region["status"],
@@ -64,8 +77,9 @@ export default function RegionsPage() {
   const [countries, setCountries] = useState<Country[]>([]);
   const [states, setStates] = useState<State[]>([]);
   const [formStates, setFormStates] = useState<State[]>([]);
-  const [newStateName, setNewStateName] = useState("");
-  const [creatingState, setCreatingState] = useState(false);
+  const [formStatesLoading, setFormStatesLoading] = useState(false);
+  const [formCities, setFormCities] = useState<City[]>([]);
+  const [formCitiesLoading, setFormCitiesLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Region | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -126,13 +140,54 @@ export default function RegionsPage() {
   useEffect(() => {
     if (!form.country_id) {
       setFormStates([]);
+      setFormStatesLoading(false);
       return;
     }
 
+    let cancelled = false;
+    setFormStatesLoading(true);
+    setFormStates([]);
     fetchStates({ country_id: Number(form.country_id), status: "active" })
-      .then((res) => setFormStates(res.data))
-      .catch(() => setFormStates([]));
+      .then((res) => {
+        if (!cancelled) setFormStates(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) setFormStates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setFormStatesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [form.country_id]);
+
+  useEffect(() => {
+    if (!form.state_id) {
+      setFormCities([]);
+      setFormCitiesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setFormCitiesLoading(true);
+    setFormCities([]);
+    fetchPublicStateCities(Number(form.state_id))
+      .then((res) => {
+        if (!cancelled) setFormCities(res.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setFormCities([]);
+      })
+      .finally(() => {
+        if (!cancelled) setFormCitiesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.state_id]);
 
   useEffect(() => {
     load();
@@ -156,7 +211,6 @@ export default function RegionsPage() {
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
-    setNewStateName("");
     resetTouched();
     setModalOpen(true);
   };
@@ -166,48 +220,45 @@ export default function RegionsPage() {
     setForm({
       country_id: region.country_id ?? "",
       state_id: region.state_id ?? "",
+      city: region.is_city_level === false ? "" : region.area,
       title: region.title,
-      area: region.area,
       users_label: region.users_label,
       sort_order: region.sort_order,
       status: region.status,
     });
-    setNewStateName("");
     resetTouched();
     setModalOpen(true);
   };
 
-  const handleCreateState = async () => {
-    const name = newStateName.trim();
-    if (!form.country_id || name.length < 2) return;
-
-    setCreatingState(true);
-    try {
-      const res = await createState({
-        country_id: Number(form.country_id),
-        name,
-      });
-      setFormStates((prev) => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)));
-      setForm((prev) => ({ ...prev, state_id: res.data.id }));
-      setNewStateName("");
-      clearError("state_id");
-      toastSuccess("State / province added.");
-    } catch (err) {
-      toastError(apiError(err));
-    } finally {
-      setCreatingState(false);
-    }
-  };
+  const suggestTitle = useCallback(
+    (city: string) => {
+      if (editing || !city.trim()) return;
+      const country = countries.find((c) => c.id === Number(form.country_id));
+      const state = formStates.find((s) => s.id === Number(form.state_id));
+      if (!country || !state) return;
+      const next = `${country.name} - ${state.name} - ${city.trim()}`;
+      setForm((prev) => (prev.title.trim() ? prev : { ...prev, title: next }));
+    },
+    [countries, editing, form.country_id, form.state_id, formStates],
+  );
 
   const handleSave = async () => {
     if (!validateOnSubmit(liveErrors)) return;
 
     setSubmitting(true);
     try {
+      const stateId = Number(form.state_id);
+      const city = form.city.trim();
+      const duplicate = await findDuplicateCityRegion(stateId, city, editing?.id ?? null);
+      if (duplicate) {
+        await alertWarning(DUPLICATE_REGION_TITLE, duplicateRegionPopupMessage(duplicate.title));
+        return;
+      }
+
       const payload = {
         title: form.title.trim(),
-        area: form.area.trim(),
-        state_id: Number(form.state_id),
+        area: city,
+        state_id: stateId,
         users_label: form.users_label.trim() || "0 users",
         sort_order: Number(form.sort_order) || 0,
         status: form.status,
@@ -231,6 +282,10 @@ export default function RegionsPage() {
         await load(true);
       }
     } catch (err) {
+      if (isDuplicateRegionApiError(err)) {
+        await alertWarning(DUPLICATE_REGION_TITLE, duplicateRegionPopupMessage(form.title.trim()));
+        return;
+      }
       toastError(apiError(err));
     } finally {
       setSubmitting(false);
@@ -335,10 +390,9 @@ export default function RegionsPage() {
                 { label: "Title" },
                 { label: "Country" },
                 { label: "State" },
-                { label: "Area" },
+                { label: "City" },
                 { label: "Billing" },
                 { label: "Status" },
-                { label: "Order" },
                 { label: "", right: true },
               ]}
             />
@@ -364,9 +418,6 @@ export default function RegionsPage() {
                       {region.status === "active" ? "Active" : "Inactive"}
                     </AdminBadge>
                   </DtCell>
-                  <DtCell nowrap muted>
-                    {region.sort_order}
-                  </DtCell>
                   <DtCell last right>
                     <AdminActionsMenu
                       actions={[
@@ -390,60 +441,74 @@ export default function RegionsPage() {
       </div>
 
       {modalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/45 p-4 backdrop-blur-sm">
-          <div className="my-auto flex max-h-[min(92vh,880px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="shrink-0 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">
-                {editing ? "Edit region" : "New region"}
-              </p>
-              <h3 className="mt-1 text-xl font-bold text-slate-900">
-                {editing ? "Update Region" : "Add Region"}
-              </h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Pick the country and state, then enter the region details shown in the mobile app.
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-[3px]">
+          <div className="my-auto flex max-h-[min(92vh,720px)] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/20 bg-white shadow-[0_24px_80px_-12px_rgba(15,23,42,0.35)]">
+            <div className="shrink-0 px-6 pb-2 pt-6">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-600">
+                    {editing ? "Edit" : "New"} region
+                  </p>
+                  <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">
+                    {editing ? "Update service area" : "Add service area"}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                  onClick={() => setModalOpen(false)}
+                  disabled={submitting}
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
+                Same path community admins use: country, state, then city.
               </p>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-            <div className="space-y-5">
-              <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                  Location
-                </p>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              <div className="rounded-2xl bg-gradient-to-b from-slate-50/90 to-white p-4 ring-1 ring-slate-100">
                 <RegionGeographyFields
                   countries={countries}
                   states={formStates}
+                  cities={formCities}
                   countryId={form.country_id}
                   stateId={form.state_id}
+                  city={form.city}
+                  loadingStates={formStatesLoading}
+                  loadingCities={formCitiesLoading}
                   countryError={showError("country_id", liveErrors)}
                   stateError={showError("state_id", liveErrors)}
+                  cityError={showError("city", liveErrors)}
                   onCountryChange={(countryId) => {
                     clearError("country_id");
                     clearError("state_id");
-                    setForm((prev) => ({ ...prev, country_id: countryId, state_id: "" }));
-                    setNewStateName("");
+                    clearError("city");
+                    setForm((prev) => ({ ...prev, country_id: countryId, state_id: "", city: "" }));
                   }}
                   onStateChange={(stateId) => {
                     clearError("state_id");
-                    setForm((prev) => ({ ...prev, state_id: stateId }));
+                    clearError("city");
+                    setForm((prev) => ({ ...prev, state_id: stateId, city: "" }));
+                  }}
+                  onCityChange={(cityName) => {
+                    clearError("city");
+                    setForm((prev) => ({ ...prev, city: cityName }));
+                    suggestTitle(cityName);
                   }}
                   onCountryBlur={() => touch("country_id")}
                   onStateBlur={() => touch("state_id")}
-                  newStateName={newStateName}
-                  onNewStateNameChange={setNewStateName}
-                  onCreateState={handleCreateState}
-                  creatingState={creatingState}
+                  onCityBlur={() => touch("city")}
                 />
-              </section>
+              </div>
 
-              <section className="space-y-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                  Region details
-                </p>
-                <Field label="Title" required error={showError("title", liveErrors)}>
+              <div className="mt-5 space-y-4">
+                <Field label="Display title" required error={showError("title", liveErrors)}>
                   <ClearableInput
                     className={inputClass(showError("title", liveErrors), "nl-input w-full")}
-                    placeholder="Florida - Miami-Dade County"
+                    placeholder="Pakistan - Punjab - Lahore"
                     value={form.title}
                     onChange={(e) => {
                       clearError("title");
@@ -452,64 +517,49 @@ export default function RegionsPage() {
                     onBlur={() => touch("title")}
                   />
                 </Field>
-                <Field label="Area" required error={showError("area", liveErrors)}>
-                  <ClearableInput
-                    className={inputClass(showError("area", liveErrors), "nl-input w-full")}
-                    placeholder="Lahore Division"
-                    value={form.area}
-                    onChange={(e) => {
-                      clearError("area");
-                      setForm({ ...form, area: e.target.value });
-                    }}
-                    onBlur={() => touch("area")}
-                  />
-                </Field>
-                <Field label="Users label">
-                  <ClearableInput
-                    className="nl-input w-full"
-                    placeholder="12,450 users"
-                    value={form.users_label}
-                    onChange={(e) => setForm({ ...form, users_label: e.target.value })}
-                  />
-                </Field>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Sort order">
-                    <ClearableInput
-                      className="nl-input w-full"
-                      type="number"
-                      min={0}
-                      value={form.sort_order}
-                      onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })}
-                    />
-                  </Field>
-                  <Field label="Status">
-                    <select
-                      className="nl-input nl-select w-full"
-                      value={form.status}
-                      onChange={(e) => setForm({ ...form, status: e.target.value as Region["status"] })}
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
-                  </Field>
+
+                <div className="space-y-1.5">
+                  <span className="text-[13px] font-medium text-slate-600">Visibility</span>
+                  <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100/80 p-1">
+                    {(["active", "inactive"] as const).map((value) => {
+                      const selected = form.status === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+                            selected
+                              ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80"
+                              : "text-slate-500 hover:text-slate-700"
+                          }`}
+                          onClick={() => setForm({ ...form, status: value })}
+                        >
+                          {value === "active" ? "Active" : "Inactive"}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </section>
-            </div>
+              </div>
             </div>
 
-            <div className="flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
+            <div className="flex shrink-0 gap-2 border-t border-slate-100 px-6 py-4">
               <button
                 type="button"
-                className="nl-btn-secondary"
+                className="nl-btn-secondary flex-1"
                 onClick={() => setModalOpen(false)}
                 disabled={submitting}
               >
-                <X />
                 Cancel
               </button>
-              <button type="button" className="nl-btn-primary" onClick={handleSave} disabled={submitting || !canSubmitForm}>
+              <button
+                type="button"
+                className="nl-btn-primary flex-[1.2]"
+                onClick={handleSave}
+                disabled={submitting || !canSubmitForm}
+              >
                 <Check />
-                {submitting ? "Saving…" : editing ? "Save changes" : "Create region"}
+                {submitting ? "Saving…" : editing ? "Save" : "Create"}
               </button>
             </div>
           </div>

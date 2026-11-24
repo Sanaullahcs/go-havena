@@ -113,6 +113,31 @@ class GeographyLocationsTest extends TestCase
         $this->assertSame(0, Region::query()->where('state_id', $state->id)->count());
     }
 
+    public function test_resolve_location_finds_region_when_city_name_matches_state_name(): void
+    {
+        $country = Country::query()->where('code', 'AE')->firstOrFail();
+        $state = State::query()->firstOrCreate(
+            ['country_id' => $country->id, 'name' => 'Dubai'],
+            ['status' => 'active'],
+        );
+
+        $catalog = app(\App\Services\LocationCatalog::class);
+        $catalog->ensureStateRegion($state);
+
+        $this->postJson('/api/v1/locations/resolve', [
+            'country_id' => $country->id,
+            'state_id' => $state->id,
+            'city' => 'Dubai',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.area', 'Dubai');
+
+        $this->assertSame(
+            1,
+            Region::query()->where('state_id', $state->id)->whereRaw('LOWER(area) = ?', ['dubai'])->count(),
+        );
+    }
+
     public function test_resolve_location_reuses_seeded_pakistan_city_region(): void
     {
         $country = Country::query()->where('code', 'PK')->firstOrFail();

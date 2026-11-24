@@ -192,7 +192,7 @@ export default function CommunitiesPage() {
     (liveErrors.name === DUPLICATE_COMMUNITY_NAME_MESSAGE ? liveErrors.name : undefined);
 
   useEffect(() => {
-    fetchRegions({ status: "active", per_page: 100, city_level: 1 })
+    fetchRegions({ status: "active", per_page: 100 })
       .then((res) => setRegions(res.data.filter((r) => r.status === "active")))
       .catch(() => setRegions([]));
   }, []);
@@ -367,7 +367,8 @@ export default function CommunitiesPage() {
 
     setReviewSubmitting(true);
     try {
-      await approveCommunityRequest(viewing.id, Number(approveRegionId));
+      const picked = regions.find((r) => r.id === Number(approveRegionId));
+      await approveCommunityRequest(viewing.id, Number(approveRegionId), picked?.area);
       toastSuccess("Community approved.");
       setViewing(null);
       load(true);

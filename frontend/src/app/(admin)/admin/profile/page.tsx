@@ -382,7 +382,7 @@ export default function AdminProfilePage() {
                         });
                       }}
                     />
-                    <div className="mt-1 flex items-start justify-between gap-3">
+                    <div className="mt-2 flex items-start justify-between gap-3">
                       {showProfileError("name") && profileErrors.name ? (
                         <p className="text-[11px] font-medium text-red-600">{profileErrors.name}</p>
                       ) : (

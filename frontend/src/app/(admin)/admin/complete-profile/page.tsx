@@ -336,7 +336,7 @@ function CompleteProfileInner() {
             aria-invalid={Boolean(nameErr)}
           />
           {isCommunityAdminProfile && name.length > 0 ? (
-            <p className={`text-right text-[11px] tabular-nums ${name.length > nameMax ? "text-red-600" : "text-slate-500"}`}>
+            <p className={`mt-2 text-right text-[11px] tabular-nums ${name.length > nameMax ? "text-red-600" : "text-slate-500"}`}>
               {name.length} / {nameMax}
             </p>
           ) : null}
@@ -448,7 +448,7 @@ function CompleteProfileInner() {
               aria-invalid={Boolean(officeErr)}
             />
             {officeAddress.length > 0 ? (
-              <p className={`text-right text-[11px] tabular-nums ${officeAddress.length > officeMax ? "text-red-600" : "text-slate-500"}`}>
+              <p className={`mt-2 text-right text-[11px] tabular-nums ${officeAddress.length > officeMax ? "text-red-600" : "text-slate-500"}`}>
                 {officeAddress.length} / {officeMax}
               </p>
             ) : null}

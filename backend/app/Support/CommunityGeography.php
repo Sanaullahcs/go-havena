@@ -22,8 +22,11 @@ class CommunityGeography
         OsmGeocodingService $geocoder,
     ): Region {
         $cityHint = trim((string) ($city ?? ''));
-        if ($cityHint === '' && RegionHierarchy::isCityLevelRegion($region)) {
-            $cityHint = $this->normalizeCityHint(trim((string) $region->area), $address);
+        if ($cityHint === '') {
+            $inferred = RegionHierarchy::inferredCityFromRegion($region);
+            if ($inferred !== null) {
+                $cityHint = $this->normalizeCityHint($inferred, $address);
+            }
         }
 
         $place = $this->resolvePlace($address, $latitude, $longitude, $cityHint, $geocoder);

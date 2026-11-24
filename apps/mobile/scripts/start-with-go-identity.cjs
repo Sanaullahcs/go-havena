@@ -20,17 +20,28 @@ identity(projectRoot);
 
 const args = process.argv.slice(2);
 const expoCli = path.join(projectRoot, "node_modules", "expo", "bin", "cli");
-const child = spawn(process.execPath, [expoCli, ...args], {
-  cwd: projectRoot,
-  stdio: "inherit",
-  env: {
-    ...process.env,
-    HAVENA_GO_SESSION: session,
-    HAVENA_GO_SLUG: slug,
-    HAVENA_LOCAL_EXPO: "1",
-    EXPO_NO_UPDATES: process.env.EXPO_NO_UPDATES || "1",
+const nodeOptions = process.env.NODE_OPTIONS || "";
+const heap =
+  /--max-old-space-size=\d+/.test(nodeOptions) ? "" : "--max-old-space-size=8192";
+
+const child = spawn(
+  process.execPath,
+  [...(heap ? [heap] : []), expoCli, ...args],
+  {
+    cwd: projectRoot,
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      NODE_OPTIONS: heap
+        ? [nodeOptions, heap].filter(Boolean).join(" ").trim()
+        : nodeOptions,
+      HAVENA_GO_SESSION: session,
+      HAVENA_GO_SLUG: slug,
+      HAVENA_LOCAL_EXPO: "1",
+      EXPO_NO_UPDATES: process.env.EXPO_NO_UPDATES || "1",
+    },
   },
-});
+);
 
 child.on("error", (error) => {
   console.error("[havena] Could not start Expo CLI:", error.message);

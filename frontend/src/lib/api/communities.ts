@@ -167,9 +167,10 @@ export async function fetchCommunityRequest(id: number) {
   return res.data as { data: CommunityRequest };
 }
 
-export async function approveCommunityRequest(id: number, regionId: number) {
+export async function approveCommunityRequest(id: number, regionId: number, city?: string) {
   const res = await api.post(`/v1/admin/community-requests/${id}/approve`, {
     region_id: regionId,
+    ...(city?.trim() ? { city: city.trim() } : {}),
   });
   return res.data as { data: CommunityRequest; message: string };
 }

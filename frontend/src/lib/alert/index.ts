@@ -385,6 +385,25 @@ export async function alertError(title: string, message: string) {
   });
 }
 
+export async function alertWarning(title: string, message: string) {
+  return nl.fire({
+    icon: "warning",
+    title,
+    text: message,
+    confirmButtonText: labeledButton(ICO_CHECK, "OK"),
+    showCancelButton: false,
+    showDenyButton: false,
+    customClass: {
+      popup: "nl-swal-popup",
+      title: "nl-swal-title",
+      htmlContainer: "nl-swal-body",
+      confirmButton: "nl-swal-confirm nl-swal-confirm--amber",
+      actions: "nl-swal-actions",
+      icon: "nl-swal-icon",
+    },
+  });
+}
+
 /** Live countdown dialog after OTP resend limit (aligned with mobile). */
 export async function showOtpResendLockAlert(initialSeconds: number) {
   const { formatOtpCountdown, OTP_RESEND_LOCK_SECONDS } = await import("@/lib/auth/otp-config");

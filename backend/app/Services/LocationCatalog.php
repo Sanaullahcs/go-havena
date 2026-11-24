@@ -49,22 +49,36 @@ class LocationCatalog
         ]);
     }
 
-    /** Look up an active city-level region without creating one. */
-    public function findCityRegion(State $state, string $cityName): ?Region
+    /**
+     * Look up a service region for a city name (area match), including when city equals the state name.
+     *
+     * @param  bool  $activeOnly  When true, only active non-deleted rows (for public resolve). When false, includes trashed/inactive for admin upsert.
+     */
+    public function findCityRegion(State $state, string $cityName, bool $activeOnly = true): ?Region
     {
         $cityName = trim($cityName);
         if ($cityName === '') {
             return null;
         }
 
-        return Region::query()
+        $query = Region::query()
+            ->withTrashed()
             ->where('regions.state_id', $state->id)
-            ->where('regions.status', 'active')
             ->whereRaw('LOWER(TRIM(regions.area)) = ?', [mb_strtolower($cityName)])
-            ->cityLevel()
             ->orderBy('sort_order')
-            ->orderBy('id')
-            ->first();
+            ->orderBy('id');
+
+        if ($activeOnly) {
+            $query->where('regions.status', 'active')->whereNull('regions.deleted_at');
+        }
+
+        return $query->first();
+    }
+
+    /** Any row for state + city area, including soft-deleted (unique key still occupied). */
+    public function findRegionSlot(State $state, string $cityName): ?Region
+    {
+        return $this->findCityRegion($state, $cityName, activeOnly: false);
     }
 
     public function ensureCityRegion(State $state, string $cityName): Region
@@ -79,12 +93,17 @@ class LocationCatalog
         $state->loadMissing('country');
         $canonicalTitle = $this->cityRegionTitle($state, $cityName);
 
-        $existing = $this->findCityRegion($state, $cityName);
+        $existing = $this->findRegionSlot($state, $cityName);
 
         if ($existing) {
-            if ($existing->title !== $canonicalTitle) {
-                $existing->update(['title' => $canonicalTitle]);
+            if ($existing->trashed()) {
+                $existing->restore();
             }
+            $existing->update([
+                'title' => $canonicalTitle,
+                'state' => $state->name,
+                'status' => 'active',
+            ]);
 
             return $existing->fresh();
         }

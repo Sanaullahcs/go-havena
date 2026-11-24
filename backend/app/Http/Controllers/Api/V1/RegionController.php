@@ -38,8 +38,7 @@ class RegionController extends Controller
         }
 
         if ($city !== '') {
-            $regionQuery->cityLevel()
-                ->whereRaw('LOWER(TRIM(regions.area)) = ?', [mb_strtolower($city)]);
+            $regionQuery->whereRaw('LOWER(TRIM(regions.area)) = ?', [mb_strtolower($city)]);
         }
 
         if ($q !== '') {
@@ -140,27 +139,21 @@ class RegionController extends Controller
         $catalog = app(LocationCatalog::class);
         $area = trim($validated['area']);
 
-        if (mb_strtolower($area) === mb_strtolower($state->name)) {
-            $region = $catalog->ensureStateRegion($state);
-        } else {
-            if ($catalog->findCityRegion($state, $area)) {
-                throw ValidationException::withMessages([
-                    'area' => ['A region already exists for this city in the selected state.'],
-                ]);
-            }
-
-            $region = $catalog->ensureCityRegion($state, $area);
+        $slot = $catalog->findRegionSlot($state, $area);
+        if ($slot && ! $slot->trashed() && $slot->status === 'active') {
+            throw ValidationException::withMessages([
+                'area' => ['A region already exists for this city in the selected state.'],
+            ]);
         }
 
-        if (isset($validated['users_label'])) {
-            $region->update(['users_label' => $validated['users_label']]);
-        }
-        if (isset($validated['sort_order'])) {
-            $region->update(['sort_order' => (int) $validated['sort_order']]);
-        }
-        if (isset($validated['status'])) {
-            $region->update(['status' => $validated['status']]);
-        }
+        $region = $catalog->ensureCityRegion($state, $area);
+
+        $region->update([
+            'title' => $validated['title'],
+            'users_label' => $validated['users_label'] ?? $region->users_label,
+            'sort_order' => isset($validated['sort_order']) ? (int) $validated['sort_order'] : $region->sort_order,
+            'status' => $validated['status'] ?? $region->status,
+        ]);
 
         $region->load('stateRecord.country');
 
@@ -192,9 +185,7 @@ class RegionController extends Controller
         if ($nextStateId && $nextArea !== '') {
             $state = State::query()->findOrFail($nextStateId);
             $catalog = app(LocationCatalog::class);
-            $duplicate = mb_strtolower($nextArea) === mb_strtolower($state->name)
-                ? $catalog->findStateRegion($state)
-                : $catalog->findCityRegion($state, $nextArea);
+            $duplicate = $catalog->findCityRegion($state, $nextArea);
 
             if ($duplicate && (int) $duplicate->id !== (int) $region->id) {
                 throw ValidationException::withMessages([
