@@ -37,6 +37,7 @@ import { useSessionUser } from "../../../hooks/use-session-user";
 import { isResidentFeatureEnabled } from "../../../constants/resident-features";
 import { isCommunityAdminRole } from "../../../services/community-access";
 import { createComplaint, fetchComplaintUnits } from "../../../services/complaints-api";
+import { persistUploadAsset } from "../../../utils/upload-form-data";
 
 export default function CreateComplaintScreen() {
   const router = useRouter();
@@ -141,7 +142,10 @@ export default function CreateComplaintScreen() {
           type: ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/jpeg", "image/png", "image/webp"],
         });
         if (result.canceled) return;
-        addAttachment(result.assets?.[0]);
+        const picked = result.assets?.[0];
+        if (!picked) return;
+        const prepared = await persistUploadAsset(picked, "complaint");
+        addAttachment(prepared || picked);
         return;
       }
 
@@ -166,9 +170,9 @@ export default function CreateComplaintScreen() {
     setErrors(next);
     if (Object.values(next).some(Boolean) || !canSubmit) return;
     const choice = await showConfirm(
-      "Submit complaint",
-      "Send this complaint to the support team?",
-      { confirmLabel: "Submit complaint", cancelLabel: "Cancel" },
+      "Submit Complaint?",
+      "Are you sure you want to submit this complaint?",
+      { confirmLabel: "Submit", cancelLabel: "Cancel" },
     );
     if (choice !== "confirm") return;
     setBusy(true);
@@ -181,8 +185,9 @@ export default function CreateComplaintScreen() {
         description: description.trim(),
         unit_id: type === "maintenance" && !adminTechnical ? unitId : "",
       }, files);
-      await showSuccess("Complaint submitted", "Your complaint has been sent to the support team.");
+      // Navigate first so dismiss/back from the success dialog cannot hit an empty stack.
       router.replace({ pathname: "/screens/complaints/detail", params: { id: String(created.id) } });
+      await showSuccess("Complaint submitted", "Your complaint has been sent to the support team.");
     } catch (err) {
       await showError("Could not submit", err?.message || "Could not submit the complaint.");
     } finally {
@@ -231,7 +236,8 @@ export default function CreateComplaintScreen() {
             value={categoryLabel}
             placeholder="Choose a category"
             open={menu === "category"}
-            options={categories.map(([id, label]) => ({ id, label }))}
+            options={categories.map(([id, label, description]) => ({ id, label, description }))}
+            searchable={type === "maintenance"}
             selected={category}
             error={categoryMessage || errors.category}
             onToggle={() => {
@@ -338,7 +344,7 @@ export default function CreateComplaintScreen() {
       </KeyboardScroll>
       <KeyboardFooter style={[styles.footer, { paddingBottom: Math.max(insets.bottom, sw(12)) }]}>
         <Pressable disabled={!canSubmit} onPress={() => void submit()} style={[styles.submit, !canSubmit && styles.disabled]}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Submit complaint</Text>}
+          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Submit</Text>}
         </Pressable>
       </KeyboardFooter>
     </SafeAreaView>

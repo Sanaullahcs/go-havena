@@ -123,6 +123,7 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
   }, [bottomOffset, messages.length, thread]);
 
   const closed = complaint && ["closed", "cancelled"].includes(complaint.status);
+  const residentChatLocked = !admin && !staff && complaint?.resident_chat_available === false;
 
   const openFile = async (file) => {
     try {
@@ -238,7 +239,12 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
               );
             }}
           />
-          {closed ? (
+          {residentChatLocked ? (
+            <View style={[styles.locked, { paddingBottom: composerInset, marginBottom: bottomOffset }]}>
+              <Feather name="lock" size={sf(14)} color={Colors.textMuted} />
+              <Text style={styles.lockedText}>Your community admin has not started the conversation yet.</Text>
+            </View>
+          ) : closed ? (
             <View style={[styles.locked, { paddingBottom: composerInset, marginBottom: bottomOffset }]}>
               <Feather name="lock" size={sf(14)} color={Colors.textMuted} />
               <Text style={styles.lockedText}>This complaint is {complaint.status_label.toLowerCase()}.</Text>

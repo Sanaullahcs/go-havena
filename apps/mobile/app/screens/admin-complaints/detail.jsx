@@ -93,8 +93,8 @@ export default function AdminComplaintDetailScreen() {
         ? "The resident is notified that this complaint is cancelled."
         : "The resident is notified when the status changes.",
       {
-        confirmLabel: cancelling ? "Cancel complaint" : "Confirm",
-        cancelLabel: cancelling ? "Keep complaint" : "Cancel",
+        confirmLabel: cancelling ? "Cancel" : "Confirm",
+        cancelLabel: cancelling ? "Keep" : "Cancel",
         destructive: cancelling,
       },
     );

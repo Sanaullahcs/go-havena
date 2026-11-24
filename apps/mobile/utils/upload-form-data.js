@@ -99,30 +99,18 @@ function isPdfAsset(asset) {
   return rawMime === "application/pdf" || String(asset?.uri ?? "").toLowerCase().endsWith(".pdf");
 }
 
-function assetNeedsJpegConversion(asset) {
-  if (!asset?.uri || isPdfAsset(asset)) return false;
-  if (asset.fromCamera) return true;
-
-  const rawMime = String(asset.mimeType ?? "").toLowerCase();
-  const uri = String(asset.uri).toLowerCase();
-
-  if (rawMime === "image/heic" || rawMime === "image/heif") return true;
-  if (/\.heic($|\?)/i.test(uri) || /\.heif($|\?)/i.test(uri)) return true;
-
-  return false;
-}
-
 async function normalizeDocumentImageAsset(asset, defaultBaseName = "upload") {
   const resizeActions = [];
   const width = Number(asset.width ?? 0);
-  if (width > 2048) {
-    resizeActions.push({ resize: { width: 2048 } });
+  // Keep complaint/document photos under typical local PHP upload limits (~2–8 MB).
+  if (width > 1600) {
+    resizeActions.push({ resize: { width: 1600 } });
   }
 
   const manipulated = await ImageManipulator.manipulateAsync(
     asset.uri,
     resizeActions,
-    { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
+    { compress: 0.72, format: ImageManipulator.SaveFormat.JPEG },
   );
 
   const fileName = buildCacheFileName(`${defaultBaseName}.jpg`, defaultBaseName, true);
@@ -288,13 +276,11 @@ export async function persistUploadAsset(asset, defaultBaseName = "upload") {
     };
   }
 
-  let working = asset;
-  if (assetNeedsJpegConversion(asset)) {
-    working = await normalizeDocumentImageAsset(
-      asset,
-      defaultBaseName.replace(/_/g, "-"),
-    );
-  }
+  // Always recompress images (gallery JPEGs can still be multi-MB).
+  const working = await normalizeDocumentImageAsset(
+    asset,
+    defaultBaseName.replace(/_/g, "-"),
+  );
 
   const prepared = await prepareUploadFile(
     working.uri,

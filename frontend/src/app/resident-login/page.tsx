@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { acceptStaffInvite } from "@/lib/api/staff";
 import { requestResidentOtp, verifyResidentOtp } from "@/lib/api/auth";
 import { setSession, getToken } from "@/lib/auth/session";
 import { handleLoginError } from "@/lib/auth/login-error";
@@ -33,28 +32,21 @@ export default function ResidentLoginPage() {
   const [otpSending, setOtpSending] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [staffReady, setStaffReady] = useState(false);
   const [otpRateLimit, setOtpRateLimit] = useState<unknown>(null);
   const [extendOtpResendCooldown, setExtendOtpResendCooldown] = useState(false);
   const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
   const [otpExpiresInSeconds, setOtpExpiresInSeconds] = useState<number | null>(null);
 
   useEffect(() => {
-    const token = searchParams.get("staff_invite");
-    if (!token) return;
-    void acceptStaffInvite(token).then((result) => {
-      if (result.email) setEmail(result.email);
-      setStaffReady(true);
-      setError(null);
-    }).catch((err) => {
-      setError(err instanceof ApiError ? err.message : "This staff invitation is no longer valid.");
-    });
-  }, [searchParams]);
-
-  useEffect(() => {
+    // Legacy email links used /resident-login?staff_invite=… — never auto-accept or send to the dashboard.
+    const legacyToken = searchParams.get("staff_invite");
+    if (legacyToken) {
+      router.replace(`/staff-invite?token=${encodeURIComponent(legacyToken)}`);
+      return;
+    }
     if (getToken()) router.replace("/home");
     emailRef.current?.focus();
-  }, [router]);
+  }, [router, searchParams]);
 
   const sendOtp = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -219,11 +211,6 @@ export default function ResidentLoginPage() {
                 </button>
               ) : null}
 
-              {staffReady ? (
-                <p className="mb-3 rounded-xl bg-[#E8F0F7] px-3 py-2 text-sm text-[#1B4F8A]">
-                  Staff access is active. Open the Havena app and sign in with this email. Assigned tasks are under My Assigned Tasks.
-                </p>
-              ) : null}
               {error && (
                 <div className="mt-5 flex gap-2.5 rounded-lg border border-red-200/80 bg-red-50 px-3.5 py-3 text-[13px] text-red-700" role="alert">
                   <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden className="mt-0.5 shrink-0">

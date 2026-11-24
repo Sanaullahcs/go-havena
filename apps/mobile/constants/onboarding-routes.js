@@ -2,7 +2,6 @@
 
 import {
   canAccessDashboard,
-  currentCommunityId,
   hasPendingCommunityRequest,
   hasPendingMembershipApproval,
   hasRejectedCommunityRequest,
@@ -21,26 +20,50 @@ import { hasApprovedMembership, isProfileComplete } from "../services/auth-api";
 import { markFirstHomeVisit } from "./user-session";
 import { hasSeenProductWelcome, markProductWelcomeSeen } from "../services/product-welcome-seen";
 import { prepareAuthScreenChrome } from "../components/layout/chrome-manager";
+import {
+  consumePendingStaffInviteToken,
+  loadPendingStaffInviteToken,
+} from "../services/auth-session";
 
 export const STAFF_HOME = "/screens/staff-tasks/home";
 export const STAFF_INVITES = "/screens/staff-tasks/invitations";
+export const STAFF_INVITE_ACCEPT = "/screens/staff-invite";
 
 /** Activated staff with no resident or community-admin access. */
 export function isStaffOnlyUser(user) {
   return Boolean(user?.staff_access?.active) && !canAccessDashboard(user) && !isCommunityAdminRole(user);
 }
 
-/** Approved resident who is also active staff in the community they currently have selected. */
+/** Approved resident who also has active staff access (any community). */
 export function isResidentWithStaff(user) {
   if (!user?.staff_access?.active || !canAccessDashboard(user) || isGuestUser(user)) return false;
-  const communityId = currentCommunityId(user);
-  if (!communityId) return false;
-  return (user.staff_access.communities ?? []).some((community) => Number(community.id) === Number(communityId));
+  return (user.staff_access.communities ?? []).length > 0;
 }
 
-/** A staff invitation is waiting, and this account has no resident home yet. */
+/**
+ * A staff invitation is waiting to be accepted.
+ * Includes staff-only accounts and existing residents who were invited as staff.
+ */
 export function hasPendingStaffInvite(user) {
-  return Boolean(user?.staff_access?.pending) && !user?.staff_access?.active && !canAccessDashboard(user) && !isCommunityAdminRole(user);
+  return Boolean(user?.staff_access?.pending) && !user?.staff_access?.active && !isCommunityAdminRole(user);
+}
+
+/** After accepting a staff invite — staff-only → Staff Home, resident+staff → Resident Home. */
+export function navigateAfterStaffInviteAccepted(router, user) {
+  if (!user) {
+    resetTo(router, Routes.LOGIN);
+    return;
+  }
+  if (isStaffOnlyUser(user)) {
+    resetTo(router, STAFF_HOME);
+    return;
+  }
+  if (canAccessDashboard(user)) {
+    markFirstHomeVisit();
+    resetTo(router, Routes.TABS_HOME, { role: user?.role || "resident" });
+    return;
+  }
+  resetTo(router, STAFF_HOME);
 }
 
 export const Routes = {
@@ -66,6 +89,7 @@ export const Routes = {
   ADMIN_DASHBOARD: "/screens/admin-dashboard",
   COMMUNITY_WELCOME: "/screens/community-welcome",
   CHOOSE_LOGIN_COMMUNITY: "/screens/choose-login-community",
+  STAFF_INVITE: "/screens/staff-invite",
 };
 
 function resetTo(router, pathname, params = {}) {
@@ -118,12 +142,13 @@ export function getColdStartRoute(user) {
     return { pathname: Routes.LOGIN, params: {} };
   }
 
-  if (isStaffOnlyUser(user)) {
-    return { pathname: STAFF_HOME, params: {} };
-  }
-
+  // Pending invite before active staff — never send staff-linked accounts into resident signup.
   if (hasPendingStaffInvite(user)) {
     return { pathname: STAFF_INVITES, params: {} };
+  }
+
+  if (isStaffOnlyUser(user)) {
+    return { pathname: STAFF_HOME, params: {} };
   }
 
   const activeRole = user?.role || "resident";
@@ -182,12 +207,13 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
     return { pathname: Routes.PENDING_COMMUNITY, params: { guest: "1" } };
   }
 
-  if (isStaffOnlyUser(user)) {
-    return { pathname: STAFF_HOME, params: {} };
-  }
-
+  // Accept staff invite before any resident onboarding / home routing.
   if (hasPendingStaffInvite(user)) {
     return { pathname: STAFF_INVITES, params: {} };
+  }
+
+  if (isStaffOnlyUser(user)) {
+    return { pathname: STAFF_HOME, params: {} };
   }
 
   if (needsInviteCode(user)) {
@@ -218,8 +244,12 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
     return { pathname: Routes.TABS_HOME, params: { role: onboardingRole } };
   }
 
-  if (isStaffOnlyUser(user)) {
+  // Defensive: staff-linked accounts must never fall into resident region signup.
+  if (isStaffOnlyUser(user) || user?.staff_access?.active) {
     return { pathname: STAFF_HOME, params: {} };
+  }
+  if (user?.staff_access?.pending) {
+    return { pathname: STAFF_INVITES, params: {} };
   }
 
   // Community admin access gate from backend `/me` access payload.
@@ -358,13 +388,33 @@ export function shouldChooseCommunityOnLogin(user) {
   return enrolledLoginCommunities(user).length > 1;
 }
 
+async function resumeStaffInviteIfPending(router) {
+  await loadPendingStaffInviteToken();
+  const token = await consumePendingStaffInviteToken();
+  if (!token) return false;
+  resetTo(router, Routes.STAFF_INVITE, { token });
+  return true;
+}
+
 /** After email OTP: pick a community when the resident belongs to more than one. */
 export function continueAfterEmailLogin(router, user) {
-  if (shouldChooseCommunityOnLogin(user)) {
-    resetTo(router, Routes.CHOOSE_LOGIN_COMMUNITY);
-    return;
-  }
-  void openHomeAfterLogin(router, user);
+  void (async () => {
+    if (await resumeStaffInviteIfPending(router)) return;
+    // Staff invite acceptance before community picker / resident home / signup.
+    if (hasPendingStaffInvite(user)) {
+      resetTo(router, STAFF_INVITES);
+      return;
+    }
+    if (isStaffOnlyUser(user)) {
+      resetTo(router, STAFF_HOME);
+      return;
+    }
+    if (shouldChooseCommunityOnLogin(user)) {
+      resetTo(router, Routes.CHOOSE_LOGIN_COMMUNITY);
+      return;
+    }
+    await openHomeAfterLogin(router, user);
+  })();
 }
 
 /** After login: show the one-time welcome, otherwise go straight home. */
@@ -389,6 +439,13 @@ export function navigateAfterAuth(router, user, { role, mode } = {}) {
     return;
   }
 
+  void (async () => {
+    if (await resumeStaffInviteIfPending(router)) return;
+    finishNavigateAfterAuth(router, user, { role, mode });
+  })();
+}
+
+function finishNavigateAfterAuth(router, user, { role, mode } = {}) {
   const route = getPostAuthRoute(user, { role, mode });
 
   if (route.pathname === Routes.TABS_HOME) {

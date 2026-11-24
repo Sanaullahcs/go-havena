@@ -160,7 +160,10 @@ class CommunityDocumentController extends Controller
         ])->values()->all();
     }
 
-    /** The five dashboard categories, counted only from documents this resident can open. */
+    /**
+     * Same five chips as Community Admin Documents: the four presets (including 0-count)
+     * plus Others for every non-preset category name (Civic, Forms, Grounds, etc.).
+     */
     private function residentDocumentCategories(iterable $documents): array
     {
         $counts = array_fill_keys(DocumentCategories::PRESETS, 0);
@@ -171,6 +174,10 @@ class CommunityDocumentController extends Controller
                 continue;
             }
             $name = trim((string) ($document['category'] ?? ''));
+            if ($name === '') {
+                $others++;
+                continue;
+            }
             $matched = null;
             foreach (DocumentCategories::PRESETS as $preset) {
                 if (mb_strtolower($preset) === mb_strtolower($name)) {
@@ -181,6 +188,7 @@ class CommunityDocumentController extends Controller
             if ($matched) {
                 $counts[$matched]++;
             } else {
+                // Any legacy / custom name (Civic, Forms, Grounds, Recreation, …) buckets into Others.
                 $others++;
             }
         }
@@ -326,9 +334,8 @@ class CommunityDocumentController extends Controller
         return response()->json([
             'data'       => $data,
             'recent'     => $recent,
-            'categories' => $this->isCommunityAdmin($user)
-                ? $this->buildCategories($communityId, true)
-                : $this->residentDocumentCategories($data),
+            // Resident Documents UI must match Community Admin chips — never expose raw DB names.
+            'categories' => $this->residentDocumentCategories($data),
             'total'      => $data->count(),
         ]);
     }

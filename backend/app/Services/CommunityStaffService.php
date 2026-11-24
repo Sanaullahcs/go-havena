@@ -27,6 +27,14 @@ class CommunityStaffService
         'cleaning' => 'cleaning',
         'lifts' => 'lift_maintenance',
         'parking' => 'parking_maintenance',
+        'security_safety' => 'general_maintenance',
+        'noise_disturbance' => 'general_maintenance',
+        'common_areas' => 'general_maintenance',
+        'building_maintenance' => 'general_maintenance',
+        'landscaping' => 'general_maintenance',
+        'pest_control' => 'general_maintenance',
+        'billing_payments' => 'general_maintenance',
+        'resident_behavior' => 'general_maintenance',
         'other' => 'other',
     ];
 
@@ -301,8 +309,14 @@ class CommunityStaffService
         if (array_key_exists('specializations', $input)) {
             $updates['specializations'] = json_encode($data['specializations']);
         }
+        if (array_key_exists('status', $updates) && ! $staff->activated_at) {
+            abort(422, 'This invitation has not been accepted yet.');
+        }
         if (($updates['status'] ?? null) === 'inactive') {
             $updates['availability'] = 'unavailable';
+        }
+        if (($updates['status'] ?? null) === 'active' && $staff->status !== 'active') {
+            $updates['availability'] = 'available';
         }
         $deactivating = ($updates['status'] ?? null) === 'inactive' && $staff->status !== 'inactive';
         DB::table('community_staff')->where('id', $staff->id)->update($updates);
@@ -319,10 +333,11 @@ class CommunityStaffService
     public function resend(User $admin, int $id): array
     {
         $staff = $this->findForAdmin($admin, $id);
-        abort_if($staff->status !== 'active', 422, 'Activate this staff member before sending another invitation.');
         abort_if($staff->activated_at, 422, 'This staff member has already accepted the invitation.');
         $token = Str::random(48);
         DB::table('community_staff')->where('id', $staff->id)->update([
+            'status' => 'active',
+            'availability' => 'available',
             'invitation_token' => $token,
             'invitation_expires_at' => now()->addDays(7),
             'invited_at' => now(),
@@ -335,12 +350,63 @@ class CommunityStaffService
         return $this->present(DB::table('community_staff')->where('id', $staff->id)->first(), 0);
     }
 
-    public function acceptInvitation(string $token): array
+    public function cancelInvitation(User $admin, int $id): void
+    {
+        $staff = $this->findForAdmin($admin, $id);
+        abort_if($staff->activated_at, 422, 'This invitation has already been accepted.');
+        $expired = $staff->invitation_expires_at && now()->greaterThan($staff->invitation_expires_at);
+        abort_if($expired, 422, 'This invitation has expired. Send a new invitation instead.');
+        abort_if($this->openTaskCount($staff) > 0, 422, 'Reassign this staff member\'s open tasks before cancelling the invitation.');
+
+        DB::table('community_staff')->where('id', $staff->id)->delete();
+    }
+
+    public function remove(User $admin, int $id): void
+    {
+        $staff = $this->findForAdmin($admin, $id);
+        abort_unless($staff->activated_at, 422, 'Cancel the invitation instead of removing this staff member.');
+        $open = $this->openTaskCount($staff);
+        abort_if($open > 0, 422, $open === 1
+            ? 'Reassign the open task before removing this staff member.'
+            : 'Reassign the '.$open.' open tasks before removing this staff member.');
+
+        DB::table('community_staff')->where('id', $staff->id)->delete();
+    }
+
+    public function previewInvitation(string $token): array
+    {
+        $staff = DB::table('community_staff')->where('invitation_token', $token)->first();
+        abort_unless($staff, 404, 'This invitation is no longer valid.');
+
+        $expired = $staff->invitation_expires_at && now()->greaterThan($staff->invitation_expires_at);
+        $inactive = $staff->status !== 'active';
+        $community = (string) DB::table('communities')->where('id', $staff->community_id)->value('name');
+
+        return [
+            'community_name' => $community,
+            'email' => (string) $staff->email,
+            'expires_at' => $staff->invitation_expires_at,
+            'status' => $inactive ? 'inactive' : ($expired ? 'expired' : 'pending'),
+            'can_accept' => ! $inactive && ! $expired,
+        ];
+    }
+
+    public function acceptInvitation(string $token, ?User $user = null): array
     {
         $staff = DB::table('community_staff')->where('invitation_token', $token)->first();
         abort_unless($staff, 404, 'This invitation is no longer valid.');
         abort_if($staff->status !== 'active', 422, 'This staff access has been deactivated.');
         abort_if($staff->invitation_expires_at && now()->greaterThan($staff->invitation_expires_at), 422, 'This invitation has expired. Ask your community admin to send a new one.');
+
+        if ($user) {
+            $matchesUser = (int) $staff->user_id === (int) $user->id;
+            $matchesEmail = strcasecmp((string) $staff->email, (string) $user->email) === 0;
+            abort_unless(
+                $matchesUser || $matchesEmail,
+                403,
+                'This invitation was sent to '.$staff->email.'. Sign in with that account to accept it.'
+            );
+        }
 
         DB::transaction(function () use ($staff) {
             DB::table('community_staff')->where('id', $staff->id)->update([
@@ -358,8 +424,9 @@ class CommunityStaffService
         $this->notifyInvitationAccepted($staff, $community);
 
         return [
-            'message' => 'Your staff access is active. Sign in with '.$staff->email.' to see assigned tasks.',
+            'message' => 'Your staff access is active for '.$community.'.',
             'email' => $staff->email,
+            'community_name' => $community,
         ];
     }
 
@@ -397,7 +464,7 @@ class CommunityStaffService
         abort_unless($staff, 404, 'This invitation is no longer valid.');
         abort_unless($staff->invitation_token, 422, 'This invitation has already been used.');
 
-        return $this->acceptInvitation((string) $staff->invitation_token);
+        return $this->acceptInvitation((string) $staff->invitation_token, $user);
     }
 
     public function activeRecord(User $user, int $communityId): ?object
@@ -490,9 +557,6 @@ class CommunityStaffService
 
     private function invitationState(object $row): string
     {
-        if ($row->status === 'inactive') {
-            return 'inactive';
-        }
         if ($row->activated_at) {
             return 'accepted';
         }
@@ -501,6 +565,15 @@ class CommunityStaffService
         }
 
         return 'pending';
+    }
+
+    private function openTaskCount(object $staff): int
+    {
+        return (int) DB::table('complaints')
+            ->where('assigned_staff_id', $staff->id)
+            ->whereNull('deleted_at')
+            ->whereNotIn('status', ['closed', 'cancelled'])
+            ->count();
     }
 
     private function approvedResident(int $communityId, int $userId): ?object
@@ -572,6 +645,29 @@ class CommunityStaffService
         };
     }
 
+    public static function staffNameError(string $name): ?string
+    {
+        $value = trim($name);
+        if ($value === '') {
+            return 'Full name is required.';
+        }
+        if (preg_match('/\p{N}/u', $value) === 1) {
+            return 'Full name cannot contain numbers.';
+        }
+        if (preg_match('/[^\p{L} ]/u', $value) === 1) {
+            return 'Full name cannot contain special characters.';
+        }
+        $length = mb_strlen($value);
+        if ($length < 2) {
+            return 'Full name must contain at least 2 characters.';
+        }
+        if ($length > 50) {
+            return 'Full name cannot exceed 50 characters.';
+        }
+
+        return null;
+    }
+
     /** @return array<string, mixed> */
     private function validate(array $input, bool $creating): array
     {
@@ -582,8 +678,9 @@ class CommunityStaffService
         $skills = array_values(array_unique(array_filter((array) ($input['specializations'] ?? []))));
         $errors = [];
         if ($creating || array_key_exists('name', $input)) {
-            if ($name === '' || mb_strlen($name) < 2 || mb_strlen($name) > 120 || ! preg_match('/\p{L}/u', $name)) {
-                $errors['name'] = 'Enter the staff member\'s full name.';
+            $nameError = self::staffNameError($name);
+            if ($nameError !== null) {
+                $errors['name'] = $nameError;
             }
         }
         if ($creating && ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL))) {

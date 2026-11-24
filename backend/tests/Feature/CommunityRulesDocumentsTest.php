@@ -308,6 +308,76 @@ class CommunityRulesDocumentsTest extends TestCase
             ->assertJsonPath('categories.4.count', 0);
     }
 
+    public function test_resident_document_categories_match_admin_presets_and_bucket_legacy_into_others(): void
+    {
+        Storage::fake('public');
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        // Residents need an active unit before UserActingContextService resolves a community.
+        app(\App\Services\UnitAssignmentService::class)->assignUserToUnitNumber(
+            $community->id,
+            $resident->id,
+            '101',
+            false,
+            true,
+            'active',
+            'invite',
+        );
+
+        Sanctum::actingAs($admin);
+
+        $this->post('/api/v1/admin/documents', [
+            'title'    => 'Civic Notice',
+            'category' => 'Civic',
+            'file'     => UploadedFile::fake()->create('civic.pdf', 80, 'application/pdf'),
+        ])->assertCreated();
+
+        $this->post('/api/v1/admin/documents', [
+            'title'    => 'Grounds Map',
+            'category' => 'Grounds',
+            'file'     => UploadedFile::fake()->create('grounds.pdf', 80, 'application/pdf'),
+        ])->assertCreated();
+
+        $this->post('/api/v1/admin/documents', [
+            'title'    => 'Budget 2026',
+            'category' => 'Financial',
+            'file'     => UploadedFile::fake()->create('budget.pdf', 80, 'application/pdf'),
+        ])->assertCreated();
+
+        // Community admin on the resident Documents endpoint must still get preset chips
+        // (not raw seeded names like Civic / Forms / Grounds).
+        $adminList = $this->getJson('/api/v1/documents')->assertOk();
+        $adminList
+            ->assertJsonPath('categories.0.name', 'Rules & Policies')
+            ->assertJsonPath('categories.1.name', 'Maintenance')
+            ->assertJsonPath('categories.2.name', 'Financial')
+            ->assertJsonPath('categories.2.count', 1)
+            ->assertJsonPath('categories.3.name', 'Property')
+            ->assertJsonPath('categories.4.name', 'Others')
+            ->assertJsonPath('categories.4.count', 2);
+
+        $adminNames = collect($adminList->json('categories'))->pluck('name')->all();
+        $this->assertSame(
+            ['Rules & Policies', 'Maintenance', 'Financial', 'Property', 'Others'],
+            $adminNames,
+        );
+        $this->assertEmpty(array_intersect($adminNames, ['Civic', 'Forms', 'Grounds', 'Policies', 'Recreation']));
+
+        Sanctum::actingAs($resident);
+
+        $residentList = $this->getJson('/api/v1/documents')->assertOk();
+        $residentList
+            ->assertJsonPath('categories.2.name', 'Financial')
+            ->assertJsonPath('categories.2.count', 1)
+            ->assertJsonPath('categories.4.name', 'Others')
+            ->assertJsonPath('categories.4.count', 2);
+
+        $this->assertSame(
+            ['Rules & Policies', 'Maintenance', 'Financial', 'Property', 'Others'],
+            collect($residentList->json('categories'))->pluck('name')->all(),
+        );
+    }
+
     public function test_resident_can_view_and_download_document(): void
     {
         Storage::fake('public');

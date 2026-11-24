@@ -49,7 +49,7 @@ class StaffTaskController extends Controller
                 'nullable',
                 'string',
                 'max:1000',
-                Rule::when(in_array($request->input('status'), ['resolved', 'not_resolved'], true), ['required', 'min:3']),
+                Rule::when($request->input('status') === 'not_resolved', ['required', 'min:3']),
             ],
         ]);
 

@@ -50,6 +50,8 @@ export function StatTile({
   tone = "blue",
   icon,
   href,
+  onClick,
+  pressed = false,
 }: {
   label: string;
   value: ReactNode;
@@ -57,6 +59,8 @@ export function StatTile({
   tone?: Tone;
   icon: ReactNode;
   href?: string;
+  onClick?: () => void;
+  pressed?: boolean;
 }) {
   const tile = TONE_TILE[tone] ?? TONE_TILE.green;
   const accent = TONE_ACCENT[tone] ?? tile.accent;
@@ -104,16 +108,26 @@ export function StatTile({
   );
 
   const className = [
-    "group relative flex min-h-[4.25rem] gap-3 overflow-hidden rounded-xl border p-3.5",
+    "group relative flex min-h-[4.25rem] min-w-0 gap-3 overflow-hidden rounded-xl border p-3.5",
     hintMultiline ? "items-start" : "items-center",
     "transition duration-200 hover:-translate-y-0.5 hover:shadow-md",
+    onClick ? "w-full cursor-pointer text-left" : "",
   ].join(" ");
 
   const cardStyle = {
     background: tile.wash,
-    borderColor: tile.border,
+    borderColor: pressed ? accent : tile.border,
     boxShadow: NL.shadowCard,
   };
+
+  if (onClick) {
+    return (
+      <button type="button" aria-pressed={pressed} onClick={onClick} className={className} style={cardStyle}>
+        <span className="absolute inset-x-0 top-0 h-[2px]" style={{ background: accent }} aria-hidden />
+        {inner}
+      </button>
+    );
+  }
 
   if (href) {
     return (

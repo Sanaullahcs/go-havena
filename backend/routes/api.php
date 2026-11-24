@@ -100,7 +100,8 @@ Route::prefix('v1')->group(function () {
         ->name('public.invite-qr');
     Route::get('/public/invite-qr', [InviteQrImageController::class, 'view'])
         ->name('public.invite-qr-view');
-    Route::post('/staff/invitations/accept', [CommunityStaffController::class, 'accept'])->middleware('throttle:20,1');
+    Route::get('/staff/invitations/preview', [CommunityStaffController::class, 'preview'])->middleware('throttle:30,1');
+    Route::post('/staff/invitations/accept', [CommunityStaffController::class, 'accept'])->middleware(['auth:sanctum', 'throttle:20,1']);
 
     /* ── Auth ── */
     Route::prefix('auth')->group(function () {
@@ -480,6 +481,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('/staff/{id}', [CommunityStaffController::class, 'show'])->whereNumber('id');
                 Route::match(['patch', 'post'], '/staff/{id}', [CommunityStaffController::class, 'update'])->whereNumber('id');
                 Route::post('/staff/{id}/invite', [CommunityStaffController::class, 'resend'])->whereNumber('id');
+                Route::post('/staff/{id}/cancel-invitation', [CommunityStaffController::class, 'cancelInvitation'])->whereNumber('id');
+                Route::delete('/staff/{id}', [CommunityStaffController::class, 'destroy'])->whereNumber('id');
             });
 
             /* Community admin (+ system admin override) */

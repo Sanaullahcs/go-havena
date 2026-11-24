@@ -87,8 +87,8 @@ export default function AdminTechnicalReportDetailScreen() {
         ? "This cancels the report for System Admin."
         : "This update is sent to System Admin.",
       {
-        confirmLabel: cancelling ? "Cancel complaint" : "Confirm",
-        cancelLabel: cancelling ? "Keep report" : "Cancel",
+        confirmLabel: cancelling ? "Cancel" : "Confirm",
+        cancelLabel: cancelling ? "Keep" : "Cancel",
         destructive: cancelling,
       },
     );

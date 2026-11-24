@@ -125,12 +125,35 @@ export async function updateStaff(id: number, payload: Partial<{
   return res.data.data as StaffMember;
 }
 
-export async function resendStaffInvite(id: number): Promise<StaffMember> {
+export async function resendStaffInvite(id: number): Promise<{ member: StaffMember; message: string }> {
   const res = await api.post(`/v1/admin/staff/${id}/invite`);
-  return res.data.data as StaffMember;
+  return {
+    member: res.data.data as StaffMember,
+    message: String(res.data.message ?? "Invitation sent."),
+  };
 }
 
-export async function acceptStaffInvite(token: string): Promise<{ message: string; email?: string }> {
+export async function cancelStaffInvitation(id: number): Promise<void> {
+  await api.post(`/v1/admin/staff/${id}/cancel-invitation`);
+}
+
+export async function removeStaffMember(id: number): Promise<void> {
+  await api.delete(`/v1/admin/staff/${id}`);
+}
+
+export async function previewStaffInvite(token: string): Promise<{
+  community_name: string;
+  email: string;
+  expires_at?: string | null;
+  status: string;
+  can_accept: boolean;
+}> {
+  const res = await api.get("/v1/staff/invitations/preview", { params: { token } });
+  return res.data.data;
+}
+
+/** Authenticated accept — logged-in account must match the invitation recipient. */
+export async function acceptStaffInvite(token: string): Promise<{ message: string; email?: string; community_name?: string }> {
   const res = await api.post("/v1/staff/invitations/accept", { token });
   return res.data;
 }

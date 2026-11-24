@@ -1,15 +1,42 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { getManagedCommunityId, getUser, SESSION_PATCHED_EVENT } from "@/lib/auth/session";
-import { Calendar, CheckCircle2, ChevronDown, CircleDot, ClipboardList, Clock, FileText, Flag, Hash, MessageSquare, Paperclip, SlidersHorizontal, Tag, UserCheck, UserRound, X } from "lucide-react";
+import {
+  AlarmClock,
+  Archive,
+  Calendar,
+  CheckCircle2,
+  CircleDot,
+  ClipboardList,
+  Clock,
+  Eye,
+  FileText,
+  Flag,
+  Hash,
+  ImageIcon,
+  Mail,
+  MessageSquare,
+  Paperclip,
+  Phone,
+  RotateCcw,
+  SlidersHorizontal,
+  Tag,
+  UserCheck,
+  UserRound,
+  X,
+  ZoomIn,
+  ZoomOut,
+  Download,
+} from "lucide-react";
 import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { ComplaintChatModal } from "@/components/admin/complaint-chat-modal";
-import { AdminBadge, DataTable, DtPagination } from "@/components/admin/ui";
+import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ThemedDatePicker } from "@/components/ui/themed-date-picker";
 import { ThemedSelect } from "@/components/ui/themed-select";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import { PageError } from "@/components/shared/page-states";
@@ -61,7 +88,7 @@ function complaintWorkflow(record: { status: string; workflow_status?: string })
   return record.workflow_status || (record.status === "submitted" ? "open" : record.status);
 }
 
-type StaffAssignMode = "assign" | "change" | "reassign" | "emergency";
+type StaffAssignMode = "assign" | "change" | "reassign";
 
 const STAFF_ASSIGN_COPY: Record<StaffAssignMode, { title: string; confirmTitle: string; confirmText: string; confirmButton: string; color: "blue" | "amber" }> = {
   assign: {
@@ -85,13 +112,6 @@ const STAFF_ASSIGN_COPY: Record<StaffAssignMode, { title: string; confirmTitle: 
     confirmButton: "Reassign",
     color: "blue",
   },
-  emergency: {
-    title: "Emergency reassignment",
-    confirmTitle: "Reassign during in-progress work?",
-    confirmText: "Use this only when the assigned staff member cannot continue. The resident and both staff members will be notified.",
-    confirmButton: "Reassign",
-    color: "amber",
-  },
 };
 
 const PRIORITY_TONE = {
@@ -112,19 +132,65 @@ const STATUS_ACTION: Record<string, string> = {
   reopened: "Reopen",
 };
 
-const CATEGORIES = [
-  ["all", "All categories"],
+const MAINTENANCE_CATEGORIES = [
   ["plumbing", "Plumbing"],
   ["electrical", "Electrical"],
-  ["cleaning", "Cleaning"],
-  ["lifts", "Lifts"],
+  ["cleaning", "Cleaning & Sanitation"],
+  ["lifts", "Elevators / Lifts"],
   ["parking", "Parking"],
-  ["app_bug", "App Bug"],
-  ["account", "Account"],
-  ["login", "Login"],
-  ["payment", "Payment"],
+  ["security_safety", "Security & Safety"],
+  ["noise_disturbance", "Noise Disturbance"],
+  ["common_areas", "Common Areas & Amenities"],
+  ["building_maintenance", "Building Maintenance"],
+  ["landscaping", "Landscaping & Outdoor Areas"],
+  ["pest_control", "Pest Control"],
+  ["billing_payments", "Billing & Payments"],
+  ["resident_behavior", "Resident Behavior"],
   ["other", "Other"],
 ] as const;
+
+const TECHNICAL_CATEGORIES = [
+  ["app_bug", "App Bug"],
+  ["login", "Login & Authentication"],
+  ["account", "Account & Access"],
+  ["performance", "Performance Issues"],
+  ["payment", "Payment Technical Issues"],
+  ["notifications", "Notification Issues"],
+  ["data_display", "Data & Display Issues"],
+  ["file_upload", "File & Upload Issues"],
+  ["other", "Other Technical Issues"],
+] as const;
+
+const TECHNICAL_CATEGORY_HINTS: Record<string, string> = {
+  app_bug: "Something in the app is not working as expected.",
+  login: "Trouble signing in or verifying an account.",
+  account: "Account details, permissions, or access problems.",
+  performance: "The app is slow, freezing, or unresponsive.",
+  payment: "A payment failed or did not show correctly in the app.",
+  notifications: "Missing, delayed, or incorrect notifications.",
+  data_display: "Information looks wrong or does not display correctly.",
+  file_upload: "A file will not upload, open, or download.",
+  other: "A technical problem that does not fit the other categories.",
+};
+
+const CATEGORY_HINTS: Record<string, string> = {
+  plumbing: "Water leakage, drainage, and pipe issues.",
+  electrical: "Power failures, wiring, and lighting issues.",
+  cleaning: "Garbage, cleanliness, and hygiene issues.",
+  lifts: "Elevator breakdowns and maintenance.",
+  parking: "Parking violations and blocked spaces.",
+  security_safety: "Security concerns and unauthorized access.",
+  noise_disturbance: "Loud music and excessive noise.",
+  common_areas: "Shared facility issues.",
+  building_maintenance: "Structural damage and general repairs.",
+  landscaping: "Gardens and outdoor maintenance.",
+  pest_control: "Rodents, insects, and infestations.",
+  billing_payments: "Incorrect charges and payment issues.",
+  resident_behavior: "Neighbor disputes and rule violations.",
+  other: "Complaints not covered by existing categories.",
+};
+
+const ALL_CATEGORIES_OPTION = ["all", "All categories"] as const;
 
 const ACTIVITY_STATUS: Record<string, string> = {
   submitted: "Open",
@@ -152,6 +218,7 @@ const ACTIVITY_ACTION: Record<string, string> = {
 };
 
 function activityTitle(action: string, toStatus?: string | null) {
+  if (action === "status_changed" && toStatus === "reopened") return "Complaint reopened";
   const label = ACTIVITY_ACTION[action] ?? action.replaceAll("_", " ");
   if (action !== "status_changed" || !toStatus) return label;
   return `${label} · ${ACTIVITY_STATUS[toStatus] ?? toStatus.replaceAll("_", " ")}`;
@@ -168,6 +235,8 @@ type ComplaintFilterValue = {
   status: string;
   category: string;
   priority: string;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 const PRIORITY_FILTERS = [
@@ -179,18 +248,28 @@ const PRIORITY_FILTERS = [
 ] as const;
 
 function activeFilterCount(value: ComplaintFilterValue) {
-  return [value.status, value.category, value.priority].filter((item) => item !== "all").length;
+  return [
+    value.status !== "all",
+    value.category !== "all",
+    value.priority !== "all",
+    Boolean(value.dateFrom),
+    Boolean(value.dateTo),
+  ].filter(Boolean).length;
 }
 
 function ComplaintFiltersButton({
   value,
   statuses,
   categories,
+  categoryHints,
+  showDates = false,
   onApply,
 }: {
   value: ComplaintFilterValue;
   statuses: readonly (readonly [string, string])[];
   categories: readonly (readonly [string, string])[];
+  categoryHints: Record<string, string>;
+  showDates?: boolean;
   onApply: (next: ComplaintFilterValue) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -202,7 +281,7 @@ function ComplaintFiltersButton({
     width: 320,
     align: "right",
     gap: 8,
-    maxHeight: 460,
+    maxHeight: showDates ? 560 : 460,
     constrainToViewport: true,
     preferBelow: true,
   });
@@ -280,23 +359,47 @@ function ComplaintFiltersButton({
               options={statuses.map(([value, label]) => ({ value, label }))}
               onChange={(status) => setDraft((current) => ({ ...current, status }))}
             />
-            <ThemedSelect
-              label="Category"
-              value={draft.category}
-              options={categories.map(([value, label]) => ({ value, label }))}
-              onChange={(category) => setDraft((current) => ({ ...current, category }))}
-            />
+            <div className="nl-notice-field min-w-0 w-full">
+              <label className="nl-notice-label">Category</label>
+              <SearchableSelect
+                searchable
+                value={draft.category}
+                searchPlaceholder="Search categories"
+                options={categories.map(([value, label]) => ({ value, label, description: categoryHints[value], pinned: value === "all" }))}
+                onChange={(category) => setDraft((current) => ({ ...current, category }))}
+              />
+            </div>
             <ThemedSelect
               label="Priority"
               value={draft.priority}
               options={[...PRIORITY_FILTERS]}
               onChange={(priority) => setDraft((current) => ({ ...current, priority }))}
             />
+            {showDates ? (
+              <>
+                <ThemedDatePicker
+                  compact
+                  label="From"
+                  placeholder="From date"
+                  value={draft.dateFrom ?? ""}
+                  max={draft.dateTo || undefined}
+                  onChange={(dateFrom) => setDraft((current) => ({ ...current, dateFrom }))}
+                />
+                <ThemedDatePicker
+                  compact
+                  label="To"
+                  placeholder="To date"
+                  value={draft.dateTo ?? ""}
+                  min={draft.dateFrom || undefined}
+                  onChange={(dateTo) => setDraft((current) => ({ ...current, dateTo }))}
+                />
+              </>
+            ) : null}
           </div>
           <div className="mt-4 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
             <button
               type="button"
-              onClick={() => apply({ status: "all", category: "all", priority: "all" })}
+              onClick={() => apply({ status: "all", category: "all", priority: "all", dateFrom: "", dateTo: "" })}
               className="text-[12.5px] font-semibold text-slate-500 hover:text-[#0A2A43]"
             >
               Clear all
@@ -323,29 +426,39 @@ function formatSubmitted(value?: string | null) {
   return date.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-function isImageAttachment(file: { mime_type?: string | null; file_name: string }) {
-  if (file.mime_type?.startsWith("image/")) return true;
-  return /\.(png|jpe?g|gif|webp)$/i.test(file.file_name);
+type AttachmentKind = "image" | "pdf" | "file";
+
+function attachmentKind(mime: string, fileName: string): AttachmentKind {
+  const type = String(mime || "").toLowerCase();
+  const name = String(fileName || "");
+  if (type.startsWith("image/")) return "image";
+  if (type === "application/pdf" || /\.pdf$/i.test(name)) return "pdf";
+  if (/\.(png|jpe?g|gif|webp|heic|heif)$/i.test(name)) return "image";
+  return "file";
 }
 
-function activityIcon(action: string) {
+function displayAttachmentLabel(fileName: string, kind: AttachmentKind) {
+  const raw = String(fileName || "Attachment").trim();
+  if (/^reopen-\d+\.(jpe?g|png|webp)$/i.test(raw)) return "Supporting photo (reopen)";
+  if (kind === "image" && /^[0-9A-F-]{20,}/i.test(raw)) return "Photo attachment";
+  if (kind === "pdf" && (raw.length > 36 || /^[0-9A-F-]{8}-/i.test(raw))) return "PDF document";
+  if (raw.length > 40) {
+    const dot = raw.lastIndexOf(".");
+    if (dot > 0 && dot < raw.length - 2) {
+      return `${raw.slice(0, 24)}…${raw.slice(dot)}`;
+    }
+    return `${raw.slice(0, 28)}…`;
+  }
+  return raw;
+}
+
+function activityIcon(action: string, toStatus?: string | null) {
+  if (action === "status_changed" && toStatus === "reopened") return RotateCcw;
   if (action === "attachment") return Paperclip;
   if (action === "created") return FileText;
   if (action === "message" || action === "internal_note") return MessageSquare;
   if (action.includes("assign") || action === "accepted" || action === "declined") return UserRound;
   return CheckCircle2;
-}
-
-function ComplaintStat({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
-  return (
-    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F4F7FB] text-[#1B4F8A]">{icon}</span>
-      <span className="min-w-0">
-        <span className="block truncate text-[12px] font-medium text-slate-500">{label}</span>
-        <span className="block text-[1.15rem] font-semibold tabular-nums leading-tight text-[#0A2A43]">{value}</span>
-      </span>
-    </div>
-  );
 }
 
 function formatWhen(value?: string | null) {
@@ -375,6 +488,7 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [summaryFilter, setSummaryFilter] = useState("all");
   const [category, setCategory] = useState("all");
   const [priority, setPriority] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -393,12 +507,9 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState("");
 
-  const categories = CATEGORIES.filter(([key]) => {
-    if (key === "all" || key === "other") return true;
-    return audience === "community"
-      ? ["plumbing", "electrical", "cleaning", "lifts", "parking"].includes(key)
-      : ["app_bug", "account", "login", "payment"].includes(key);
-  });
+  const categories = audience === "community"
+    ? [ALL_CATEGORIES_OPTION, ...MAINTENANCE_CATEGORIES]
+    : [ALL_CATEGORIES_OPTION, ...TECHNICAL_CATEGORIES];
 
   useEffect(() => {
     setSelectedId(readComplaintId());
@@ -466,7 +577,7 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
       setError("");
     }
     try {
-      const result = await fetchAdminComplaints({ search, status, category, priority, dateFrom, dateTo, page });
+      const result = await fetchAdminComplaints({ search, status, summary: summaryFilter, category, priority, dateFrom, dateTo, page });
       if (requestId !== loadRequest.current) return;
       const staffRevision = result.meta.staff_revision ?? "";
       const staffChanged = staffRevisionRef.current !== "" && staffRevision !== staffRevisionRef.current;
@@ -492,7 +603,7 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
         if (!silent) setLoading(false);
       }
     }
-  }, [search, status, category, priority, dateFrom, dateTo, page, communityId, sessionEpoch, applyList]);
+  }, [search, status, summaryFilter, category, priority, dateFrom, dateTo, page, communityId, sessionEpoch, applyList]);
 
   useEffect(() => {
     signatureRef.current = "";
@@ -571,11 +682,13 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   }, [selectedId, chatOpen, base, router]);
 
   const runStatus = async (row: ComplaintRecord, next: ComplaintStatus) => {
+    const cancelling = next === "cancelled";
     const confirmed = await confirmAction({
       title: `${STATUS_ACTION[next] ?? "Update"}?`,
       text: `${row.reference} will move to ${next.replaceAll("_", " ")}.`,
-      confirmText: "Update",
-      color: next === "cancelled" ? "red" : "blue",
+      confirmText: cancelling ? "Cancel" : "Update",
+      cancelText: cancelling ? "Keep" : "Cancel",
+      color: cancelling ? "red" : "blue",
     });
     if (!confirmed.isConfirmed) return;
     setBusy(true);
@@ -631,6 +744,40 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
     }
   };
 
+  const openReopenAssign = async (row: ComplaintRecord) => {
+    let target = row;
+    if (!row.previous_assigned_to_user_id) {
+      try {
+        target = await fetchAdminComplaint(row.id);
+      } catch (err) {
+        toastError(apiError(err));
+        return;
+      }
+    }
+    if (!target.previous_assigned_to_user_id) {
+      toastError("No previous staff on record. Use Change Staff to assign someone.");
+      return;
+    }
+    if (target.previous_assignee_available === false) {
+      toastError("The previously assigned staff member is no longer available. Use Change Staff.");
+      return;
+    }
+    const name = target.previous_assigned_to_name?.trim() || "the previous staff member";
+    const confirmed = await confirmAction({
+      title: "Confirm assignment",
+      text: `Send a new assignment request to ${name}?`,
+      confirmText: "Confirm Assignment",
+      cancelText: "Cancel",
+      color: "blue",
+    });
+    if (!confirmed.isConfirmed) return;
+    try {
+      await saveAssignment(target.id, target.previous_assigned_to_user_id, "Assignment request sent");
+    } catch {
+      // The error toast is shown by saveAssignment.
+    }
+  };
+
   const openAssign = async (row: ComplaintRecord, mode: StaffAssignMode) => {
     setAssignMode(mode);
     setAssignRow(row);
@@ -652,11 +799,19 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
     if (!assignRow || !assignChoice || busy) return;
     const userId = Number(assignChoice);
     if (!userId || userId === assignRow.assigned_to_user_id) return;
-    const copy = STAFF_ASSIGN_COPY[assignMode];
+    const reopenStaffPick =
+      assignMode === "change" && assignRow.status === "reopened" && !assignRow.assigned_to_user_id;
+    const copy = reopenStaffPick
+      ? {
+          ...STAFF_ASSIGN_COPY.change,
+          confirmTitle: "Assign staff?",
+          confirmText: "The selected staff member will receive an assignment request.",
+        }
+      : STAFF_ASSIGN_COPY[assignMode];
     const confirmed = await confirmAction({
       title: copy.confirmTitle,
       text: copy.confirmText,
-      confirmText: copy.confirmButton,
+      confirmText: reopenStaffPick ? "Confirm Assignment" : copy.confirmButton,
       color: copy.color,
     });
     if (!confirmed.isConfirmed) return;
@@ -671,7 +826,8 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
     const confirmed = await confirmAction({
       title: "Cancel this request?",
       text: "The assignment request will be withdrawn. The complaint returns to Open, and its history is kept.",
-      confirmText: "Cancel request",
+      confirmText: "Cancel",
+      cancelText: "Keep",
       color: "amber",
     });
     if (!confirmed.isConfirmed) return;
@@ -686,6 +842,13 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
     const view = { label: "View Details", icon: "view" as const, onClick: () => openComplaint(row.id) };
     if (row.type === "technical") return [view];
     const workflow = complaintWorkflow(row);
+    if (workflow === "reopened") {
+      return [
+        view,
+        { label: "Assign", icon: "plus" as const, onClick: () => void openReopenAssign(row) },
+        { label: "Change Staff", icon: "edit" as const, onClick: () => void openAssign(row, "change") },
+      ];
+    }
     if (workflow === "open" || workflow === "submitted") {
       return [view, { label: "Assign Staff", icon: "plus" as const, onClick: () => void openAssign(row, "assign") }];
     }
@@ -702,21 +865,6 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
     return [view];
   };
 
-  const openFile = async (fileId: number, name: string) => {
-    if (!detail) return;
-    try {
-      const blob = await downloadAdminComplaintAttachment(detail.id, fileId);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = name;
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      toastError(apiError(err));
-    }
-  };
-
   const openChat = async () => {
     if (!detail) return;
     setChatOpen(true);
@@ -729,9 +877,18 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
     }
   };
 
-  const openCount = Number(counts.submitted ?? 0) + Number(counts.reopened ?? 0);
+  const openCount = Number(counts.open_queue ?? (Number(counts.submitted ?? 0) + Number(counts.in_review ?? 0) + Number(counts.reopened ?? 0) + Number(counts.waiting_on_resident ?? 0) + Number(counts.not_resolved ?? 0)));
   const progressCount = Number(counts.in_progress ?? 0);
   const resolvedCount = Number(counts.resolved ?? 0);
+  const closedCount = Number(counts.closed ?? 0);
+  const overdueCount = Number(counts.overdue ?? 0);
+  const summaryActive = (key: "all" | "open" | "in_progress" | "resolved" | "closed" | "overdue") => (
+    key === "open" || key === "overdue"
+      ? summaryFilter === key && status === "all"
+      : key === "all"
+        ? summaryFilter === "all" && status === "all"
+        : summaryFilter === "all" && status === key
+  );
   const statuses = [
     ["all", "All"],
     ["submitted", "Open"],
@@ -746,64 +903,68 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   ] as const;
   const applyFilters = (next: ComplaintFilterValue) => {
     setPage(1);
+    setSummaryFilter("all");
     setStatus(next.status);
     setCategory(next.category);
     setPriority(next.priority);
-    setDateFrom("");
-    setDateTo("");
+    setDateFrom(next.dateFrom ?? "");
+    setDateTo(next.dateTo ?? "");
   };
-  const inlineFilters = (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative shrink-0">
-        <select aria-label="Status" value={status} onChange={(event) => { setPage(1); setStatus(event.target.value); }} className="h-8 w-44 appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-9 text-[12.5px] font-medium text-slate-700 outline-none focus:border-blue-400">
-          {statuses.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-        </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
-      </div>
-      <div className="relative shrink-0">
-        <select aria-label="Category" value={category} onChange={(event) => { setPage(1); setCategory(event.target.value); }} className="h-8 w-40 appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-9 text-[12.5px] font-medium text-slate-700 outline-none focus:border-blue-400 sm:w-44">
-          {categories.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-        </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
-      </div>
-      <div className="relative shrink-0">
-        <select aria-label="Priority" value={priority} onChange={(event) => { setPage(1); setPriority(event.target.value); }} className="h-8 w-32 appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-9 text-[12.5px] font-medium text-slate-700 outline-none focus:border-blue-400">
-          <option value="all">All priorities</option>
-          <option value="low">Low</option>
-          <option value="normal">Normal</option>
-          <option value="high">High</option>
-          <option value="urgent">Urgent</option>
-        </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
-      </div>
-      <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[12.5px] font-medium text-slate-700">
-        <span className="text-slate-400">From</span>
-        <input type="date" aria-label="From date" value={dateFrom} max={dateTo || undefined} onChange={(event) => { setPage(1); setDateFrom(event.target.value); }} className="bg-transparent text-[12.5px] font-medium text-slate-700 outline-none" />
-      </label>
-      <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[12.5px] font-medium text-slate-700">
-        <span className="text-slate-400">To</span>
-        <input type="date" aria-label="To date" value={dateTo} min={dateFrom || undefined} onChange={(event) => { setPage(1); setDateTo(event.target.value); }} className="bg-transparent text-[12.5px] font-medium text-slate-700 outline-none" />
-      </label>
+  const chooseSummary = (next: "all" | "open" | "in_progress" | "resolved" | "closed" | "overdue") => {
+    setPage(1);
+    const selected = next === "open" || next === "overdue"
+      ? summaryFilter === next && status === "all"
+      : next === "all"
+        ? summaryFilter === "all" && status === "all"
+        : summaryFilter === "all" && status === next;
+    if (next !== "all" && selected) {
+      setSummaryFilter("all");
+      setStatus("all");
+      return;
+    }
+    if (next === "open" || next === "overdue") {
+      setSummaryFilter(next);
+      setStatus("all");
+      return;
+    }
+    setSummaryFilter("all");
+    setStatus(next);
+  };
+  const summary = audience === "community" ? (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <StatTile label="Total Complaints" value={Number(counts.all ?? 0)} hint="All resident complaints" icon={<ClipboardList />} tone="violet" pressed={summaryActive("all")} onClick={() => chooseSummary("all")} />
+      <StatTile label="Open" value={openCount} hint="Awaiting action" icon={<CircleDot />} tone="amber" pressed={summaryActive("open")} onClick={() => chooseSummary("open")} />
+      <StatTile label="In Progress" value={progressCount} hint="Being worked on" icon={<Clock />} tone="blue" pressed={summaryActive("in_progress")} onClick={() => chooseSummary("in_progress")} />
+      <StatTile label="Resolved" value={resolvedCount} hint="Resolved, not closed" icon={<CheckCircle2 />} tone="green" pressed={summaryActive("resolved")} onClick={() => chooseSummary("resolved")} />
+      <StatTile label="Closed" value={closedCount} hint="Successfully closed" icon={<Archive />} tone="slate" pressed={summaryActive("closed")} onClick={() => chooseSummary("closed")} />
+      <StatTile label="Overdue" value={overdueCount} hint="Past the resolution deadline" icon={<AlarmClock />} tone="red" pressed={summaryActive("overdue")} onClick={() => chooseSummary("overdue")} />
     </div>
-  );
-
-  const summary = (
-    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-      <ComplaintStat icon={<ClipboardList className="h-4 w-4" />} label="Total" value={Number(counts.all ?? 0)} />
-      <ComplaintStat icon={<CircleDot className="h-4 w-4" />} label="Open" value={openCount} />
-      <ComplaintStat icon={<Clock className="h-4 w-4" />} label="In Progress" value={progressCount} />
-      <ComplaintStat icon={<CheckCircle2 className="h-4 w-4" />} label="Resolved" value={resolvedCount} />
+  ) : (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <StatTile label="Total" value={Number(counts.all ?? 0)} hint="All support complaints" icon={<ClipboardList />} tone="violet" />
+      <StatTile label="Open" value={Number(counts.submitted ?? 0) + Number(counts.reopened ?? 0)} hint="Submitted and reopened" icon={<CircleDot />} tone="amber" />
+      <StatTile label="In Progress" value={progressCount} hint="Being worked on" icon={<Clock />} tone="blue" />
+      <StatTile label="Resolved" value={resolvedCount} hint="Marked resolved" icon={<CheckCircle2 />} tone="green" />
     </div>
   );
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-6">
       {error ? <PageError message={error} onRetry={() => void load()} /> : null}
+      {audience === "community" ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="nl-eyebrow">Community</p>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Complaints</h2>
+            <p className="mt-1 text-sm text-slate-500">Manage, track, and resolve resident complaints efficiently.</p>
+          </div>
+        </div>
+      ) : null}
+      {summary}
       <DataTable
-        title={audience === "system" ? "Complaints & Support" : "Complaints"}
+        title={audience === "system" ? "Complaints & Support" : "All Complaints"}
         titleCount={Number(counts.all ?? total)}
-        intro={summary}
-        stacked={audience === "community"}
+        stacked
         totalCount={total}
         search={search}
         onSearch={(value) => {
@@ -812,15 +973,16 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
         }}
         searchPlaceholder="Search complaints..."
         loading={loading}
-        beforeSearch={audience === "system" ? inlineFilters : undefined}
-        toolbar={audience === "community" ? (
+        toolbar={(
           <ComplaintFiltersButton
-            value={{ status, category, priority }}
+            value={{ status, category, priority, dateFrom, dateTo }}
             statuses={statuses}
             categories={categories}
+            categoryHints={audience === "system" ? TECHNICAL_CATEGORY_HINTS : CATEGORY_HINTS}
+            showDates={audience === "system"}
             onApply={applyFilters}
           />
-        ) : undefined}
+        )}
         isEmpty={!loading && rows.length === 0}
         empty="No complaints match your filters."
       >
@@ -829,20 +991,30 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
           <thead>
             <tr className="text-[11px] font-medium uppercase tracking-[0.06em] text-slate-400">
               {["Ticket", "Complaint", "Resident", "Unit", "Category", "Priority", "Assigned Staff", "Submitted", "Status", "Actions"].map((label) => (
-                <th key={label} className={`sticky top-0 border-b border-slate-100 bg-white px-3 py-2.5 font-medium first:pl-4 last:pr-4 ${label === "Actions" ? "text-right" : ""}`}>{label}</th>
+                <th key={label} className={`sticky top-0 whitespace-nowrap border-b border-slate-100 bg-white px-3 py-2.5 font-medium first:pl-4 last:pr-4 ${label === "Actions" ? "text-right" : ""}`}>{label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="group transition-colors hover:bg-[#F8FAFC]">
+              <tr
+                key={row.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => openComplaint(row.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openComplaint(row.id);
+                  }
+                }}
+                className="group cursor-pointer transition-colors hover:bg-[#F1F5F9]"
+              >
                 <td className="border-b border-slate-100 px-3 py-2.5 pl-4 align-middle">
                   <span className="font-mono text-[12px] font-medium tracking-wide text-[#1B4F8A]">{row.reference}</span>
                 </td>
                 <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
-                  <button type="button" onClick={() => openComplaint(row.id)} className="block max-w-[14rem] text-left">
-                    <span className="block truncate text-[13px] font-semibold text-[#0A2A43]">{row.title}</span>
-                  </button>
+                  <span className="block max-w-[14rem] truncate text-[13px] font-semibold text-[#0A2A43]">{row.title}</span>
                 </td>
                 <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-[13px] text-slate-600">{row.reporter_name}</td>
                 <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-[13px] tabular-nums text-slate-600">{row.unit_number ?? "—"}</td>
@@ -866,18 +1038,12 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
                 <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
                   <AdminBadge tone={complaintTone(row)}>{row.status_label}</AdminBadge>
                 </td>
-                <td className="border-b border-slate-100 px-3 py-2.5 pr-4 text-right align-middle">
-                  <div className="inline-flex items-center justify-end gap-2">
-                    {audience === "community" && row.type !== "technical" && complaintWorkflow(row) === "in_progress" ? (
-                      <button
-                        type="button"
-                        title="Emergency reassignment. Use only if the assigned staff member cannot continue."
-                        onClick={() => void openAssign(row, "emergency")}
-                        className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-950 hover:bg-amber-100"
-                      >
-                        Emergency
-                      </button>
-                    ) : null}
+                <td
+                  className="w-24 border-b border-slate-100 px-3 py-2.5 pr-4 text-right align-middle"
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <div className="flex justify-end">
                   <AdminActionsMenu
                     actions={audience === "community"
                       ? communityActions(row)
@@ -909,12 +1075,19 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
           onOpenChat={() => void openChat()}
           onRetry={() => openComplaint(selectedId)}
           onAssign={(userId) => void assign(userId)}
-          showAssignment={audience === "system"}
+          showAssignment={
+            audience === "system"
+            || (audience === "community"
+              && detail?.type === "maintenance"
+              && ["open", "submitted", "reopened", "requested", "pending", "in_review", "not_resolved"].includes(
+                complaintWorkflow(detail),
+              )
+              && !(detail?.status === "reopened" && !detail.assigned_to_user_id))
+          }
           allowStatusChanges={audience === "system"}
           onStatus={(next) => {
             if (detail) void runStatus(detail, next);
           }}
-          onOpenFile={(fileId, name) => void openFile(fileId, name)}
         />
       ) : null}
       {chatOpen && detail ? (
@@ -946,43 +1119,357 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   );
 }
 
-function AttachmentThumb({
-  complaintId,
-  file,
-  onOpen,
-}: {
-  complaintId: number;
-  file: { id: number; file_name: string; mime_type?: string | null };
-  onOpen: () => void;
-}) {
-  const [url, setUrl] = useState("");
+function useAttachmentBlob(complaintId: number, fileId: number, hintMime?: string | null) {
+  const [blob, setBlob] = useState<{ url: string; mime: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     let active = true;
     let objectUrl = "";
-    downloadAdminComplaintAttachment(complaintId, file.id)
-      .then((blob) => {
+    setLoading(true);
+    downloadAdminComplaintAttachment(complaintId, fileId)
+      .then((data) => {
         if (!active) return;
-        objectUrl = URL.createObjectURL(blob);
-        setUrl(objectUrl);
+        objectUrl = URL.createObjectURL(data);
+        const mime = String(data.type || hintMime || "").toLowerCase();
+        setBlob({ url: objectUrl, mime });
       })
       .catch(() => {
-        if (active) setUrl("");
+        if (active) setBlob(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [complaintId, file.id]);
+  }, [complaintId, fileId, hintMime]);
+
+  return { blob, loading };
+}
+
+function triggerAttachmentDownload(url: string, fileName: string) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+}
+
+function residentInitials(name: string) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "R";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
+function AttachmentListItem({
+  complaintId,
+  file,
+  onPreview,
+}: {
+  complaintId: number;
+  file: { id: number; file_name: string; mime_type?: string | null };
+  onPreview: (payload: { url: string; name: string; kind: AttachmentKind; fileName: string }) => void;
+}) {
+  const { blob, loading } = useAttachmentBlob(complaintId, file.id, file.mime_type);
+  const kind = blob ? attachmentKind(blob.mime, file.file_name) : attachmentKind(file.mime_type || "", file.file_name);
+  const label = displayAttachmentLabel(file.file_name, kind);
+
+  if (loading) {
+    return (
+      <div className="flex h-[4.75rem] w-full animate-pulse items-center justify-center rounded-xl bg-[#F4F7FB] ring-1 ring-slate-200/80">
+        <ImageIcon className="h-5 w-5 text-slate-300" />
+      </div>
+    );
+  }
+
+  if (!blob) {
+    return (
+      <motionlessFileRow
+        label={label}
+        title={file.file_name}
+        onDownload={null}
+      />
+    );
+  }
+
+  if (kind === "image") {
+    return (
+      <button
+        type="button"
+        onClick={() => onPreview({ url: blob.url, name: label, kind, fileName: file.file_name })}
+        title={file.file_name}
+        className="group relative block w-full overflow-hidden rounded-xl bg-[rgba(10,42,67,0.03)] text-left ring-1 ring-slate-200/90 transition duration-200 hover:ring-[#1B4F8A]/35"
+      >
+        <div className="aspect-[16/11] max-h-32 w-full overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={blob.url}
+            alt={label}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+          />
+        </div>
+        <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0A2A43]/70 via-[#0A2A43]/10 to-transparent opacity-90 transition group-hover:opacity-100" />
+        <span className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 p-2.5">
+          <span className="inline-flex max-w-[85%] items-center gap-1.5 truncate rounded-full bg-white/95 px-2 py-1 text-[11px] font-semibold text-[#0A2A43] shadow-sm backdrop-blur-sm">
+            <Eye className="h-3 w-3 shrink-0 text-[#1B4F8A]" />
+            <span className="truncate">{label}</span>
+          </span>
+        </span>
+      </button>
+    );
+  }
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      title={file.file_name}
-      className="flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-[#F8FAFC] text-[#1B4F8A]"
+    <div className="flex w-full items-center gap-2 rounded-xl bg-[#F6F9FC] px-2.5 py-2 ring-1 ring-slate-100">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#1B4F8A] ring-1 ring-slate-200/80">
+        {kind === "pdf" ? <FileText className="h-4 w-4" /> : <Paperclip className="h-4 w-4" />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[12px] font-semibold text-[#0A2A43]" title={file.file_name}>
+          {label}
+        </p>
+        <p className="text-[10px] font-medium text-slate-400">{kind === "pdf" ? "PDF" : "File"}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onPreview({ url: blob.url, name: label, kind, fileName: file.file_name })}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-[#1B4F8A] transition hover:bg-[#EEF4FB]"
+          aria-label={`Preview ${label}`}
+        >
+          <Eye className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => triggerAttachmentDownload(blob.url, file.file_name)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-[#1B4F8A] transition hover:bg-[#EEF4FB]"
+          aria-label={`Download ${label}`}
+        >
+          <Download className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function motionlessFileRow({
+  label,
+  title,
+  onDownload,
+}: {
+  label: string;
+  title: string;
+  onDownload: (() => void) | null;
+}) {
+  return (
+    <div className="flex w-full items-center gap-2 rounded-xl bg-[#F6F9FC] px-2.5 py-2 ring-1 ring-slate-100 opacity-70">
+      <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-slate-500" title={title}>
+        {label}
+      </span>
+      {onDownload ? (
+        <button type="button" onClick={onDownload} className="text-[11px] font-semibold text-[#1B4F8A]">
+          Retry
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function AttachmentPreviewModal({
+  open,
+  url,
+  reference,
+  title,
+  kind,
+  fileName,
+  onClose,
+}: {
+  open: boolean;
+  url: string;
+  reference: string;
+  title: string;
+  kind: AttachmentKind;
+  fileName: string;
+  onClose: () => void;
+}) {
+  const [zoom, setZoom] = useState(100);
+
+  useEffect(() => {
+    if (!open) setZoom(100);
+  }, [open, url]);
+
+  if (!open || !url) return null;
+
+  const isImage = kind === "image";
+  const isPdf = kind === "pdf";
+  const HeaderIcon = isPdf ? FileText : ImageIcon;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/45 p-4 sm:p-8"
+      role="presentation"
+      onClick={onClose}
     >
-      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <Paperclip className="h-4 w-4" />}
-    </button>
+      <div
+        className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_-20px_rgba(15,23,42,0.45)]"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Attachment Preview"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="flex items-start gap-3 border-b border-slate-100 px-5 py-4">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#E8F1FA] text-[#1B4F8A]">
+            <HeaderIcon className="h-4 w-4" strokeWidth={2} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h4 className="text-[15px] font-semibold text-[#0A2A43]">Attachment Preview</h4>
+            <p className="mt-0.5 truncate text-[12px] text-slate-500">
+              {reference}
+              {title ? ` · ${title}` : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="nl-notice-modal-close"
+            aria-label="Close preview"
+          >
+            <X className="h-4 w-4" strokeWidth={2.25} />
+          </button>
+        </header>
+
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[#F4F7FB] p-4 sm:p-6">
+          {isImage ? (
+            <div
+              className="origin-center transition-transform duration-150"
+              style={{ transform: `scale(${zoom / 100})` }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt={title || "Attachment"}
+                className="max-h-[58vh] max-w-full rounded-xl object-contain shadow-sm"
+                draggable={false}
+              />
+            </div>
+          ) : null}
+          {isPdf ? (
+            <iframe
+              title={title || "PDF preview"}
+              src={url}
+              className="h-[58vh] w-full max-w-full rounded-xl border border-slate-200 bg-white shadow-sm"
+            />
+          ) : null}
+          {!isImage && !isPdf ? (
+            <div className="flex flex-col items-center gap-3 px-6 text-center">
+              <Paperclip className="h-10 w-10 text-[#1B4F8A]/50" />
+              <p className="text-[13px] font-medium text-slate-600">Preview is not available for this file type.</p>
+              <button
+                type="button"
+                onClick={() => triggerAttachmentDownload(url, fileName)}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#1B4F8A] px-4 py-2 text-[13px] font-semibold text-white"
+              >
+                <Download className="h-4 w-4" />
+                Download file
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <footer className="flex items-center justify-center gap-2 border-t border-slate-100 px-5 py-3">
+          {isImage ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setZoom((value) => Math.max(50, value - 25))}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-[#1B4F8A] transition hover:bg-[#F8FAFC]"
+                aria-label="Zoom out"
+              >
+                <ZoomOut className="h-4 w-4" />
+              </button>
+              <span className="min-w-[3.5rem] text-center text-[13px] font-semibold tabular-nums text-[#0A2A43]">
+                {zoom}%
+              </span>
+              <button
+                type="button"
+                onClick={() => setZoom((value) => Math.min(200, value + 25))}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-[#1B4F8A] transition hover:bg-[#F8FAFC]"
+                aria-label="Zoom in"
+              >
+                <ZoomIn className="h-4 w-4" />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => triggerAttachmentDownload(url, fileName)}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-[13px] font-semibold text-[#1B4F8A] transition hover:bg-[#F8FAFC]"
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </button>
+          )}
+        </footer>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function ActivityTimeline({ events }: { events: NonNullable<ComplaintRecord["events"]> }) {
+  if (events.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-[#F8FAFC] px-4 py-8 text-center">
+        <p className="text-sm font-medium text-slate-500">No activity yet</p>
+        <p className="mt-1 text-[12px] text-slate-400">Updates will appear here as the complaint moves forward.</p>
+      </div>
+    );
+  }
+
+  return (
+    <ol className="space-y-0">
+      {events.map((event, index) => {
+        const isReopen = event.action === "status_changed" && event.to_status === "reopened";
+        const Icon = activityIcon(event.action, event.to_status);
+        const last = index === events.length - 1;
+        const detail =
+          event.action === "attachment" && event.note
+            ? displayAttachmentLabel(event.note, attachmentKind("", event.note))
+            : event.note
+          || (event.from_status && event.to_status && event.from_status !== event.to_status
+            ? `${ACTIVITY_STATUS[event.from_status] ?? event.from_status} → ${ACTIVITY_STATUS[event.to_status] ?? event.to_status}`
+            : null);
+        return (
+          <li key={event.id} className="flex gap-2.5">
+            <span className="flex w-7 shrink-0 flex-col items-center">
+              <span className={`flex h-7 w-7 items-center justify-center rounded-full ring-1 ${isReopen ? "bg-violet-50 text-violet-700 ring-violet-200" : "bg-[#E8F1FA] text-[#1B4F8A] ring-[#C9DBEE]"}`}>
+                <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+              </span>
+              {last ? null : <span className="my-1 w-px flex-1 bg-[#D7E4F2]" />}
+            </span>
+            <span className={`min-w-0 flex-1 ${last ? "pb-0.5" : "pb-3.5"}`}>
+              <p className="text-[12px] font-semibold leading-4 tracking-[-0.01em] text-[#0A2A43]">
+                {activityTitle(event.action, event.to_status)}
+              </p>
+              {event.actor_name ? (
+                <p className="mt-0.5 text-[11px] leading-4 text-slate-500">By {event.actor_name}</p>
+              ) : null}
+              {detail ? (
+                <p className={`mt-0.5 break-words text-[11px] leading-4 ${isReopen ? "font-medium text-violet-800" : "text-slate-500"}`}>
+                  {isReopen && event.note ? `Reason: ${event.note}` : detail}
+                </p>
+              ) : null}
+              <p className="mt-1 text-[10px] font-medium tabular-nums text-slate-400">
+                {formatWhen(event.created_at)}
+              </p>
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -997,7 +1484,6 @@ function ComplaintDetailModal({
   showAssignment,
   allowStatusChanges,
   onStatus,
-  onOpenFile,
 }: {
   detail: ComplaintRecord | null;
   error: string;
@@ -1009,7 +1495,6 @@ function ComplaintDetailModal({
   showAssignment: boolean;
   allowStatusChanges: boolean;
   onStatus: (next: ComplaintStatus) => void;
-  onOpenFile: (fileId: number, name: string) => void;
 }) {
   const staffChoices = [
     ...(detail?.assigned_to_user_id && detail.type !== "technical"
@@ -1021,254 +1506,416 @@ function ComplaintDetailModal({
     })),
   ];
   const [pane, setPane] = useState<"details" | "history">("details");
+  const [preview, setPreview] = useState<{
+    url: string;
+    name: string;
+    kind: AttachmentKind;
+    fileName: string;
+  } | null>(null);
   const detailKey = detail?.id ?? 0;
   const [seenDetail, setSeenDetail] = useState(detailKey);
   if (detailKey !== seenDetail) {
     setSeenDetail(detailKey);
     setPane("details");
+    setPreview(null);
   }
+
   const facts = detail
     ? [
-        { label: "Resident", value: detail.reporter_name, icon: UserRound },
         { label: "Unit", value: detail.unit_number ?? "—", icon: Hash },
         { label: "Category", value: detail.category_label, icon: Tag },
-        { label: "Priority", value: detail.priority.charAt(0).toUpperCase() + detail.priority.slice(1), icon: Flag },
+        {
+          label: "Priority",
+          value: detail.priority.charAt(0).toUpperCase() + detail.priority.slice(1),
+          icon: Flag,
+          badge: true as const,
+        },
         { label: "Assigned Staff", value: assignedStaffName(detail) || "Not assigned", icon: UserCheck },
-        { label: "Submitted", value: formatSubmitted(detail.created_at) || formatDate(detail.created_at), icon: Calendar },
+        {
+          label: "Submitted",
+          value: formatSubmitted(detail.created_at) || formatDate(detail.created_at),
+          icon: Calendar,
+        },
       ]
     : [];
-  const images = (detail?.attachments ?? []).filter((file) => isImageAttachment(file));
-  const documents = (detail?.attachments ?? []).filter((file) => !isImageAttachment(file));
+  const attachments = detail?.attachments ?? [];
   const events = detail?.events ?? [];
   const unread = detail?.unread_count ?? 0;
+  const phone = detail?.reporter_phone?.trim() || "";
+  const email = detail?.reporter_email?.trim() || "";
+  const attachmentCount = (detail?.attachments ?? []).length;
+
+  const cardClass =
+    "min-w-0 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-[0_8px_20px_-18px_rgba(15,23,42,0.4)]";
 
   return (
     <div className="nl-notice-modal-backdrop" role="presentation" onClick={onClose}>
       <div
-        className="nl-notice-modal"
-        style={{ maxWidth: "68rem", background: "#fff", boxShadow: "0 16px 40px rgba(15, 23, 42, 0.12)" }}
+        className="nl-notice-modal overflow-hidden"
+        style={{
+          maxWidth: "68rem",
+          background:
+            "radial-gradient(120% 90% at 0% 0%, rgba(27,79,138,0.07) 0%, transparent 42%), #ffffff",
+          boxShadow: "0 24px 60px -28px rgba(15, 23, 42, 0.4)",
+        }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="complaint-view-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex items-start gap-4 border-b border-slate-100 px-5 py-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-[#E8F1FA] px-2.5 py-1 font-mono text-[11px] font-semibold tracking-wide text-[#1B4F8A]">
-                {detail?.reference ?? "Complaint"}
-              </span>
+        <header className="relative border-b border-slate-100 px-4 py-3 sm:px-5">
+          <div className="relative flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="rounded-full bg-[#1B4F8A]/10 px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.04em] text-[#1B4F8A] ring-1 ring-[#1B4F8A]/10">
+                  {detail?.reference ?? "Complaint"}
+                </span>
+                {detail ? (
+                  <>
+                    <AdminBadge tone={complaintTone(detail)}>{detail.status_label}</AdminBadge>
+                    <AdminBadge tone={PRIORITY_TONE[detail.priority]}>
+                      {detail.priority.charAt(0).toUpperCase() + detail.priority.slice(1)}
+                    </AdminBadge>
+                    <AdminBadge tone="slate">{detail.category_label}</AdminBadge>
+                  </>
+                ) : null}
+              </div>
+              <h3
+                id="complaint-view-title"
+                className="mt-1.5 break-words text-[1.25rem] font-bold leading-tight tracking-[-0.02em] text-[#0A2A43]"
+              >
+                {detail?.title ?? (error ? "Could not open complaint" : "Loading complaint")}
+              </h3>
               {detail ? (
-                <>
-                  <AdminBadge tone={complaintTone(detail)}>{detail.status_label}</AdminBadge>
-                  <AdminBadge tone={PRIORITY_TONE[detail.priority]}>
-                    {detail.priority.charAt(0).toUpperCase() + detail.priority.slice(1)}
-                  </AdminBadge>
-                  <AdminBadge tone="slate">{detail.category_label}</AdminBadge>
-                </>
+                <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] text-slate-500">
+                  <span className="inline-flex items-center gap-1 font-medium text-slate-600">
+                    <UserRound className="h-3 w-3 text-[#1B4F8A]/70" />
+                    {detail.reporter_name}
+                  </span>
+                  {detail.unit_number ? (
+                    <>
+                      <span className="text-slate-300">·</span>
+                      <span>Unit {detail.unit_number}</span>
+                    </>
+                  ) : null}
+                  {formatSubmitted(detail.created_at) ? (
+                    <>
+                      <span className="text-slate-300">·</span>
+                      <span>{formatSubmitted(detail.created_at)}</span>
+                    </>
+                  ) : null}
+                </p>
               ) : null}
             </div>
-            <h3 id="complaint-view-title" className="mt-2.5 break-words text-[1.35rem] font-semibold leading-tight tracking-[-0.02em] text-[#0A2A43]">
-              {detail?.title ?? (error ? "Could not open complaint" : "Loading complaint")}
-            </h3>
-            {detail ? (
-              <p className="mt-1.5 text-[13px] text-slate-500">
-                Submitted by {detail.reporter_name}
-                {detail.unit_number ? ` · Unit ${detail.unit_number}` : ""}
-                {formatSubmitted(detail.created_at) ? ` · ${formatSubmitted(detail.created_at)}` : ""}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {detail ? (
-              <button
-                type="button"
-                onClick={onOpenChat}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[13px] font-semibold text-[#0A2A43] transition hover:border-[#1B4F8A]/30 hover:bg-[#F8FAFC]"
-              >
-                <MessageSquare className="h-4 w-4 text-[#1B4F8A]" />
-                Chat
-                {unread > 0 ? (
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#1B4F8A] px-1.5 text-[11px] font-bold leading-none text-white">{unread}</span>
-                ) : null}
+            <div className="relative flex shrink-0 items-center gap-1.5">
+              {detail ? (
+                <button
+                  type="button"
+                  onClick={onOpenChat}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#1B4F8A] px-3.5 text-[13px] font-semibold text-white transition hover:bg-[#163A66]"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Chat
+                  {unread > 0 ? (
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 text-[11px] font-bold leading-none">
+                      {unread}
+                    </span>
+                  ) : null}
+                </button>
+              ) : null}
+              <button type="button" onClick={onClose} className="nl-notice-modal-close" aria-label="Close">
+                <X className="h-4 w-4" strokeWidth={2.25} />
               </button>
-            ) : null}
-            <button type="button" onClick={onClose} className="nl-notice-modal-close" aria-label="Close">
-              <X className="h-4 w-4" strokeWidth={2.25} />
-            </button>
+            </div>
           </div>
         </header>
 
-        <div className="nl-notice-modal-body">
+        <div
+          className="nl-notice-modal-body"
+          style={{
+            background: "linear-gradient(180deg, #F5F8FC 0%, #F8FAFC 100%)",
+            padding: "0.75rem 1rem 1rem",
+          }}
+        >
           {error ? <PageError message={error} onRetry={onRetry} /> : null}
-          {!detail && !error ? <p className="py-10 text-center text-sm text-slate-500">Loading complaint…</p> : null}
+          {!detail && !error ? (
+            <p className="py-8 text-center text-sm text-slate-500">Loading complaint…</p>
+          ) : null}
           {detail ? (
-            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,19rem)]">
-              <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="mb-4 inline-flex rounded-xl bg-[#F4F7FB] p-1">
-                  {(["details", "history"] as const).map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => setPane(item)}
-                      className={`rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pane === item ? "bg-white text-[#1B4F8A]" : "text-slate-500 hover:text-[#0A2A43]"}`}
-                    >
-                      {item === "details" ? "Details" : "History"}
-                    </button>
-                  ))}
-                </div>
-                {pane === "details" ? (
-                  <div className="space-y-4">
-                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-3">
+              <div className="inline-flex rounded-full bg-white p-0.5 ring-1 ring-slate-200/80">
+                {(["details", "history"] as const).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setPane(item)}
+                    className={`rounded-full px-3.5 py-1 text-[12px] font-semibold transition ${
+                      pane === item
+                        ? "bg-[#1B4F8A] text-white"
+                        : "text-slate-500 hover:text-[#0A2A43]"
+                    }`}
+                  >
+                    {item === "details" ? "Details" : "History"}
+                  </button>
+                ))}
+              </div>
+
+              {detail.status === "reopened" && (detail.reopen_reason || detail.reopened_at) ? (
+                <section className="rounded-2xl bg-violet-50 px-3.5 py-3 ring-1 ring-violet-200">
+                  <div className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-violet-700 ring-1 ring-violet-200">
+                      <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-bold tracking-[-0.01em] text-violet-950">
+                        Reopened by {detail.reopened_by_name || detail.reporter_name || "resident"}
+                      </p>
+                      {detail.reopen_reason ? (
+                        <p className="mt-1 whitespace-pre-wrap text-[13px] leading-5 text-violet-900">
+                          {detail.reopen_reason}
+                        </p>
+                      ) : null}
+                      {detail.reopened_at ? (
+                        <p className="mt-1 text-[11px] font-medium tabular-nums text-violet-700/80">
+                          {formatWhen(detail.reopened_at)}
+                        </p>
+                      ) : null}
+                      {!detail.assigned_to_user_id ? (
+                        <p className="mt-1.5 text-[11px] font-semibold text-violet-800">
+                          Assign the same or a new staff member to continue.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
+              {pane === "details" ? (
+                <div className="grid items-start gap-3 xl:grid-cols-[1.05fr_1fr_0.92fr]">
+                  <section className={cardClass}>
+                    <div className="mb-2.5 flex items-center gap-2">
+                      <span className="h-4 w-1 rounded-full bg-[#1B4F8A]" aria-hidden />
+                      <p className="text-[12px] font-bold tracking-[-0.01em] text-[#0A2A43]">Complaint details</p>
+                    </div>
+                    <ul className="space-y-1.5">
                       {facts.map((fact) => {
                         const Icon = fact.icon;
                         return (
-                          <div key={fact.label} className="flex min-w-0 items-center gap-2.5 rounded-xl border border-slate-100 bg-[#F8FAFC] px-2.5 py-2">
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#1B4F8A]">
+                          <li
+                            key={fact.label}
+                            className="flex items-center gap-2.5 rounded-xl bg-[#F6F9FC] px-2.5 py-1.5 ring-1 ring-slate-100"
+                          >
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#1B4F8A] ring-1 ring-slate-100">
                               <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
                             </span>
-                            <span className="min-w-0">
-                              <span className="block text-[10px] font-medium text-slate-400">{fact.label}</span>
-                              <span className="mt-0.5 block break-words text-[13px] font-semibold leading-5 text-[#0A2A43]">{fact.value}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-400">
+                                {fact.label}
+                              </span>
+                              {"badge" in fact && fact.badge ? (
+                                <span className="mt-0.5 inline-flex">
+                                  <AdminBadge tone={PRIORITY_TONE[detail.priority]}>{fact.value}</AdminBadge>
+                                </span>
+                              ) : (
+                                <span className="block break-words text-[13px] font-semibold leading-5 text-[#0A2A43]">
+                                  {fact.value}
+                                </span>
+                              )}
                             </span>
-                          </div>
+                          </li>
                         );
                       })}
+                    </ul>
+
+                    <div className="mt-2.5 rounded-xl bg-[#F6F9FC] p-2.5 ring-1 ring-slate-100">
+                      <div className="flex items-start gap-2.5">
+                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#1B4F8A] ring-1 ring-slate-100">
+                          <FileText className="h-3.5 w-3.5" strokeWidth={2.25} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-400">
+                            Description
+                          </p>
+                          <p className="mt-0.5 whitespace-pre-wrap text-[13px] leading-5 text-slate-700">
+                            {detail.description?.trim() || "No description provided."}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    {detail.description ? (
-                      <section>
-                        <p className="text-[12px] font-semibold text-slate-500">Description</p>
-                        <p className="mt-1.5 whitespace-pre-wrap text-[14px] leading-6 text-slate-700">{detail.description}</p>
-                      </section>
+
+                    {showAssignment || (allowStatusChanges && (detail.allowed_transitions ?? []).length > 0) ? (
+                      <div className="mt-2.5 border-t border-slate-100 pt-2.5">
+                        {showAssignment ? (
+                          <>
+                            <p className="text-[11px] font-medium text-slate-400">
+                              {detail.assigned_to_user_id ? "Change assignment" : "Assign staff"}
+                            </p>
+                            <SearchableSelect
+                              id="assignee"
+                              className="nl-picker-compact mt-1"
+                              searchable
+                              disabled={busy || (detail.type === "technical" && (detail.assignees ?? []).length === 0)}
+                              value={detail.assigned_to_user_id ? String(detail.assigned_to_user_id) : ""}
+                              valueLabel={detail.assigned_staff_label || detail.assigned_to_name || undefined}
+                              placeholder={detail.type === "technical" ? "Choose a system admin" : "Choose staff"}
+                              searchPlaceholder="Search name or specialization"
+                              emptyMessage={
+                                detail.type === "technical"
+                                  ? "No system admins found."
+                                  : "No matching staff. Add staff from Staff Management."
+                              }
+                              options={staffChoices}
+                              onChange={(value) => {
+                                if (value === "remove") {
+                                  onAssign(0);
+                                  return;
+                                }
+                                const userId = Number(value);
+                                if (userId && userId !== detail.assigned_to_user_id) onAssign(userId);
+                              }}
+                            />
+                          </>
+                        ) : null}
+                        {allowStatusChanges && (detail.allowed_transitions ?? []).length > 0 ? (
+                          <div className={`${showAssignment ? "mt-2" : ""} flex flex-wrap gap-1.5`}>
+                            {(detail.allowed_transitions ?? []).map((next) => (
+                              <button
+                                key={next}
+                                type="button"
+                                disabled={busy}
+                                onClick={() => onStatus(next)}
+                                className={`rounded-full border px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${
+                                  next === "cancelled"
+                                    ? "border-red-200 text-red-700 hover:bg-red-50"
+                                    : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                                }`}
+                              >
+                                {STATUS_ACTION[next] ?? next}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null}
-                    <section>
-                      <p className="text-[12px] font-semibold text-slate-500">Attachments ({(detail.attachments ?? []).length})</p>
-                      {(detail.attachments ?? []).length === 0 ? <p className="mt-2 text-sm text-slate-400">No attachments.</p> : null}
-                      {images.length ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {images.map((file) => (
-                            <AttachmentThumb key={file.id} complaintId={detail.id} file={file} onOpen={() => onOpenFile(file.id, file.file_name)} />
-                          ))}
+                  </section>
+
+                  <div className="flex min-w-0 flex-col gap-3">
+                    <section className={cardClass}>
+                      <div className="mb-2.5 flex items-center gap-2">
+                        <span className="h-4 w-1 rounded-full bg-[#1B4F8A]" aria-hidden />
+                        <p className="text-[12px] font-bold tracking-[-0.01em] text-[#0A2A43]">Resident contact</p>
+                      </div>
+                      <div className="rounded-xl bg-[#F6F9FC] p-2.5 ring-1 ring-slate-100">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1B4F8A] to-[#163A66] text-[11px] font-bold tracking-wide text-white">
+                              {residentInitials(detail.reporter_name)}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-[13px] font-bold tracking-[-0.01em] text-[#0A2A43]">
+                                {detail.reporter_name}
+                              </p>
+                              <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                                {phone || "No phone on file"}
+                              </p>
+                              <p className="truncate text-[11px] text-slate-500">
+                                {email || "No email on file"}
+                              </p>
+                            </div>
+                          </div>
+                          {(phone || email) ? (
+                            <div className="flex shrink-0 flex-col gap-1">
+                              {phone ? (
+                                <a
+                                  href={`tel:${phone}`}
+                                  className="inline-flex items-center justify-center gap-1 rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#1B4F8A] ring-1 ring-slate-200 transition hover:bg-[#EEF4FB]"
+                                >
+                                  <Phone className="h-3 w-3" />
+                                  Call
+                                </a>
+                              ) : null}
+                              {email ? (
+                                <a
+                                  href={`mailto:${email}`}
+                                  className="inline-flex items-center justify-center gap-1 rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#1B4F8A] ring-1 ring-slate-200 transition hover:bg-[#EEF4FB]"
+                                >
+                                  <Mail className="h-3 w-3" />
+                                  Email
+                                </a>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
-                      {documents.length ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {documents.map((file) => (
-                            <button
+                      </div>
+                    </section>
+
+                    <section className={cardClass}>
+                      <div className="mb-2.5 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="h-4 w-1 rounded-full bg-[#1B4F8A]" aria-hidden />
+                          <p className="text-[12px] font-bold tracking-[-0.01em] text-[#0A2A43]">
+                            Attachment{attachmentCount === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-[#E8F1FA] px-2 py-0.5 text-[11px] font-bold tabular-nums text-[#1B4F8A]">
+                          {attachmentCount}
+                        </span>
+                      </div>
+                      {attachmentCount === 0 ? (
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-[#F8FAFC] px-3 py-6 text-center">
+                          <ImageIcon className="mx-auto h-6 w-6 text-slate-300" />
+                          <p className="mt-1.5 text-[12px] font-medium text-slate-500">No attachments</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {attachments.map((file) => (
+                            <AttachmentListItem
                               key={file.id}
-                              type="button"
-                              className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[13px] font-semibold text-[#1B4F8A] hover:bg-[#F8FAFC]"
-                              onClick={() => onOpenFile(file.id, file.file_name)}
-                            >
-                              <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate">{file.file_name}</span>
-                            </button>
+                              complaintId={detail.id}
+                              file={file}
+                              onPreview={(payload) => setPreview(payload)}
+                            />
                           ))}
                         </div>
-                      ) : null}
+                      )}
                     </section>
                   </div>
-                ) : (
-                  <ol className="max-h-[28rem] space-y-3 overflow-y-auto overscroll-contain pr-1">
-                    {events.length === 0 ? <li className="text-sm text-slate-400">No history yet.</li> : null}
-                    {events.map((event) => (
-                      <li key={event.id} className="rounded-xl border border-slate-100 bg-[#F8FAFC] px-3 py-2.5">
-                        <p className="text-[13px] font-semibold text-[#0A2A43]">{activityTitle(event.action, event.to_status)}</p>
-                        {event.from_status && event.to_status && event.from_status !== event.to_status ? (
-                          <p className="mt-0.5 text-[12px] text-slate-500">{ACTIVITY_STATUS[event.from_status] ?? event.from_status} → {ACTIVITY_STATUS[event.to_status] ?? event.to_status}</p>
-                        ) : null}
-                        {event.note ? <p className="mt-0.5 text-[13px] leading-5 text-slate-600">{event.note}</p> : null}
-                        {event.actor_name ? <p className="mt-0.5 text-[12px] text-slate-500">{event.actor_name}</p> : null}
-                        <p className="mt-0.5 text-[11px] text-slate-400">{formatWhen(event.created_at)}</p>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
 
-              <aside className="min-w-0 space-y-3">
-                {showAssignment || (allowStatusChanges && (detail.allowed_transitions ?? []).length > 0) ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="nl-notice-view-section-title">Assignment</p>
-                  {showAssignment ? (
-                    <>
-                  <p className="mt-2 text-xs font-medium text-slate-500">
-                    {detail.assigned_to_user_id ? "Change assignment" : "Assign staff"}
-                  </p>
-                  <SearchableSelect
-                    id="assignee"
-                    className="nl-picker-compact mt-1"
-                    searchable
-                    disabled={busy || detail.type === "technical" && (detail.assignees ?? []).length === 0}
-                    value={detail.assigned_to_user_id ? String(detail.assigned_to_user_id) : ""}
-                    valueLabel={detail.assigned_staff_label || detail.assigned_to_name || undefined}
-                    placeholder={detail.type === "technical" ? "Choose a system admin" : "Choose staff"}
-                    searchPlaceholder="Search name or specialization"
-                    emptyMessage={detail.type === "technical" ? "No system admins found." : "No matching staff. Add staff from Staff Management."}
-                    options={staffChoices}
-                    onChange={(value) => {
-                      if (value === "remove") {
-                        onAssign(0);
-                        return;
-                      }
-                      const userId = Number(value);
-                      if (userId && userId !== detail.assigned_to_user_id) onAssign(userId);
-                    }}
-                  />
-                    </>
-                  ) : null}
-                  {allowStatusChanges && (detail.allowed_transitions ?? []).length > 0 ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {(detail.allowed_transitions ?? []).map((next) => (
-                        <button
-                          key={next}
-                          type="button"
-                          disabled={busy}
-                          onClick={() => onStatus(next)}
-                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
-                            next === "cancelled"
-                              ? "border-red-200 text-red-700 hover:bg-red-50"
-                              : "border-slate-200 text-slate-700 hover:bg-slate-50"
-                          }`}
-                        >
-                          {STATUS_ACTION[next] ?? next}
-                        </button>
-                      ))}
+                  <aside className={cardClass}>
+                    <div className="mb-2.5 flex items-center gap-2">
+                      <span className="h-4 w-1 rounded-full bg-[#1B4F8A]" aria-hidden />
+                      <p className="text-[12px] font-bold tracking-[-0.01em] text-[#0A2A43]">Activity</p>
                     </div>
-                  ) : null}
+                    <div className="max-h-[28rem] overflow-y-auto overscroll-contain pr-0.5">
+                      <ActivityTimeline events={events} />
+                    </div>
+                  </aside>
                 </div>
-                ) : null}
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="mb-3 text-[13px] font-semibold text-[#0A2A43]">Activity</p>
-                  {events.length === 0 ? <p className="text-sm text-slate-400">No activity yet.</p> : null}
-                  <ol className="max-h-[28rem] space-y-0 overflow-y-auto overscroll-contain pr-1">
-                    {events.map((event, index) => {
-                      const Icon = activityIcon(event.action);
-                      const last = index === events.length - 1;
-                      return (
-                        <li key={event.id} className="flex gap-3">
-                          <span className="flex w-7 shrink-0 flex-col items-center">
-                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#E8F1FA] text-[#1B4F8A]">
-                              <Icon className="h-3.5 w-3.5" />
-                            </span>
-                            {last ? null : <span className="my-1 w-px flex-1 bg-slate-200" />}
-                          </span>
-                          <span className={`min-w-0 flex-1 ${last ? "" : "pb-4"}`}>
-                            <p className="text-[13px] font-semibold leading-5 text-[#0A2A43]">{activityTitle(event.action, event.to_status)}</p>
-                            {event.note ? <p className="mt-0.5 break-all text-[12px] leading-5 text-slate-500">{event.note}</p> : null}
-                            <p className="mt-0.5 text-[11px] text-slate-400">{formatWhen(event.created_at)}</p>
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </div>
-              </aside>
+              ) : (
+                <section className={cardClass}>
+                  <div className="mb-2.5 flex items-center gap-2">
+                    <span className="h-4 w-1 rounded-full bg-[#1B4F8A]" aria-hidden />
+                    <p className="text-[12px] font-bold tracking-[-0.01em] text-[#0A2A43]">History</p>
+                  </div>
+                  <div className="max-h-[28rem] overflow-y-auto overscroll-contain pr-0.5">
+                    <ActivityTimeline events={events} />
+                  </div>
+                </section>
+              )}
             </div>
           ) : null}
         </div>
       </div>
+
+      <AttachmentPreviewModal
+        open={Boolean(preview)}
+        url={preview?.url ?? ""}
+        reference={detail?.reference ?? ""}
+        title={preview?.name ?? detail?.title ?? ""}
+        kind={preview?.kind ?? "file"}
+        fileName={preview?.fileName ?? ""}
+        onClose={() => setPreview(null)}
+      />
     </div>
   );
 }

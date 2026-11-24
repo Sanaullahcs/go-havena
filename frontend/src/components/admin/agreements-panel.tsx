@@ -448,8 +448,6 @@ export function AgreementsPanel({
 
       <DataTable
         title="Agreements"
-        totalCount={meta.total}
-        visibleCount={rows.length}
         search={search}
         onSearch={(value) => {
           setSearch(value);

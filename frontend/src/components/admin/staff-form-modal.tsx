@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, UserPlus, Users, X } from "lucide-react";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
@@ -31,9 +31,12 @@ function initials(name: string): string {
 
 function staffNameError(name: string): string | null {
   const value = name.trim();
-  if (!value || value.length < 2 || value.length > 120 || !/\p{L}/u.test(value)) {
-    return "Enter the staff member's full name.";
-  }
+  if (!value) return "Full name is required.";
+  if (/\p{N}/u.test(value)) return "Full name cannot contain numbers.";
+  if (/[^\p{L} ]/u.test(value)) return "Full name cannot contain special characters.";
+  const length = Array.from(value).length;
+  if (length < 2) return "Full name must contain at least 2 characters.";
+  if (length > 50) return "Full name cannot exceed 50 characters.";
   return null;
 }
 
@@ -165,6 +168,9 @@ export function StaffFormModal({
   if (!open) return null;
 
   const showError = (field: StaffField) => Boolean((submitAttempted || touched[field]) && errors[field]);
+  const visibleNameError = name.trim()
+    ? staffNameError(name) ?? undefined
+    : (showError("name") ? errors.name : undefined);
   const loadMoreResidents = () => {
     if (residentsLoading || residentPage >= residentLastPage) return;
     void loadResidents(residentQuery, residentPage + 1, true);
@@ -350,7 +356,7 @@ export function StaffFormModal({
 
           {!lockedIdentity ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Full name" required error={(name.trim() && staffNameError(name)) || (showError("name") ? errors.name : undefined)}>
+              <Field label="Full name" required error={visibleNameError}>
                 <ClearableInput
                   value={name}
                   onChange={(event) => {
@@ -359,10 +365,16 @@ export function StaffFormModal({
                   }}
                   onBlur={() => {
                     touch("name");
-                    setErrors((prev) => ({ ...prev, name: staffNameError(name) ?? undefined }));
+                    const message = staffNameError(name);
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      if (message) next.name = message;
+                      else delete next.name;
+                      return next;
+                    });
                   }}
                   placeholder="Staff name"
-                  className={inputClass((name.trim() && staffNameError(name)) || (showError("name") ? errors.name : undefined), "nl-input min-h-11 w-full")}
+                  className={inputClass(visibleNameError, "nl-input min-h-11 w-full")}
                 />
               </Field>
               <Field label="Email" required error={showError("email") ? errors.email : undefined}>
@@ -639,19 +651,60 @@ function StaffSkillSelect({
   const [query, setQuery] = useState("");
   const anchorRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ y: number; scroll: number } | null>(null);
+  const [thumb, setThumb] = useState<{ top: number; height: number } | null>(null);
+  const PANEL_MAX = 280;
+  const LIST_MAX = 220;
   const { style } = useAnchoredPopover(open, anchorRef, {
     popoverRef: panelRef,
     align: "left",
     gap: 8,
-    maxHeight: 280,
-    constrainToViewport: true,
+    maxHeight: PANEL_MAX,
     preferBelow: true,
+    constrainToViewport: true,
+    zIndex: 2000,
   });
   const selected = STAFF_SKILLS.filter(([key]) => value.includes(key)).map(([, label]) => label);
   const options = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return STAFF_SKILLS.filter(([, label]) => !needle || label.toLowerCase().includes(needle));
   }, [query]);
+  const syncThumb = useCallback(() => {
+    const list = listRef.current;
+    if (!list || list.scrollHeight <= list.clientHeight + 1) {
+      setThumb((current) => (current === null ? current : null));
+      return;
+    }
+    const height = Math.max(28, (list.clientHeight / list.scrollHeight) * list.clientHeight);
+    const track = list.clientHeight - height;
+    const maxScroll = list.scrollHeight - list.clientHeight;
+    const top = maxScroll > 0 ? (list.scrollTop / maxScroll) * track : 0;
+    setThumb((current) => (current && Math.abs(current.top - top) < 0.5 && Math.abs(current.height - height) < 0.5 ? current : { top, height }));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setThumb(null);
+      return;
+    }
+    syncThumb();
+  }, [open, options.length, syncThumb]);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!open || !list) return;
+    const onWheel = (event: WheelEvent) => {
+      if (list.scrollHeight <= list.clientHeight + 1) return;
+      event.preventDefault();
+      event.stopPropagation();
+      list.scrollTop += event.deltaY;
+      syncThumb();
+    };
+    list.addEventListener("wheel", onWheel, { passive: false });
+    return () => list.removeEventListener("wheel", onWheel);
+  }, [open, options.length, syncThumb]);
 
   useEffect(() => {
     if (!open) return;
@@ -672,6 +725,13 @@ function StaffSkillSelect({
     };
   }, [open]);
 
+  const toggleSkill = (key: string) => {
+    const active = value.includes(key);
+    onChange(active ? value.filter((item) => item !== key) : [...value, key]);
+    setQuery("");
+    setOpen(false);
+  };
+
   return (
     <div>
       <button
@@ -689,8 +749,14 @@ function StaffSkillSelect({
         <ChevronDown className={`nl-picker-chevron ${open ? "nl-picker-chevron-open" : ""}`} size={16} strokeWidth={2} aria-hidden />
       </button>
       {open ? createPortal(
-        <div ref={panelRef} role="listbox" aria-label="Specialization" style={style} className="nl-themed-popover nl-select-popover overflow-hidden p-0">
-          <div className="border-b border-slate-100 p-2">
+        <div
+          ref={panelRef}
+          role="listbox"
+          aria-label="Specialization"
+          style={{ ...style, display: "flex", flexDirection: "column", overflow: "hidden", zIndex: 2000 }}
+          className="nl-themed-popover min-h-0"
+        >
+          <div ref={searchRef} className="shrink-0 border-b border-slate-100 p-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
               <ClearableInput
@@ -701,24 +767,64 @@ function StaffSkillSelect({
               />
             </div>
           </div>
-          <div className="max-h-52 overflow-y-auto p-1.5">
-            {options.length === 0 ? <p className="px-2.5 py-3 text-[13px] text-slate-500">No matching specializations.</p> : null}
-            {options.map(([key, label]) => {
-              const active = value.includes(key);
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  role="option"
-                  aria-selected={active}
-                  onClick={() => onChange(active ? value.filter((item) => item !== key) : [...value, key])}
-                  className={["nl-select-option", active ? "nl-select-option-selected" : ""].join(" ")}
-                >
-                  <span>{label}</span>
-                  {active ? <Check size={14} strokeWidth={2.5} aria-hidden /> : null}
-                </button>
-              );
-            })}
+          <div className="relative min-h-0">
+            <div
+              id="staff-skill-options"
+              ref={listRef}
+              onScroll={syncThumb}
+              className="nl-menu-scroll overscroll-contain p-1.5 pr-3"
+              style={{ maxHeight: LIST_MAX, overflowX: "hidden", overflowY: "auto", overscrollBehavior: "contain" }}
+            >
+              {options.length === 0 ? <p className="px-2.5 py-3 text-[13px] text-slate-500">No matching specializations.</p> : null}
+              {options.map(([key, label]) => {
+                const active = value.includes(key);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    onClick={() => toggleSkill(key)}
+                    className={["nl-select-option", active ? "nl-select-option-selected" : ""].join(" ")}
+                  >
+                    <span>{label}</span>
+                    {active ? <Check size={14} strokeWidth={2.5} aria-hidden /> : null}
+                  </button>
+                );
+              })}
+            </div>
+            {thumb ? (
+              <div className="pointer-events-none absolute inset-y-0 right-0.5 w-1.5">
+                <div
+                  role="scrollbar"
+                  aria-orientation="vertical"
+                  aria-controls="staff-skill-options"
+                  className="pointer-events-auto absolute inset-x-0 cursor-grab rounded-full bg-[#94a3b8] active:cursor-grabbing"
+                  style={{ top: thumb.top, height: thumb.height }}
+                  onPointerDown={(event) => {
+                    const list = listRef.current;
+                    if (!list) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    dragRef.current = { y: event.clientY, scroll: list.scrollTop };
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                  }}
+                  onPointerMove={(event) => {
+                    const drag = dragRef.current;
+                    const list = listRef.current;
+                    if (!drag || !list) return;
+                    const maxScroll = list.scrollHeight - list.clientHeight;
+                    const thumbHeight = Math.max(28, (list.clientHeight / list.scrollHeight) * list.clientHeight);
+                    const track = list.clientHeight - thumbHeight;
+                    if (track <= 0 || maxScroll <= 0) return;
+                    list.scrollTop = drag.scroll + ((event.clientY - drag.y) * maxScroll) / track;
+                  }}
+                  onPointerUp={() => {
+                    dragRef.current = null;
+                  }}
+                />
+              </div>
+            ) : null}
           </div>
         </div>,
         document.body,
