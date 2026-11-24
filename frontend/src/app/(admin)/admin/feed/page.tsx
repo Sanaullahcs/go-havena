@@ -304,12 +304,12 @@ export default function AdminFeedPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="nl-eyebrow">Community</p>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Feed moderation</h2>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Feed Moderation</h2>
           <p className="mt-1 text-sm text-slate-500">
-            User reports stay in the feed until 3 residents report the same post or poll, then it moves to Sensitive. Admin reports mark content sensitive immediately.
+            Manage community posts and polls, review reported content and maintain a safe and respectful community environment.
           </p>
         </div>
         {canPublish ? (
@@ -335,6 +335,10 @@ export default function AdminFeedPage() {
         ) : null}
       </div>
 
+      <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-600">
+        User reports stay in the feed until 3 residents report the same post or poll, then it moves to Sensitive. Admin reports mark content sensitive immediately.
+      </p>
+
       <FeedModerationTabs
         value={feedTab}
         onChange={(tab) => {
@@ -348,9 +352,9 @@ export default function AdminFeedPage() {
       </div>
 
       <DataTable
-        title={feedTab === "polls" ? "Community polls" : "Community posts"}
-        totalCount={total}
-        visibleCount={posts.length}
+        title={feedTab === "polls" ? "Community polls" : "Community Posts"}
+        totalCount={feedTab === "polls" ? total : undefined}
+        visibleCount={feedTab === "polls" ? posts.length : undefined}
         search={searchInput}
         onSearch={setSearchInput}
         searchPlaceholder={feedTab === "polls" ? "Search by question, author, community" : "Search by author, community"}

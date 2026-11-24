@@ -9,13 +9,20 @@ export function MarketingFooter() {
   return (
     <footer className="lp-footer">
       <div className="lp-container">
-        <div className="lp-footer__grid">
+        <div className="lp-footer__top">
           <div className="lp-footer__brand">
             <Link href="/" className="lp-footer__logo">
-              <HavenaLockup size={36} nameClassName="text-[1.5rem]" />
+              <HavenaLockup size={36} tone="light" nameClassName="text-[1.5rem]" />
             </Link>
             <p>{footerCopy.blurb}</p>
           </div>
+          <div className="lp-footer__stores">
+            <p>The resident app</p>
+            <StoreBadges tone="dark" />
+          </div>
+        </div>
+
+        <div className="lp-footer__grid">
 
           {footerColumns.map((column) => (
             <div key={column.title} className="lp-footer__col">
@@ -63,10 +70,6 @@ export function MarketingFooter() {
             </ul>
           </div>
 
-        </div>
-
-        <div className="lp-footer__stores">
-          <StoreBadges />
         </div>
 
         <div className="lp-footer__bottom">

@@ -21,6 +21,8 @@ export type ComplaintRecord = {
   unit_number: string | null;
   reporter_user_id: number;
   reporter_name: string;
+  reporter_email?: string | null;
+  reporter_phone?: string | null;
   category: string;
   category_label: string;
   priority: "low" | "normal" | "high" | "urgent";
@@ -42,6 +44,14 @@ export type ComplaintRecord = {
   feedback_rating?: number | null;
   feedback_comment?: string | null;
   unread_count?: number;
+  reopen_reason?: string | null;
+  reopened_at?: string | null;
+  reopened_by_name?: string | null;
+  previous_assigned_to_user_id?: number | null;
+  previous_assigned_to_name?: string | null;
+  previous_assignee_available?: boolean;
+  /** Maintenance complaints: false until community admin sends the first public message (resident API only). */
+  resident_chat_available?: boolean;
   messages?: ComplaintMessage[];
   attachments?: ComplaintAttachment[];
   events?: ComplaintEvent[];
@@ -100,6 +110,7 @@ export type ComplaintList = {
 export async function fetchAdminComplaints(params: {
   search?: string;
   status?: string;
+  summary?: string;
   category?: string;
   priority?: string;
   dateFrom?: string;
@@ -108,6 +119,7 @@ export async function fetchAdminComplaints(params: {
 }): Promise<ComplaintList> {
   const query = new URLSearchParams();
   if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.summary && params.summary !== "all") query.set("summary", params.summary);
   if (params.status && params.status !== "all") query.set("status", params.status);
   if (params.category && params.category !== "all") query.set("category", params.category);
   if (params.priority && params.priority !== "all") query.set("priority", params.priority);

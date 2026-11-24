@@ -12,10 +12,12 @@ import { sw, sf } from "../../../utils/responsive";
 import { useSafeModeBack } from "../../../hooks/use-safe-mode-back";
 import { acceptStaffInvitation, fetchStaffInvitations } from "../../../services/complaints-api";
 import { fetchMe } from "../../../services/auth-api";
+import { navigateAfterStaffInviteAccepted, STAFF_HOME } from "../../../constants/onboarding-routes";
 import { canAccessDashboard } from "../../../services/community-access";
-import { STAFF_HOME } from "../../../constants/onboarding-routes";
 import { parseApiDate } from "../../../utils/parse-api-date";
 import { safeGoBack } from "../../../utils/app-navigation";
+import { useAppDialog } from "../../../providers/app-dialog-provider";
+import { getCachedUser } from "../../../services/auth-session";
 
 const STATUS = {
   pending: { label: "Pending", color: NAVY, bg: "#E8F0F7" },
@@ -33,6 +35,7 @@ export default function StaffInvitationsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const dialog = useAppDialog();
   useSafeModeBack();
   const [rows, setRows] = useState([]);
   const [tab, setTab] = useState("pending");
@@ -61,19 +64,24 @@ export default function StaffInvitationsScreen() {
     [rows, tab],
   );
 
-  const accept = async (id) => {
+  const accept = async (id, communityName) => {
+    const communityLabel = String(communityName || "").trim() || "this community";
+    const confirmed = await dialog.showConfirm(
+      "Accept Staff Invitation?",
+      `Are you sure you want to join ${communityLabel} as a staff member?`,
+      { confirmLabel: "Accept", cancelLabel: "Cancel" },
+    );
+    if (confirmed !== "confirm") return;
+
     setBusyId(id);
     setMessage("");
     try {
       const result = await acceptStaffInvitation(id);
       const user = await fetchMe();
-      if (user?.staff_access?.active && !canAccessDashboard(user)) {
-        router.replace(STAFF_HOME);
-        return;
-      }
       setMessageOk(true);
       setMessage(result?.message || "Staff access is active for this community.");
-      await load();
+      // Staff-only → Staff Home; resident+staff → Resident Home (role-aware).
+      navigateAfterStaffInviteAccepted(router, user);
     } catch (err) {
       setMessageOk(false);
       setMessage(err?.message || "Could not accept this invitation.");
@@ -87,7 +95,17 @@ export default function StaffInvitationsScreen() {
       <View style={[styles.header, { paddingTop: getTopInset(insets) + sw(4) }]}>
         <ScreenStatusBar style="light" androidBackgroundColor={STAFF_NAVY} />
         <View style={styles.headerTop}>
-          <Pressable onPress={() => safeGoBack(router, navigation)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back" style={styles.back}>
+          <Pressable
+            onPress={() => {
+              const user = getCachedUser();
+              const fallback = canAccessDashboard(user) ? "/(tabs)/home" : STAFF_HOME;
+              safeGoBack(router, navigation, { fallbackPath: fallback });
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            style={styles.back}
+          >
             <Feather name="chevron-left" size={sf(18)} color="#FFFFFF" />
             <Text style={styles.backText}>Back to Home</Text>
           </Pressable>
@@ -163,7 +181,7 @@ export default function StaffInvitationsScreen() {
                 </View>
               </View>
               {pending ? (
-                <Pressable disabled={busyId === row.id} onPress={() => void accept(row.id)} style={[styles.button, busyId === row.id && styles.buttonBusy]}>
+                <Pressable disabled={busyId === row.id} onPress={() => void accept(row.id, row.community_name)} style={[styles.button, busyId === row.id && styles.buttonBusy]}>
                   <Text style={styles.buttonText}>{busyId === row.id ? "Accepting…" : "Accept invitation"}</Text>
                 </Pressable>
               ) : (

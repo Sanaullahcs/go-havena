@@ -145,6 +145,7 @@ export default function StaffTaskDetailScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetStatus, setSheetStatus] = useState("");
   const [sheetNote, setSheetNote] = useState("");
+  const [sheetNoteError, setSheetNoteError] = useState("");
   const [tab, setTab] = useState("details");
   const [file, setFile] = useState(null);
   const [token, setToken] = useState("");
@@ -224,6 +225,7 @@ export default function StaffTaskDetailScreen() {
   const openSheet = () => {
     setSheetStatus(staffStatusId(task?.status));
     setSheetNote("");
+    setSheetNoteError("");
     setSheetOpen(true);
   };
 
@@ -231,6 +233,7 @@ export default function StaffTaskDetailScreen() {
     if (busy) return;
     setSheetStatus(staffStatusId(task?.status));
     setSheetNote("");
+    setSheetNoteError("");
     setSheetOpen(false);
   };
 
@@ -245,16 +248,19 @@ export default function StaffTaskDetailScreen() {
       await showError("Status", "That status change is not available.");
       return;
     }
-    if ((option.target === "resolved" || option.target === "not_resolved") && sheetNote.trim().length < 3) {
-      await showError(option.target === "resolved" ? "Completion note" : "Work note", option.target === "resolved" ? "Add a short note describing the completed work." : "Add a short note explaining why this is not resolved.");
+    if (option.target === "not_resolved" && sheetNote.trim().length < 3) {
+      setSheetNoteError("Add a short note explaining why this is not resolved.");
+      await showError("Work note required", "Add a short note explaining why this is not resolved.");
       return;
     }
+    setSheetNoteError("");
     setBusy(true);
     try {
       let updated = await updateStaffTaskStatus(id, option.target, sheetNote.trim() || null);
       if (file) updated = await addStaffTaskUpdate(id, sheetNote.trim() || "Completion attachment", [file]);
       setTask(updated);
       setSheetNote("");
+      setSheetNoteError("");
       setFile(null);
       setSheetOpen(false);
       await showSuccess("Status updated", "The resident and community admin have been notified.");
@@ -361,6 +367,20 @@ export default function StaffTaskDetailScreen() {
               </View>
               {task.category_label ? <Text style={styles.category}>{task.category_label}</Text> : null}
             </View>
+
+            {tab === "details" && (task.reopen_reason || task.status === "reopened") ? (
+              <View style={[styles.card, styles.reopenCard]}>
+                <Section icon="rotate-ccw" title="Resident reopen reason" />
+                <Text style={styles.reopenCopy}>
+                  {task.reopen_reason || "The resident reopened this complaint. Review the history for details."}
+                </Text>
+                {task.reopened_by_name || task.reopened_at ? (
+                  <Text style={styles.reopenMeta}>
+                    {[task.reopened_by_name, formatWhen(task.reopened_at)].filter(Boolean).join(" · ")}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
 
             {tab === "details" && (task.description || images.length || documents.length) ? (
               <View style={styles.card}>
@@ -492,13 +512,18 @@ export default function StaffTaskDetailScreen() {
                     <Pressable
                       key={option.id}
                       disabled={!enabled}
-                      onPress={() => setSheetStatus(option.id)}
+                      onPress={() => {
+                        setSheetStatus(option.id);
+                        setSheetNoteError("");
+                      }}
                       style={[styles.sheetOption, { borderColor: selected ? option.color : "#E6EDF5", backgroundColor: selected ? option.bg : "#FFFFFF" }, !enabled && styles.sheetOptionOff]}
                     >
                       <View style={[styles.sheetIcon, { backgroundColor: selected ? "#FFFFFF" : option.bg }]}>
-                        <Feather name={option.icon} size={sf(14)} color={option.color} />
+                        <Feather name={option.icon} size={sf(12)} color={option.color} />
                       </View>
-                      <Text style={styles.sheetOptionText} numberOfLines={1}>{option.label}</Text>
+                      <Text style={styles.sheetOptionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                        {option.label}
+                      </Text>
                       <View style={[styles.sheetRadio, selected && { borderColor: option.color }]}>
                         {selected ? <View style={[styles.sheetRadioDot, { backgroundColor: option.color }]} /> : null}
                       </View>
@@ -506,23 +531,40 @@ export default function StaffTaskDetailScreen() {
                   );
                 })}
               </View>
-              <Text style={styles.noteLabel}>{(sheetStatus || staffStatusId(task?.status)) === "resolved" ? "Completion note *" : (sheetStatus || staffStatusId(task?.status)) === "not_resolved" ? "Work note *" : "Work note"}</Text>
+              <Text style={styles.noteLabel}>
+                {(sheetStatus || staffStatusId(task?.status)) === "not_resolved" ? "Work note *" : "Work note"}
+              </Text>
               <TextInput
                 value={sheetNote}
-                onChangeText={setSheetNote}
+                onChangeText={(value) => {
+                  setSheetNote(value);
+                  if (sheetNoteError && value.trim().length >= 3) setSheetNoteError("");
+                }}
                 onFocus={() => {
                   setTimeout(() => sheetScrollRef.current?.scrollToEnd({ animated: true }), 280);
                 }}
-                placeholder={(sheetStatus || staffStatusId(task?.status)) === "resolved" ? "Describe the completed work" : (sheetStatus || staffStatusId(task?.status)) === "not_resolved" ? "Explain why this is not resolved" : "Optional note for the resident"}
+                placeholder={
+                  (sheetStatus || staffStatusId(task?.status)) === "not_resolved"
+                    ? "Explain why this is not resolved"
+                    : "Optional note for the resident"
+                }
                 placeholderTextColor="#94A3B8"
                 multiline
-                style={styles.sheetInput}
+                style={[styles.sheetInput, sheetNoteError ? styles.sheetInputError : null]}
               />
+              {sheetNoteError ? <Text style={styles.sheetNoteError}>{sheetNoteError}</Text> : null}
               <Pressable disabled={busy} onPress={() => void pickFile()} style={styles.sheetSecondary}>
                 <Feather name="paperclip" size={sf(14)} color={NAVY} />
                 <Text style={styles.sheetSecondaryText} numberOfLines={1}>{file?.name || "Add photo or file"}</Text>
               </Pressable>
-              <Pressable disabled={busy} onPress={() => void changeStatus()} style={styles.sheetPrimary}>
+              <Pressable
+                disabled={busy || ((sheetStatus || staffStatusId(task?.status)) === "not_resolved" && sheetNote.trim().length < 3)}
+                onPress={() => void changeStatus()}
+                style={[
+                  styles.sheetPrimary,
+                  (busy || ((sheetStatus || staffStatusId(task?.status)) === "not_resolved" && sheetNote.trim().length < 3)) && styles.sheetPrimaryOff,
+                ]}
+              >
                 <Text style={styles.sheetPrimaryText}>{busy ? "Updating…" : "Update Status"}</Text>
               </Pressable>
             </ScrollView>
@@ -608,6 +650,9 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   body: { paddingHorizontal: sw(16), paddingTop: sw(14), gap: sw(12) },
   card: { backgroundColor: "#fff", borderRadius: sw(16), borderWidth: 1, borderColor: "#E6EDF5", padding: sw(14), gap: sw(8), ...CARD_SHADOW },
+  reopenCard: { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
+  reopenCopy: { fontFamily: Fonts.regular, fontSize: sf(14), lineHeight: sf(20), color: "#4C1D95" },
+  reopenMeta: { fontFamily: Fonts.medium, fontSize: sf(12), lineHeight: sf(16), color: "#6D28D9" },
   summaryTop: { flexDirection: "row", alignItems: "flex-start", gap: sw(10) },
   summaryCopy: { flex: 1, minWidth: 0, gap: 2 },
   reference: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: "#64748B" },
@@ -682,16 +727,19 @@ const styles = StyleSheet.create({
   sheetScroll: { flexGrow: 0, flexShrink: 1 },
   sheetScrollContent: { gap: sw(12), paddingHorizontal: sw(16), paddingTop: sw(10), paddingBottom: sw(16) },
   sheetGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: sw(10) },
-  sheetOption: { width: "48.5%", minHeight: sw(52), borderRadius: sw(14), borderWidth: 1.5, paddingHorizontal: sw(8), paddingVertical: sw(8), flexDirection: "row", alignItems: "center", gap: sw(6) },
+  sheetOption: { width: "48.5%", minHeight: sw(52), borderRadius: sw(14), borderWidth: 1.5, paddingHorizontal: sw(6), paddingVertical: sw(8), flexDirection: "row", alignItems: "center", gap: sw(4) },
   sheetOptionOff: { opacity: 0.45 },
-  sheetIcon: { width: sw(28), height: sw(28), borderRadius: sw(14), alignItems: "center", justifyContent: "center" },
-  sheetOptionText: { flex: 1, minWidth: 0, fontFamily: Fonts.semiBold, fontSize: sf(12), color: "#1E293B" },
-  sheetRadio: { width: sw(18), height: sw(18), borderRadius: sw(9), borderWidth: 1.5, borderColor: "#D5DEE8", alignItems: "center", justifyContent: "center" },
-  sheetRadioDot: { width: sw(10), height: sw(10), borderRadius: sw(5) },
+  sheetIcon: { width: sw(24), height: sw(24), borderRadius: sw(12), alignItems: "center", justifyContent: "center" },
+  sheetOptionText: { flex: 1, minWidth: 0, fontFamily: Fonts.semiBold, fontSize: sf(11), lineHeight: sf(14), color: "#1E293B" },
+  sheetRadio: { width: sw(16), height: sw(16), borderRadius: sw(8), borderWidth: 1.5, borderColor: "#D5DEE8", alignItems: "center", justifyContent: "center" },
+  sheetRadioDot: { width: sw(8), height: sw(8), borderRadius: sw(4) },
   sheetInput: { minHeight: sw(68), maxHeight: sw(110), borderRadius: sw(12), borderWidth: 1, borderColor: "#E6EDF5", backgroundColor: "#FFFFFF", paddingHorizontal: sw(12), paddingVertical: sw(10), fontFamily: Fonts.regular, fontSize: sf(14), color: "#0F172A", textAlignVertical: "top" },
+  sheetInputError: { borderColor: "#F3C3CE" },
+  sheetNoteError: { marginTop: sw(-4), fontFamily: Fonts.medium, fontSize: sf(12), lineHeight: sf(16), color: "#E11D48" },
   sheetSecondary: { minHeight: sw(44), borderRadius: sw(12), backgroundColor: "#E8F1FA", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: sw(6), paddingHorizontal: sw(12) },
   sheetSecondaryText: { flexShrink: 1, fontFamily: Fonts.semiBold, fontSize: sf(14), color: NAVY },
   sheetPrimary: { minHeight: sw(48), borderRadius: sw(14), backgroundColor: NAVY, alignItems: "center", justifyContent: "center", paddingHorizontal: sw(12) },
+  sheetPrimaryOff: { opacity: 0.45 },
   sheetPrimaryText: { fontFamily: Fonts.bold, fontSize: sf(15), color: "#FFFFFF" },
   noteLabel: { fontFamily: Fonts.bold, fontSize: sf(15), color: "#0F172A" },
   menu: { backgroundColor: "#fff", borderRadius: sw(12), borderWidth: 1, borderColor: "#E6EDF5", overflow: "hidden", ...CARD_SHADOW },

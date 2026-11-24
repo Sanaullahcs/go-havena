@@ -147,6 +147,7 @@ export async function confirmAction(opts: {
   title?: string;
   text?: string;
   confirmText?: string;
+  cancelText?: string;
   icon?: "question" | "warning" | "info";
   color?: "blue" | "amber" | "red" | "green";
 }) {
@@ -159,7 +160,7 @@ export async function confirmAction(opts: {
       opts.confirmText ?? "Confirm",
     ),
     showCancelButton: true,
-    cancelButtonText: labeledButton(ICO_X, "Cancel"),
+    cancelButtonText: labeledButton(ICO_X, opts.cancelText ?? "Cancel"),
     customClass: {
       popup:         "nl-swal-popup",
       title:         "nl-swal-title",

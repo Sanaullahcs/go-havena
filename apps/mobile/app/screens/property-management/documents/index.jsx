@@ -18,14 +18,15 @@ import { rnShadow } from "../../../../utils/shadow";
 import { amenityFlowRoutes } from "../../../../constants/property-management-routes";
 import { fetchAdminAgreements, fetchCommunityDocuments } from "../../../../services/documents-api";
 import { getCurrentRole } from "../../../../constants/role-session";
+import { documentMatchesCategory } from "../../../../constants/document-categories";
 
+/** Icons for the shared Community Admin / Resident presets (+ Others). */
 const CATEGORY_META = {
   "Rules & Policies": { icon: "file-text", color: "#E7000B", bg: "#FEF2F2" },
-  Forms:            { icon: "clipboard", color: "#14B8A6", bg: "#D1FAF5" },
-  Guidelines:       { icon: "book-open", color: "#059669", bg: "#ECFDF5" },
-  Safety:           { icon: "shield", color: "#DC2626", bg: "#FEF2F2" },
-  "Maps & Diagrams": { icon: "map", color: "#0891B2", bg: "#ECFEFF" },
-  Financial:        { icon: "dollar-sign", color: "#D97706", bg: "#FFFBEB" },
+  Maintenance:        { icon: "tool", color: "#0D9488", bg: "#CCFBF1" },
+  Financial:          { icon: "dollar-sign", color: "#D97706", bg: "#FFFBEB" },
+  Property:           { icon: "home", color: "#2563EB", bg: "#EFF6FF" },
+  Others:             { icon: "folder", color: "#64748B", bg: "#F8FAFC" },
 };
 
 function getCategoryMeta(name) {
@@ -270,17 +271,8 @@ function compareDocuments(a, b, sort) {
   return sort === "oldest" ? idDiff : -idDiff;
 }
 
-function documentInCategory(doc, selected, categories) {
-  if (selected === "all") return true;
-  const chosen = categories.find((cat) => cat.name === selected);
-  const name = String(doc.category ?? "").trim().toLowerCase();
-  if (chosen?.match === "other") {
-    const presets = categories
-      .filter((cat) => cat.match === "exact")
-      .map((cat) => cat.name.toLowerCase());
-    return !presets.includes(name);
-  }
-  return name === selected.toLowerCase();
+function documentInCategory(doc, selected) {
+  return documentMatchesCategory(doc?.category, selected);
 }
 
 function menuFrame(anchor, windowWidth, windowHeight, optionCount) {
@@ -612,7 +604,7 @@ export default function Documents() {
       list = list.filter((doc) => agreementMatches(doc, agreementFilter));
     }
     if (section === "documents" && selectedCategory !== "all") {
-      list = list.filter((d) => documentInCategory(d, selectedCategory, categories));
+      list = list.filter((d) => documentInCategory(d, selectedCategory));
     }
     const q = search.trim().toLowerCase();
     if (q) {

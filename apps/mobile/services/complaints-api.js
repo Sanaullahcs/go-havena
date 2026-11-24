@@ -1,7 +1,7 @@
-import { File } from "expo-file-system";
 import { API_BASE_URL } from "../constants/api-config";
 import { apiRequest, ApiError } from "./api-client";
 import { getCommunityId, getToken } from "./auth-session";
+import { guessImageMeta } from "../utils/upload-form-data";
 import i18n from "../i18n";
 
 function query(params = {}) {
@@ -63,8 +63,16 @@ export async function postAdminComplaintMessage(id, body, visibility, files = []
   return res.data;
 }
 
-export async function updateComplaintStatus(id, status) {
-  const res = await apiRequest(`/complaints/${id}/status`, { method: "POST", body: { status } });
+export async function updateComplaintStatus(id, status, note = null, files = []) {
+  if (files?.length) {
+    const fields = { status };
+    if (note) fields.note = note;
+    const res = await upload(`/complaints/${id}/status`, fields, files);
+    return res.data;
+  }
+  const body = { status };
+  if (note) body.note = note;
+  const res = await apiRequest(`/complaints/${id}/status`, { method: "POST", body });
   return res.data;
 }
 
@@ -94,24 +102,26 @@ export async function createComplaint(fields, files = []) {
   return res.data;
 }
 
-function appendUploadFile(form, file) {
+function appendUploadFile(form, file, index = 0) {
   const rawUri = String(file?.uri || "");
   if (!rawUri) return;
   const uri = rawUri.startsWith("/") ? `file://${rawUri}` : rawUri;
-  const name = file.name || file.fileName || "attachment";
-  const type = file.mimeType || "application/octet-stream";
-  const part = new File(uri);
-  try {
-    part.name = name;
-  } catch {
-    // The filename is still passed as the FormData filename argument.
+  const { fileName, mimeType } = guessImageMeta(uri, file, `complaint-${index + 1}`);
+  // React Native multipart shape — more reliable than expo File blobs for PHP uploads.
+  form.append("files[]", {
+    uri,
+    name: file.name || file.fileName || fileName,
+    type: file.mimeType || mimeType || "application/octet-stream",
+  });
+}
+
+function uploadErrorMessage(body) {
+  const fieldError = Object.values(body?.errors ?? {})?.[0]?.[0];
+  const raw = String(body?.message || fieldError || "Upload failed");
+  if (/files\.\d+\s+failed to upload/i.test(raw) || /failed to upload/i.test(raw)) {
+    return "This photo or file is too large for the server. Try a smaller image, or a file under 10 MB.";
   }
-  try {
-    part.type = type;
-  } catch {
-    // Expo derives the content type from the file extension when type is read-only.
-  }
-  form.append("files[]", part, name);
+  return raw;
 }
 
 async function upload(path, fields, files) {
@@ -122,7 +132,7 @@ async function upload(path, fields, files) {
   Object.entries(fields).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") form.append(key, String(value));
   });
-  files.forEach((file) => appendUploadFile(form, file));
+  files.forEach((file, index) => appendUploadFile(form, file, index));
   const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
   if (communityId) headers["X-Community-Id"] = communityId;
   const response = await fetch(`${API_BASE_URL}${path}`, { method: "POST", headers, body: form });
@@ -132,10 +142,7 @@ async function upload(path, fields, files) {
     try { body = JSON.parse(text); } catch { body = { message: text }; }
   }
   if (!response.ok) {
-    const message = body?.message
-      || Object.values(body?.errors ?? {})?.[0]?.[0]
-      || "Upload failed";
-    throw new ApiError(message, { status: response.status });
+    throw new ApiError(uploadErrorMessage(body), { status: response.status });
   }
   return body;
 }
@@ -154,6 +161,23 @@ export async function fetchStaffInvitations() {
 
 export async function acceptStaffInvitation(id) {
   return apiRequest(`/staff/invitations/${id}/accept`, { method: "POST", ...staffRequest });
+}
+
+export async function previewStaffInviteByToken(token) {
+  const res = await apiRequest(`/staff/invitations/preview?token=${encodeURIComponent(String(token || ""))}`, {
+    method: "GET",
+    auth: false,
+    community: false,
+  });
+  return res.data;
+}
+
+export async function acceptStaffInviteByToken(token) {
+  return apiRequest("/staff/invitations/accept", {
+    method: "POST",
+    body: { token: String(token || "") },
+    ...staffRequest,
+  });
 }
 
 export async function fetchStaffTasks(params = {}) {

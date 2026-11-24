@@ -8,6 +8,8 @@ use App\Services\ContactIdentityService;
 use App\Support\AppUrls;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Throwable;
 
 class ComplaintMailer
 {
@@ -66,18 +68,22 @@ class ComplaintMailer
         );
     }
 
-    public function assigned(object $complaint, User $actor, int $eventId, bool $reassigned): void
+    public function assigned(object $complaint, User $actor, int $eventId, bool $reassigned, ?string $reopenReason = null): void
     {
         $resident = $this->user((int) $complaint->reporter_user_id);
         $staff = $complaint->assigned_to_user_id ? $this->user((int) $complaint->assigned_to_user_id) : null;
         $heading = $reassigned ? 'Complaint reassigned' : 'A staff member was assigned';
         $subject = 'Havena Complaint '.$complaint->reference.', '.($reassigned ? 'Reassigned' : 'Staff Assigned');
+        $staffIntro = $complaint->reference.' is now on your task list.';
+        if ($reopenReason) {
+            $staffIntro .= ' The resident reopened it because: '.$reopenReason;
+        }
 
         if ($resident) {
             $this->send('complaint_assigned', 'complaint:'.$complaint->id.':assigned:'.$eventId.':resident', $resident, $subject, $heading, $this->staffLine($complaint), $complaint, null, $actor, $this->residentLink($complaint));
         }
         if ($staff) {
-            $this->send('complaint_assigned_staff', 'complaint:'.$complaint->id.':assigned:'.$eventId.':staff', $staff, $subject, 'A complaint was assigned to you', $complaint->reference.' is now on your task list.', $complaint, null, $actor, $this->residentLink($complaint));
+            $this->send('complaint_assigned_staff', 'complaint:'.$complaint->id.':assigned:'.$eventId.':staff', $staff, $subject, 'A complaint was assigned to you', $staffIntro, $complaint, null, $actor, $this->residentLink($complaint));
         }
     }
 
@@ -162,38 +168,74 @@ class ComplaintMailer
     public function invitation(object $staff, string $communityName, string $token): array
     {
         $user = $this->user((int) $staff->user_id);
-        if (! $user) {
+        $email = ContactIdentityService::normalizeEmail($user?->email ?: ($staff->email ?? null));
+        if (! $email) {
             return ['sent' => false, 'error' => 'This staff member has no email address.'];
         }
         $skills = json_decode((string) ($staff->specializations ?? '[]'), true) ?: [];
-        $link = AppUrls::appBase().'/resident-login?staff_invite='.$token;
-        $sent = $this->mail->sendOnce(
-            'staff_invitation',
-            'staff:'.$staff->id.':invite:'.$token,
-            $user->email,
-            new HavenaTransactionalMail(
-                subjectLine: 'You are invited to '.$communityName.' on Havena',
-                preheader: 'Activate your maintenance staff access.',
-                eyebrow: 'Staff invitation',
-                heading: 'Join '.$communityName.' as staff',
-                intro: 'Hello '.$staff->name.',',
-                paragraphs: [
-                    'You were added as maintenance staff for '.$communityName.'. This does not make you a community admin, and you do not need to be a resident or create another account.',
-                    'Open the activation link to accept this community only. Then sign in to the Havena app with this email address. We will send a verification code. No password is included in this email. Your assigned tasks appear under My Assigned Tasks. This invitation expires on '.Carbon::parse($staff->invitation_expires_at)->timezone((string) config('app.timezone'))->format('M j, Y').'.',
-                ],
-                details: [
-                    ['label' => 'Name', 'value' => (string) $staff->name],
-                    ['label' => 'Community', 'value' => $communityName],
-                    ['label' => 'Specialization', 'value' => app(CommunityStaffService::class)->skillLabel($skills)],
-                    ['label' => 'Role', 'value' => 'Maintenance staff'],
-                ],
-                ctaLabel: 'Accept invitation',
-                ctaUrl: $link,
-                footerNote: 'If you did not expect this invitation, you can ignore this email.',
-            ),
+        $link = AppUrls::appBase().'/staff-invite?token='.$token;
+        $contextKey = 'staff:'.$staff->id.':invite:'.$token;
+        $expires = Carbon::parse($staff->invitation_expires_at)->timezone((string) config('app.timezone'))->format('M j, Y');
+        $message = [
+            'subjectLine' => 'You are invited to '.$communityName.' on Havena',
+            'preheader' => 'Activate your maintenance staff access.',
+            'eyebrow' => 'Staff invitation',
+            'heading' => 'Join '.$communityName.' as staff',
+            'intro' => 'Hello '.$staff->name.',',
+            'paragraphs' => [
+                'You were added as maintenance staff for '.$communityName.'. This does not make you a community admin, and you do not need to be a resident or create another account.',
+                'Open the activation link to accept this community only. Then sign in to the Havena app with this email address. We will send a verification code. No password is included in this email. Your assigned tasks appear under My Assigned Tasks. This invitation expires on '.$expires.'.',
+            ],
+            'details' => [
+                ['label' => 'Name', 'value' => (string) $staff->name],
+                ['label' => 'Community', 'value' => $communityName],
+                ['label' => 'Specialization', 'value' => app(CommunityStaffService::class)->skillLabel($skills)],
+                ['label' => 'Role', 'value' => 'Maintenance staff'],
+            ],
+            'ctaLabel' => 'Accept invitation',
+            'ctaUrl' => $link,
+            'footerNote' => 'If you did not expect this invitation, you can ignore this email.',
+        ];
+
+        $mailable = fn () => new HavenaTransactionalMail(
+            subjectLine: $message['subjectLine'],
+            preheader: $message['preheader'],
+            eyebrow: $message['eyebrow'],
+            heading: $message['heading'],
+            intro: $message['intro'],
+            paragraphs: $message['paragraphs'],
+            details: $message['details'],
+            ctaLabel: $message['ctaLabel'],
+            ctaUrl: $message['ctaUrl'],
+            footerNote: $message['footerNote'],
         );
 
-        return $this->deliveryResult($sent);
+        if (! $this->mail->deliversToInbox()) {
+            $this->mail->sendOnce('staff_invitation', $contextKey, $email, $mailable());
+
+            return $this->deliveryResult(false);
+        }
+
+        $lastError = null;
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            try {
+                $this->mail->sendOnce('staff_invitation', $contextKey, $email, $mailable(), true);
+
+                return ['sent' => true, 'error' => null];
+            } catch (Throwable $e) {
+                $lastError = $e->getMessage();
+                usleep(200000 * $attempt);
+            }
+        }
+
+        // Keep staff creation successful; queue retries through the worker.
+        $this->mail->queueOnce('staff_invitation', $contextKey, $email, $message);
+
+        return [
+            'sent' => false,
+            'error' => 'The invitation email could not be delivered right away and was queued for retry.'
+                .($lastError ? ' '.Str::limit($lastError, 160) : ''),
+        ];
     }
 
     public function invitationAccepted(object $staff, string $communityName): void

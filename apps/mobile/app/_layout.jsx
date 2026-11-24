@@ -489,6 +489,10 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="screens/staff-invite/index"
+          options={{ headerShown: false, contentStyle: styles.screen }}
+        />
+        <Stack.Screen
           name="screens/admin-amenities/index"
           options={{ headerShown: false }}
         />

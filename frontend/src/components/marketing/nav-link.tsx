@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEvent, ReactNode } from "react";
+import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -37,13 +37,35 @@ export function MarketingNavLink({
   onNavigate,
 }: MarketingNavLinkProps) {
   const pathname = usePathname();
+  const [hash, setHash] = useState("");
   const parsed = parseHref(href);
+
+  useEffect(() => {
+    const sync = () => setHash(window.location.hash.replace(/^#/, ""));
+    sync();
+    window.addEventListener("hashchange", sync);
+    window.addEventListener("havena-nav", sync);
+    return () => {
+      window.removeEventListener("hashchange", sync);
+      window.removeEventListener("havena-nav", sync);
+    };
+  }, [pathname]);
+
+  const active =
+    parsed.kind === "section"
+      ? pathname === "/" && hash === parsed.hash
+      : parsed.kind === "internal" && parsed.href === "/"
+        ? pathname === "/" && hash === ""
+        : parsed.kind === "internal" &&
+          (pathname === parsed.href || pathname.startsWith(`${parsed.href}/`));
+
+  const itemClass = [className, active ? "is-active" : ""].filter(Boolean).join(" ");
 
   if (parsed.kind === "external") {
     return (
       <a
         href={parsed.href}
-        className={className}
+        className={itemClass}
         target={externalBlank ? "_blank" : undefined}
         rel={externalBlank ? "noopener noreferrer" : undefined}
         onClick={onNavigate}
@@ -70,18 +92,29 @@ export function MarketingNavLink({
         target.scrollIntoView({ behavior: "smooth", block: "start" });
       }
       window.history.replaceState(null, "", cleanHref);
+      window.dispatchEvent(new Event("havena-nav"));
       onNavigate?.();
     };
 
     return (
-      <a href={cleanHref} className={className} onClick={onClick}>
+      <a href={cleanHref} className={itemClass} aria-current={active ? "page" : undefined} onClick={onClick}>
         {children}
       </a>
     );
   }
 
+  const onHomeClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (parsed.kind === "internal" && parsed.href === "/" && pathname === "/") {
+      event.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.history.replaceState(null, "", "/");
+      window.dispatchEvent(new Event("havena-nav"));
+    }
+    onNavigate?.();
+  };
+
   return (
-    <Link href={parsed.href} className={className} onClick={onNavigate}>
+    <Link href={parsed.href} className={itemClass} aria-current={active ? "page" : undefined} onClick={onHomeClick}>
       {children}
     </Link>
   );

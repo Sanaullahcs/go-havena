@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\V1\GuestController;
 use App\Http\Controllers\Api\V1\ResidentGuestController;
 use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\StripeWebhookController;
+use App\Http\Controllers\Api\V1\SaasPricingController;
 use App\Http\Controllers\Api\V1\SubscriptionPlanController;
 use App\Http\Controllers\Api\V1\SubscriptionCouponController;
 use App\Http\Controllers\Api\V1\ReferralController;
@@ -95,12 +96,17 @@ Route::prefix('v1')->group(function () {
     Route::post('/integrations/kuickpay/bill-inquiry', [KuickpayInstitutionController::class, 'inquiry'])->middleware('throttle:120,1');
     Route::post('/integrations/kuickpay/bill-payment', [KuickpayInstitutionController::class, 'payment'])->middleware('throttle:120,1');
     Route::get('/billing/plans', [SubscriptionPlanController::class, 'publicIndex']);
+    Route::get('/billing/saas/catalog', [SaasPricingController::class, 'catalog']);
+    Route::post('/billing/saas/preview', [SaasPricingController::class, 'preview'])->middleware('throttle:60,1');
+    Route::post('/billing/saas/preview-bundle', [SaasPricingController::class, 'previewBundle'])->middleware('throttle:60,1');
+    Route::post('/billing/saas/inquiries', [SaasPricingController::class, 'inquire'])->middleware('throttle:10,1');
     Route::get('/app/version-policy', [AppVersionController::class, 'policy']);
     Route::get('/public/invite-qr.png', [InviteQrImageController::class, 'show'])
         ->name('public.invite-qr');
     Route::get('/public/invite-qr', [InviteQrImageController::class, 'view'])
         ->name('public.invite-qr-view');
-    Route::post('/staff/invitations/accept', [CommunityStaffController::class, 'accept'])->middleware('throttle:20,1');
+    Route::get('/staff/invitations/preview', [CommunityStaffController::class, 'preview'])->middleware('throttle:30,1');
+    Route::post('/staff/invitations/accept', [CommunityStaffController::class, 'accept'])->middleware(['auth:sanctum', 'throttle:20,1']);
 
     /* ── Auth ── */
     Route::prefix('auth')->group(function () {
@@ -480,6 +486,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('/staff/{id}', [CommunityStaffController::class, 'show'])->whereNumber('id');
                 Route::match(['patch', 'post'], '/staff/{id}', [CommunityStaffController::class, 'update'])->whereNumber('id');
                 Route::post('/staff/{id}/invite', [CommunityStaffController::class, 'resend'])->whereNumber('id');
+                Route::post('/staff/{id}/cancel-invitation', [CommunityStaffController::class, 'cancelInvitation'])->whereNumber('id');
+                Route::delete('/staff/{id}', [CommunityStaffController::class, 'destroy'])->whereNumber('id');
             });
 
             /* Community admin (+ system admin override) */

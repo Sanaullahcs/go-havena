@@ -117,7 +117,7 @@ export default function AdminTechnicalReportScreen() {
         contentContainerStyle={styles.form}
         onScrollBeginDrag={() => setMenu(null)}
       >
-        <Text style={styles.lead}>This is for app, account, login, and payment issues. Community maintenance is handled from the complaint queue.</Text>
+        <Text style={styles.lead}>This is for technical issues in the app. Community maintenance is handled from the complaint queue.</Text>
 
         <View style={[styles.card, menu && styles.cardOpen]}>
           <FormSelect
@@ -126,7 +126,7 @@ export default function AdminTechnicalReportScreen() {
             value={categoryLabel}
             placeholder="Choose a category"
             open={menu === "category"}
-            options={TECHNICAL_CATEGORIES.map(([id, label]) => ({ id, label }))}
+            options={TECHNICAL_CATEGORIES.map(([id, label, description]) => ({ id, label, description }))}
             selected={category}
             error={categoryMessage}
             onToggle={() => {

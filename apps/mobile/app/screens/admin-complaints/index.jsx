@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -111,7 +111,7 @@ export default function AdminComplaintsScreen() {
   const priorityLabel = priority === "all"
     ? "All"
     : (PRIORITIES.find(([key]) => key === priority)?.[1] || "All");
-  const categoryOptions = [{ id: "all", label: "All categories" }, ...MAINTENANCE_CATEGORIES.map(([id, label]) => ({ id, label }))];
+  const categoryOptions = [{ id: "all", label: "All categories" }, ...MAINTENANCE_CATEGORIES.map(([id, label, description]) => ({ id, label, description }))];
   const priorityOptions = [{ id: "all", label: "All priorities" }, ...PRIORITIES.map(([id, label]) => ({ id, label }))];
 
   return (
@@ -193,6 +193,7 @@ export default function AdminComplaintsScreen() {
               active={category !== "all"}
               open={menu === "category"}
               options={categoryOptions}
+              searchable
               selected={category}
               onToggle={() => setMenu(menu === "category" ? null : "category")}
               onSelect={(id) => {
@@ -282,7 +283,21 @@ function Stat({ label, value, color }) {
   );
 }
 
-function InlineSelect({ label, value, active, open, options, selected, onToggle, onSelect }) {
+function InlineSelect({ label, value, active, open, options, selected, searchable = false, onToggle, onSelect }) {
+  const [query, setQuery] = useState("");
+  const canSearch = searchable || options.length > 7;
+  const visible = useMemo(() => {
+    const text = query.trim().toLowerCase();
+    if (!canSearch || !text) return options;
+    const pinned = options.filter((option) => option.id === "all");
+    const matched = options.filter((option) => option.id !== "all" && `${option.label} ${option.description || ""}`.toLowerCase().includes(text));
+    return [...pinned, ...matched];
+  }, [canSearch, options, query]);
+
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
   return (
     <View style={[styles.dropdownCol, open && styles.dropdownColOpen]}>
       <Pressable
@@ -300,15 +315,31 @@ function InlineSelect({ label, value, active, open, options, selected, onToggle,
       </Pressable>
       {open ? (
         <View style={styles.menu}>
-          {options.map((option, index) => {
-            const on = option.id === selected;
-            return (
-              <Pressable key={option.id} onPress={() => onSelect(option.id)} style={[styles.option, index === 0 && styles.optionFirst]}>
-                <Text style={[styles.optionText, on && styles.optionTextOn]} numberOfLines={1}>{option.label}</Text>
-                {on ? <Feather name="check" size={sf(14)} color={NAVY} /> : null}
-              </Pressable>
-            );
-          })}
+          {canSearch ? (
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search categories"
+              placeholderTextColor="#94A3B8"
+              autoCorrect={false}
+              style={styles.menuSearch}
+            />
+          ) : null}
+          <ScrollView style={canSearch ? styles.menuScroll : null} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+            {visible.map((option, index) => {
+              const on = option.id === selected;
+              return (
+                <Pressable key={option.id} onPress={() => onSelect(option.id)} style={[styles.option, index === 0 && styles.optionFirst]}>
+                  <View style={styles.optionCopy}>
+                    <Text style={[styles.optionText, on && styles.optionTextOn]} numberOfLines={1}>{option.label}</Text>
+                    {option.description ? <Text style={styles.optionHint} numberOfLines={2}>{option.description}</Text> : null}
+                  </View>
+                  {on ? <Feather name="check" size={sf(14)} color={NAVY} /> : null}
+                </Pressable>
+              );
+            })}
+            {visible.length === 0 ? <Text style={styles.menuEmpty}>No matching categories</Text> : null}
+          </ScrollView>
         </View>
       ) : null}
     </View>
@@ -438,9 +469,24 @@ const styles = StyleSheet.create({
     zIndex: 40,
     elevation: 8,
   },
+  menuSearch: {
+    height: sw(36),
+    margin: sw(8),
+    marginBottom: 0,
+    borderWidth: 1,
+    borderColor: "#E6EDF5",
+    borderRadius: sw(10),
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: sw(10),
+    fontFamily: Fonts.medium,
+    fontSize: sf(12),
+    color: Colors.textPrimary,
+  },
+  menuScroll: { maxHeight: sw(240) },
   option: {
     minHeight: sw(38),
     paddingHorizontal: sw(12),
+    paddingVertical: sw(8),
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -449,8 +495,11 @@ const styles = StyleSheet.create({
     borderTopColor: "#EEF2F6",
   },
   optionFirst: { borderTopWidth: 0 },
-  optionText: { flex: 1, fontFamily: Fonts.medium, fontSize: sf(13), color: "#163A66" },
+  optionCopy: { flex: 1, gap: sw(2) },
+  optionText: { fontFamily: Fonts.medium, fontSize: sf(13), color: "#163A66" },
   optionTextOn: { color: NAVY },
+  optionHint: { fontFamily: Fonts.medium, fontSize: sf(11), lineHeight: sf(14), color: "#64748B" },
+  menuEmpty: { paddingHorizontal: sw(12), paddingVertical: sw(10), fontFamily: Fonts.medium, fontSize: sf(12), color: "#94A3B8" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   list: { flex: 1 },
   listContent: { flexGrow: 1, paddingHorizontal: sw(18), paddingTop: sw(14), paddingBottom: sw(32), gap: sw(12) },

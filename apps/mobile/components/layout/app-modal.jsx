@@ -33,7 +33,7 @@ export default function AppModal({
       {...rest}
     >
       {visible ? <StatusBar style={statusBarStyle} /> : null}
-      <View style={styles.host} collapsable={false} pointerEvents="box-none">
+      <View style={styles.host} collapsable={false} pointerEvents="auto">
         {children}
       </View>
     </Modal>

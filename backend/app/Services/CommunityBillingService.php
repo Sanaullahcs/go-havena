@@ -79,7 +79,7 @@ class CommunityBillingService
 
         $count = max(0, (int) $estimatedResidents);
         foreach ($active as $slug => $plan) {
-            if ($count <= (int) $plan['seat_limit']) {
+            if ((int) $plan['seat_limit'] > 0 && $count <= (int) $plan['seat_limit']) {
                 return $slug;
             }
         }
@@ -211,6 +211,13 @@ class CommunityBillingService
 
     public function seatLimitFor(CommunitySubscription $subscription): int
     {
+        if (Schema::hasColumn('subscription_plans', 'caps_residents')) {
+            $caps = DB::table('subscription_plans')->where('slug', $subscription->plan_slug)->value('caps_residents');
+            if ($caps !== null && ! (bool) $caps) {
+                return PHP_INT_MAX;
+            }
+        }
+
         return $subscription->totalSeatLimit();
     }
 
@@ -240,11 +247,12 @@ class CommunityBillingService
         }
 
         $limit = $subscription ? $this->seatLimitFor($subscription) : 0;
+        $unlimited = $limit === PHP_INT_MAX;
 
         return [
             'seats_used' => $used,
-            'seat_limit' => $limit,
-            'seats_available' => max(0, $limit - $used),
+            'seat_limit' => $unlimited ? null : $limit,
+            'seats_available' => $unlimited ? null : max(0, $limit - $used),
             'has_subscription' => (bool) $subscription,
             'subscription_status' => $subscription?->status,
             'allows_allocation' => $subscription?->allowsSeatAllocation() ?? false,
@@ -255,7 +263,7 @@ class CommunityBillingService
             'current_period_end' => $subscription?->current_period_end?->toIso8601String(),
             'cancel_at_period_end' => (bool) ($subscription?->cancel_at_period_end),
             'billing_exempt' => false,
-            'unlimited_seats' => false,
+            'unlimited_seats' => $unlimited,
         ];
     }
 
@@ -282,7 +290,7 @@ class CommunityBillingService
 
         $used = $this->seatsUsed($communityId);
         $limit = $this->seatLimitFor($subscription);
-        if ($used + $seatsNeeded > $limit) {
+        if ($limit !== PHP_INT_MAX && $used + $seatsNeeded > $limit) {
             throw BillingException::seatsFull($used, $limit);
         }
     }

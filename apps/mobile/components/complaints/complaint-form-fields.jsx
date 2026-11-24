@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, Pressable, ScrollView, StyleSheet, TextInput, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { NAVY } from "./complaint-ui";
 import { Colors } from "../../constants/tokens";
@@ -53,7 +53,19 @@ export function FieldLabel({ children, required, count, max, first }) {
   );
 }
 
-export function FormSelect({ label, value, placeholder = "Choose", open, options, selected, error, first, onToggle, onSelect }) {
+export function FormSelect({ label, value, placeholder = "Choose", open, options, selected, error, first, searchable = false, onToggle, onSelect }) {
+  const [query, setQuery] = useState("");
+  const canSearch = searchable || options.length > 7;
+  const visible = useMemo(() => {
+    const text = query.trim().toLowerCase();
+    if (!canSearch || !text) return options;
+    return options.filter((option) => `${option.label} ${option.description || ""}`.toLowerCase().includes(text));
+  }, [canSearch, options, query]);
+
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
   return (
     <View style={[styles.selectWrap, open && styles.selectWrapOpen]}>
       <Text style={[styles.label, first && styles.labelFirst]}>{label}</Text>
@@ -69,15 +81,31 @@ export function FormSelect({ label, value, placeholder = "Choose", open, options
         </Pressable>
         {open ? (
           <View style={styles.menu}>
-            {options.map((option, index) => {
-              const on = option.id === selected;
-              return (
-                <Pressable key={option.id} onPress={() => onSelect(option.id)} style={[styles.option, index === 0 && styles.optionFirst]}>
-                  <Text style={[styles.optionText, on && styles.optionTextOn]} numberOfLines={1}>{option.label}</Text>
-                  {on ? <Feather name="check" size={sf(14)} color={NAVY} /> : null}
-                </Pressable>
-              );
-            })}
+            {canSearch ? (
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search categories"
+                placeholderTextColor="#94A3B8"
+                autoCorrect={false}
+                style={styles.search}
+              />
+            ) : null}
+            <ScrollView style={styles.menuScroll} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+              {visible.map((option, index) => {
+                const on = option.id === selected;
+                return (
+                  <Pressable key={option.id} onPress={() => onSelect(option.id)} style={[styles.option, index === 0 && !canSearch && styles.optionFirst]}>
+                    <View style={styles.optionCopy}>
+                      <Text style={[styles.optionText, on && styles.optionTextOn]} numberOfLines={1}>{option.label}</Text>
+                      {option.description ? <Text style={styles.optionHint} numberOfLines={2}>{option.description}</Text> : null}
+                    </View>
+                    {on ? <Feather name="check" size={sf(14)} color={NAVY} /> : null}
+                  </Pressable>
+                );
+              })}
+              {visible.length === 0 ? <Text style={styles.empty}>No matching categories</Text> : null}
+            </ScrollView>
           </View>
         ) : null}
       </View>
@@ -159,9 +187,24 @@ const styles = StyleSheet.create({
     zIndex: 40,
     elevation: 8,
   },
+  menuScroll: { maxHeight: sw(280) },
+  search: {
+    height: sw(40),
+    margin: sw(8),
+    marginBottom: 0,
+    borderWidth: 1,
+    borderColor: "#E6EDF5",
+    borderRadius: sw(10),
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: sw(12),
+    fontFamily: Fonts.medium,
+    fontSize: sf(13),
+    color: Colors.textPrimary,
+  },
   option: {
     minHeight: sw(40),
     paddingHorizontal: sw(14),
+    paddingVertical: sw(8),
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -170,8 +213,11 @@ const styles = StyleSheet.create({
     borderTopColor: "#EEF2F6",
   },
   optionFirst: { borderTopWidth: 0 },
-  optionText: { flex: 1, fontFamily: Fonts.medium, fontSize: sf(14), color: "#163A66" },
+  optionCopy: { flex: 1, gap: sw(2) },
+  optionText: { fontFamily: Fonts.medium, fontSize: sf(14), color: "#163A66" },
   optionTextOn: { color: NAVY },
+  optionHint: { fontFamily: Fonts.medium, fontSize: sf(11), lineHeight: sf(15), color: "#64748B" },
+  empty: { paddingHorizontal: sw(14), paddingVertical: sw(12), fontFamily: Fonts.medium, fontSize: sf(13), color: "#94A3B8" },
   fieldError: { borderColor: "#FECACA" },
   error: { marginTop: sw(6), fontFamily: Fonts.medium, fontSize: sf(12), lineHeight: sf(16), color: Colors.error },
 });
