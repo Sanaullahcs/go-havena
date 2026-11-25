@@ -5,8 +5,6 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { getManagedCommunityId, getUser, SESSION_PATCHED_EVENT } from "@/lib/auth/session";
 import {
-  AlarmClock,
-  Archive,
   Calendar,
   CheckCircle2,
   CircleDot,
@@ -22,7 +20,7 @@ import {
   Paperclip,
   Phone,
   RotateCcw,
-  SlidersHorizontal,
+  ListFilter,
   Tag,
   UserCheck,
   UserRound,
@@ -30,11 +28,15 @@ import {
   ZoomIn,
   ZoomOut,
   Download,
+  Plus,
 } from "lucide-react";
 import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { ComplaintChatModal } from "@/components/admin/complaint-chat-modal";
+import { CreateTechnicalComplaintModal } from "@/components/admin/create-technical-complaint-modal";
 import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { isAdminSearchPending } from "@/lib/admin/table-loading";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ThemedDatePicker } from "@/components/ui/themed-date-picker";
 import { ThemedSelect } from "@/components/ui/themed-select";
@@ -48,6 +50,7 @@ import {
   fetchAdminComplaint,
   fetchAdminComplaintAssignees,
   fetchAdminComplaints,
+  fetchMyComplaints,
   isComplaintNotification,
   updateAdminComplaintStatus,
   type ComplaintList,
@@ -57,6 +60,12 @@ import {
 import { emitNotificationsRefresh } from "@/lib/api/notifications";
 import { subscribeForegroundNotification } from "@/lib/notifications/foreground-notification-events";
 import { apiError } from "@/lib/api/client";
+import {
+  CATEGORY_HINTS,
+  MAINTENANCE_CATEGORIES,
+  TECHNICAL_CATEGORIES,
+  TECHNICAL_CATEGORY_HINTS,
+} from "@/lib/complaints/meta";
 
 const STATUS_TONE: Record<string, "slate" | "blue" | "cyan" | "amber" | "green" | "violet" | "red"> = {
   submitted: "slate",
@@ -132,65 +141,9 @@ const STATUS_ACTION: Record<string, string> = {
   reopened: "Reopen",
 };
 
-const MAINTENANCE_CATEGORIES = [
-  ["plumbing", "Plumbing"],
-  ["electrical", "Electrical"],
-  ["cleaning", "Cleaning & Sanitation"],
-  ["lifts", "Elevators / Lifts"],
-  ["parking", "Parking"],
-  ["security_safety", "Security & Safety"],
-  ["noise_disturbance", "Noise Disturbance"],
-  ["common_areas", "Common Areas & Amenities"],
-  ["building_maintenance", "Building Maintenance"],
-  ["landscaping", "Landscaping & Outdoor Areas"],
-  ["pest_control", "Pest Control"],
-  ["billing_payments", "Billing & Payments"],
-  ["resident_behavior", "Resident Behavior"],
-  ["other", "Other"],
-] as const;
-
-const TECHNICAL_CATEGORIES = [
-  ["app_bug", "App Bug"],
-  ["login", "Login & Authentication"],
-  ["account", "Account & Access"],
-  ["performance", "Performance Issues"],
-  ["payment", "Payment Technical Issues"],
-  ["notifications", "Notification Issues"],
-  ["data_display", "Data & Display Issues"],
-  ["file_upload", "File & Upload Issues"],
-  ["other", "Other Technical Issues"],
-] as const;
-
-const TECHNICAL_CATEGORY_HINTS: Record<string, string> = {
-  app_bug: "Something in the app is not working as expected.",
-  login: "Trouble signing in or verifying an account.",
-  account: "Account details, permissions, or access problems.",
-  performance: "The app is slow, freezing, or unresponsive.",
-  payment: "A payment failed or did not show correctly in the app.",
-  notifications: "Missing, delayed, or incorrect notifications.",
-  data_display: "Information looks wrong or does not display correctly.",
-  file_upload: "A file will not upload, open, or download.",
-  other: "A technical problem that does not fit the other categories.",
-};
-
-const CATEGORY_HINTS: Record<string, string> = {
-  plumbing: "Water leakage, drainage, and pipe issues.",
-  electrical: "Power failures, wiring, and lighting issues.",
-  cleaning: "Garbage, cleanliness, and hygiene issues.",
-  lifts: "Elevator breakdowns and maintenance.",
-  parking: "Parking violations and blocked spaces.",
-  security_safety: "Security concerns and unauthorized access.",
-  noise_disturbance: "Loud music and excessive noise.",
-  common_areas: "Shared facility issues.",
-  building_maintenance: "Structural damage and general repairs.",
-  landscaping: "Gardens and outdoor maintenance.",
-  pest_control: "Rodents, insects, and infestations.",
-  billing_payments: "Incorrect charges and payment issues.",
-  resident_behavior: "Neighbor disputes and rule violations.",
-  other: "Complaints not covered by existing categories.",
-};
-
 const ALL_CATEGORIES_OPTION = ["all", "All categories"] as const;
+
+type CommunityComplaintsTab = "queue" | "my_reports";
 
 const ACTIVITY_STATUS: Record<string, string> = {
   submitted: "Open",
@@ -328,14 +281,19 @@ function ComplaintFiltersButton({
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((current) => !current)}
-        className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border bg-white px-3 text-[12.5px] font-semibold text-[#0A2A43] shadow-sm transition hover:border-[#14B8A6] ${
-          open || count > 0 ? "border-[#14B8A6]" : "border-[#0A2A43]/15"
-        }`}
+        className={[
+          "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-white px-3 text-[12.5px] font-semibold transition",
+          open || count > 0
+            ? "border-[#1B4F8A]/30 text-[#1B4F8A] shadow-sm"
+            : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+        ].join(" ")}
       >
-        <SlidersHorizontal className="h-3.5 w-3.5 text-[#0D9488]" aria-hidden />
-        Filters
+        <ListFilter className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden />
+        Filter
         {count > 0 ? (
-          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0A2A43] px-1 text-[10px] font-bold leading-none text-white">{count}</span>
+          <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1B4F8A] px-1 text-[10px] font-bold leading-none text-white">
+            {count}
+          </span>
         ) : null}
       </button>
       {open ? createPortal(
@@ -486,7 +444,9 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 450);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [status, setStatus] = useState("all");
   const [summaryFilter, setSummaryFilter] = useState("all");
   const [category, setCategory] = useState("all");
@@ -506,10 +466,14 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   const [assignChoice, setAssignChoice] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState("");
+  const [communityTab, setCommunityTab] = useState<CommunityComplaintsTab>("queue");
+  const [createComplaintOpen, setCreateComplaintOpen] = useState(false);
 
-  const categories = audience === "community"
-    ? [ALL_CATEGORIES_OPTION, ...MAINTENANCE_CATEGORIES]
-    : [ALL_CATEGORIES_OPTION, ...TECHNICAL_CATEGORIES];
+  const categories = audience === "system"
+    ? [ALL_CATEGORIES_OPTION, ...TECHNICAL_CATEGORIES]
+    : communityTab === "my_reports"
+      ? [ALL_CATEGORIES_OPTION, ...TECHNICAL_CATEGORIES]
+      : [ALL_CATEGORIES_OPTION, ...MAINTENANCE_CATEGORIES];
 
   useEffect(() => {
     setSelectedId(readComplaintId());
@@ -577,7 +541,13 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
       setError("");
     }
     try {
-      const result = await fetchAdminComplaints({ search, status, summary: summaryFilter, category, priority, dateFrom, dateTo, page });
+      const usingMyReports = audience === "community" && communityTab === "my_reports";
+      const result = usingMyReports
+        ? await fetchMyComplaints({ search: debouncedSearch, status, category, priority, page })
+        : await fetchAdminComplaints({ search: debouncedSearch, status, summary: summaryFilter, category, priority, dateFrom, dateTo, page });
+      if (usingMyReports) {
+        result.data = result.data.filter((row) => row.type === "technical");
+      }
       if (requestId !== loadRequest.current) return;
       const staffRevision = result.meta.staff_revision ?? "";
       const staffChanged = staffRevisionRef.current !== "" && staffRevision !== staffRevisionRef.current;
@@ -603,14 +573,20 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
         if (!silent) setLoading(false);
       }
     }
-  }, [search, status, summaryFilter, category, priority, dateFrom, dateTo, page, communityId, sessionEpoch, applyList]);
+  }, [audience, communityTab, debouncedSearch, status, summaryFilter, category, priority, dateFrom, dateTo, page, communityId, sessionEpoch, applyList]);
+
+  useEffect(() => {
+    if (audience !== "community") return;
+    setPage(1);
+    setSummaryFilter("all");
+    setCategory("all");
+  }, [audience, communityTab]);
 
   useEffect(() => {
     signatureRef.current = "";
     staffRevisionRef.current = "";
-    const handle = window.setTimeout(() => void load(), search ? 250 : 0);
-    return () => window.clearTimeout(handle);
-  }, [load, search]);
+    void load();
+  }, [load]);
 
   useEffect(() => {
     const sync = () => {
@@ -880,8 +856,6 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   const openCount = Number(counts.open_queue ?? (Number(counts.submitted ?? 0) + Number(counts.in_review ?? 0) + Number(counts.reopened ?? 0) + Number(counts.waiting_on_resident ?? 0) + Number(counts.not_resolved ?? 0)));
   const progressCount = Number(counts.in_progress ?? 0);
   const resolvedCount = Number(counts.resolved ?? 0);
-  const closedCount = Number(counts.closed ?? 0);
-  const overdueCount = Number(counts.overdue ?? 0);
   const summaryActive = (key: "all" | "open" | "in_progress" | "resolved" | "closed" | "overdue") => (
     key === "open" || key === "overdue"
       ? summaryFilter === key && status === "all"
@@ -931,13 +905,11 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
     setStatus(next);
   };
   const summary = audience === "community" ? (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
       <StatTile label="Total Complaints" value={Number(counts.all ?? 0)} hint="All resident complaints" icon={<ClipboardList />} tone="violet" pressed={summaryActive("all")} onClick={() => chooseSummary("all")} />
       <StatTile label="Open" value={openCount} hint="Awaiting action" icon={<CircleDot />} tone="amber" pressed={summaryActive("open")} onClick={() => chooseSummary("open")} />
       <StatTile label="In Progress" value={progressCount} hint="Being worked on" icon={<Clock />} tone="blue" pressed={summaryActive("in_progress")} onClick={() => chooseSummary("in_progress")} />
       <StatTile label="Resolved" value={resolvedCount} hint="Resolved, not closed" icon={<CheckCircle2 />} tone="green" pressed={summaryActive("resolved")} onClick={() => chooseSummary("resolved")} />
-      <StatTile label="Closed" value={closedCount} hint="Successfully closed" icon={<Archive />} tone="slate" pressed={summaryActive("closed")} onClick={() => chooseSummary("closed")} />
-      <StatTile label="Overdue" value={overdueCount} hint="Past the resolution deadline" icon={<AlarmClock />} tone="red" pressed={summaryActive("overdue")} onClick={() => chooseSummary("overdue")} />
     </div>
   ) : (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -958,33 +930,83 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
             <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Complaints</h2>
             <p className="mt-1 text-sm text-slate-500">Manage, track, and resolve resident complaints efficiently.</p>
           </div>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setCreateComplaintOpen(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white"
+            >
+              <Plus className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+              Create Complaint
+            </button>
+          </div>
         </div>
       ) : null}
-      {summary}
+      {audience === "community" ? (
+        <div className="nl-segment-control max-w-md">
+          {(
+            [
+              ["queue", "Community complaints"],
+              ["my_reports", "My technical reports"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setCommunityTab(key);
+                setSearchInput("");
+                setStatus("all");
+              }}
+              className={[
+                "nl-segment-control-item",
+                communityTab === key ? "nl-segment-control-item-active" : "nl-segment-control-item-idle",
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {audience === "community" && communityTab === "my_reports" ? (
+        <p className="text-sm leading-6 text-slate-500">
+          Technical issues you send to System Admin. Resident maintenance stays in the community complaints queue.
+        </p>
+      ) : null}
+      {audience === "system" || communityTab === "queue" ? summary : null}
       <DataTable
-        title={audience === "system" ? "Complaints & Support" : "All Complaints"}
-        titleCount={Number(counts.all ?? total)}
-        stacked
-        totalCount={total}
-        search={search}
+        title={
+          audience === "system"
+            ? "Complaints & Support"
+            : communityTab === "my_reports"
+              ? "My technical reports"
+              : "All Complaints"
+        }
+        search={searchInput}
         onSearch={(value) => {
           setPage(1);
-          setSearch(value);
+          setSearchInput(value);
         }}
-        searchPlaceholder="Search complaints..."
+        searching={isSearchPending}
+        searchPlaceholder={communityTab === "my_reports" ? "Search your reports" : "Search complaints"}
+        searchClassName="min-w-[12rem] sm:w-[17.5rem]"
         loading={loading}
         toolbar={(
           <ComplaintFiltersButton
             value={{ status, category, priority, dateFrom, dateTo }}
             statuses={statuses}
             categories={categories}
-            categoryHints={audience === "system" ? TECHNICAL_CATEGORY_HINTS : CATEGORY_HINTS}
+            categoryHints={audience === "system" || communityTab === "my_reports" ? TECHNICAL_CATEGORY_HINTS : CATEGORY_HINTS}
             showDates={audience === "system"}
             onApply={applyFilters}
           />
         )}
         isEmpty={!loading && rows.length === 0}
-        empty="No complaints match your filters."
+        empty={
+          audience === "community" && communityTab === "my_reports"
+            ? "You have not submitted any technical reports yet."
+            : "No complaints match your filters."
+        }
       >
         <div className="overflow-x-auto">
         <table className="min-w-full border-separate border-spacing-0 text-left">
@@ -1025,7 +1047,12 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
                   </AdminBadge>
                 </td>
                 <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
-                  {assignedStaffName(row) ? (
+                  {row.type === "technical" ? (
+                    <span className="inline-flex max-w-[11rem] items-center gap-1.5 text-[13px] text-slate-700">
+                      <UserRound className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <span className="truncate">{row.support_team ?? "System Admin"}</span>
+                    </span>
+                  ) : assignedStaffName(row) ? (
                     <span className="inline-flex max-w-[11rem] items-center gap-1.5 text-[13px] text-slate-700">
                       <UserRound className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                       <span className="truncate">{assignedStaffName(row)}</span>
@@ -1095,6 +1122,23 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
           detail={detail}
           onBack={() => setChatOpen(false)}
           onSynced={(record) => setDetail((current) => (current?.id === record.id ? record : current))}
+        />
+      ) : null}
+      {audience === "community" ? (
+        <CreateTechnicalComplaintModal
+          open={createComplaintOpen}
+          onClose={() => setCreateComplaintOpen(false)}
+          onCreated={(record) => {
+            setCreateComplaintOpen(false);
+            toastSuccess("Technical complaint submitted. System Admin has been notified.");
+            setCommunityTab("my_reports");
+            setPage(1);
+            setSummaryFilter("all");
+            setStatus("all");
+            openComplaint(record.id);
+            emitNotificationsRefresh();
+            void load();
+          }}
         />
       ) : null}
       {assignRow ? (

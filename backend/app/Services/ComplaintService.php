@@ -131,7 +131,7 @@ class ComplaintService
             ->all();
     }
 
-    public function create(User $user, array $input, array $files = []): array
+    public function create(User $user, array $input, array $files = [], ?int $actingCommunityId = null): array
     {
         $type = (string) ($input['type'] ?? '');
         abort_unless(in_array($type, ['maintenance', 'technical'], true), 422, 'Choose a complaint type.');
@@ -155,9 +155,9 @@ class ComplaintService
             }
             $this->assertApprovedMember($user, $communityId);
             [$unitId, $unitNumber] = $this->resolveOwnedUnit($user, $communityId, isset($input['unit_id']) ? (int) $input['unit_id'] : null);
-        } elseif (UserActingContextService::currentCommunityId($user)) {
-            $communityId = UserActingContextService::currentCommunityId($user);
-            if (! empty($input['unit_id'])) {
+        } elseif ($type === 'technical') {
+            $communityId = $this->resolveTechnicalCommunityId($user, $actingCommunityId);
+            if (! empty($input['unit_id']) && $communityId) {
                 try {
                     [$unitId, $unitNumber] = $this->resolveOwnedUnit($user, (int) $communityId, (int) $input['unit_id']);
                 } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
@@ -201,7 +201,7 @@ class ComplaintService
         });
 
         $complaint = $this->find($id);
-        $this->notifyQueue($complaint, 'New complaint', $complaint->reference.' was submitted.', $user->id);
+        $this->notifyComplaintSubmitted($complaint, $user);
         app(ComplaintMailer::class)->submitted($complaint);
         ActivityLogService::recordStatusChange(
             'complaint_submitted',
@@ -1678,10 +1678,20 @@ class ComplaintService
             ->exists();
     }
 
-    private function notifyUser(int $userId, object $complaint, string $title, string $body, bool $admin, bool $openChat = false, ?string $audience = null): void
-    {
+    private function notifyUser(
+        int $userId,
+        object $complaint,
+        string $title,
+        string $body,
+        bool $admin,
+        bool $openChat = false,
+        ?string $audience = null,
+        ?string $actionUrlOverride = null,
+    ): void {
         $audience = $audience ?: ($admin ? 'admin' : 'resident');
-        if ($audience === 'staff') {
+        if ($actionUrlOverride !== null && $actionUrlOverride !== '') {
+            $action = $actionUrlOverride;
+        } elseif ($audience === 'staff') {
             $action = '/screens/staff-tasks/detail?id='.$complaint->id.($openChat ? '&chat=1' : '');
         } elseif ($admin) {
             $path = $complaint->routed_to === 'system_admin' ? '/admin/support-complaints' : '/admin/complaints';
@@ -1691,12 +1701,67 @@ class ComplaintService
                 ? '/screens/complaints/chat?id='.$complaint->id
                 : '/screens/complaints/detail?id='.$complaint->id;
         }
-        NotificationService::send($userId, 'complaint', $title, $body, $action, [
+        $data = [
             'kind' => 'complaint',
             'complaint_id' => (int) $complaint->id,
             'audience' => $audience,
             'community_id' => $complaint->community_id ? (int) $complaint->community_id : null,
-        ], $complaint->community_id ? (int) $complaint->community_id : null);
+        ];
+        if ($complaint->routed_to === 'system_admin' && $admin) {
+            $data['scope'] = 'account';
+        }
+        NotificationService::send($userId, 'complaint', $title, $body, $action, $data, $complaint->community_id ? (int) $complaint->community_id : null);
+    }
+
+    private function notifyComplaintSubmitted(object $complaint, User $reporter): void
+    {
+        $communityName = $complaint->community_id
+            ? trim((string) DB::table('communities')->where('id', $complaint->community_id)->value('name'))
+            : '';
+        $fromCommunity = $communityName !== '' ? ' from '.$communityName : '';
+        $queueTitle = $complaint->type === 'technical' ? 'New technical complaint' : 'New complaint';
+        $queueBody = $complaint->reference.' was submitted'.$fromCommunity.'.';
+        $this->notifyQueue($complaint, $queueTitle, $queueBody, (int) $reporter->id);
+
+        $reporterTitle = $complaint->type === 'technical' ? 'Technical complaint submitted' : 'Complaint submitted';
+        $reporterBody = $complaint->type === 'technical'
+            ? $complaint->reference.' was sent to System Admin. Track it under My technical reports.'
+            : $complaint->reference.' was submitted.';
+        $reporterAction = null;
+        $reporterAudience = 'resident';
+        if ($complaint->type === 'technical' && AdminRoleService::isCommunityAdminRole($reporter) && ! AdminRoleService::isResidentMode($reporter)) {
+            $reporterAudience = 'admin';
+            $reporterAction = '/admin/complaints?complaint='.$complaint->id;
+        }
+        $this->notifyUser(
+            (int) $reporter->id,
+            $complaint,
+            $reporterTitle,
+            $reporterBody,
+            false,
+            false,
+            $reporterAudience,
+            $reporterAction,
+        );
+    }
+
+    private function resolveTechnicalCommunityId(User $user, ?int $actingCommunityId): ?int
+    {
+        if ($actingCommunityId && AdminRoleService::isCommunityAdminRole($user)) {
+            $approved = AdminRoleService::getApprovedAdminMembership($user);
+            if ($approved && (int) $approved->community_id === (int) $actingCommunityId) {
+                return (int) $actingCommunityId;
+            }
+        }
+
+        if (AdminRoleService::isCommunityAdminRole($user) && ! AdminRoleService::isResidentMode($user)) {
+            $membership = AdminRoleService::getApprovedAdminMembership($user);
+            if ($membership?->community_id) {
+                return (int) $membership->community_id;
+            }
+        }
+
+        return UserActingContextService::currentCommunityId($user);
     }
 
     private function displayName(User $user): string

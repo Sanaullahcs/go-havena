@@ -17,19 +17,66 @@ class ComplaintMailer
 
     public function submitted(object $complaint): void
     {
-        $this->emailParties(
-            $complaint,
-            'complaint_submitted',
-            'complaint:'.$complaint->id.':submitted',
-            'Havena Complaint '.$complaint->reference.' submitted',
-            'A complaint was submitted',
-            $complaint->reference.' was submitted and is now Open.',
-            null,
-            null,
-            null,
-            'Open',
-            false,
-        );
+        $reporter = $this->user((int) $complaint->reporter_user_id);
+        $categoryLabel = $this->categoryLabel((string) $complaint->category, (string) $complaint->type);
+        $priorityLabel = ucfirst((string) ($complaint->priority ?: 'normal'));
+        $community = $complaint->community_id
+            ? (string) DB::table('communities')->where('id', $complaint->community_id)->value('name')
+            : '';
+
+        if ($reporter) {
+            $isAdminReporter = AdminRoleService::isCommunityAdminRole($reporter)
+                && $complaint->type === 'technical'
+                && $complaint->routed_to === 'system_admin';
+            $this->send(
+                'complaint_submitted',
+                'complaint:'.$complaint->id.':submitted:reporter:'.substr(hash('sha256', (string) $reporter->email), 0, 20),
+                $reporter,
+                'Havena Complaint '.$complaint->reference.' submitted',
+                'Your technical complaint was submitted',
+                $isAdminReporter
+                    ? 'We sent '.$complaint->reference.' to System Admin. Track progress in Complaints → My technical reports.'
+                    : $complaint->reference.' was submitted and is now Open.',
+                $complaint,
+                null,
+                null,
+                $isAdminReporter
+                    ? AppUrls::adminBase().'/admin/complaints?complaint='.$complaint->id
+                    : $this->residentLink($complaint),
+                null,
+                'Open',
+                $categoryLabel,
+                $priorityLabel,
+                $community,
+            );
+        }
+
+        foreach ($this->adminRecipients($complaint) as $admin) {
+            if ($reporter && (int) $admin->id === (int) $reporter->id) {
+                continue;
+            }
+            $this->send(
+                'complaint_submitted_admin',
+                'complaint:'.$complaint->id.':submitted:admin:'.(int) $admin->id,
+                $admin,
+                'New technical complaint '.$complaint->reference,
+                'New technical complaint',
+                $complaint->type === 'technical'
+                    ? ($community !== ''
+                        ? 'A community admin submitted a technical complaint for '.$community.'.'
+                        : 'A community admin submitted a technical complaint.')
+                    : $complaint->reference.' was submitted.',
+                $complaint,
+                trim((string) ($complaint->description ?? '')),
+                $reporter,
+                $this->adminLink($complaint),
+                null,
+                'Open',
+                $categoryLabel,
+                $priorityLabel,
+                $community,
+            );
+        }
     }
 
     public function assignmentAccepted(object $complaint, User $actor, int $eventId, ?string $note): void
@@ -297,16 +344,27 @@ class ComplaintMailer
         string $link,
         ?string $previous = null,
         ?string $current = null,
+        ?string $categoryLabel = null,
+        ?string $priorityLabel = null,
+        ?string $communityName = null,
     ): void {
         $details = [
             ['label' => 'Ticket', 'value' => (string) $complaint->reference],
             ['label' => 'Complaint', 'value' => (string) $complaint->title],
         ];
-        $community = $complaint->community_id
-            ? (string) DB::table('communities')->where('id', $complaint->community_id)->value('name')
-            : '';
+        $community = $communityName ?? (
+            $complaint->community_id
+                ? (string) DB::table('communities')->where('id', $complaint->community_id)->value('name')
+                : ''
+        );
         if ($community !== '') {
             $details[] = ['label' => 'Community', 'value' => $community];
+        }
+        if ($categoryLabel) {
+            $details[] = ['label' => 'Category', 'value' => $categoryLabel];
+        }
+        if ($priorityLabel) {
+            $details[] = ['label' => 'Priority', 'value' => $priorityLabel];
         }
         if ($current) {
             $details[] = ['label' => 'Status', 'value' => $current];
@@ -391,7 +449,16 @@ class ComplaintMailer
             }
         };
 
-        $push($this->user((int) $complaint->reporter_user_id), 'resident', 1);
+        $reporter = $this->user((int) $complaint->reporter_user_id);
+        if ($reporter) {
+            $reporterAudience = 'resident';
+            if ($complaint->type === 'technical'
+                && $complaint->routed_to === 'system_admin'
+                && AdminRoleService::isCommunityAdminRole($reporter)) {
+                $reporterAudience = 'reporter_admin';
+            }
+            $push($reporter, $reporterAudience, 1);
+        }
         if ($includeStaff && $complaint->assigned_to_user_id) {
             $push($this->user((int) $complaint->assigned_to_user_id), 'staff', 2);
         }
@@ -407,6 +474,9 @@ class ComplaintMailer
 
     private function linkFor(string $audience, object $complaint): string
     {
+        if ($audience === 'reporter_admin') {
+            return AppUrls::adminBase().'/admin/complaints?complaint='.$complaint->id;
+        }
         if ($audience === 'admin' || ($audience === 'staff' && $complaint->routed_to === 'system_admin')) {
             return $this->adminLink($complaint);
         }
@@ -520,6 +590,41 @@ class ComplaintMailer
             'closed' => 'Closed',
             'cancelled' => 'Cancelled',
             default => ucfirst(str_replace('_', ' ', $status)),
+        };
+    }
+
+    private function categoryLabel(string $category, ?string $type = null): string
+    {
+        if ($type === 'technical') {
+            return match ($category) {
+                'app_bug' => 'App Bug',
+                'login' => 'Login & Authentication',
+                'account' => 'Account & Access',
+                'performance' => 'Performance Issues',
+                'payment' => 'Payment Technical Issues',
+                'notifications' => 'Notification Issues',
+                'data_display' => 'Data & Display Issues',
+                'file_upload' => 'File & Upload Issues',
+                'other' => 'Other Technical Issues',
+                default => ucfirst(str_replace('_', ' ', $category)),
+            };
+        }
+
+        return match ($category) {
+            'plumbing' => 'Plumbing',
+            'electrical' => 'Electrical',
+            'cleaning' => 'Cleaning & Sanitation',
+            'lifts' => 'Elevators / Lifts',
+            'parking' => 'Parking',
+            'security_safety' => 'Security & Safety',
+            'noise_disturbance' => 'Noise Disturbance',
+            'common_areas' => 'Common Areas & Amenities',
+            'building_maintenance' => 'Building Maintenance',
+            'landscaping' => 'Landscaping & Outdoor Areas',
+            'pest_control' => 'Pest Control',
+            'billing_payments' => 'Billing & Payments',
+            'resident_behavior' => 'Resident Behavior',
+            default => ucfirst(str_replace('_', ' ', $category)),
         };
     }
 }

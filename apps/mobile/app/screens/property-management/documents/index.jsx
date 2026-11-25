@@ -258,14 +258,14 @@ function DocumentRow({ doc, onPress, showDownloads }) {
   );
 }
 
-function publicationTime(doc) {
-  const value = doc.published_at || doc.created_at;
+function createdTime(doc) {
+  const value = doc.created_at || doc.published_at;
   const time = value ? new Date(value).getTime() : 0;
   return Number.isFinite(time) ? time : 0;
 }
 
 function compareDocuments(a, b, sort) {
-  const diff = publicationTime(a) - publicationTime(b);
+  const diff = createdTime(a) - createdTime(b);
   if (diff !== 0) return sort === "oldest" ? diff : -diff;
   const idDiff = Number(a.id) - Number(b.id);
   return sort === "oldest" ? idDiff : -idDiff;
@@ -360,11 +360,11 @@ function SortMenu({ value, onChange }) {
 }
 
 const RESIDENT_STATUS = {
-  signed: { bg: "#D1FAE5", color: "#047857" },
-  pending: { bg: "#E8F0F7", color: "#1B4F8A" },
-  overdue: { bg: "#FEE2E2", color: "#B91C1C" },
-  expired: { bg: "#F1F5F9", color: "#64748B" },
-  declined: { bg: "#F1F5F9", color: "#64748B" },
+  signed: { bg: "#D1FAE5", color: "#047857", bar: "#10B981" },
+  pending: { bg: "#DBEAFE", color: "#1B4F8A", bar: "#1B4F8A" },
+  overdue: { bg: "#FEE2E2", color: "#B91C1C", bar: "#DC2626" },
+  expired: { bg: "#FEF3C7", color: "#B45309", bar: "#D97706" },
+  declined: { bg: "#F1F5F9", color: "#475569", bar: "#64748B" },
 };
 
 function formatLongDate(value) {
@@ -445,21 +445,34 @@ function ResidentAgreementCard({ doc, onPress }) {
   const { t } = useTranslation();
   const status = residentStatusKey(doc);
   const tone = RESIDENT_STATUS[status] ?? RESIDENT_STATUS.pending;
+  const meta = getCategoryMeta(doc.category);
   const dateLabel = agreementDateLabel(doc, t);
 
   return (
-    <Pressable style={styles.residentCard} onPress={onPress}>
-      <View style={styles.residentBody}>
-        <Text style={styles.residentTitle} numberOfLines={2}>{doc.title}</Text>
-        {doc.category ? (
-          <Text style={styles.residentCategory} numberOfLines={1}>{doc.category}</Text>
-        ) : null}
-        <View style={[styles.residentBadge, { backgroundColor: tone.bg }]}>
-          <Text style={[styles.residentBadgeText, { color: tone.color }]}>{residentStatusLabel(status, t)}</Text>
+    <Pressable
+      style={[styles.residentCard, { borderLeftColor: tone.bar }]}
+      onPress={onPress}
+    >
+      <View style={styles.docMain}>
+        <View style={[styles.docIconWrap, { backgroundColor: meta.bg }]}>
+          <Feather name="file-text" size={sf(18)} color={meta.color} />
         </View>
-        {dateLabel ? <Text style={styles.residentDate} numberOfLines={1}>{dateLabel}</Text> : null}
+        <View style={styles.docBody}>
+          <Text style={styles.residentTitle} numberOfLines={2}>{doc.title}</Text>
+          {doc.category ? (
+            <Text style={styles.residentCategory} numberOfLines={1}>{doc.category}</Text>
+          ) : null}
+          <View style={[styles.residentBadge, { backgroundColor: tone.bg }]}>
+            <Text style={[styles.residentBadgeText, { color: tone.color }]} numberOfLines={1}>
+              {residentStatusLabel(status, t)}
+            </Text>
+          </View>
+          {dateLabel ? (
+            <Text style={styles.residentDate} numberOfLines={1}>{dateLabel}</Text>
+          ) : null}
+        </View>
       </View>
-      <Feather name="chevron-right" size={sf(18)} color="#94A3B8" />
+      <Feather name="chevron-right" size={sf(18)} color="#94A3B8" style={styles.residentChevron} />
     </Pressable>
   );
 }
@@ -488,6 +501,7 @@ export default function Documents() {
   const [agreementRows, setAgreementRows] = useState([]);
   const [recent, setRecent] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [agreementCategoryOptions, setAgreementCategoryOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -517,6 +531,7 @@ export default function Documents() {
       setDocuments(plain);
       setRecent((data.recent ?? []).filter((item) => item.kind !== "agreement"));
       setCategories(data.categories);
+      setAgreementCategoryOptions(data.agreementCategories ?? []);
       let agreements = assigned;
       if (isAdmin) {
         try {
@@ -571,19 +586,14 @@ export default function Documents() {
     [pendingAgreements],
   );
 
-  const agreementCategories = useMemo(() => {
-    const names = new Set();
-    agreementRows.forEach((doc) => {
-      const name = String(doc.category ?? "").trim();
-      if (name) names.add(name);
-    });
-    return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  }, [agreementRows]);
+  const agreementCategories = useMemo(
+    () => agreementCategoryOptions.map((row) => String(row.name ?? "").trim()).filter(Boolean),
+    [agreementCategoryOptions],
+  );
 
   const agreementScope = useMemo(() => {
     if (isAdmin || agreementCategory === "all") return agreementRows;
-    const selected = agreementCategory.toLowerCase();
-    return agreementRows.filter((doc) => String(doc.category ?? "").trim().toLowerCase() === selected);
+    return agreementRows.filter((doc) => documentMatchesCategory(doc.category, agreementCategory));
   }, [agreementRows, agreementCategory, isAdmin]);
 
   const agreementCounts = useMemo(() => ({
@@ -597,8 +607,7 @@ export default function Documents() {
   const filteredDocuments = useMemo(() => {
     let list = section === "agreements" ? agreementRows : documents;
     if (section === "agreements" && !isAdmin && agreementCategory !== "all") {
-      const selected = agreementCategory.toLowerCase();
-      list = list.filter((doc) => String(doc.category ?? "").trim().toLowerCase() === selected);
+      list = list.filter((doc) => documentMatchesCategory(doc.category, agreementCategory));
     }
     if (section === "agreements" && agreementFilter !== "all") {
       list = list.filter((doc) => agreementMatches(doc, agreementFilter));
@@ -850,14 +859,7 @@ export default function Documents() {
                   />
                 </View>
               </View>
-              <ScrollView
-                horizontal
-                nestedScrollEnabled
-                directionalLockEnabled
-                showsHorizontalScrollIndicator={false}
-                style={styles.statusWrap}
-                contentContainerStyle={styles.statusRail}
-              >
+              <View style={styles.statusGrid}>
                 {["all", "pending", "signed", "overdue"].map((key) => {
                   const selected = agreementFilter === key;
                   const label = key === "all"
@@ -874,18 +876,22 @@ export default function Documents() {
                         setAgreementFilter(key);
                         setOpenMenu(null);
                       }}
-                      style={[styles.chip, selected && styles.chipOn]}
+                      style={[styles.statusTab, selected && styles.statusTabOn]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
                     >
-                      <Text style={[styles.chipLabel, selected && styles.chipLabelOn]} numberOfLines={1}>
+                      <Text style={[styles.statusTabLabel, selected && styles.statusTabLabelOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                         {label}
                       </Text>
-                      <View style={[styles.chipCount, selected && styles.chipCountOn]}>
-                        <Text style={[styles.chipCountText, selected && styles.chipCountTextOn]}>{agreementCounts[key]}</Text>
+                      <View style={[styles.statusTabCount, selected && styles.statusTabCountOn]}>
+                        <Text style={[styles.statusTabCountText, selected && styles.statusTabCountTextOn]} numberOfLines={1}>
+                          {agreementCounts[key]}
+                        </Text>
                       </View>
                     </Pressable>
                   );
                 })}
-              </ScrollView>
+              </View>
             </>
           ) : (
             <View style={styles.sectionHeader}>
@@ -904,7 +910,9 @@ export default function Documents() {
 
           {(section === "agreements" ? agreementRows.length : documents.length) > 0 && filteredDocuments.length === 0 && (
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>{t("propertyMgmt.noDocumentsMatch")}</Text>
+              <Text style={styles.emptyText}>
+                {section === "agreements" && !isAdmin ? t("propertyMgmt.noAgreementsMatch") : t("propertyMgmt.noDocumentsMatch")}
+              </Text>
               <Pressable onPress={() => {
                 setSearch("");
                 if (section === "agreements" && !isAdmin) {
@@ -1079,37 +1087,41 @@ const styles = StyleSheet.create({
   trackFill: { height: "100%", borderRadius: sw(4) },
   agreeHead: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: sw(8),
+    gap: sw(10),
     zIndex: 4,
+    marginBottom: sw(2),
   },
   agreeHeading: {
-    flexShrink: 1,
-    paddingTop: sw(4),
+    flexShrink: 0,
     fontFamily: Fonts.bold,
     fontSize: sf(17),
-    lineHeight: sf(24),
+    lineHeight: sf(22),
     color: "#101828",
     fontWeight: "700",
   },
   agreeFilterRow: {
     flex: 1,
     flexDirection: "row",
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
     justifyContent: "flex-end",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: sw(6),
+    minWidth: 0,
   },
-  compactWrap: { maxWidth: sw(156) },
+  compactWrap: { flexShrink: 1, maxWidth: sw(148), minWidth: sw(72) },
   compactBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: sw(4),
-    paddingVertical: sw(5),
+    paddingVertical: sw(6),
     paddingHorizontal: sw(8),
     borderRadius: sw(8),
     backgroundColor: "#E8F0F7",
+    borderWidth: 1,
+    borderColor: "#D6E3F0",
   },
   compactLabel: {
     flexShrink: 1,
@@ -1117,21 +1129,65 @@ const styles = StyleSheet.create({
     fontSize: sf(12),
     color: "#1B4F8A",
   },
-  statusWrap: { flexGrow: 0, marginTop: sw(12), marginHorizontal: -sw(18) },
-  statusRail: { paddingHorizontal: sw(18), gap: sw(8) },
+  statusGrid: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: sw(5),
+    marginTop: sw(10),
+  },
+  statusTab: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: sw(7),
+    paddingHorizontal: sw(4),
+    borderRadius: sw(10),
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: T.border,
+    gap: sw(3),
+  },
+  statusTabOn: { backgroundColor: T.navy, borderColor: T.navy },
+  statusTabLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(10),
+    lineHeight: sf(13),
+    color: T.navy,
+    fontWeight: "600",
+    textAlign: "center",
+    width: "100%",
+  },
+  statusTabLabelOn: { color: "#FFFFFF" },
+  statusTabCount: {
+    minWidth: sw(18),
+    height: sw(16),
+    paddingHorizontal: sw(4),
+    borderRadius: sw(8),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E8F0F7",
+  },
+  statusTabCountOn: { backgroundColor: "rgba(255,255,255,0.22)" },
+  statusTabCountText: { fontFamily: Fonts.bold, fontSize: sf(9), color: "#1B4F8A", fontWeight: "700" },
+  statusTabCountTextOn: { color: "#FFFFFF" },
   residentCard: {
     marginTop: sw(10),
     paddingVertical: sw(12),
-    paddingHorizontal: sw(12),
+    paddingRight: sw(10),
+    paddingLeft: sw(10),
     borderWidth: 1,
     borderColor: "#E8EEF4",
+    borderLeftWidth: sw(4),
     borderRadius: sw(14),
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: sw(8),
     backgroundColor: "#FFFFFF",
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.04, radius: 6, elevation: 1 }),
   },
-  residentBody: { flex: 1, minWidth: 0, gap: sw(4) },
+  residentChevron: { flexShrink: 0, marginTop: sw(2) },
   residentTitle: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(14),
@@ -1146,12 +1202,14 @@ const styles = StyleSheet.create({
   },
   residentBadge: {
     alignSelf: "flex-start",
+    marginTop: sw(4),
     borderRadius: sw(999),
     paddingHorizontal: sw(8),
-    paddingVertical: sw(2),
+    paddingVertical: sw(3),
   },
-  residentBadgeText: { fontFamily: Fonts.medium, fontSize: sf(11) },
+  residentBadgeText: { fontFamily: Fonts.semiBold, fontSize: sf(11), fontWeight: "600" },
   residentDate: {
+    marginTop: sw(4),
     fontFamily: Fonts.regular,
     fontSize: sf(12),
     lineHeight: sf(16),

@@ -221,7 +221,9 @@ export function StaffTasksScreen({ asTab = false }) {
                   <Text style={[styles.residentCount, { color: active ? item.color : "#334155" }]}>{value}</Text>
                   <Text
                     style={[styles.residentLabel, { color: active ? item.color : "#64748B" }]}
-                    numberOfLines={2}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.72}
                   >
                     {item.label}
                   </Text>
@@ -246,7 +248,9 @@ export function StaffTasksScreen({ asTab = false }) {
                   </View>
                   <View style={styles.summaryCopy}>
                     <Text style={styles.summaryValue}>{summary[item.key] ?? 0}</Text>
-                    <Text style={styles.summaryLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{item.label}</Text>
+                    <Text style={styles.summaryLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
+                      {item.label}
+                    </Text>
                   </View>
                 </Pressable>
               </React.Fragment>
@@ -508,8 +512,8 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     borderRadius: sw(14),
-    paddingVertical: sw(12),
-    paddingHorizontal: sw(4),
+    paddingVertical: sw(11),
+    paddingHorizontal: sw(5),
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -518,7 +522,15 @@ const styles = StyleSheet.create({
   },
   residentCardOn: { borderColor: "#1B4F8A" },
   residentCount: { fontFamily: Fonts.bold, fontSize: sf(18), lineHeight: sf(22) },
-  residentLabel: { marginTop: 2, fontFamily: Fonts.medium, fontSize: sf(10), lineHeight: sf(13), textAlign: "center" },
+  residentLabel: {
+    marginTop: 2,
+    width: "100%",
+    fontFamily: Fonts.medium,
+    fontSize: sf(9.5),
+    lineHeight: sf(12),
+    textAlign: "center",
+    ...(Platform.OS === "android" ? { includeFontPadding: false } : null),
+  },
   summary: {
     backgroundColor: "#FFFFFF",
     borderRadius: sw(18),
@@ -529,11 +541,17 @@ const styles = StyleSheet.create({
   },
   summaryRow: { flexDirection: "row", alignItems: "stretch" },
   summaryRule: { width: StyleSheet.hairlineWidth, backgroundColor: "#E6EDF5", marginVertical: sw(8) },
-  summaryItem: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: sw(6), paddingHorizontal: sw(8), paddingVertical: sw(8) },
+  summaryItem: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: sw(5), paddingHorizontal: sw(6), paddingVertical: sw(8) },
   summaryIcon: { width: sw(24), height: sw(24), borderRadius: sw(8), alignItems: "center", justifyContent: "center" },
   summaryCopy: { flex: 1, minWidth: 0 },
   summaryValue: { fontFamily: Fonts.bold, fontSize: sf(16), lineHeight: sf(20), color: "#0F172A", ...(Platform.OS === "android" ? { includeFontPadding: false } : null) },
-  summaryLabel: { fontFamily: Fonts.medium, fontSize: sf(11), lineHeight: sf(14), color: "#64748B" },
+  summaryLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(10),
+    lineHeight: sf(13),
+    color: "#64748B",
+    ...(Platform.OS === "android" ? { includeFontPadding: false } : null),
+  },
   summaryAccents: { flexDirection: "row" },
   summaryAccent: { flex: 1, height: sw(3) },
   findRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: sw(2) },

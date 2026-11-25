@@ -79,6 +79,51 @@ class ComplaintSupportTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_community_admin_technical_complaint_reaches_system_admin_queue_with_notifications(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'systemAdmin' => $systemAdmin] = $this->seedWorld();
+
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/v1/complaints', [
+            'type' => 'technical',
+            'category' => 'app_bug',
+            'priority' => 'high',
+            'title' => 'Dashboard export fails',
+            'description' => 'CSV export from the complaints screen returns an empty file.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated();
+
+        $id = (int) $created->json('data.id');
+        $this->assertSame('technical', $created->json('data.type'));
+        $this->assertSame('system_admin', $created->json('data.routed_to'));
+        $this->assertSame($community->id, $created->json('data.community_id'));
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $systemAdmin->id,
+            'type' => 'complaint',
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $admin->id,
+            'type' => 'complaint',
+        ]);
+
+        Sanctum::actingAs($systemAdmin);
+        $this->getJson('/api/v1/admin/complaints')
+            ->assertOk()
+            ->assertJsonPath('meta.counts.all', 1)
+            ->assertJsonPath('data.0.id', $id)
+            ->assertJsonPath('data.0.type', 'technical');
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/complaints/'.$id)
+            ->assertOk()
+            ->assertJsonPath('data.id', $id);
+        $this->getJson('/api/v1/admin/complaints/'.$id)
+            ->assertOk()
+            ->assertJsonPath('data.id', $id);
+    }
+
     public function test_validation_membership_and_feature_flag(): void
     {
         ['community' => $community, 'admin' => $admin, 'resident' => $resident, 'pending' => $pending, 'suspended' => $suspended, 'guest' => $guest] = $this->seedWorld();

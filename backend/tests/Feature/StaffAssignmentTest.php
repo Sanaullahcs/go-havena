@@ -257,7 +257,10 @@ class StaffAssignmentTest extends TestCase
     public function test_resident_staff_access_stays_limited_to_accepted_communities(): void
     {
         ['community' => $community, 'admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
-        $resident->forceFill(['email_verified_at' => now()])->save();
+        $resident->forceFill([
+            'email_verified_at' => now(),
+            'phone' => $this->staffPhone(),
+        ])->save();
 
         Sanctum::actingAs($admin);
         $created = $this->postJson('/api/v1/admin/staff', [
@@ -286,17 +289,26 @@ class StaffAssignmentTest extends TestCase
         $pending = $this->postJson('/api/v1/admin/staff', [
             'name' => 'Resident Electrician',
             'email' => $resident->email,
-            'phone' => $this->staffPhone(),
+            'phone' => '+19999999999',
             'staff_type' => 'external',
             'specializations' => ['plumbing'],
         ])->assertCreated();
         $this->assertSame($resident->id, (int) $pending->json('data.user_id'));
+        $this->assertSame($resident->phone, $pending->json('data.phone'));
 
         Sanctum::actingAs($resident);
         $invitations = $this->getJson('/api/v1/staff/invitations')->assertOk()->json('data');
         $this->assertCount(1, $invitations);
         $this->assertSame($second['community']->id, $invitations[0]['community_id']);
         $this->assertSame('pending', $invitations[0]['status']);
+        $notice = DB::table('app_notifications')
+            ->where('user_id', $resident->id)
+            ->where('title', 'Staff invitation')
+            ->where('body', 'like', '%'.$second['community']->name.'%')
+            ->first();
+        $this->assertNotNull($notice);
+        $this->getJson('/api/v1/me')->assertOk()
+            ->assertJsonPath('data.pending_invitation_count', 1);
         $this->assertCount(1, $this->getJson('/api/v1/staff/tasks')->assertOk()->json('meta.communities'));
 
         Sanctum::actingAs($resident);

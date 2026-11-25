@@ -202,6 +202,50 @@ class CommunityDocumentController extends Controller
         return $rows;
     }
 
+    /**
+     * Same filter chips as Community Admin Agreements: four presets (0-count included) plus Others.
+     *
+     * @param  iterable<int, array<string, mixed>>  $documents
+     * @return list<array{name: string, count: int, match: string}>
+     */
+    private function residentAgreementCategories(iterable $documents): array
+    {
+        $counts = array_fill_keys(DocumentCategories::PRESETS, 0);
+        $others = 0;
+
+        foreach ($documents as $document) {
+            if (($document['kind'] ?? 'document') !== 'agreement') {
+                continue;
+            }
+            $name = trim((string) ($document['category'] ?? ''));
+            if ($name === '') {
+                $others++;
+
+                continue;
+            }
+            $matched = null;
+            foreach (DocumentCategories::PRESETS as $preset) {
+                if (mb_strtolower($preset) === mb_strtolower($name)) {
+                    $matched = $preset;
+                    break;
+                }
+            }
+            if ($matched) {
+                $counts[$matched]++;
+            } else {
+                $others++;
+            }
+        }
+
+        $rows = [];
+        foreach (DocumentCategories::PRESETS as $preset) {
+            $rows[] = ['name' => $preset, 'count' => $counts[$preset], 'match' => 'exact'];
+        }
+        $rows[] = ['name' => 'Others', 'count' => $others, 'match' => 'other'];
+
+        return $rows;
+    }
+
     private function modifiedAfterPublish(object $doc): bool
     {
         $published = $doc->published_at ?: $doc->created_at;
@@ -336,6 +380,7 @@ class CommunityDocumentController extends Controller
             'recent'     => $recent,
             // Resident Documents UI must match Community Admin chips — never expose raw DB names.
             'categories' => $this->residentDocumentCategories($data),
+            'agreement_categories' => $this->residentAgreementCategories($data),
             'total'      => $data->count(),
         ]);
     }

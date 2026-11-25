@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus, SlidersHorizontal, Wrench, X } from "lucide-react";
+import { ListFilter, Plus, Wrench, X } from "lucide-react";
 import { AdminActionsMenu, type AdminMenuAction } from "@/components/admin/admin-actions-menu";
 import { StaffFormModal } from "@/components/admin/staff-form-modal";
 import { AdminBadge, DataTable, StatTile } from "@/components/admin/ui";
@@ -22,6 +22,8 @@ import {
   type StaffMember,
 } from "@/lib/api/staff";
 import { subscribeForegroundNotification } from "@/lib/notifications/foreground-notification-events";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { isAdminSearchPending } from "@/lib/admin/table-loading";
 
 type StaffFilterValue = {
   specialization: string;
@@ -45,6 +47,49 @@ function activeStaffFilterCount(value: StaffFilterValue) {
   return [value.specialization !== "all", value.status !== "all", value.availability !== "all"].filter(Boolean).length;
 }
 
+const SKILL_LABELS = Object.fromEntries(STAFF_SKILLS) as Record<string, string>;
+
+function staffSkillLabels(row: StaffMember): string[] {
+  const fromKeys = (row.specializations ?? [])
+    .map((key) => SKILL_LABELS[key] ?? key)
+    .filter(Boolean);
+  if (fromKeys.length > 0) return fromKeys;
+  if (!row.specialization_label?.trim()) return [];
+  return row.specialization_label.split(",").map((part) => part.trim()).filter(Boolean);
+}
+
+function StaffSpecializationCell({ row }: { row: StaffMember }) {
+  const skills = staffSkillLabels(row);
+  const isMulti = (row.specializations?.length ?? 0) > 1 || skills.length > 1;
+
+  if (!isMulti) {
+    return <span className="text-slate-700">{row.specialization_label}</span>;
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <span className="inline-flex items-center rounded-md border border-[#B8D4F0] bg-[#E8F1FA] px-2 py-0.5 text-[12px] font-semibold leading-tight text-[#1B4F8A]">
+        Multi-Skill
+      </span>
+      <span className="group/skilltip relative inline-flex shrink-0">
+        <span
+          tabIndex={0}
+          className="inline-flex h-[18px] w-[18px] cursor-default items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-bold leading-none text-slate-500"
+          aria-label="View all specializations"
+        >
+          i
+        </span>
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute bottom-[calc(100%+6px)] left-1/2 z-[60] hidden w-max max-w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg bg-[#0A2A43] px-3 py-2 text-left text-[12px] font-medium leading-snug text-white shadow-[0_8px_24px_rgba(10,42,67,0.28)] group-hover/skilltip:block group-focus-within/skilltip:block"
+        >
+          {skills.join(", ")}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 function StaffFiltersButton({
   value,
   onApply,
@@ -59,7 +104,7 @@ function StaffFiltersButton({
   const { style } = useAnchoredPopover(open, anchorRef, {
     popoverRef: panelRef,
     width: 320,
-    align: "left",
+    align: "right",
     gap: 8,
     maxHeight: 460,
     constrainToViewport: true,
@@ -109,14 +154,19 @@ function StaffFiltersButton({
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((current) => !current)}
-        className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border bg-white px-3 text-[12.5px] font-semibold text-[#0A2A43] shadow-sm transition hover:border-[#14B8A6] ${
-          open || count > 0 ? "border-[#14B8A6]" : "border-[#0A2A43]/15"
-        }`}
+        className={[
+          "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-white px-3 text-[12.5px] font-semibold transition",
+          open || count > 0
+            ? "border-[#1B4F8A]/30 text-[#1B4F8A] shadow-sm"
+            : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+        ].join(" ")}
       >
-        <SlidersHorizontal className="h-3.5 w-3.5 text-[#0D9488]" aria-hidden />
-        Filters
+        <ListFilter className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden />
+        Filter
         {count > 0 ? (
-          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0A2A43] px-1 text-[10px] font-bold leading-none text-white">{count}</span>
+          <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1B4F8A] px-1 text-[10px] font-bold leading-none text-white">
+            {count}
+          </span>
         ) : null}
       </button>
       {open ? createPortal(
@@ -212,7 +262,9 @@ function staffActions(row: StaffMember, handlers: {
 export default function StaffPage() {
   const [rows, setRows] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 450);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [skill, setSkill] = useState("all");
   const [status, setStatus] = useState("all");
   const [availability, setAvailability] = useState("all");
@@ -227,7 +279,7 @@ export default function StaffPage() {
     const requestId = ++loadRequest.current;
     if (!silent) setLoading(true);
     try {
-      const next = await fetchStaff({ search, specialization: skill, status, availability });
+      const next = await fetchStaff({ search: debouncedSearch, specialization: skill, status, availability });
       if (requestId !== loadRequest.current) return;
       const signature = next
         .map((row) => [row.id, row.invitation, row.status, row.availability, row.open_complaints, row.delivery_error ?? "", row.name, row.specialization_label].join(":"))
@@ -240,13 +292,12 @@ export default function StaffPage() {
     } finally {
       if (!silent && requestId === loadRequest.current) setLoading(false);
     }
-  }, [search, skill, status, availability]);
+  }, [debouncedSearch, skill, status, availability]);
 
   useEffect(() => {
     signatureRef.current = "";
-    const handle = window.setTimeout(() => { void load(false); }, search ? 200 : 0);
-    return () => window.clearTimeout(handle);
-  }, [load, search]);
+    void load(false);
+  }, [load]);
 
   useEffect(() => {
     const sync = () => {
@@ -380,14 +431,15 @@ export default function StaffPage() {
       </div>
       <DataTable
         title="All Staff"
-        totalCount={rows.length}
-        search={search}
-        onSearch={setSearch}
-        searchPlaceholder="Search name, email, or phone"
+        search={searchInput}
+        onSearch={setSearchInput}
+        searching={isSearchPending}
+        searchPlaceholder="Search staff"
+        searchClassName="min-w-[12rem] sm:w-[17.5rem]"
         loading={loading}
         isEmpty={!loading && rows.length === 0}
         empty="No staff members yet."
-        beforeSearch={
+        toolbar={
           <StaffFiltersButton
             value={{ specialization: skill, status, availability }}
             onApply={(next) => {
@@ -414,7 +466,9 @@ export default function StaffPage() {
                     <p className="font-semibold text-slate-900">{row.name}</p>
                     <p className="text-xs text-slate-400">{row.email}</p>
                   </td>
-                  <td className="px-4 py-3 text-slate-700">{row.specialization_label}</td>
+                  <td className="px-4 py-3 text-slate-700">
+                    <StaffSpecializationCell row={row} />
+                  </td>
                   <td className="px-4 py-3 capitalize text-slate-700">{row.staff_type}</td>
                   <td className="px-4 py-3">
                     <AdminBadge tone={row.status === "active" && row.availability === "available" ? "green" : "slate"}>

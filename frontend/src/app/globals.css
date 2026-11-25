@@ -570,6 +570,22 @@ body {
   -webkit-appearance: none;
   appearance: none;
 }
+
+/* Admin table search: full text when it fits; ellipsis only when clipped (focus scrolls to see all). */
+.nl-admin-table-search {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nl-admin-table-search::placeholder {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nl-admin-table-search:focus {
+  overflow-x: auto;
+  text-overflow: clip;
+}
 .nl-clear-button {
   position: absolute;
   right: 0.45rem;
@@ -1387,13 +1403,15 @@ html.nl-scroll-locked .overflow-y-scroll {
   overflow-wrap: anywhere;
 }
 
-.nl-notice-modal .nl-input {
+.nl-notice-modal .nl-input,
+.nl-notice-form-surface .nl-input {
   padding: 0.5rem 0.75rem;
   font-size: 0.8125rem;
   border-radius: 0.625rem;
   min-height: 2.375rem;
 }
-.nl-notice-modal .nl-notice-textarea {
+.nl-notice-modal .nl-notice-textarea,
+.nl-notice-form-surface .nl-notice-textarea {
   min-height: 6rem;
   max-height: min(12rem, 32vh);
   padding: 0.75rem 0.875rem;
@@ -1403,7 +1421,8 @@ html.nl-scroll-locked .overflow-y-scroll {
   color: #0a2a43;
 }
 @media (min-width: 640px) {
-  .nl-notice-modal .nl-notice-textarea {
+  .nl-notice-modal .nl-notice-textarea,
+  .nl-notice-form-surface .nl-notice-textarea {
     max-height: min(16rem, 40vh);
     padding: 0.8125rem 1rem;
   }

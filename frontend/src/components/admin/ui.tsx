@@ -279,7 +279,7 @@ export function DataTable<K extends string>({
 
   const searchField = searchSlot ?? (
           <div className={stacked ? "relative min-w-0 flex-1" : "relative min-w-0 flex-1 sm:w-auto sm:flex-none"}>
-            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
                 <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />
                 <path d="M10.5 10.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -289,6 +289,7 @@ export function DataTable<K extends string>({
               type="text"
               placeholder={searchPlaceholder}
               value={search}
+              title={search || undefined}
               hideClear={showProgress}
               disabled={searchDisabled}
               readOnly={searchDisabled}
@@ -296,10 +297,10 @@ export function DataTable<K extends string>({
               onChange={(e) => onSearch(e.target.value)}
               className={[
                 stacked
-                  ? "h-9 w-full max-w-none rounded-lg border border-slate-200 bg-white py-1.5 pl-[1.875rem] pr-8 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#E8F1FA] transition"
-                  : "h-8 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-[1.875rem] pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition",
+                  ? "nl-admin-table-search h-9 w-full max-w-none rounded-lg border border-slate-200 bg-white py-1.5 pl-7 pr-8 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#E8F1FA] transition"
+                  : "nl-admin-table-search h-8 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-7 pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition",
                 searchDisabled ? "pointer-events-none opacity-60" : "",
-                stacked ? "" : (searchClassName ?? "min-w-[14rem] max-w-[18rem] sm:w-64"),
+                stacked ? "" : (searchClassName ?? "min-w-[12rem] max-w-[20rem] sm:w-[17.5rem]"),
               ].join(" ")}
             />
             {showProgress ? (

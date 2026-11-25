@@ -134,6 +134,14 @@ class CommunityAdminNotificationPreferences
             return self::SYSTEM;
         }
 
+        if (
+            in_array($kind, ['complaint'], true)
+            || str_contains($url, 'complaint')
+            || str_contains($url, 'support-complaint')
+        ) {
+            return self::SYSTEM;
+        }
+
         return null;
     }
 }

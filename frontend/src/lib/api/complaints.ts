@@ -107,6 +107,51 @@ export type ComplaintList = {
   };
 };
 
+export type CreateComplaintPayload = {
+  type: "technical";
+  category: string;
+  priority: ComplaintRecord["priority"];
+  title: string;
+  description: string;
+};
+
+export async function createComplaint(
+  payload: CreateComplaintPayload,
+  files: File[] = [],
+): Promise<ComplaintRecord> {
+  if (files.length > 0) {
+    const form = new FormData();
+    form.append("type", payload.type);
+    form.append("category", payload.category);
+    form.append("priority", payload.priority);
+    form.append("title", payload.title);
+    form.append("description", payload.description);
+    files.slice(0, 5).forEach((file) => form.append("files[]", file));
+    const res = await api.post("/v1/complaints", form);
+    return res.data.data as ComplaintRecord;
+  }
+  const res = await api.post("/v1/complaints", payload);
+  return res.data.data as ComplaintRecord;
+}
+
+export async function fetchMyComplaints(params: {
+  search?: string;
+  status?: string;
+  category?: string;
+  priority?: string;
+  page?: number;
+}): Promise<ComplaintList> {
+  const query = new URLSearchParams();
+  if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.status && params.status !== "all") query.set("status", params.status);
+  if (params.category && params.category !== "all") query.set("category", params.category);
+  if (params.priority && params.priority !== "all") query.set("priority", params.priority);
+  if (params.page) query.set("page", String(params.page));
+  query.set("per_page", "8");
+  const res = await api.get(`/v1/complaints?${query.toString()}`);
+  return res.data as ComplaintList;
+}
+
 export async function fetchAdminComplaints(params: {
   search?: string;
   status?: string;
