@@ -58,6 +58,21 @@ export function isPropertyManagementRootPath(pathname) {
   return String(pathname ?? "").includes("/screens/property-management");
 }
 
+export function documentsHubRoute(pathname) {
+  return isPropertyManagementRootPath(pathname)
+    ? PropertyManagementRoutes.DOCUMENTS_SCREEN
+    : PropertyManagementRoutes.DOCUMENTS;
+}
+
+/** Land on Documents & Agreements with the Agreements tab selected (Community Admin create flow). */
+export function openDocumentsAgreementsList(router, pathname) {
+  if (!router) return;
+  router.replace({
+    pathname: documentsHubRoute(pathname),
+    params: { section: "agreements", refresh: String(Date.now()) },
+  });
+}
+
 /** Keep amenity drill-in on the same stack that opened the list. */
 export function amenityFlowRoutes(pathname) {
   if (isPropertyManagementRootPath(pathname)) {

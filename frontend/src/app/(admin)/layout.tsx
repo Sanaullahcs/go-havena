@@ -69,7 +69,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/alerts": "Alerts",
   "/admin/community-rules": "Community Rules",
   "/admin/documents": "Documents & Agreements",
-  "/admin/complaints": "Complaints",
+  "/admin/complaints": "Service Requests",
   "/admin/staff": "Staff",
   "/admin/support-complaints": "Complaints & Support",
   "/admin/agreements": "Documents & Agreements",

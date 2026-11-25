@@ -87,7 +87,7 @@ const FULL_FEATURES = [
   "Resident mobile app",
   "Directory and profiles",
   "Documents and house rules",
-  "Complaints and requests",
+  "Service requests",
   "Amenity reservations",
   "Billing and marketplace",
   "Multi-community portfolio",

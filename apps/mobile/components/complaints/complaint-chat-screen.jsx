@@ -123,6 +123,7 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
   }, [bottomOffset, messages.length, thread]);
 
   const closed = complaint && ["closed", "cancelled"].includes(complaint.status);
+  const issueNoun = complaint?.type === "technical" ? "complaint" : "service request";
   const residentChatLocked = !admin && !staff && complaint?.resident_chat_available === false;
 
   const openFile = async (file) => {
@@ -190,7 +191,7 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
         <InternalScreenHeader
           dense
           title={complaint?.title || "Chat"}
-          subtitle={complaint ? `${complaint.reference} · ${complaint.status_label}` : "Complaint"}
+          subtitle={complaint ? `${complaint.reference} · ${complaint.status_label}` : "Service request"}
           onBack={goBack}
         />
       )}
@@ -247,7 +248,7 @@ export default function ComplaintChatScreen({ audience = "resident", backTo }) {
           ) : closed ? (
             <View style={[styles.locked, { paddingBottom: composerInset, marginBottom: bottomOffset }]}>
               <Feather name="lock" size={sf(14)} color={Colors.textMuted} />
-              <Text style={styles.lockedText}>This complaint is {complaint.status_label.toLowerCase()}.</Text>
+              <Text style={styles.lockedText}>This {issueNoun} is {complaint.status_label.toLowerCase()}.</Text>
             </View>
           ) : (
               <View style={[styles.composer, thread === "internal" && styles.composerNote, { paddingBottom: composerInset, marginBottom: bottomOffset }]}>

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Mail\HavenaTransactionalMail;
 use App\Models\User;
+use App\Support\ComplaintUserLabels;
 use App\Services\ContactIdentityService;
 use App\Support\AppUrls;
 use Carbon\Carbon;
@@ -32,8 +33,12 @@ class ComplaintMailer
                 'complaint_submitted',
                 'complaint:'.$complaint->id.':submitted:reporter:'.substr(hash('sha256', (string) $reporter->email), 0, 20),
                 $reporter,
-                'Havena Complaint '.$complaint->reference.' submitted',
-                'Your technical complaint was submitted',
+                $isAdminReporter || $complaint->type === 'technical'
+                    ? 'Havena Complaint '.$complaint->reference.' submitted'
+                    : 'Havena Service request '.$complaint->reference.' submitted',
+                $isAdminReporter
+                    ? 'Your technical complaint was submitted'
+                    : ($complaint->type === 'technical' ? 'Your technical complaint was submitted' : 'Your service request was submitted'),
                 $isAdminReporter
                     ? 'We sent '.$complaint->reference.' to System Admin. Track progress in Complaints → My technical reports.'
                     : $complaint->reference.' was submitted and is now Open.',
@@ -59,8 +64,10 @@ class ComplaintMailer
                 'complaint_submitted_admin',
                 'complaint:'.$complaint->id.':submitted:admin:'.(int) $admin->id,
                 $admin,
-                'New technical complaint '.$complaint->reference,
-                'New technical complaint',
+                $complaint->type === 'technical'
+                    ? 'New technical complaint '.$complaint->reference
+                    : 'New service request '.$complaint->reference,
+                $complaint->type === 'technical' ? 'New technical complaint' : 'New service request',
                 $complaint->type === 'technical'
                     ? ($community !== ''
                         ? 'A community admin submitted a technical complaint for '.$community.'.'
@@ -86,7 +93,7 @@ class ComplaintMailer
             $complaint,
             'complaint_accepted',
             'complaint:'.$complaint->id.':accepted:'.$eventId,
-            'Havena Complaint '.$complaint->reference.', Assignment Accepted',
+            $this->havenaSubject($complaint, 'Assignment Accepted'),
             'Assignment accepted',
             trim($actor->name.' accepted '.$complaint->reference.'. The status is now '.$label.'.'),
             $note,
@@ -104,7 +111,7 @@ class ComplaintMailer
             $complaint,
             'complaint_work_update',
             'complaint:'.$complaint->id.':work:'.$messageId,
-            'Havena Complaint '.$complaint->reference.', Work Update',
+            $this->havenaSubject($complaint, 'Work Update'),
             'Work update added',
             trim($actor->name.' added a work update on '.$complaint->reference.'.'),
             $note,
@@ -119,24 +126,28 @@ class ComplaintMailer
     {
         $resident = $this->user((int) $complaint->reporter_user_id);
         $staff = $complaint->assigned_to_user_id ? $this->user((int) $complaint->assigned_to_user_id) : null;
-        $heading = $reassigned ? 'Complaint reassigned' : 'A staff member was assigned';
-        $subject = 'Havena Complaint '.$complaint->reference.', '.($reassigned ? 'Reassigned' : 'Staff Assigned');
+        $maintenance = ComplaintUserLabels::isMaintenance($complaint);
+        $heading = $reassigned
+            ? ($maintenance ? 'Service request reassigned' : 'Complaint reassigned')
+            : 'A staff member was assigned';
+        $subject = $this->havenaSubject($complaint, $reassigned ? 'Reassigned' : 'Staff Assigned');
         $staffIntro = $complaint->reference.' is now on your task list.';
         if ($reopenReason) {
             $staffIntro .= ' The resident reopened it because: '.$reopenReason;
         }
+        $staffHeading = $maintenance ? 'A service request was assigned to you' : 'A complaint was assigned to you';
 
         if ($resident) {
             $this->send('complaint_assigned', 'complaint:'.$complaint->id.':assigned:'.$eventId.':resident', $resident, $subject, $heading, $this->staffLine($complaint), $complaint, null, $actor, $this->residentLink($complaint));
         }
         if ($staff) {
-            $this->send('complaint_assigned_staff', 'complaint:'.$complaint->id.':assigned:'.$eventId.':staff', $staff, $subject, 'A complaint was assigned to you', $staffIntro, $complaint, null, $actor, $this->residentLink($complaint));
+            $this->send('complaint_assigned_staff', 'complaint:'.$complaint->id.':assigned:'.$eventId.':staff', $staff, $subject, $staffHeading, $staffIntro, $complaint, null, $actor, $this->residentLink($complaint));
         }
     }
 
     public function assignmentCleared(object $complaint, User $actor, int $eventId, ?int $previousUserId): void
     {
-        $subject = 'Havena Complaint '.$complaint->reference.', Assignment Removed';
+        $subject = $this->havenaSubject($complaint, 'Assignment Removed');
         $resident = $this->user((int) $complaint->reporter_user_id);
         $staff = $previousUserId ? $this->user($previousUserId) : null;
         if ($resident) {
@@ -155,8 +166,9 @@ class ComplaintMailer
 
         $label = $this->statusLabel($to);
         $previous = $this->statusLabel($from);
-        $subject = 'Havena Complaint '.$complaint->reference.', Status Updated';
+        $subject = $this->havenaSubject($complaint, 'Status Updated');
         $intro = 'The status of '.$complaint->reference.' changed from '.$previous.' to '.$label.'.';
+        $statusHeading = ComplaintUserLabels::isMaintenance($complaint) ? 'Service request status updated' : 'Complaint status updated';
 
         if ($byStaff) {
             $this->emailParties(
@@ -164,7 +176,7 @@ class ComplaintMailer
                 'complaint_status',
                 'complaint:'.$complaint->id.':status:'.$eventId,
                 $subject,
-                'Complaint status updated',
+                $statusHeading,
                 $intro,
                 $note,
                 $actor,
@@ -180,10 +192,10 @@ class ComplaintMailer
         $staff = $complaint->assigned_to_user_id ? $this->user((int) $complaint->assigned_to_user_id) : null;
 
         if ($resident && (int) $resident->id !== (int) $actor->id) {
-            $this->send('complaint_status', 'complaint:'.$complaint->id.':status:'.$eventId.':resident', $resident, $subject, 'Complaint status updated', $intro, $complaint, $note, $actor, $this->residentLink($complaint), $previous, $label);
+            $this->send('complaint_status', 'complaint:'.$complaint->id.':status:'.$eventId.':resident', $resident, $subject, $statusHeading, $intro, $complaint, $note, $actor, $this->residentLink($complaint), $previous, $label);
         }
         if ($staff && (int) $staff->id !== (int) $actor->id && (! $resident || (int) $staff->id !== (int) $resident->id)) {
-            $this->send('complaint_status_staff', 'complaint:'.$complaint->id.':status:'.$eventId.':staff', $staff, $subject, 'Complaint status updated', $intro, $complaint, $note, $actor, $this->residentLink($complaint), $previous, $label);
+            $this->send('complaint_status_staff', 'complaint:'.$complaint->id.':status:'.$eventId.':staff', $staff, $subject, $statusHeading, $intro, $complaint, $note, $actor, $this->residentLink($complaint), $previous, $label);
         }
     }
 
@@ -193,21 +205,22 @@ class ComplaintMailer
         if (mb_strlen($preview) > 180) {
             $preview = mb_substr($preview, 0, 177).'…';
         }
-        $subject = 'Havena Complaint '.$complaint->reference.', New Message';
+        $subject = $this->havenaSubject($complaint, 'New Message');
         $intro = $actor->name.' sent a message on '.$complaint->reference.'.';
+        $messageHeading = ComplaintUserLabels::isMaintenance($complaint) ? 'New service request message' : 'New complaint message';
         if ((int) $complaint->reporter_user_id === (int) $actor->id) {
             foreach ($this->adminRecipients($complaint) as $admin) {
                 if ((int) $admin->id === (int) $actor->id) {
                     continue;
                 }
-                $this->send('complaint_message_admin', 'complaint:'.$complaint->id.':message:'.$messageId.':admin:'.$admin->id, $admin, $subject, 'New complaint message', $intro, $complaint, $preview, $actor, $this->adminLink($complaint).'&chat=1');
+                $this->send('complaint_message_admin', 'complaint:'.$complaint->id.':message:'.$messageId.':admin:'.$admin->id, $admin, $subject, $messageHeading, $intro, $complaint, $preview, $actor, $this->adminLink($complaint).'&chat=1');
             }
 
             return;
         }
         $resident = $this->user((int) $complaint->reporter_user_id);
         if ($resident && (int) $resident->id !== (int) $actor->id) {
-            $this->send('complaint_message', 'complaint:'.$complaint->id.':message:'.$messageId.':resident', $resident, $subject, 'New complaint message', $intro, $complaint, $preview, $actor, $this->residentLink($complaint));
+            $this->send('complaint_message', 'complaint:'.$complaint->id.':message:'.$messageId.':resident', $resident, $subject, $messageHeading, $intro, $complaint, $preview, $actor, $this->residentLink($complaint));
         }
     }
 
@@ -348,9 +361,11 @@ class ComplaintMailer
         ?string $priorityLabel = null,
         ?string $communityName = null,
     ): void {
+        $issueLabel = ComplaintUserLabels::titled($complaint);
+        $noun = ComplaintUserLabels::singular($complaint);
         $details = [
             ['label' => 'Ticket', 'value' => (string) $complaint->reference],
-            ['label' => 'Complaint', 'value' => (string) $complaint->title],
+            ['label' => $issueLabel, 'value' => (string) $complaint->title],
         ];
         $community = $communityName ?? (
             $complaint->community_id
@@ -386,14 +401,14 @@ class ComplaintMailer
         $this->mail->queueOnce($type, $key, $user->email, [
             'subjectLine' => $subject,
             'preheader' => $complaint->reference.' · '.$complaint->title,
-            'eyebrow' => 'Complaints',
+            'eyebrow' => ComplaintUserLabels::isMaintenance($complaint) ? 'Service requests' : 'Complaints',
             'heading' => $heading,
             'intro' => 'Hello '.$this->firstName($user).',',
             'paragraphs' => $paragraphs,
             'details' => $details,
-            'ctaLabel' => 'View Complaint',
+            'ctaLabel' => 'View '.$issueLabel,
             'ctaUrl' => $link,
-            'footerNote' => 'Sign in with this email address to open the complaint. Private resident details stay inside Havena.',
+            'footerNote' => 'Sign in with this email address to open the '.$noun.'. Private resident details stay inside Havena.',
         ]);
     }
 
@@ -535,6 +550,11 @@ class ComplaintMailer
         $timezone = trim((string) DB::table('communities')->where('id', $complaint->community_id)->value('timezone'));
 
         return $timezone !== '' ? $timezone : $fallback;
+    }
+
+    private function havenaSubject(object $complaint, string $suffix): string
+    {
+        return 'Havena '.ComplaintUserLabels::titled($complaint).' '.$complaint->reference.', '.$suffix;
     }
 
     private function staffLine(object $complaint): string

@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "../constants/api-config";
 import { apiRequest, ApiError } from "./api-client";
 import { getCommunityId, getToken } from "./auth-session";
-import { guessImageMeta } from "../utils/upload-form-data";
+import { guessImageMeta, uploadMultipartFile } from "../utils/upload-form-data";
 import i18n from "../i18n";
 
 /** GET /v1/documents */
@@ -50,26 +50,50 @@ async function multipartRequest(path, { method = "POST", fields, fileAsset }) {
   if (!token) throw new ApiError(i18n.t("imagePicker.signInRequired"), { status: 401 });
 
   const communityId = await getCommunityId();
-  const { mimeType, fileName } = guessImageMeta(fileAsset?.uri, fileAsset ?? {}, "document");
-
-  const formData = new FormData();
-  Object.entries(fields).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") {
-      formData.append(key, String(value));
-    }
-  });
-  if (fileAsset?.uri) {
-    formData.append("file", { uri: fileAsset.uri, name: fileName, type: mimeType });
-  }
-
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    Accept: "application/json",
-  };
+  const headers = {};
   if (communityId) headers["X-Community-Id"] = communityId;
   if (API_BASE_URL.includes("loca.lt")) headers["Bypass-Tunnel-Reminder"] = "true";
 
-  const response = await fetch(`${API_BASE_URL}${path}`, { method, headers, body: formData });
+  const parameters = {};
+  Object.entries(fields).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      parameters[key] = String(value);
+    }
+  });
+
+  if (fileAsset?.uri) {
+    const { mimeType, fileName } = guessImageMeta(fileAsset.uri, fileAsset ?? {}, "document");
+    try {
+      return await uploadMultipartFile({
+        url: `${API_BASE_URL}${path}`,
+        uri: fileAsset.uri,
+        fieldName: "file",
+        token,
+        mimeType,
+        assetMeta: { ...fileAsset, fileName, mimeType },
+        headers,
+        parameters,
+        httpMethod: method,
+      });
+    } catch (err) {
+      throw new ApiError(err?.message ?? "Upload failed", { status: 0 });
+    }
+  }
+
+  const formData = new FormData();
+  Object.entries(parameters).forEach(([key, value]) => {
+    formData.append(key, value);
+  });
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      ...headers,
+    },
+    body: formData,
+  });
   const text = await response.text();
   let body = null;
   if (text) {

@@ -3,7 +3,11 @@ import { AppState } from "react-native";
 import { router } from "expo-router";
 import { getToken } from "../../services/auth-session";
 import { fetchAccountPushPreference } from "../../services/devices-api";
-import { fetchNotifications, isAdminAgreementSignedNotification, openAdminSignedAgreement } from "../../services/notifications-api";
+import {
+  ensureNotificationCommunityContext,
+  fetchNotifications,
+  resolveNotificationRoute,
+} from "../../services/notifications-api";
 import {
   getPushNotificationsEnabled,
   setPushNotificationsEnabled,
@@ -83,15 +87,18 @@ export default function InAppNotificationMonitor() {
         if (latest.kind === "message") {
           emitMessageUnreadRefresh();
         }
-        const route = isAdminAgreementSignedNotification(latest)
-          ? null
-          : resolvePushNotificationRoute({
+        const route =
+          resolveNotificationRoute(latest)
+          ?? resolvePushNotificationRoute({
               actionUrl: latest.actionUrl,
               title: latest.title,
               body: latest.description,
               kind: latest.kind,
               type: latest.type,
               documentId: latest.documentId,
+              assignment_id: latest.assignmentId,
+              open_signed: latest.openSignedPdf,
+              community_id: latest.communityId,
             });
 
         emitNotificationBanner({
@@ -101,16 +108,16 @@ export default function InAppNotificationMonitor() {
           kind: latest.kind,
           type: latest.type,
           actionUrl: latest.actionUrl,
-          onPress: isAdminAgreementSignedNotification(latest)
+          onPress: route?.pathname
             ? () => {
-                openAdminSignedAgreement(latest).catch(() => {});
+                ensureNotificationCommunityContext(latest)
+                  .then(() => {
+                    if (router.canDismiss?.()) router.dismissAll();
+                    router.push(route);
+                  })
+                  .catch(() => {});
               }
-            : route?.pathname
-              ? () => {
-                  if (router.canDismiss?.()) router.dismissAll();
-                  router.push(route);
-                }
-              : undefined,
+            : undefined,
         });
 
         if (unread > 0) {

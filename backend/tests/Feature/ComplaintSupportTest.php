@@ -294,7 +294,7 @@ class ComplaintSupportTest extends TestCase
         $this->assertNotContains('internal_note', collect($detail->json('data.events'))->pluck('action')->all());
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $resident->id,
-            'title' => 'Complaint chat started',
+            'title' => 'Service request chat started',
         ]);
 
         $this->postJson('/api/v1/complaints/'.$id.'/messages', [
@@ -321,7 +321,7 @@ class ComplaintSupportTest extends TestCase
             ->assertJsonPath('data.assigned_to_user_id', null);
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $admin->id,
-            'title' => 'Complaint Reopened',
+            'title' => 'Service request Reopened',
         ]);
         $this->assertDatabaseHas('complaint_events', [
             'complaint_id' => $id,

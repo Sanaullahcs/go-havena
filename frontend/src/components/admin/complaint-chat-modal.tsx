@@ -62,6 +62,8 @@ export function ComplaintChatModal({
   const [busy, setBusy] = useState(false);
   const meId = getUser()?.id ?? 0;
   const closed = detail.status === "closed" || detail.status === "cancelled";
+  const maintenance = detail.type !== "technical";
+  const issueNoun = maintenance ? "service request" : "complaint";
 
   const messages = useMemo(() => {
     const rows = detail.messages ?? [];
@@ -146,7 +148,7 @@ export function ComplaintChatModal({
         onClick={(event) => event.stopPropagation()}
       >
         <header className="flex items-start gap-3 border-b border-slate-100 px-4 py-3">
-          <button type="button" onClick={onBack} className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100" aria-label="Back to complaint">
+          <button type="button" onClick={onBack} className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100" aria-label={`Back to ${issueNoun}`}>
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div className="min-w-0 flex-1">
@@ -206,7 +208,7 @@ export function ComplaintChatModal({
         {closed ? (
           <div className="flex items-center justify-center gap-2 border-t border-slate-100 px-4 py-3 text-sm text-slate-500">
             <Lock className="h-4 w-4" />
-            This complaint is {detail.status_label.toLowerCase()}.
+            This {issueNoun} is {detail.status_label.toLowerCase()}.
           </div>
         ) : (
           <form

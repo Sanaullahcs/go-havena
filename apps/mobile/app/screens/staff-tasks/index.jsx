@@ -325,7 +325,7 @@ export function StaffTasksScreen({ asTab = false }) {
         </View>
         {loading ? <ActivityIndicator color={NAVY} style={{ marginTop: sw(24) }} /> : null}
         {!loading && error ? <EmptyState icon="alert-circle" title="Could not load tasks" body={error} actionLabel="Try again" actionIcon="refresh-cw" onAction={() => void load()} /> : null}
-        {!loading && !error && rows.length === 0 ? <EmptyState icon="clipboard" title="No assigned tasks" body="Complaints assigned to you will appear here." /> : null}
+        {!loading && !error && rows.length === 0 ? <EmptyState icon="clipboard" title="No assigned tasks" body="Service requests assigned to you will appear here." /> : null}
         {!loading && !error ? rows.map((row) => {
           const badge = statusBadge(row.status, row.workflow_status);
           const priority = priorityTone(row.priority);

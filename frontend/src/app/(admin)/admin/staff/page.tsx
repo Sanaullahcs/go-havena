@@ -284,8 +284,8 @@ export default function StaffPage() {
     const confirmed = await confirmAction({
       title: next === "inactive" ? "Deactivate this staff member?" : "Activate Staff Member?",
       text: next === "inactive"
-        ? "Open tasks will be unassigned and they will not receive new complaints. Completed task history stays."
-        : "Are you sure you want to activate this staff member? Once activated, they can receive new complaint assignments.",
+        ? "Open tasks will be unassigned and they will not receive new service requests. Completed task history stays."
+        : "Are you sure you want to activate this staff member? Once activated, they can receive new service request assignments.",
       confirmText: next === "inactive" ? "Deactivate" : "Activate",
       color: next === "inactive" ? "amber" : "blue",
     });
@@ -345,7 +345,7 @@ export default function StaffPage() {
     }
     const confirmed = await confirmAction({
       title: "Remove this staff member?",
-      text: "They will be removed from this community. Completed task history stays on the complaints.",
+      text: "They will be removed from this community. Completed task history stays on service requests.",
       confirmText: "Remove Staff",
       color: "red",
     });
@@ -458,12 +458,12 @@ export default function StaffPage() {
           <div className="nl-notice-modal" style={{ maxWidth: "36rem" }} role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="nl-notice-modal-head">
               <div>
-                <p className="nl-notice-modal-eyebrow">Assigned complaints</p>
+                <p className="nl-notice-modal-eyebrow">Assigned service requests</p>
                 <h3 className="nl-notice-modal-title">{viewing.name}</h3>
               </div>
             </header>
             <div className="nl-notice-modal-body">
-              {(viewing.complaints ?? []).length === 0 ? <p className="text-sm text-slate-400">No complaints assigned.</p> : null}
+              {(viewing.complaints ?? []).length === 0 ? <p className="text-sm text-slate-400">No service requests assigned.</p> : null}
               <ul className="space-y-2">
                 {(viewing.complaints ?? []).map((item) => (
                   <li key={item.id} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">

@@ -25,7 +25,7 @@ export const MAINTENANCE_CATEGORIES = [
   ["pest_control", "Pest Control", "Rodents, insects, and infestations."],
   ["billing_payments", "Billing & Payments", "Incorrect charges and payment issues."],
   ["resident_behavior", "Resident Behavior", "Neighbor disputes and rule violations."],
-  ["other", "Other", "Complaints not covered by existing categories."],
+  ["other", "Other", "Service requests not covered by existing categories."],
 ];
 
 export const TECHNICAL_CATEGORIES = [
@@ -54,7 +54,7 @@ export const STATUS_ACTION = {
   not_resolved: "Not resolved",
   resolved: "Mark resolved",
   closed: "Confirm resolution",
-  cancelled: "Cancel complaint",
+  cancelled: "Cancel service request",
   reopened: "Reopen",
 };
 

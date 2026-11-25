@@ -17,7 +17,7 @@ export function useResidentComplaintMode() {
   );
 }
 
-/** Complaint management stays closed in Resident Mode and for residents. */
+/** Service request management stays closed in Resident Mode and for residents. */
 export function useAdminComplaintMode() {
   const router = useRouter();
   const user = useSessionUser();

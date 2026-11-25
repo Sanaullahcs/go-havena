@@ -439,6 +439,22 @@ export function resolvePushNotificationRoute(data = {}) {
     return null;
   }
 
+  const envelope = {
+    title: data.title ?? "",
+    description: data.body ?? "",
+    kind: data.kind ?? data.type ?? null,
+    type: data.type ?? null,
+    documentId: data.document_id ?? data.documentId ?? null,
+    assignmentId: data.assignment_id ?? data.assignmentId ?? null,
+    openSignedPdf:
+      data.open_signed === true
+      || data.open_signed === 1
+      || data.open_signed === "1"
+      || data.open_signed === "true",
+    actionUrl: data.action_url ?? data.actionUrl ?? null,
+    communityId: data.community_id ?? data.communityId ?? null,
+  };
+
   const noticeId = data.noticeId ?? data.notice_id;
   if (noticeId) {
     const category =
@@ -455,16 +471,16 @@ export function resolvePushNotificationRoute(data = {}) {
       return null;
     }
     const route = resolveNotificationRoute({
+      ...envelope,
       actionUrl: action,
-      title: data.title ?? "",
-      description: data.body ?? "",
+      description: data.body ?? envelope.description,
       category: data.category ?? null,
-      kind: data.kind ?? null,
-      type: data.type ?? null,
-      documentId: data.document_id ?? data.documentId ?? null,
     });
     if (route?.pathname) return route;
   }
+
+  const fallback = resolveNotificationRoute(envelope);
+  if (fallback?.pathname) return fallback;
 
   if (data.conversationId || data.conversation_id) {
     return {

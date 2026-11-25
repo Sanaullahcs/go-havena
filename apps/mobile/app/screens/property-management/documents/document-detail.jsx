@@ -40,6 +40,19 @@ function formatDocDate(value) {
   return date.toLocaleDateString(getLocaleForLang(i18n.language), { month: "long", day: "numeric", year: "numeric" });
 }
 
+function formatSignedWhen(value) {
+  if (!value) return i18n.t("propertyMgmt.notSigned");
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString(getLocaleForLang(i18n.language), {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function wasModifiedAfterPublish(doc) {
   if (typeof doc?.modified_after_publish === "boolean") return doc.modified_after_publish;
   const published = new Date(doc?.published_at || doc?.created_at).getTime();
@@ -128,6 +141,7 @@ function AgreementDetails({
   onRemind,
   onEdit,
   onDelete,
+  onOpenSignedRecipient,
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -296,8 +310,13 @@ function AgreementDetails({
               const rowStatus = recipientStatus(row);
               const signedRow = rowStatus === "signed" || row.signature_status === "signed";
               const initial = String(row.resident_name || "?").trim().charAt(0).toUpperCase() || "?";
+              const Tile = signedRow ? Pressable : View;
               return (
-                <View key={String(row.id)} style={agreementStyles.recipientTile}>
+                <Tile
+                  key={String(row.id)}
+                  style={agreementStyles.recipientTile}
+                  {...(signedRow ? { onPress: () => onOpenSignedRecipient?.(row) } : {})}
+                >
                   <View style={[agreementStyles.avatar, signedRow ? agreementStyles.avatarSigned : agreementStyles.avatarPending]}>
                     <Text style={[agreementStyles.avatarText, signedRow ? agreementStyles.avatarTextSigned : agreementStyles.avatarTextPending]}>{initial}</Text>
                   </View>
@@ -314,10 +333,13 @@ function AgreementDetails({
                           {statusLabel(rowStatus, t)}
                         </Text>
                       </View>
-                      <Text style={agreementStyles.recipientDate}>{signedRow ? formatDocDate(row.signed_at) : t("propertyMgmt.notSigned")}</Text>
+                      <Text style={agreementStyles.recipientDate}>
+                        {signedRow ? formatSignedWhen(row.signed_at) : t("propertyMgmt.notSigned")}
+                      </Text>
                     </View>
                   </View>
-                </View>
+                  {signedRow ? <Feather name="chevron-right" size={sf(18)} color="#94A3B8" /> : null}
+                </Tile>
               );
             })}
           </View>
@@ -364,19 +386,29 @@ function AgreementDetails({
         <Pressable
           style={[agreementStyles.primaryBtn, submitting && styles.btnDisabled]}
           disabled={submitting}
-          onPress={canSign ? onSign : signatureSigned ? onSignedCopy : onOpenFile}
+          onPress={
+            isAdmin
+              ? onOpenFile
+              : canSign
+                ? onSign
+                : signatureSigned
+                  ? onSignedCopy
+                  : onOpenFile
+          }
         >
           {submitting ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
             <>
-              <Feather name={canSign ? "edit-3" : signatureSigned ? "check-circle" : "eye"} size={sf(16)} color="#FFFFFF" />
+              <Feather name={canSign && !isAdmin ? "edit-3" : "eye"} size={sf(16)} color="#FFFFFF" />
               <Text style={agreementStyles.primaryText}>
-                {canSign
+                {canSign && !isAdmin
                   ? t("propertyMgmt.reviewAndSign")
-                  : signatureSigned
-                    ? t("propertyMgmt.viewSignedCopy")
-                    : t("propertyMgmt.viewDocument")}
+                  : isAdmin
+                    ? t("propertyMgmt.previewPdf")
+                    : signatureSigned
+                      ? t("propertyMgmt.viewSignedCopy")
+                      : t("propertyMgmt.viewDocument")}
               </Text>
             </>
           )}
@@ -414,6 +446,7 @@ export default function DocumentDetail() {
         try {
           const detail = await fetchAgreementDetail(documentId);
           found.recipients = detail?.recipients ?? [];
+          if (detail?.stats) found.stats = detail.stats;
         } catch {
           found.recipients = [];
         }
@@ -434,7 +467,7 @@ export default function DocumentDetail() {
   useFocusEffect(
     useCallback(() => {
       load(hasLoadedOnce.current);
-      const timer = setInterval(() => load(true), 15000);
+      const timer = setInterval(() => load(true), isAdmin ? 5000 : 15000);
       const subscription = AppState.addEventListener("change", (state) => {
         if (state === "active") load(true);
       });
@@ -442,7 +475,7 @@ export default function DocumentDetail() {
         clearInterval(timer);
         subscription.remove();
       };
-    }, [load]),
+    }, [load, isAdmin]),
   );
 
   const assignment = (doc?.assignments ?? []).find(
@@ -539,6 +572,18 @@ export default function DocumentDetail() {
         })}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onOpenSignedRecipient={(row) => {
+          if (!row?.id) return;
+          router.push({
+            pathname: amenityFlowRoutes(pathname).signAgreement,
+            params: {
+              documentId: String(doc.id),
+              assignmentId: String(row.id),
+              mode: "view",
+              source: "signed",
+            },
+          });
+        }}
       />
     );
   }
@@ -851,7 +896,7 @@ const agreementStyles = StyleSheet.create({
   emptyRecipients: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#94A3B8", paddingVertical: sw(12) },
   recipientTile: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: sw(10),
     marginTop: sw(8),
     padding: sw(10),

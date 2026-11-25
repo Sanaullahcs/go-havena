@@ -58,7 +58,7 @@ function staffStatusId(status) {
 }
 
 const STATUS_TITLES = {
-  submitted: "Complaint opened",
+  submitted: "Service request opened",
   in_review: "Pending",
   in_progress: "Work started",
   waiting_on_resident: "Waiting on resident",
@@ -70,7 +70,7 @@ const STATUS_TITLES = {
 };
 
 const ACTION_TITLES = {
-  created: "Complaint submitted",
+  created: "Service request submitted",
   assigned: "Staff assigned",
   reassigned: "Staff reassigned",
   accepted: "Assignment accepted",
@@ -185,7 +185,7 @@ export default function StaffTaskDetailScreen() {
     try {
       const choice = await showConfirm(
         declining ? "Decline this task?" : "Accept this task?",
-        declining ? "The community admin will be asked to assign someone else." : "You can then update the complaint status.",
+        declining ? "The community admin will be asked to assign someone else." : "You can then update the service request status.",
         { confirmLabel: declining ? "Decline" : "Accept", cancelLabel: "Cancel", destructive: declining },
       );
       if (choice !== "confirm") return;
@@ -212,7 +212,7 @@ export default function StaffTaskDetailScreen() {
       setBusy(false);
       setBusyDecision("");
       if (declining) goBack();
-      else showSuccess("Task accepted", "This complaint is now Pending. You can update the status when you start work.");
+      else showSuccess("Task accepted", "This service request is now Pending. You can update the status when you start work.");
     } catch (err) {
       setBusy(false);
       setBusyDecision("");
@@ -316,7 +316,7 @@ export default function StaffTaskDetailScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <StaffScreenHeader
-        title={tab === "history" ? "Complaint history" : "Complaint details"}
+        title={tab === "history" ? "Service request history" : "Service request details"}
         subtitle={task?.reference || ""}
         showBack
         onBack={goBack}
@@ -372,7 +372,7 @@ export default function StaffTaskDetailScreen() {
               <View style={[styles.card, styles.reopenCard]}>
                 <Section icon="rotate-ccw" title="Resident reopen reason" />
                 <Text style={styles.reopenCopy}>
-                  {task.reopen_reason || "The resident reopened this complaint. Review the history for details."}
+                  {task.reopen_reason || "The resident reopened this service request. Review the history for details."}
                 </Text>
                 {task.reopened_by_name || task.reopened_at ? (
                   <Text style={styles.reopenMeta}>
@@ -384,7 +384,7 @@ export default function StaffTaskDetailScreen() {
 
             {tab === "details" && (task.description || images.length || documents.length) ? (
               <View style={styles.card}>
-                <Section icon="file-text" title="Complaint description" />
+                <Section icon="file-text" title="Service request description" />
                 {task.description ? <Text style={styles.copy}>{task.description}</Text> : null}
                 {images.length ? (
                   <View style={styles.thumbs}>
@@ -438,7 +438,7 @@ export default function StaffTaskDetailScreen() {
 
             {tab === "history" && events.length ? (
               <View style={styles.card}>
-                <Section icon="clock" title="Complaint history" />
+                <Section icon="clock" title="Service request history" />
                 {events.map((event, index) => {
                   const showDay = index === 0 || dayKey(event.created_at) !== dayKey(events[index - 1]?.created_at);
                   const last = index === events.length - 1;
@@ -465,7 +465,7 @@ export default function StaffTaskDetailScreen() {
                 })}
               </View>
             ) : tab === "history" ? (
-              <EmptyState icon="clock" title="No history yet" body="Updates to this complaint will appear here." />
+              <EmptyState icon="clock" title="No history yet" body="Updates to this service request will appear here." />
             ) : null}
 
             {tab === "details" && pending ? (
@@ -488,7 +488,7 @@ export default function StaffTaskDetailScreen() {
             <View style={styles.sheetHead}>
               <View style={styles.sheetCopy}>
                 <Text style={styles.sheetTitle}>Update Status</Text>
-                <Text style={styles.sheetHint}>Choose where this complaint stands now.</Text>
+                <Text style={styles.sheetHint}>Choose where this service request stands now.</Text>
               </View>
               <Pressable onPress={closeSheet} accessibilityLabel="Close" style={styles.sheetClose}>
                 <Feather name="x" size={sf(16)} color="#334155" />

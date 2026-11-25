@@ -32,8 +32,8 @@ import {
 const ADMIN_STATUS = {
   ...STATUS_ACTION,
   resolved: "Mark resolved",
-  closed: "Close complaint",
-  cancelled: "Cancel complaint",
+  closed: "Close service request",
+  cancelled: "Cancel service request",
 };
 
 function pretty(value) {
@@ -62,7 +62,7 @@ export default function AdminComplaintDetailScreen() {
   const load = useCallback(async () => {
     setError("");
     try { setComplaint(await fetchAdminComplaint(id)); }
-    catch (err) { setError(err?.message || "Could not open this complaint."); }
+    catch (err) { setError(err?.message || "Could not open this service request."); }
     finally { setLoading(false); }
   }, [id]);
 
@@ -90,7 +90,7 @@ export default function AdminComplaintDetailScreen() {
     const choice = await showConfirm(
       label,
       cancelling
-        ? "The resident is notified that this complaint is cancelled."
+        ? "The resident is notified that this service request is cancelled."
         : "The resident is notified when the status changes.",
       {
         confirmLabel: cancelling ? "Cancel" : "Confirm",
@@ -102,7 +102,7 @@ export default function AdminComplaintDetailScreen() {
     setBusy(true);
     try {
       setComplaint(await updateAdminComplaintStatus(id, status));
-      await showSuccess(label, "The complaint status has been updated.");
+      await showSuccess(label, "The service request status has been updated.");
     } catch (err) {
       await showError(label, err?.message || "Could not update the status.");
     } finally {
@@ -111,7 +111,7 @@ export default function AdminComplaintDetailScreen() {
   };
 
   const assign = async (userId, name) => {
-    const choice = await showConfirm("Assign complaint", `${name} will be notified.`, {
+    const choice = await showConfirm("Assign service request", `${name} will be notified.`, {
       confirmLabel: "Assign",
       cancelLabel: "Cancel",
     });
@@ -119,9 +119,9 @@ export default function AdminComplaintDetailScreen() {
     setBusy(true);
     try {
       setComplaint(await assignComplaint(id, userId));
-      await showSuccess("Complaint assigned", `${name} has been notified.`);
+      await showSuccess("Service request assigned", `${name} has been notified.`);
     } catch (err) {
-      await showError("Assignment", err?.message || "Could not assign this complaint.");
+      await showError("Assignment", err?.message || "Could not assign this service request.");
     } finally {
       setBusy(false);
     }
@@ -134,10 +134,10 @@ export default function AdminComplaintDetailScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
-      <InternalScreenHeader dense title={complaint?.reference || "Complaint"} subtitle="Complaint management" onBack={goBack} />
+      <InternalScreenHeader dense title={complaint?.reference || "Service request"} subtitle="Service request management" onBack={goBack} />
       {loading ? <View style={styles.center}><ActivityIndicator color={Colors.brandPrimary} /></View> : null}
       {!loading && error ? (
-        <EmptyState icon="alert-circle" title="Could not open this complaint" body={error} actionLabel="Try again" actionIcon="refresh-cw" onAction={() => { setLoading(true); void load(); }} />
+        <EmptyState icon="alert-circle" title="Could not open this service request" body={error} actionLabel="Try again" actionIcon="refresh-cw" onAction={() => { setLoading(true); void load(); }} />
       ) : null}
       {complaint ? (
         <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + sw(32) }]} showsVerticalScrollIndicator={false}>
@@ -172,7 +172,7 @@ export default function AdminComplaintDetailScreen() {
                 })}
               </View>
             )}
-            <Text style={styles.helper}>{complaint.assigned_to_name ? `Currently assigned to ${complaint.assigned_to_name}.` : "This complaint is unassigned."}</Text>
+            <Text style={styles.helper}>{complaint.assigned_to_name ? `Currently assigned to ${complaint.assigned_to_name}.` : "This service request is unassigned."}</Text>
           </View>
 
           <Text style={styles.section}>Resolution</Text>
