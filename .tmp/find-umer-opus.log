@@ -1,0 +1,8 @@
+user 59 umer@namuve.com Umer role=community_admin admin=approved
+community_cols=id,name,region,region_id,description,address,latitude,longitude,requested_by_user_id,timezone,settings,estimated_residents,status,review_status,rejection_reason,reviewed_at,created_at,updated_at,deleted_at
+communities=1
+community 43 Opus Luxury Apartments
+memberships=1
+membership 68 community=43 Opus Luxury Apartments role=admin status=approved
+opus_admins=1
+admin_membership 68 user=59 umer@namuve.com role=admin status=approved

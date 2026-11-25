@@ -1,0 +1,18 @@
+archived_other=8
+ok emergency Severe Thunderstorm Warning alert-weather.jpg
+ok emergency Annual Fire Evacuation Drill notice-security.jpg
+ok emergency Coastal Flood Advisory Tonight feed-harborwalk.jpg
+ok emergency Winter Storm Watch: Secure Balconies feed-skyline.jpg
+ok maintenance Domestic Water Service on Wednesday feed-plumber.jpg
+ok maintenance Elevator B Modernization Starts Monday notice-maintenance.jpg
+ok general Saturday Shuttle to Boston Public Market feed-market.jpg
+carousel=7 alerts=4
+dup_images=none
+77	emergency	pin=1	2026-09-16	alert-weather.jpg	Severe Thunderstorm Warning
+78	emergency	pin=1	2026-09-17	notice-security.jpg	Annual Fire Evacuation Drill
+79	emergency	pin=1	2026-09-16	feed-harborwalk.jpg	Coastal Flood Advisory Tonight
+47	emergency	pin=0	2026-09-18	feed-skyline.jpg	Winter Storm Watch: Secure Balconies
+68	maintenance	pin=0	2026-09-17	feed-plumber.jpg	Domestic Water Service on Wednesday
+80	maintenance	pin=0	2026-09-21	notice-maintenance.jpg	Elevator B Modernization Starts Monday
+72	general	pin=0	2026-09-19	feed-market.jpg	Saturday Shuttle to Boston Public Market
+DONE

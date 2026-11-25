@@ -1,0 +1,55 @@
+# Local notes only. EAS CLI reads `.easignore` from the git root, not here.
+# Do NOT use **/android or **/ios at the repo root — that would drop
+# the app-locale native module and break Gradle.
+
+node_modules/
+.expo/
+.expo-*/
+.expo-tmp-*/
+.expo-test-bundle/
+.expo-bundle-check*/
+.expo-export-*/
+.expo-nw-check/
+.expo-pm-check/
+.expo-syntax-check/
+.expo-log-check*/
+.tmp-*
+.tmp-export/
+.tmp-export-check/
+.tmp-bundle-check*/
+.tmp-crash-check/
+.tmp-premium-check/
+dist/
+web-build/
+expo-env.d.ts
+expo-start.log
+
+# Generated native project only (project root). Keep modules/*/android and ios.
+# Leading-slash patterns were not excluding Windows paths; also drop Gradle output.
+/android/
+/ios/
+android/app/build/
+android/.gradle/
+android/build/
+ios/build/
+ios/Pods/
+
+# Store listing screenshots are not needed on the builder.
+store/
+
+android-secrets/
+apple-secrets/
+credentials.json
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+.env
+.env*.local
+# google-services.json is intentionally NOT ignored here (root .easignore
+# also allows it). Keep it gitignored; inject via EAS file env or local disk.
+GoogleService-Info.plist
+.ngrok-token
+expo-qr.png

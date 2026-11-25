@@ -1,0 +1,974 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Models\Community;
+use App\Models\CommunityMembership;
+use App\Models\Profile;
+use App\Models\Region;
+use App\Models\User;
+use App\Services\ActivityLogService;
+use App\Services\AdminRoleService;
+use App\Services\CommunityLifecycleService;
+use App\Services\ContactIdentityService;
+use App\Services\MembershipService;
+use App\Services\NotificationService;
+use App\Services\LifecycleMailService;
+use App\Services\LocationCatalog;
+use App\Services\OsmGeocodingService;
+use App\Services\ReferralService;
+use App\Support\CommunityGeography;
+use App\Support\CommunityLocation;
+use App\Support\CommunityNameUniqueness;
+use App\Support\RegionHierarchy;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+
+class AdminCommunityController extends Controller
+{
+    /** GET /v1/admin/communities — dropdown list or paginated admin index */
+    public function listActive(Request $request): JsonResponse
+    {
+        $scopeId = AdminRoleService::resolveAdminCommunityScope($request->user(), $request);
+
+        if (! $request->has('per_page') && ! $request->has('page') && ! $request->filled('review_status')) {
+            $communities = Community::query()
+                ->with(['regionRecord', 'plaidConnection'])
+                ->where('status', 'active')
+                ->where(function ($w) {
+                    $w->whereNull('review_status')
+                        ->orWhere('review_status', 'approved');
+                })
+                ->when($scopeId, fn ($q) => $q->where('id', $scopeId))
+                ->orderBy('name')
+                ->get();
+
+            return response()->json([
+                'data' => $communities->map(fn (Community $c) => $this->transformListItem($c))->values(),
+            ]);
+        }
+
+        $query = Community::query()
+            ->with(['regionRecord', 'requester.profile', 'plaidConnection'])
+            ->withCount($this->residentsCountRelation())
+            ->where(function ($w) {
+                $w->whereNull('review_status')
+                    ->orWhereIn('review_status', ['approved', 'pending', 'rejected']);
+            });
+
+        if ($status = $request->string('status')->trim()->toString()) {
+            if (in_array($status, ['active', 'inactive'], true)) {
+                $query->where('status', $status);
+            }
+        }
+
+        if ($reviewStatus = $request->string('review_status')->trim()->toString()) {
+            if (in_array($reviewStatus, ['pending', 'approved', 'rejected'], true)) {
+                $query->where('review_status', $reviewStatus);
+            }
+        } else {
+            $query->where(function ($w) {
+                $w->whereNull('review_status')
+                    ->orWhere('review_status', 'approved');
+            });
+        }
+
+        if ($regionId = $request->integer('region_id')) {
+            $query->where('region_id', $regionId);
+        }
+
+        if ($q = $request->string('q')->trim()->toString()) {
+            $query->where(function ($w) use ($q) {
+                $w->where('name', 'like', "%{$q}%")
+                    ->orWhere('address', 'like', "%{$q}%")
+                    ->orWhere('region', 'like', "%{$q}%");
+            });
+        }
+
+        $assignment = $request->string('assignment')->trim()->toString();
+        if (in_array($assignment, ['assigned', 'unassigned'], true)) {
+            $this->applyCommunityAdminAssignment($query, $assignment === 'assigned');
+        }
+
+        $items = $query->orderByDesc('created_at')
+            ->paginate(min((int) ($request->per_page ?? 15), 100));
+
+        return response()->json([
+            'data' => collect($items->items())->map(fn ($c) => $this->transformListItem($c))->values(),
+            'meta' => [
+                'current_page' => $items->currentPage(),
+                'last_page'    => $items->lastPage(),
+                'total'        => $items->total(),
+                'per_page'     => $items->perPage(),
+                'stats'        => $this->communityIndexStats(),
+            ],
+        ]);
+    }
+
+    /** POST /v1/admin/communities — admin creates an active community */
+    public function store(Request $request, OsmGeocodingService $geocoding): JsonResponse
+    {
+        $validated = $request->validate([
+            'name'        => ['required', 'string', 'max:255'],
+            'region_id'   => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
+            'city'        => ['nullable', 'string', 'min:2', 'max:150'],
+            'address'     => ['required', 'string', 'min:5', 'max:500'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            ...CommunityLocation::coordinateRules(),
+        ]);
+
+        $validated = CommunityLocation::applyOnCreate($validated, $geocoding);
+        $validated['name'] = CommunityNameUniqueness::trim($validated['name']);
+        $region = $this->resolveCommunityRegion(
+            (int) $validated['region_id'],
+            $validated['city'] ?? null,
+            $validated['address'] ?? null,
+            $validated['latitude'] ?? null,
+            $validated['longitude'] ?? null,
+        );
+
+        CommunityNameUniqueness::assertUnique(
+            $validated['name'],
+            field: 'name',
+        );
+
+        $community = Community::query()->create([
+            'name'          => $validated['name'],
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'address'       => $validated['address'] ?? null,
+            'description'   => $validated['description'] ?? null,
+            'latitude'      => $validated['latitude'],
+            'longitude'     => $validated['longitude'],
+            'timezone'      => $region->communityTimezone(),
+            'status'        => 'active',
+            'review_status' => 'approved',
+            'reviewed_at'   => now(),
+        ]);
+
+        ActivityLogService::user(
+            'community_created',
+            "Created community: {$community->name}",
+            'Community',
+            $community->id,
+        );
+
+        $community->load('regionRecord');
+
+        return response()->json([
+            'data'    => $this->transformListItem($community),
+            'message' => 'Community created successfully.',
+        ], 201);
+    }
+
+    /** GET /v1/admin/community-requests */
+    public function index(Request $request): JsonResponse
+    {
+        $reviewStatus = $request->string('review_status')->trim()->toString();
+        if (! in_array($reviewStatus, ['pending', 'rejected'], true)) {
+            $reviewStatus = 'pending';
+        }
+
+        $query = Community::query()
+            ->with(['regionRecord', 'requester.profile', 'plaidConnection'])
+            ->where('review_status', $reviewStatus);
+
+        if ($q = $request->string('q')->trim()->toString()) {
+            $query->where(function ($w) use ($q) {
+                $w->where('name', 'like', "%{$q}%")
+                    ->orWhere('address', 'like', "%{$q}%");
+            });
+        }
+
+        $items = $query->orderByDesc('created_at')
+            ->paginate(min((int) ($request->per_page ?? 15), 100));
+
+        return response()->json([
+            'data' => collect($items->items())->map(fn ($c) => $this->transform($c))->values(),
+            'meta' => [
+                'current_page' => $items->currentPage(),
+                'last_page'    => $items->lastPage(),
+                'total'        => $items->total(),
+                'per_page'     => $items->perPage(),
+                'stats'        => $this->communityIndexStats(),
+            ],
+        ]);
+    }
+
+    /** GET /v1/admin/community-requests/{id} */
+    public function show(int $id): JsonResponse
+    {
+        $community = Community::query()
+            ->with(['regionRecord', 'requester.profile', 'plaidConnection'])
+            ->findOrFail($id);
+
+        return response()->json(['data' => $this->transform($community, detailed: true)]);
+    }
+
+    /** PATCH /v1/admin/community-requests/{id}/approve */
+    public function approve(int $id, Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
+            'city' => ['nullable', 'string', 'min:2', 'max:150'],
+        ]);
+
+        $community = Community::query()->findOrFail($id);
+
+        if ($community->review_status !== 'pending') {
+            return response()->json(['message' => 'This community request is not pending review.'], 422);
+        }
+
+        $region = $this->resolveCommunityRegion(
+            (int) $validated['region_id'],
+            $validated['city'] ?? null,
+            $community->address,
+            $community->latitude,
+            $community->longitude,
+        );
+
+        CommunityNameUniqueness::assertUniqueInRegion(
+            $community->name,
+            $region->id,
+            field: 'name',
+            exceptCommunityId: $community->id,
+        );
+
+        DB::transaction(function () use ($community, $region) {
+            $community->update([
+                'status'         => 'active',
+                'review_status'  => 'approved',
+                'region_id'      => $region->id,
+                'region'         => $region->title,
+                'reviewed_at'    => now(),
+                'rejection_reason' => null,
+            ]);
+
+            CommunityMembership::query()
+                ->where('community_id', $community->id)
+                ->where('status', 'pending')
+                ->get()
+                ->each(function (CommunityMembership $membership) {
+                    $user = User::query()->find($membership->user_id);
+                    $membership->update([
+                        'status' => 'approved',
+                        'role'   => MembershipService::membershipRoleFor($user ?? new User(['role' => 'resident'])),
+                        'updated_at' => now(),
+                    ]);
+                });
+
+            if ($community->requested_by_user_id) {
+                $requester = User::query()->find($community->requested_by_user_id);
+
+                CommunityMembership::query()->firstOrCreate(
+                    [
+                        'user_id'      => $community->requested_by_user_id,
+                        'community_id' => $community->id,
+                    ],
+                    [
+                        'role'   => MembershipService::membershipRoleFor($requester ?? new User(['role' => 'resident'])),
+                        'status' => 'approved',
+                    ],
+                )->update([
+                    'status' => 'approved',
+                    'role'   => MembershipService::membershipRoleFor($requester ?? new User(['role' => 'resident'])),
+                    'updated_at' => now(),
+                ]);
+
+                NotificationService::send(
+                    $community->requested_by_user_id,
+                    'success',
+                    'Community approved',
+                    "{$community->name} has been approved. Your community admin application is still under review — you'll get full access once a system administrator approves your account.",
+                );
+            }
+        });
+
+        ActivityLogService::user(
+            'community_approved',
+            "Approved community request: {$community->name}",
+            'Community',
+            $community->id,
+        );
+
+        $community->refresh()->load(['regionRecord', 'requester.profile']);
+
+        app(\App\Services\CommunityAdminAccessService::class)->activateTrialIfApproved($community);
+
+        if ($community->requested_by_user_id && $community->requester) {
+            app(LifecycleMailService::class)->communityApproved($community, $community->requester);
+        }
+
+        return response()->json([
+            'data'    => $this->transform($community, detailed: true),
+            'message' => 'Community approved and activated.',
+        ]);
+    }
+
+    /** PATCH /v1/admin/community-requests/{id}/reject */
+    public function reject(int $id, Request $request): JsonResponse
+    {
+        $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $community = Community::query()->findOrFail($id);
+
+        if ($community->review_status !== 'pending') {
+            return response()->json(['message' => 'This community request is not pending review.'], 422);
+        }
+
+        DB::transaction(function () use ($community, $request) {
+            $community->update([
+                'status'           => 'inactive',
+                'review_status'    => 'rejected',
+                'reviewed_at'      => now(),
+                'rejection_reason' => $request->input('reason'),
+            ]);
+
+            CommunityMembership::query()
+                ->where('community_id', $community->id)
+                ->where('status', 'pending')
+                ->update(['status' => 'rejected', 'updated_at' => now()]);
+
+            app(\App\Services\CommunityAdminAccessService::class)
+                ->cancelBillingOnRejection((int) $community->id, 'community_rejected');
+
+            if ($community->requested_by_user_id) {
+                NotificationService::send(
+                    $community->requested_by_user_id,
+                    'warning',
+                    'Community request declined',
+                    $request->filled('reason')
+                        ? $request->input('reason')
+                        : 'Your community request could not be approved. Please contact support or submit a new request.',
+                );
+            }
+        });
+
+        ActivityLogService::user(
+            'community_rejected',
+            "Rejected community request: {$community->name}",
+            'Community',
+            $community->id,
+            'warning',
+        );
+
+        $community->refresh()->load(['regionRecord', 'requester.profile']);
+
+        if ($community->requester) {
+            app(LifecycleMailService::class)->communityRejected(
+                $community,
+                $community->requester,
+                $request->input('reason'),
+            );
+        }
+
+        return response()->json([
+            'data'    => $this->transform($community, detailed: true),
+            'message' => 'Community request rejected.',
+        ]);
+    }
+
+    /** PUT /v1/admin/communities/{id} */
+    public function update(int $id, Request $request, OsmGeocodingService $geocoding): JsonResponse
+    {
+        $community = Community::query()->findOrFail($id);
+
+        if (! in_array($community->review_status, [null, 'approved'], true)) {
+            return response()->json([
+                'message' => 'Only approved communities can be edited. Use the requests tab to review pending communities.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'name'        => ['sometimes', 'string', 'max:255'],
+            'region_id'   => ['sometimes', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
+            'city'        => ['nullable', 'string', 'min:2', 'max:150'],
+            'address'     => ['sometimes', 'required', 'string', 'min:5', 'max:500'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            ...CommunityLocation::coordinateRules(),
+        ]);
+
+        if (array_key_exists('region_id', $validated)) {
+            $nextAddress = array_key_exists('address', $validated)
+                ? (string) $validated['address']
+                : (string) $community->address;
+            $region = $this->resolveCommunityRegion(
+                (int) $validated['region_id'],
+                $validated['city'] ?? null,
+                $nextAddress,
+                $validated['latitude'] ?? $community->latitude,
+                $validated['longitude'] ?? $community->longitude,
+            );
+            $validated['region_id'] = $region->id;
+            $validated['region'] = $region->title;
+        }
+
+        if (array_key_exists('name', $validated)) {
+            $validated['name'] = CommunityNameUniqueness::trim((string) $validated['name']);
+        }
+        $nextName = array_key_exists('name', $validated) ? (string) $validated['name'] : $community->name;
+        CommunityNameUniqueness::assertUnique(
+            $nextName,
+            field: 'name',
+            exceptCommunityId: $community->id,
+        );
+
+        $before = ActivityLogService::snapshot($community, ['name', 'region', 'region_id', 'address', 'description', 'latitude', 'longitude']);
+        $validated = CommunityLocation::applyOnUpdate($community, $validated, $geocoding);
+        $community->update($validated);
+        $community->refresh()->load(['regionRecord', 'requester.profile']);
+
+        ActivityLogService::recordUpdate(
+            'community_updated',
+            'Community',
+            $community->id,
+            $before,
+            ActivityLogService::snapshot($community, ['name', 'region', 'region_id', 'address', 'description', 'latitude', 'longitude']),
+            ['region_id' => 'Region'],
+            null,
+            null,
+            ['related_item' => $community->name],
+        );
+
+        return response()->json([
+            'data'    => $this->transformListItem($community),
+            'message' => 'Community updated successfully.',
+        ]);
+    }
+
+    /** DELETE /v1/admin/communities/{id} */
+    public function destroy(int $id): JsonResponse
+    {
+        $community = Community::query()->findOrFail($id);
+
+        if ($community->review_status === 'pending') {
+            return response()->json([
+                'message' => 'Pending community requests cannot be deleted here. Reject the request instead.',
+            ], 422);
+        }
+
+        if (\App\Models\PlaidTransfer::query()->where('community_id', $community->id)->exists()) {
+            return response()->json([
+                'message' => 'This community has bank payment history and cannot be deleted. Deactivate it instead.',
+            ], 422);
+        }
+
+        $name = $community->name;
+        $communityId = $community->id;
+
+        DB::transaction(fn () => $community->delete());
+
+        ActivityLogService::user(
+            'community_deleted',
+            "Deleted community: {$name}",
+            'Community',
+            $communityId,
+            'warning',
+        );
+
+        return response()->json(['message' => 'Community deleted.']);
+    }
+
+    /** PATCH /v1/admin/communities/{id}/status */
+    public function updateStatus(int $id, Request $request, CommunityLifecycleService $lifecycle): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => ['required', 'string', Rule::in(['active', 'inactive'])],
+        ]);
+
+        $community = Community::query()->findOrFail($id);
+
+        if (! in_array($community->review_status, [null, 'approved'], true)) {
+            return response()->json([
+                'message' => 'Only approved communities can be activated or deactivated.',
+            ], 422);
+        }
+
+        $previousStatus = $community->status;
+
+        if ($validated['status'] === 'inactive') {
+            $lifecycle->deactivateCommunity($community);
+            $message = 'Community deactivated. All admins and residents in this community can no longer sign in.';
+        } else {
+            $lifecycle->activateCommunity($community);
+            $message = 'Community reactivated. Admins and residents restored.';
+        }
+
+        ActivityLogService::recordStatusChange(
+            $validated['status'] === 'inactive' ? 'community_deactivated' : 'community_reactivated',
+            'Community',
+            $community->id,
+            $previousStatus,
+            $validated['status'],
+            'Status',
+            null,
+            null,
+            ['related_item' => $community->name],
+            $validated['status'] === 'inactive' ? 'warning' : 'info',
+        );
+
+        $community->refresh()->load(['regionRecord', 'requester.profile']);
+
+        return response()->json([
+            'data'    => $this->transformListItem($community),
+            'message' => $message,
+        ]);
+    }
+
+    /** GET /v1/admin/communities/{id}/admin */
+    public function showAdmin(int $id, CommunityLifecycleService $lifecycle): JsonResponse
+    {
+        $community = Community::query()->with('regionRecord')->findOrFail($id);
+        $admin = $lifecycle->getCommunityAdmin($community);
+
+        return response()->json([
+            'data' => [
+                'community' => $this->transformListItem($community),
+                'admin'     => $admin ? [
+                    'id'                => $admin->id,
+                    'name'              => $admin->name,
+                    'email'             => $admin->email,
+                    'phone'             => $admin->phone,
+                    'status'            => $admin->status,
+                    'suspension_reason' => $admin->suspension_reason,
+                ] : null,
+            ],
+        ]);
+    }
+
+    /** POST /v1/admin/communities/{id}/assign-admin */
+    public function assignAdmin(int $id, Request $request, CommunityLifecycleService $lifecycle): JsonResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
+            'name'    => ['nullable', 'string', 'max:100'],
+            'first_name' => ['nullable', 'string', 'min:1', 'max:50', 'required_with:last_name'],
+            'last_name' => ['nullable', 'string', 'min:1', 'max:50', 'required_with:first_name'],
+            'email'   => ['nullable', 'email', 'max:255'],
+            'phone'   => ['nullable', 'string', 'max:30'],
+        ]);
+
+        $hasNewUser = $request->filled('email');
+        $createdNewAdmin = false;
+        if (empty($validated['user_id']) && ! $hasNewUser) {
+            return response()->json([
+                'message' => 'Provide user_id or a new admin email.',
+                'errors'  => ['user_id' => ['A community admin must be selected or created.']],
+            ], 422);
+        }
+
+        $community = Community::query()->findOrFail($id);
+        $previousAdmin = $lifecycle->getCommunityAdmin($community);
+
+        if ($hasNewUser) {
+            $phone = null;
+            if ($request->filled('phone')) {
+                $phone = \App\Support\PhoneNormalizer::normalize($validated['phone']);
+                if (! $phone) {
+                    return response()->json(['message' => 'Invalid phone number.', 'errors' => ['phone' => ['Invalid phone format.']]], 422);
+                }
+            }
+
+            $existingUser = $phone
+                ? User::query()->where('phone', $phone)->first()
+                : User::query()->where('email', $validated['email'])->first();
+            if ($existingUser) {
+                if (($existingUser->role ?? '') === 'resident') {
+                    ContactIdentityService::failDuplicate(
+                        $phone ? 'phone' : 'email',
+                        $phone ? ContactIdentityService::DUPLICATE_PHONE_MESSAGE : ContactIdentityService::DUPLICATE_EMAIL_MESSAGE,
+                    );
+                }
+
+                try {
+                    $lifecycle->assertCanAdminCommunity($existingUser, $community);
+                } catch (ValidationException $e) {
+                    return response()->json([
+                        'message' => $e->getMessage(),
+                        'errors'  => $e->errors(),
+                    ], 422);
+                }
+
+                $newAdmin = $existingUser;
+                $keepSystemRole = AdminRoleService::isSystemAdmin($existingUser);
+            } else {
+                ContactIdentityService::assertAvailableForRegistration($validated['email'], $phone);
+                if ($request->hasAny(['first_name', 'last_name'])) {
+                    $nameParts = \App\Support\PersonName::fromParts(
+                        (string) $request->input('first_name', ''),
+                        (string) $request->input('last_name', ''),
+                        50,
+                    );
+                    $displayName = $nameParts['display_name'];
+                } else {
+                    $displayName = trim($validated['name'] ?? '') ?: 'Neighbor';
+                    $nameParts = null;
+                }
+                $newAdmin = User::query()->create([
+                    'name'                   => $displayName,
+                    'email'                  => $validated['email'],
+                    'phone'                  => $phone,
+                    'password'               => Str::random(32),
+                    'status'                 => 'active',
+                    'role'                   => 'community_admin',
+                    'community_admin_status' => 'approved',
+                ]);
+                Profile::query()->create([
+                    'user_id'      => $newAdmin->id,
+                    'display_name' => $displayName,
+                    'first_name'   => $nameParts['first_name'] ?? null,
+                    'last_name'    => $nameParts['last_name'] ?? null,
+                ]);
+                $keepSystemRole = false;
+                $createdNewAdmin = true;
+            }
+        } else {
+            $newAdmin = User::query()->findOrFail((int) $validated['user_id']);
+            $keepSystemRole = AdminRoleService::isSystemAdmin($newAdmin);
+            try {
+                $lifecycle->assertCanAdminCommunity($newAdmin, $community);
+            } catch (ValidationException $e) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                    'errors'  => $e->errors(),
+                ], 422);
+            }
+        }
+
+        if (AdminRoleService::isSystemAdmin($newAdmin)) {
+            return response()->json([
+                'message' => 'A system administrator cannot be assigned as a community admin. Invite a community admin instead.',
+            ], 422);
+        }
+
+        try {
+            $assigned = $lifecycle->assignCommunityAdmin($community, $newAdmin, $keepSystemRole);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors'  => $e->errors(),
+            ], 422);
+        }
+
+        ActivityLogService::recordChanges(
+            'community_admin_assigned',
+            'Community',
+            $community->id,
+            [[
+                'field' => 'Community Assignment',
+                'key' => 'community_assignment',
+                'previous' => $previousAdmin?->name,
+                'next' => $assigned->name,
+            ]],
+            $assigned->name,
+            (int) $assigned->id,
+            [
+                'community_id' => $community->id,
+                'community_name' => $community->name,
+                'previous_admin' => $this->adminLogSnapshot($previousAdmin),
+                'new_admin' => $this->adminLogSnapshot($assigned),
+                'related_item' => $community->name,
+                'performed_at' => now()->toIso8601String(),
+            ],
+        );
+
+        NotificationService::send(
+            $assigned->id,
+            'success',
+            'Community admin access granted',
+            "You have been assigned to manage {$community->name} in Havena.",
+            null,
+            ['scope' => 'account', 'community_id' => $community->id],
+        );
+
+        app(ReferralService::class)->ensureReferralCode($assigned->fresh());
+        $emailSent = app(LifecycleMailService::class)->communityAdminProvisioned(
+            $assigned->fresh(['profile']),
+            $community,
+            $createdNewAdmin,
+        );
+
+        return response()->json([
+            'data'    => [
+                'community' => $this->transformListItem($community->fresh(['regionRecord'])),
+                'admin'     => [
+                    'id'    => $assigned->id,
+                    'name'  => $assigned->name,
+                    'email' => $assigned->email,
+                    'phone' => $assigned->phone,
+                    'role'  => $assigned->role,
+                ],
+                'email_sent' => $emailSent,
+            ],
+            'message' => $emailSent
+                ? 'Community admin assigned successfully. A welcome email was sent.'
+                : 'Community admin assigned successfully. The welcome email could not be sent — share sign-in instructions manually.',
+        ]);
+    }
+
+    /** POST /v1/admin/communities/{id}/release-admin */
+    public function releaseAdmin(int $id, Request $request, CommunityLifecycleService $lifecycle): JsonResponse
+    {
+        $community = Community::query()->findOrFail($id);
+        $previousAdmin = $lifecycle->getCommunityAdmin($community);
+        $released = $lifecycle->releaseCommunityAdmin($community);
+        $community = $community->fresh(['regionRecord']);
+
+        $actor = $request->user();
+        ActivityLogService::user(
+            'community_admin_released',
+            "Released {$released->name} as admin for {$community->name}",
+            'Community',
+            $community->id,
+            'info',
+            $actor?->id,
+            [
+                'community_id' => $community->id,
+                'community_name' => $community->name,
+                'previous_admin' => $this->adminLogSnapshot($previousAdmin ?? $released),
+                'new_admin' => null,
+                'performed_by' => $this->adminLogSnapshot($actor),
+                'performed_at' => now()->toIso8601String(),
+            ],
+        );
+
+        return response()->json([
+            'data' => [
+                'community' => $this->transformListItem($community),
+                'released_admin' => $this->adminLogSnapshot($released),
+            ],
+            'message' => 'Community Admin released successfully.',
+        ]);
+    }
+
+    /** @return array{id:int,name:?string,email:?string}|null */
+    private function adminLogSnapshot(?User $admin): ?array
+    {
+        if (! $admin) {
+            return null;
+        }
+
+        return [
+            'id' => $admin->id,
+            'name' => $admin->name,
+            'email' => $admin->email,
+        ];
+    }
+
+    private function transform(Community $community, bool $detailed = false): array
+    {
+        $requester = $community->requester;
+        $profile = $requester?->profile;
+
+        $payload = [
+            'id'             => $community->id,
+            'name'           => $community->name,
+            'address'        => $community->address,
+            'description'    => $community->description,
+            'latitude'       => $community->latitude,
+            'longitude'      => $community->longitude,
+            'region'         => $community->region,
+            'region_id'      => $community->region_id,
+            'status'         => $community->status,
+            'review_status'  => $community->review_status,
+            'rejection_reason' => $community->rejection_reason,
+            'requested_by'   => $requester ? [
+                'id'    => $requester->id,
+                'name'  => $profile?->display_name ?: $requester->name,
+                'email' => $requester->email,
+                'phone' => $requester->phone,
+            ] : null,
+            'region_detail'  => $community->regionRecord ? [
+                'id'    => $community->regionRecord->id,
+                'title' => $community->regionRecord->title,
+                'hierarchy_label' => RegionHierarchy::hierarchyLabel($community->regionRecord),
+                'area'  => $community->regionRecord->area,
+                'state' => $community->regionRecord->state,
+            ] : null,
+            'created_at'     => $community->created_at?->toIso8601String(),
+            'reviewed_at'    => $community->reviewed_at?->toIso8601String(),
+            'plaid_connection' => $this->plaidConnectionPayload($community),
+        ];
+
+        if ($profile && ($detailed || in_array($community->review_status, ['pending', 'rejected'], true))) {
+            $payload['requester_profile'] = [
+                'unit_number'      => $profile->unit_number,
+                'residence_type'   => $profile->residence_type,
+                'utility_bill_url' => $this->resolveMediaUrl($profile->utility_bill_url),
+            ];
+        }
+
+        return $payload;
+    }
+
+    /** Counts used by the System Admin community tabs. */
+    private function communityIndexStats(): array
+    {
+        $approvedScope = function ($query) {
+            $query->where(function ($w) {
+                $w->whereNull('review_status')->orWhere('review_status', 'approved');
+            });
+        };
+
+        $assigned = Community::query()->where('status', 'active');
+        $approvedScope($assigned);
+        $this->applyCommunityAdminAssignment($assigned, true);
+
+        $unassigned = Community::query()->where('status', 'active');
+        $approvedScope($unassigned);
+        $this->applyCommunityAdminAssignment($unassigned, false);
+
+        return [
+            'total'      => Community::query()->tap($approvedScope)->count(),
+            'active'     => Community::query()->where('status', 'active')->tap($approvedScope)->count(),
+            'inactive'   => Community::query()->where('status', 'inactive')->tap($approvedScope)->count(),
+            'pending'    => Community::query()->where('review_status', 'pending')->count(),
+            'approved'   => Community::query()->where('review_status', 'approved')->count(),
+            'rejected'   => Community::query()->where('review_status', 'rejected')->count(),
+            'assigned'   => $assigned->count(),
+            'unassigned' => $unassigned->count(),
+        ];
+    }
+
+    /**
+     * Assigned means an approved, active Community Admin membership.
+     * Matches CommunityLifecycleService::hasCommunityAdminAssigned().
+     */
+    private function applyCommunityAdminAssignment($query, bool $assigned): void
+    {
+        $constraint = function ($memberships) {
+            $memberships->where('role', 'admin')
+                ->where('status', 'approved')
+                ->whereHas('user', function ($user) {
+                    $user->where('status', 'active')
+                        ->where(function ($roleQuery) {
+                            $roleQuery
+                                ->where(function ($communityAdmin) {
+                                    $communityAdmin->where('role', 'community_admin')
+                                        ->where('community_admin_status', 'approved');
+                                })
+                                ->orWhereIn('role', ['system_admin', 'admin']);
+                        });
+                });
+        };
+
+        if ($assigned) {
+            $query->whereHas('memberships', $constraint);
+        } else {
+            $query->whereDoesntHave('memberships', $constraint);
+        }
+    }
+
+    /** Approved resident memberships scoped to this community. */
+    private function residentsCountRelation(): array
+    {
+        return [
+            'memberships as residents_count' => function ($q) {
+                $q->where('role', 'member')
+                    ->where('status', 'approved')
+                    ->whereHas('user', function ($user) {
+                        $user->where('role', 'resident')
+                            ->where('status', '!=', 'deleted');
+                    });
+            },
+        ];
+    }
+
+    private function resolveMediaUrl(?string $url): ?string
+    {
+        if (! $url) {
+            return null;
+        }
+
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+
+        return url($url);
+    }
+
+    private function transformListItem(Community $community): array
+    {
+        $requester = $community->relationLoaded('requester') ? $community->requester : null;
+        $profile = $requester?->profile;
+        $lifecycle = app(CommunityLifecycleService::class);
+        $admin = $lifecycle->getCommunityAdmin($community);
+
+        return [
+            'id'             => $community->id,
+            'name'           => $community->name,
+            'address'        => $community->address,
+            'description'    => $community->description,
+            'latitude'       => $community->latitude,
+            'longitude'      => $community->longitude,
+            'region'         => $community->region,
+            'region_id'      => $community->region_id,
+            'region_title'   => $community->regionRecord
+                ? RegionHierarchy::hierarchyLabel($community->regionRecord)
+                : ($community->region ?? null),
+            'currency'       => app(\App\Services\CommunityCurrencyService::class)->forCommunity($community),
+            'status'         => $community->status,
+            'review_status'  => $community->review_status,
+            'rejection_reason' => $community->rejection_reason,
+            'requested_by'   => $requester ? [
+                'id'    => $requester->id,
+                'name'  => $profile?->display_name ?: $requester->name,
+                'email' => $requester->email,
+                'phone' => $requester->phone,
+            ] : null,
+            'has_admin'      => $lifecycle->hasCommunityAdminAssigned($community)
+                || $lifecycle->hasPendingCommunityAdminApplicant($community),
+            'admin_user'     => $admin ? [
+                'id'                => $admin->id,
+                'name'              => $admin->name,
+                'email'             => $admin->email,
+                'phone'             => $admin->phone,
+                'status'            => $admin->status,
+                'suspension_reason' => $admin->suspension_reason,
+            ] : null,
+            'residents_count' => (int) ($community->residents_count ?? 0),
+            'created_at'     => $community->created_at?->toIso8601String(),
+            'reviewed_at'    => $community->reviewed_at?->toIso8601String(),
+            'plaid_connection' => $this->plaidConnectionPayload($community),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function plaidConnectionPayload(Community $community): array
+    {
+        $connection = $community->relationLoaded('plaidConnection')
+            ? $community->plaidConnection
+            : $community->plaidConnection()->first();
+
+        return app(\App\Services\PlaidService::class)->publicStatusForCommunity($connection);
+    }
+
+    private function resolveCommunityRegion(
+        int $regionId,
+        ?string $city = null,
+        ?string $address = null,
+        mixed $latitude = null,
+        mixed $longitude = null,
+    ): Region {
+        $region = Region::query()
+            ->where('status', 'active')
+            ->with('stateRecord.country')
+            ->findOrFail($regionId);
+
+        return app(CommunityGeography::class)->resolveForCommunity(
+            $region,
+            $city,
+            $address,
+            $latitude,
+            $longitude,
+            app(LocationCatalog::class),
+            app(OsmGeocodingService::class),
+        );
+    }
+}

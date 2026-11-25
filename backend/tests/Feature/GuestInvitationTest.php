@@ -1,0 +1,1708 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Community;
+use App\Models\CommunityMembership;
+use App\Models\CommunitySubscription;
+use App\Models\GuestInvitation;
+use App\Models\Region;
+use App\Models\User;
+use App\Services\GuestAccessService;
+use App\Services\GuestInvitationService;
+use App\Services\OtpService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+class GuestInvitationTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function seedCommunityAdmin(): array
+    {
+        $region = Region::query()->create([
+            'title'       => 'Test Region',
+            'area'        => 'Test Area',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $community = Community::query()->create([
+            'name'          => 'Test Community',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $admin = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'phone'                  => '+12015555555',
+            'phone_verified_at'      => now(),
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $admin->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'starter',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_ACTIVE,
+            'seat_limit' => 100,
+            'meta' => ['card_on_file' => true, 'activated_via' => 'manual'],
+        ]);
+
+        return [$community, $admin];
+    }
+
+    private function seedResident(Community $community): User
+    {
+        $resident = User::factory()->create([
+            'role'              => 'resident',
+            'phone'             => '+12018888888',
+            'phone_verified_at' => now(),
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $resident->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        return $resident;
+    }
+
+    /**
+     * @param  array{
+     *   guest_name?: string,
+     *   guest_email?: string,
+     *   starts_at?: \Illuminate\Support\Carbon,
+     *   ends_at?: \Illuminate\Support\Carbon,
+     *   status?: string
+     * }  $overrides
+     */
+    private function createActiveInvitation(Community $community, User $admin, array $overrides = []): GuestInvitation
+    {
+        $startsAt = $overrides['starts_at'] ?? now()->addHour();
+        $endsAt = $overrides['ends_at'] ?? $startsAt->copy()->addWeek();
+
+        return GuestInvitation::query()->create([
+            'community_id' => $community->id,
+            'invited_by_user_id' => $admin->id,
+            'invitation_type' => 'admin',
+            'guest_name' => $overrides['guest_name'] ?? 'Active Extend Guest',
+            'guest_email' => $overrides['guest_email'] ?? 'extend-guest@example.com',
+            'guest_phone' => '+15550009999',
+            'invite_code' => GuestInvitationService::generateInviteCode(),
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'status' => $overrides['status'] ?? 'active',
+            'permissions' => ['feed' => true],
+        ]);
+    }
+
+    public function test_admin_can_invite_guest(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Jane Guest',
+            'guest_email' => 'jane@example.com',
+            'guest_phone' => '+15551234567',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.guest_name', 'Jane Guest')
+            ->assertJsonPath('data.invitation_type', 'admin')
+            ->assertJsonPath('data.status', 'pending_verification');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'community_id'    => $community->id,
+            'guest_name'      => 'Jane Guest',
+            'invitation_type' => 'admin',
+        ]);
+    }
+
+    public function test_admin_invite_rejects_guest_name_with_numbers(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Jane 2',
+            'guest_email' => 'jane@example.com',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['guest_name']);
+    }
+
+    public function test_admin_invite_rejects_guest_name_outside_length_limits(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $window = [
+            'guest_email' => 'length@example.com',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ];
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            ...$window,
+            'guest_name' => ' ',
+        ])->assertUnprocessable()
+            ->assertJsonPath('errors.guest_name.0', 'Guest name is required.');
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            ...$window,
+            'guest_name' => 'A',
+        ])->assertUnprocessable()
+            ->assertJsonPath('errors.guest_name.0', 'Guest name must be at least 2 characters.');
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            ...$window,
+            'guest_name' => str_repeat('A', 26),
+        ])->assertUnprocessable()
+            ->assertJsonPath('errors.guest_name.0', 'Guest name must be 25 characters or less.');
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            ...$window,
+            'guest_email' => 'length-ok@example.com',
+            'guest_name' => str_repeat('A', 25),
+        ])->assertCreated()
+            ->assertJsonPath('data.guest_name', str_repeat('A', 25));
+    }
+
+    public function test_admin_invite_rejects_when_no_permission_is_selected(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Jane Guest',
+            'guest_email' => 'jane@example.com',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+            'permissions' => [
+                'feed'        => false,
+                'notices'     => false,
+                'events'      => false,
+                'marketplace' => false,
+                'businesses'  => false,
+                'wellness'    => false,
+            ],
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['permissions']);
+        $this->assertSame(
+            'Please select at least one permission.',
+            $response->json('errors.permissions.0'),
+        );
+        $this->assertDatabaseMissing('guest_invitations', [
+            'guest_email' => 'jane@example.com',
+        ]);
+    }
+
+    public function test_admin_invite_accepts_wellness_only_permission(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Wellness Guest',
+            'guest_email' => 'wellness.only@example.com',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+            'permissions' => [
+                'feed'        => false,
+                'notices'     => false,
+                'events'      => false,
+                'marketplace' => false,
+                'businesses'  => false,
+                'wellness'    => true,
+            ],
+        ])->assertCreated()
+            ->assertJsonPath('data.permissions.wellness', true)
+            ->assertJsonPath('data.permissions.feed', false);
+    }
+
+    public function test_admin_invite_rejects_invalid_guest_email(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Jane Guest',
+            'guest_email' => 'not-an-email',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['guest_email']);
+    }
+
+    public function test_resident_can_invite_guest(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        $resident = $this->seedResident($community);
+        Sanctum::actingAs($resident);
+
+        $response = $this->postJson('/api/v1/guest-invitations', [
+            'guest_name'  => 'Bob Visitor',
+            'guest_email' => 'bob.visitor@example.com',
+            'guest_phone' => '+15559876543',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDays(2)->toIso8601String(),
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.invitation_type', 'resident');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'invited_by_user_id' => $resident->id,
+            'invitation_type'    => 'resident',
+        ]);
+    }
+
+    public function test_admin_can_invite_guest_for_one_hour_window(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addMinutes(5);
+        $endsAt = $startsAt->copy()->addHour();
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'One Hour Guest',
+            'guest_email' => 'onehour@example.com',
+            'guest_phone' => '+15550001111',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $endsAt->toIso8601String(),
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.guest_name', 'One Hour Guest');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'community_id' => $community->id,
+            'guest_name'   => 'One Hour Guest',
+            'guest_phone'  => '+15550001111',
+        ]);
+    }
+
+    public function test_admin_invite_rejects_access_window_shorter_than_30_minutes(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Too Short Guest',
+            'guest_email' => 'tooshort@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->addMinutes(29)->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['ends_at']);
+        $this->assertSame(
+            'Guest access duration must be at least 30 minutes.',
+            $response->json('errors.ends_at.0'),
+        );
+        $this->assertDatabaseMissing('guest_invitations', [
+            'guest_email' => 'tooshort@example.com',
+        ]);
+    }
+
+    public function test_admin_invite_accepts_30_minute_access_window(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Half Hour Guest',
+            'guest_email' => 'halfhour@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->addMinutes(30)->toIso8601String(),
+        ])->assertCreated();
+    }
+
+    public function test_admin_invite_accepts_access_window_within_one_year(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Six Month Guest',
+            'guest_email' => 'sixmonth@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->addMonthsNoOverflow(6)->toIso8601String(),
+        ])->assertCreated();
+    }
+
+    public function test_admin_invite_accepts_access_window_exactly_one_year(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'One Year Guest',
+            'guest_email' => 'oneyear@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => GuestInvitationService::latestAllowedEnd($startsAt)->toIso8601String(),
+        ])->assertCreated();
+    }
+
+    public function test_admin_invite_rejects_access_window_longer_than_one_year(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Too Long Guest',
+            'guest_email' => 'toolong@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->addYearsNoOverflow(1)->addMinute()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['ends_at']);
+        $this->assertSame(
+            GuestInvitationService::MAX_ACCESS_DURATION_MESSAGE,
+            $response->json('errors.ends_at.0'),
+        );
+        $this->assertDatabaseMissing('guest_invitations', [
+            'guest_email' => 'toolong@example.com',
+        ]);
+    }
+
+    public function test_admin_invite_rejects_end_before_start(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addDay();
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Backwards Guest',
+            'guest_email' => 'backwards@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->subHour()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['ends_at']);
+        $this->assertDatabaseMissing('guest_invitations', [
+            'guest_email' => 'backwards@example.com',
+        ]);
+    }
+
+    public function test_admin_extend_rejects_access_window_longer_than_one_year(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $invitation = $this->createActiveInvitation($community, $admin, [
+            'guest_email' => 'extend-too-long@example.com',
+            'starts_at'   => $startsAt,
+            'ends_at'     => $startsAt->copy()->addMonthsNoOverflow(11),
+        ]);
+
+        $response = $this->patchJson("/api/v1/admin/guests/{$invitation->id}/extend", [
+            'ends_at' => $startsAt->copy()->addYearsNoOverflow(1)->addDay()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['ends_at']);
+        $this->assertSame(
+            GuestInvitationService::MAX_ACCESS_DURATION_MESSAGE,
+            $response->json('errors.ends_at.0'),
+        );
+        $this->assertSame(
+            $startsAt->copy()->addMonthsNoOverflow(11)->format('Y-m-d H:i:s'),
+            $invitation->fresh()->ends_at->format('Y-m-d H:i:s'),
+        );
+    }
+
+    public function test_admin_extend_accepts_new_end_within_one_year(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $invitation = $this->createActiveInvitation($community, $admin, [
+            'guest_email' => 'extend-ok@example.com',
+            'starts_at'   => $startsAt,
+            'ends_at'     => $startsAt->copy()->addWeek(),
+        ]);
+
+        $nextEnd = $startsAt->copy()->addMonthsNoOverflow(2);
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/extend", [
+            'ends_at' => $nextEnd->toIso8601String(),
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'active');
+
+        $this->assertSame(
+            $nextEnd->format('Y-m-d H:i:s'),
+            $invitation->fresh()->ends_at->format('Y-m-d H:i:s'),
+        );
+    }
+
+    public function test_existing_guest_longer_than_one_year_remains_readable(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->subMonthsNoOverflow(6);
+        $invitation = $this->createActiveInvitation($community, $admin, [
+            'guest_email' => 'legacy-long@example.com',
+            'starts_at'   => $startsAt,
+            'ends_at'     => $startsAt->copy()->addYearsNoOverflow(2),
+        ]);
+
+        $this->getJson("/api/v1/admin/guests/{$invitation->id}")
+            ->assertOk()
+            ->assertJsonPath('data.guest_email', 'legacy-long@example.com')
+            ->assertJsonPath('data.status', 'active');
+    }
+
+    public function test_admin_invite_rejects_start_in_the_past(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Past Start Guest',
+            'guest_email' => 'paststart@example.com',
+            'starts_at'   => now()->subYear()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['starts_at']);
+        $this->assertSame(
+            GuestInvitationService::START_IN_PAST_MESSAGE,
+            $response->json('errors.starts_at.0'),
+        );
+        $this->assertDatabaseMissing('guest_invitations', [
+            'guest_email' => 'paststart@example.com',
+        ]);
+    }
+
+    public function test_admin_invite_rejects_start_one_minute_ago(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Minute Ago Guest',
+            'guest_email' => 'minuteago@example.com',
+            'starts_at'   => now()->subMinute()->startOfMinute()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['starts_at']);
+        $this->assertSame(
+            GuestInvitationService::START_IN_PAST_MESSAGE,
+            $response->json('errors.starts_at.0'),
+        );
+    }
+
+    public function test_admin_invite_accepts_start_at_current_minute(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->startOfMinute();
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Now Start Guest',
+            'guest_email' => 'nowstart@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->addHour()->toIso8601String(),
+        ])->assertCreated();
+    }
+
+    public function test_guest_verify_flow_admin_invite_requires_admin_approval(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Active Guest',
+            'guest_email' => 'activeguest@example.com',
+            'guest_phone' => '+15551112222',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('activeguest@example.com');
+
+        $verify = $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'activeguest@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ]);
+
+        $verify->assertOk()
+            ->assertJsonPath('invitation_status', 'pending_approval')
+            ->assertJsonPath('user.guest_access.status', 'pending_approval')
+            ->assertJsonPath('user.guest_access.can_access_dashboard', false)
+            ->assertJsonStructure(['token', 'user']);
+
+        Sanctum::actingAs($admin);
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'active');
+
+        $guest = User::query()->where('phone', '+15551112222')->firstOrFail();
+        Sanctum::actingAs($guest);
+
+        $this->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.guest_access.status', 'active')
+            ->assertJsonPath('data.guest_access.can_access_dashboard', true);
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'invite_code' => $create['invite_code'],
+            'status'      => 'active',
+        ]);
+
+        $this->assertDatabaseHas('users', [
+            'email'       => 'activeguest@example.com',
+            'role'  => 'guest',
+        ]);
+    }
+
+    public function test_resident_invite_requires_approval(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        $resident = $this->seedResident($community);
+        Sanctum::actingAs($resident);
+
+        $create = $this->postJson('/api/v1/guest-invitations', [
+            'guest_name'  => 'Pending Guest',
+            'guest_email' => 'pending.guest@example.com',
+            'guest_phone' => '+15553334444',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('pending.guest@example.com');
+
+        $verify = $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'pending.guest@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ]);
+
+        $verify->assertOk()
+            ->assertJsonPath('invitation_status', 'pending_approval');
+
+        Sanctum::actingAs($resident);
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->first();
+        $approve = $this->patchJson("/api/v1/guest-invitations/{$invitation->id}/approve");
+        $approve->assertOk()->assertJsonPath('data.status', 'active');
+    }
+
+    public function test_guest_wrong_otp_verify_includes_rate_limit(): void
+    {
+        Config::set('otp.rate_limit_enabled', true);
+        Config::set('otp.resend_cooldown_seconds', 60);
+        Cache::flush();
+
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Rate Limit Guest',
+            'guest_email' => 'guest.ratelimit@example.com',
+            'guest_phone' => '+15554443334',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertStatus(201);
+
+        app(OtpService::class)->send('guest.ratelimit@example.com');
+
+        $this->postJson('/api/v1/auth/guest/otp/verify', [
+            'email' => 'guest.ratelimit@example.com',
+            'code'  => '000000',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_OTP')
+            ->assertJsonPath('rate_limit.verify_fail_count', 1)
+            ->assertJsonPath('rate_limit.retry_after_seconds', 60);
+    }
+
+    public function test_guest_two_step_verify_then_invite(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Two Step Guest',
+            'guest_email' => 'twostep@example.com',
+            'guest_phone' => '+15554443333',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('twostep@example.com');
+
+        $this->postJson('/api/v1/auth/guest/otp/verify', [
+            'email'       => 'twostep@example.com',
+            'code'  => '123456',
+        ])
+            ->assertOk()
+            ->assertJsonPath('needs_invite_code', true);
+
+        $verify = $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'twostep@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ]);
+
+        $verify->assertOk()
+            ->assertJsonPath('invitation_status', 'pending_approval')
+            ->assertJsonStructure(['token', 'user']);
+
+        Sanctum::actingAs($admin);
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'active');
+    }
+
+    public function test_admin_invite_with_future_start_blocks_login_until_window(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Scheduled Guest',
+            'guest_email' => 'scheduled@example.com',
+            'guest_phone' => '+15551230123',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('scheduled@example.com');
+
+        $this->postJson('/api/v1/auth/guest/otp/request', [
+            'email'       => 'scheduled@example.com',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'ACCESS_NOT_STARTED');
+
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'scheduled@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'ACCESS_NOT_STARTED');
+
+        $this->travel(2)->hours();
+        app(OtpService::class)->send('scheduled@example.com');
+
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'scheduled@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk()->assertJsonPath('invitation_status', 'pending_approval');
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'active');
+
+        $guest = User::query()->where('phone', '+15551230123')->firstOrFail();
+        Sanctum::actingAs($guest);
+
+        $this->getJson('/api/v1/feed')
+            ->assertOk();
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'invite_code' => $create['invite_code'],
+            'status'      => 'active',
+        ]);
+    }
+
+    public function test_guest_login_blocked_after_access_window_ends(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Expired Window Guest',
+            'guest_email' => 'expiredwindow@example.com',
+            'guest_phone' => '+15551230999',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        GuestInvitation::query()->where('invite_code', $create['invite_code'])->update([
+            'starts_at' => now()->subHours(2),
+            'ends_at'   => now()->subHour(),
+        ]);
+
+        app(OtpService::class)->send('expiredwindow@example.com');
+
+        $this->postJson('/api/v1/auth/guest/otp/request', [
+            'email'       => 'expiredwindow@example.com',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'GUEST_ACCESS_EXPIRED')
+            ->assertJsonPath('message', GuestAccessService::MSG_ACCESS_EXPIRED);
+    }
+
+    public function test_admin_revoke_guest_invalidates_mobile_session(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Revoked Guest',
+            'guest_email' => 'revoked@example.com',
+            'guest_phone' => '+15551230555',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('revoked@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'revoked@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk();
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")->assertOk();
+
+        $guest = User::query()->where('phone', '+15551230555')->firstOrFail();
+        $guest->createToken('mobile');
+
+        Sanctum::actingAs($guest);
+        $this->getJson('/api/v1/feed')->assertOk();
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/revoke")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'revoked');
+
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'tokenable_id'   => $guest->id,
+            'tokenable_type' => User::class,
+        ]);
+
+        $this->assertDatabaseMissing('community_memberships', [
+            'user_id'      => $guest->id,
+            'community_id' => $community->id,
+            'role'         => 'guest',
+        ]);
+
+        Sanctum::actingAs($guest);
+        $this->getJson('/api/v1/feed')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'GUEST_ACCESS_REVOKED')
+            ->assertJsonPath('message', GuestAccessService::MSG_ACCESS_REVOKED);
+    }
+
+    public function test_revoked_guest_cannot_log_in_again(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'No Relogin Guest',
+            'guest_email' => 'norelogin@example.com',
+            'guest_phone' => '+15551230666',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        app(OtpService::class)->send('norelogin@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'norelogin@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk();
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")->assertOk();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/revoke")->assertOk();
+
+        $this->postJson('/api/v1/auth/guest/otp/request', [
+            'email'       => 'norelogin@example.com',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'GUEST_ACCESS_REVOKED')
+            ->assertJsonPath('message', GuestAccessService::MSG_ACCESS_REVOKED);
+
+        app(OtpService::class)->send('norelogin@example.com');
+        $this->postJson('/api/v1/auth/guest/otp/verify', [
+            'email'       => 'norelogin@example.com',
+            'code'  => '123456',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'GUEST_ACCESS_REVOKED');
+
+        app(OtpService::class)->send('norelogin@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'norelogin@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'GUEST_ACCESS_REVOKED');
+    }
+
+    public function test_active_guest_api_access_revoked_after_end_time(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Timed Guest',
+            'guest_email' => 'timed@example.com',
+            'guest_phone' => '+15551230444',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addHour()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('timed@example.com');
+        $verify = $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'timed@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk();
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")->assertOk();
+
+        $guest = User::query()->where('phone', '+15551230444')->firstOrFail();
+        Sanctum::actingAs($guest);
+
+        $this->getJson('/api/v1/feed')->assertOk();
+
+        $this->travel(2)->hours();
+
+        $this->getJson('/api/v1/feed')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'GUEST_ACCESS_EXPIRED')
+            ->assertJsonPath('message', GuestAccessService::MSG_ACCESS_EXPIRED);
+    }
+
+    public function test_admin_extend_expired_guest_allows_relogin_without_invite_code(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Extended Guest',
+            'guest_email' => 'extended@example.com',
+            'guest_phone' => '+15551230777',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        app(OtpService::class)->send('extended@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'extended@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk();
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")->assertOk();
+
+        $guest = User::query()->where('phone', '+15551230777')->firstOrFail();
+
+        $invitation->update([
+            'starts_at' => now()->subDays(2),
+            'ends_at'   => now()->subDay(),
+        ]);
+        GuestAccessService::expireInvitation($invitation->fresh());
+
+        $this->assertDatabaseMissing('community_memberships', [
+            'user_id'      => $guest->id,
+            'community_id' => $community->id,
+            'role'         => 'guest',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/extend", [
+            'ends_at' => now()->addDays(3)->toIso8601String(),
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'active');
+
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id'      => $guest->id,
+            'community_id' => $community->id,
+            'role'         => 'guest',
+            'status'       => 'approved',
+        ]);
+
+        app(OtpService::class)->send('extended@example.com');
+        $this->postJson('/api/v1/auth/guest/otp/verify', [
+            'email' => 'extended@example.com',
+            'code'  => '123456',
+        ])
+            ->assertOk()
+            ->assertJsonPath('needs_invite_code', false)
+            ->assertJsonPath('invitation_status', 'active')
+            ->assertJsonStructure(['token', 'user']);
+
+        Sanctum::actingAs($guest->fresh());
+        $this->getJson('/api/v1/feed')->assertOk();
+    }
+
+    public function test_extended_guest_verify_invite_does_not_return_access_revoked(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Extended Invite Guest',
+            'guest_email' => 'extendedinvite@example.com',
+            'guest_phone' => '+15551230888',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        app(OtpService::class)->send('extendedinvite@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'extendedinvite@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk();
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")->assertOk();
+
+        $invitation->update([
+            'starts_at' => now()->subDays(2),
+            'ends_at'   => now()->subDay(),
+        ]);
+        GuestAccessService::expireInvitation($invitation->fresh());
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/extend", [
+            'ends_at' => now()->addDays(2)->toIso8601String(),
+        ])->assertOk();
+
+        app(OtpService::class)->send('extendedinvite@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'extendedinvite@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])
+            ->assertOk()
+            ->assertJsonPath('needs_invite_code', false)
+            ->assertJsonPath('invitation_status', 'active')
+            ->assertJsonStructure(['token', 'user']);
+    }
+
+    public function test_admin_cannot_invite_guest_with_existing_resident_email(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+
+        User::factory()->create([
+            'role'  => 'resident',
+            'email' => 'existing@example.com',
+            'phone' => null,
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Email Conflict Guest',
+            'guest_email' => 'existing@example.com',
+            'guest_phone' => '+15559998888',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', \App\Services\ContactIdentityService::DUPLICATE_EMAIL_MESSAGE);
+    }
+
+    public function test_admin_cannot_invite_guest_with_existing_user_phone(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+
+        User::factory()->create([
+            'role'              => 'resident',
+            'email'             => 'resident@example.com',
+            'phone'             => '+15551230001',
+            'phone_verified_at' => now(),
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Phone Conflict Guest',
+            'guest_email' => 'newguest@example.com',
+            'guest_phone' => '+15551230001',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', \App\Services\ContactIdentityService::DUPLICATE_PHONE_MESSAGE);
+    }
+
+    public function test_admin_cannot_invite_guest_with_duplicate_active_invite_phone(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $payload = [
+            'guest_name'  => 'First Guest',
+            'guest_email' => 'first@example.com',
+            'guest_phone' => '+15551230002',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ];
+
+        $this->postJson('/api/v1/admin/guests/invite', $payload)->assertCreated();
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            ...$payload,
+            'guest_name'  => 'Second Guest',
+            'guest_email' => 'second@example.com',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', \App\Services\ContactIdentityService::DUPLICATE_PHONE_MESSAGE);
+    }
+
+    public function test_admin_cannot_approve_resident_guest_they_did_not_invite(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        $resident = $this->seedResident($community);
+        Sanctum::actingAs($resident);
+
+        $create = $this->postJson('/api/v1/guest-invitations', [
+            'guest_name'  => 'Admin Approves Me',
+            'guest_email' => 'admin.approves@example.com',
+            'guest_phone' => '+15556667777',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('admin.approves@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'admin.approves@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk()->assertJsonPath('invitation_status', 'pending_approval');
+
+        Sanctum::actingAs($admin);
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")
+            ->assertForbidden();
+    }
+
+    public function test_other_resident_cannot_approve_guest(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        $inviter = $this->seedResident($community);
+        $otherResident = User::factory()->create([
+            'role'              => 'resident',
+            'phone'             => '+12017777777',
+            'phone_verified_at' => now(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $otherResident->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        Sanctum::actingAs($inviter);
+
+        $create = $this->postJson('/api/v1/guest-invitations', [
+            'guest_name'  => 'Not Your Guest',
+            'guest_email' => 'not.your.guest@example.com',
+            'guest_phone' => '+15558889999',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('not.your.guest@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'not.your.guest@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk()->assertJsonPath('invitation_status', 'pending_approval');
+
+        Sanctum::actingAs($otherResident);
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/guest-invitations/{$invitation->id}/approve")
+            ->assertNotFound();
+    }
+
+    public function test_inviter_can_reject_pending_guest(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        $resident = $this->seedResident($community);
+        Sanctum::actingAs($resident);
+
+        $create = $this->postJson('/api/v1/guest-invitations', [
+            'guest_name'  => 'Admin Rejects Me',
+            'guest_email' => 'admin.rejects@example.com',
+            'guest_phone' => '+15558889999',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('admin.rejects@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'admin.rejects@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk()->assertJsonPath('invitation_status', 'pending_approval');
+
+        $guest = User::query()->where('phone', '+15558889999')->firstOrFail();
+        $this->assertDatabaseHas('personal_access_tokens', [
+            'tokenable_id'   => $guest->id,
+            'tokenable_type' => User::class,
+        ]);
+
+        Sanctum::actingAs($resident);
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $reject = $this->patchJson("/api/v1/guest-invitations/{$invitation->id}/reject", [
+            'reason' => 'Not authorized for this visit',
+        ]);
+        $reject->assertOk()->assertJsonPath('data.status', 'rejected');
+
+        Sanctum::actingAs($guest);
+        $this->getJson('/api/v1/guest-access/status')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'rejected')
+            ->assertJsonPath('data.rejection_reason', 'Not authorized for this visit');
+    }
+
+    public function test_rejected_guest_login_returns_rejection_details_for_status_screen(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        $resident = $this->seedResident($community);
+        Sanctum::actingAs($resident);
+
+        $create = $this->postJson('/api/v1/guest-invitations', [
+            'guest_name'  => 'Rejected Login Guest',
+            'guest_email' => 'rejected.login@example.com',
+            'guest_phone' => '+15558887777',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('rejected.login@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'rejected.login@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk();
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/guest-invitations/{$invitation->id}/reject", [
+            'reason' => 'Visit not approved',
+        ])->assertOk();
+
+        $this->postJson('/api/v1/auth/guest/otp/request', [
+            'email' => 'rejected.login@example.com',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'GUEST_ACCESS_REJECTED')
+            ->assertJsonPath('rejection_reason', 'Visit not approved')
+            ->assertJsonPath('invitation.community_name', $community->name);
+
+        app(OtpService::class)->send('rejected.login@example.com');
+        $this->postJson('/api/v1/auth/guest/otp/verify', [
+            'email' => 'rejected.login@example.com',
+            'code'  => '123456',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'GUEST_ACCESS_REJECTED')
+            ->assertJsonPath('rejection_reason', 'Visit not approved')
+            ->assertJsonPath('invitation.status', 'rejected');
+    }
+
+    public function test_guest_cannot_create_post(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Readonly Guest',
+            'guest_email' => 'readonly@example.com',
+            'guest_phone' => '+15557778888',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('readonly@example.com');
+        $login = $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'readonly@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ]);
+
+        $guest = User::query()->where('phone', '+15557778888')->firstOrFail();
+        $this->assertSame('guest', $guest->role);
+
+        Sanctum::actingAs($guest);
+
+        $this->postJson('/api/v1/feed', ['body' => 'Guest post attempt'])
+            ->assertForbidden();
+    }
+
+    public function test_wrong_invite_code_does_not_consume_otp(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Retry Guest',
+            'guest_email' => 'retry@example.com',
+            'guest_phone' => '+15556667777',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('retry@example.com');
+
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'retry@example.com',
+            'code'        => '123456',
+            'invite_code' => 'GST-WRONG-0000',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_INVITE');
+
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'retry@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])
+            ->assertOk()
+            ->assertJsonPath('invitation_status', 'pending_approval');
+    }
+
+    public function test_verify_invite_accepts_spaced_invite_code(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Spaced Code Guest',
+            'guest_email' => 'spaced@example.com',
+            'guest_phone' => '+15556668888',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->json('data');
+
+        app(OtpService::class)->send('spaced@example.com');
+
+        $spacedCode = str_replace('-', ' - ', $create['invite_code']);
+
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'spaced@example.com',
+            'code'        => '123456',
+            'invite_code' => $spacedCode,
+        ])
+            ->assertOk()
+            ->assertJsonPath('invitation_status', 'pending_approval');
+    }
+
+    public function test_guest_feature_views_are_tracked_without_feed_spam(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Activity Guest',
+            'guest_email' => 'activity-guest@example.com',
+            'guest_phone' => '+15551230911',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+            'permissions' => [
+                'feed'        => true,
+                'notices'     => true,
+                'events'      => true,
+                'marketplace' => true,
+                'businesses'  => true,
+                'wellness'    => true,
+            ],
+        ])->json('data');
+
+        app(OtpService::class)->send('activity-guest@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'activity-guest@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk();
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")->assertOk();
+
+        $guest = User::query()->where('email', 'activity-guest@example.com')->firstOrFail();
+        Sanctum::actingAs($guest);
+
+        $this->getJson('/api/v1/feed')->assertOk();
+        $this->getJson('/api/v1/feed')->assertOk();
+        $this->getJson('/api/v1/feed')->assertOk();
+
+        $this->assertSame(
+            1,
+            \App\Models\GuestActivityLog::query()
+                ->where('guest_invitation_id', $invitation->id)
+                ->where('action', 'viewed_posts')
+                ->count()
+        );
+
+        $this->getJson('/api/v1/notices')->assertOk();
+        $this->getJson('/api/v1/notices?category=event')->assertOk();
+        $this->getJson('/api/v1/listings')->assertOk();
+        $this->getJson('/api/v1/businesses')->assertOk();
+        $this->getJson('/api/v1/wellness/hub')->assertOk();
+        $this->getJson('/api/v1/amenities')->assertOk();
+
+        $actions = \App\Models\GuestActivityLog::query()
+            ->where('guest_invitation_id', $invitation->id)
+            ->where('action', 'like', 'viewed_%')
+            ->pluck('action')
+            ->sort()
+            ->values()
+            ->all();
+
+        $this->assertSame([
+            'viewed_businesses',
+            'viewed_events',
+            'viewed_marketplace',
+            'viewed_notices',
+            'viewed_posts',
+            'viewed_services',
+            'viewed_wellness',
+        ], $actions);
+    }
+
+    public function test_admin_can_delete_pending_guest_invitation(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Pending Delete',
+            'guest_email' => 'pending.delete@example.com',
+            'guest_phone' => '+15550002222',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        $originalCode = $created['invite_code'];
+        $invitationId = $created['id'];
+
+        $this->getJson('/api/v1/admin/guests?status=pending')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $invitationId]);
+
+        $this->deleteJson("/api/v1/admin/guests/{$invitationId}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Guest invitation deleted successfully.');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $invitationId,
+            'status' => 'cancelled',
+        ]);
+
+        $invitation = GuestInvitation::query()->findOrFail($invitationId);
+        $this->assertNotSame($originalCode, $invitation->invite_code);
+        $this->assertStringStartsWith('CXL-'.$invitationId.'-', $invitation->invite_code);
+        $this->assertNull($invitation->guest_user_id);
+        $this->assertTrue($invitation->ends_at->lte(now()));
+
+        $list = $this->getJson('/api/v1/admin/guests?status=pending')->assertOk();
+        $this->assertFalse(collect($list->json('data'))->contains(fn ($row) => (int) $row['id'] === (int) $invitationId));
+        $this->assertSame(0, (int) $list->json('meta.stats.pending_verification'));
+
+        app(OtpService::class)->send('pending.delete@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'pending.delete@example.com',
+            'code'        => '123456',
+            'invite_code' => $originalCode,
+        ])->assertUnprocessable();
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Pending Delete',
+            'guest_email' => 'pending.delete@example.com',
+            'guest_phone' => '+15550002222',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated();
+    }
+
+    public function test_admin_cannot_delete_accepted_or_active_guest_invitation(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Accepted Guest',
+            'guest_email' => 'accepted.guest@example.com',
+            'guest_phone' => '+15550003333',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        app(OtpService::class)->send('accepted.guest@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'accepted.guest@example.com',
+            'code'        => '123456',
+            'invite_code' => $created['invite_code'],
+        ])->assertOk()->assertJsonPath('invitation_status', 'pending_approval');
+
+        $invitation = GuestInvitation::query()->findOrFail($created['id']);
+        $this->assertSame('pending_approval', $invitation->status);
+        $guestUserId = $invitation->guest_user_id;
+        $this->assertNotNull($guestUserId);
+
+        Sanctum::actingAs($admin);
+        $this->deleteJson("/api/v1/admin/guests/{$invitation->id}")
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'INVITATION_ALREADY_ACCEPTED');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'          => $invitation->id,
+            'status'      => 'pending_approval',
+            'invite_code' => $created['invite_code'],
+            'guest_user_id' => $guestUserId,
+        ]);
+        $this->assertDatabaseHas('users', ['id' => $guestUserId]);
+
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'active');
+
+        $this->deleteJson("/api/v1/admin/guests/{$invitation->id}")
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'INVITATION_ALREADY_ACCEPTED');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'            => $invitation->id,
+            'status'        => 'active',
+            'invite_code'   => $created['invite_code'],
+            'guest_user_id' => $guestUserId,
+        ]);
+        $this->assertDatabaseHas('users', ['id' => $guestUserId]);
+    }
+
+    public function test_community_admin_can_cancel_pending_invitation_via_post(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Post Cancel Guest',
+            'guest_email' => 'post.cancel@example.com',
+            'guest_phone' => '+15550004444',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        $this->postJson("/api/v1/admin/guests/{$created['id']}/cancel")
+            ->assertOk()
+            ->assertJsonPath('message', 'Guest invitation deleted successfully.');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $created['id'],
+            'status' => 'cancelled',
+        ]);
+    }
+
+    public function test_community_admin_can_delete_resident_created_pending_invitation(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        $resident = $this->seedResident($community);
+
+        $invitation = GuestInvitationService::create($community->id, $resident, 'resident', [
+            'guest_name'  => 'Resident Hosted Guest',
+            'guest_email' => 'resident.hosted@example.com',
+            'guest_phone' => '+15550005555',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+            'permissions' => ['feed' => true],
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->deleteJson("/api/v1/admin/guests/{$invitation->id}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Guest invitation deleted successfully.');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $invitation->id,
+            'status' => 'cancelled',
+        ]);
+    }
+
+    public function test_community_admin_cannot_delete_invitation_from_another_community(): void
+    {
+        [$communityA, $adminA] = $this->seedCommunityAdmin();
+        $communityB = Community::query()->create([
+            'name'          => 'Other Community',
+            'region_id'     => $communityA->region_id,
+            'region'        => $communityA->region,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+        $adminB = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'phone'                  => '+12015555666',
+            'phone_verified_at'      => now(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $adminB->id,
+            'community_id' => $communityB->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+        CommunitySubscription::query()->create([
+            'community_id' => $communityB->id,
+            'plan_slug' => 'starter',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_ACTIVE,
+            'seat_limit' => 100,
+            'meta' => ['card_on_file' => true, 'activated_via' => 'manual'],
+        ]);
+
+        Sanctum::actingAs($adminB);
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Other Community Guest',
+            'guest_email' => 'other.community.guest@example.com',
+            'guest_phone' => '+15550006666',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($adminA);
+        $this->deleteJson("/api/v1/admin/guests/{$created['id']}")
+            ->assertForbidden()
+            ->assertJsonPath('message', 'You can only delete guest invitations from your own community.');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $created['id'],
+            'status' => 'pending_verification',
+        ]);
+    }
+
+    public function test_system_admin_can_delete_pending_guest_invitation(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'SA Delete Guest',
+            'guest_email' => 'sa.delete@example.com',
+            'guest_phone' => '+15550007777',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        $systemAdmin = User::factory()->create([
+            'role' => 'system_admin',
+            'phone' => '+12015555777',
+            'phone_verified_at' => now(),
+        ]);
+
+        Sanctum::actingAs($systemAdmin);
+        $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->deleteJson("/api/v1/admin/guests/{$created['id']}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Guest invitation deleted successfully.');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $created['id'],
+            'status' => 'cancelled',
+        ]);
+    }
+
+    public function test_resident_cannot_delete_guest_invitation_via_admin_endpoint(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Resident Blocked Delete',
+            'guest_email' => 'resident.blocked.delete@example.com',
+            'guest_phone' => '+15550008888',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        $resident = $this->seedResident($community);
+        Sanctum::actingAs($resident);
+        $this->deleteJson("/api/v1/admin/guests/{$created['id']}")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $created['id'],
+            'status' => 'pending_verification',
+        ]);
+    }
+
+    public function test_community_admin_in_resident_mode_cannot_delete_guest_invitation(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Resident Mode Delete',
+            'guest_email' => 'resident.mode.delete@example.com',
+            'guest_phone' => '+15550009900',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        $admin->update([
+            'active_context' => 'resident',
+            'active_context_community_id' => $community->id,
+        ]);
+
+        Sanctum::actingAs($admin->fresh());
+        $this->deleteJson("/api/v1/admin/guests/{$created['id']}")
+            ->assertForbidden()
+            ->assertJsonPath('code', 'RESIDENT_MODE_ACTIVE');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $created['id'],
+            'status' => 'pending_verification',
+        ]);
+    }
+}

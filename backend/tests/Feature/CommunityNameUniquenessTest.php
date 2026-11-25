@@ -1,0 +1,184 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Community;
+use App\Models\Country;
+use App\Models\Region;
+use App\Models\State;
+use App\Models\User;
+use App\Services\LocationCatalog;
+use App\Support\CommunityNameUniqueness;
+use Database\Seeders\SystemAdminSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+class CommunityNameUniquenessTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function systemAdmin(): User
+    {
+        $this->seed(SystemAdminSeeder::class);
+
+        return User::query()->where('email', 'admin@havena.app')->firstOrFail();
+    }
+
+    private function region(string $city, string $stateName = 'Florida', string $countryCode = 'US'): Region
+    {
+        $country = Country::query()->firstOrCreate(
+            ['code' => $countryCode],
+            ['name' => 'United States', 'billing_policy' => 'required', 'sort_order' => 1, 'status' => 'active'],
+        );
+        $state = State::query()->firstOrCreate(
+            ['country_id' => $country->id, 'name' => $stateName],
+            ['status' => 'active'],
+        );
+
+        return app(LocationCatalog::class)->ensureCityRegion($state, $city);
+    }
+
+    public function test_rejects_case_insensitive_duplicate_in_same_region(): void
+    {
+        Sanctum::actingAs($this->systemAdmin());
+
+        $region = $this->region('Miami');
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name' => 'Green Valley',
+            'region_id' => $region->id,
+            'address' => '100 Green Valley Rd, Miami, FL',
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name' => 'green valley',
+            'region_id' => $region->id,
+            'address' => '200 Green Valley Rd, Miami, FL',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['name'])
+            ->assertJsonPath('errors.name.0', CommunityNameUniqueness::DUPLICATE_MESSAGE);
+
+        $this->assertSame(1, Community::query()->where('region_id', $region->id)->count());
+    }
+
+    public function test_rejects_duplicate_name_with_extra_spaces_and_allows_a_unique_name(): void
+    {
+        Sanctum::actingAs($this->systemAdmin());
+
+        $region = $this->region('Miami');
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name' => '  Harbor Point  ',
+            'region_id' => $region->id,
+            'address' => '100 Harbor Point Rd, Miami, FL',
+        ])->assertCreated()
+            ->assertJsonPath('data.name', 'Harbor Point');
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name' => 'harbor point',
+            'region_id' => $region->id,
+            'address' => '200 Harbor Point Rd, Miami, FL',
+        ])->assertStatus(422)
+            ->assertJsonPath('errors.name.0', CommunityNameUniqueness::DUPLICATE_MESSAGE);
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name' => 'Cedar Court',
+            'region_id' => $region->id,
+            'address' => '10 Cedar Court, Miami, FL',
+        ])->assertCreated();
+
+        $this->assertSame(2, Community::query()->count());
+    }
+
+    public function test_rejects_same_name_in_different_regions(): void
+    {
+        Sanctum::actingAs($this->systemAdmin());
+
+        $florida = $this->region('Miami', 'Florida');
+        $texas = $this->region('Austin', 'Texas');
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name' => 'Green Valley Residence',
+            'region_id' => $florida->id,
+            'address' => '100 Green Valley Rd, Miami, FL',
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name' => 'Green valley Residence',
+            'region_id' => $texas->id,
+            'address' => '100 Green Valley Rd, Austin, TX',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['name'])
+            ->assertJsonPath('errors.name.0', CommunityNameUniqueness::DUPLICATE_MESSAGE);
+
+        $this->assertSame(1, Community::query()->count());
+    }
+
+    public function test_self_serve_rejects_pending_duplicate_in_same_region(): void
+    {
+        $region = $this->region('Miami');
+
+        Community::query()->create([
+            'name' => 'Green Valley',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'address' => '100 Green Valley Rd, Miami, FL',
+            'status' => 'inactive',
+            'review_status' => 'pending',
+        ]);
+
+        $admin = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'pending',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/communities/self-serve', [
+            'community_name' => 'GREEN VALLEY',
+            'address' => '200 Green Valley Rd, Miami, FL',
+            'region_id' => $region->id,
+            'city' => 'Miami',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['community_name']);
+    }
+
+    public function test_admin_update_rejects_rename_to_existing_name_in_region(): void
+    {
+        Sanctum::actingAs($this->systemAdmin());
+
+        $region = $this->region('Miami');
+
+        $existing = Community::query()->create([
+            'name' => 'Green Valley',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'address' => '100 Green Valley Rd, Miami, FL',
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $target = Community::query()->create([
+            'name' => 'Sunset Ridge',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'address' => '500 Sunset Ridge Dr, Miami, FL',
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $this->putJson("/api/v1/admin/communities/{$target->id}", [
+            'name' => 'green valley',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['name']);
+
+        $target->refresh();
+        $this->assertSame('Sunset Ridge', $target->name);
+        $this->assertSame($existing->id, Community::query()->whereRaw('LOWER(TRIM(name)) = ?', ['green valley'])->value('id'));
+
+        $this->putJson("/api/v1/admin/communities/{$existing->id}", [
+            'name' => '  Green Valley  ',
+        ])->assertOk()
+            ->assertJsonPath('data.name', 'Green Valley');
+    }
+}

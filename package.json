@@ -1,0 +1,37 @@
+{
+  "name": "go-havena",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Havena monorepo — script runner only; dependencies live in each app folder",
+  "scripts": {
+    "install:mobile": "npm install --prefix apps/mobile",
+    "install:frontend": "npm install --prefix frontend",
+    "install:all": "npm run install:mobile && npm run install:frontend",
+    "mobile": "bash scripts/dev-expo-lan.sh",
+    "mobile:tunnel": "bash scripts/dev-expo-tunnel.sh",
+    "mobile:check": "bash scripts/dev-check-expo.sh",
+    "mobile:keepalive": "bash scripts/metro-keepalive.sh",
+    "mobile:metro": "npm --prefix apps/mobile run start:lan",
+    "mobile:android": "npm --prefix apps/mobile run android",
+    "mobile:ios": "npm --prefix apps/mobile run ios",
+    "mobile:lint": "npm --prefix apps/mobile run lint",
+    "frontend": "npm --prefix frontend run dev",
+    "frontend:stable": "npm --prefix frontend run dev:stable",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:lint": "npm --prefix frontend run lint",
+    "dev": "bash scripts/dev-persistent.sh",
+    "dev:stop": "bash scripts/dev-stop.sh",
+    "backend": "php backend/artisan serve --host=0.0.0.0 --port=8000",
+    "backend:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-backend.ps1",
+    "backend:setup": "php backend/artisan storage:link",
+    "backend:seed-demo": "php backend/artisan havena:seed-demo",
+    "dashboards": "bash scripts/dev-dashboards.sh",
+    "ngrok": "bash scripts/dev-ngrok.sh",
+    "expo:cloudflare": "bash scripts/dev-expo-cloudflare.sh",
+    "backend:migrate": "php backend/artisan migrate"
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e",
+  "dependencies": {
+    "expo-network": "~58.0.4"
+  }
+}

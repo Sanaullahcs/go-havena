@@ -1,0 +1,127 @@
+import React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  ScrollView,
+} from "react-native";
+import { Fonts } from "../../../constants/font";
+import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import WellnessScreenHeader from "../../../components/wellness/wellness-screen-header";
+import WellnessStatBar from "../../../components/wellness/wellness-stat-bar";
+import WellnessCategoryCard from "../../../components/wellness/wellness-category-card";
+import {
+  wellnessDetailRouteParams,
+} from "../../../constants/wellness-categories";
+import { getWellnessCategoryMeta } from "../../../constants/wellness-theme";
+import GuestFeatureErrorState from "../../../components/guest/guest-permission-denied-state";
+import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
+import { WellnessTheme } from "../../../constants/wellness-theme";
+import { sf, sw } from "../../../utils/responsive";
+import { useTranslation } from 'react-i18next';
+import { useWellnessHub } from "../../../hooks/use-wellness-hub";
+
+export default function Wellness() {
+  const router = useRouter();
+  const { t } = useTranslation();
+  const { hub, loading, error, load } = useWellnessHub();
+
+  const stats = [
+    {
+      key: "courses",
+      label: t('wellness.totalCourses'),
+      value: loading && !hub ? "—" : String(hub?.stats?.totalCourses ?? 0),
+    },
+    {
+      key: "progress",
+      label: t('wellness.avgProgress'),
+      value: loading && !hub ? "—" : `${hub?.stats?.avgProgress ?? 0}%`,
+    },
+    {
+      key: "week",
+      label: t('wellness.thisWeek'),
+      value: loading && !hub ? "—" : (hub?.stats?.weekLabel ?? "—"),
+    },
+  ];
+
+  const accessBlocked = Boolean(error && isFeatureAccessBlockedError(error));
+  const categories = hub?.categories ?? [];
+
+  return (
+    <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
+      <WellnessScreenHeader
+        title={t('wellness.hubTitle')}
+        subtitle={t('wellness.hubSubtitle')}
+      />
+
+      {!accessBlocked ? <WellnessStatBar stats={stats} /> : null}
+
+      <View style={styles.body}>
+        {loading && !hub ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color="#1B4F8A" />
+          </View>
+        ) : error && !hub ? (
+          <GuestFeatureErrorState
+            error={error}
+            fallbackFeature="wellness"
+            defaultTitle={t('wellness.couldNotLoadWellness')}
+            onRetry={() => load()}
+          />
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+          >
+            {categories.map((item, index, arr) => (
+              <WellnessCategoryCard
+                key={item.key}
+                categoryKey={item.iconKey ?? item.key}
+                imageUrl={item.imageUrl}
+                title={getWellnessCategoryMeta(item.key).titleKey ? t(getWellnessCategoryMeta(item.key).titleKey) : item.title}
+                subtitle={item.subtitle}
+                progressPercent={item.progressPercent}
+                progressLabel={item.progressLabel}
+                coursesLabel={item.coursesLabel}
+                accentColor={item.color}
+                isLast={index === arr.length - 1}
+                onPress={() =>
+                  router.push({
+                    pathname: "/wellness/wellness-detail",
+                    params: wellnessDetailRouteParams(item),
+                  })
+                }
+              />
+            ))}
+
+            {categories.length === 0 ? (
+              <Text style={styles.emptyText}>{t('wellness.noContentYet')}</Text>
+            ) : null}
+          </ScrollView>
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: WellnessTheme.screenBg },
+  body: { flex: 1, backgroundColor: WellnessTheme.screenBg },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  listContent: {
+    paddingHorizontal: sw(18),
+    paddingTop: sw(16),
+    paddingBottom: sw(110),
+  },
+  emptyText: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(17),
+    color: "#6A7282",
+    textAlign: "center",
+    paddingVertical: sw(24),
+    includeFontPadding: false,
+  },
+});

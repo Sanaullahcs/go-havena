@@ -1,0 +1,7 @@
+no amenity_bookings
+table bookings cols=id,amenity_id,user_id,date,time_slot,guests,booking_fee,status,payment_verification_status,notes,proof_file_path,proof_file_name,proof_file_size,proof_mime_type,payment_date,payment_reference,payment_note,proof_submitted_at,rejection_reason,created_at,updated_at
+  amenity_36_rows=0
+no amenity_bills
+table amenity_resident_bills cols=id,monthly_bill_id,amenity_id,community_id,user_id,amount,status,proof_file_path,proof_file_name,proof_file_size,proof_mime_type,payment_date,payment_reference,payment_note,proof_submitted_at,proof_submitted_by,approved_by,approved_at,rejected_by,rejected_at,rejection_reason,created_at,updated_at
+  amenity_36_rows=0
+no shared_bills

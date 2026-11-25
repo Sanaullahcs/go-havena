@@ -1,0 +1,1619 @@
+/**
+ * Run: npx tsx scripts/test-form-validation.ts
+ */
+import { emptyPhoneField } from "../src/lib/phone/format";
+import {
+  INVITE_MEMBER_NAME_RULE_MESSAGE,
+  INVITE_MEMBER_UNIT_RULE_MESSAGE,
+  inviteMemberNameLiveError,
+  inviteMemberUnitLiveError,
+  validateInviteMemberForm,
+} from "../src/lib/admin/invite-member-validation";
+import { validateNoticeForm } from "../src/lib/admin/notice-form-validation";
+import { parseFlexibleTime } from "../src/lib/admin/notice-schedule-utils";
+import { validatePasswordForm, validateProfileForm } from "../src/lib/admin/profile-validation";
+import {
+  validateCommunityAdminEditForm,
+  validateCommunityAdminForm,
+  validateResidentForm,
+} from "../src/lib/admin/provision-user-validation";
+import {
+  COMMUNITY_ADMIN_NAME_MAX_MESSAGE,
+  COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE,
+  COMMUNITY_ADMIN_UNIT_MAX_MESSAGE,
+  applyCharacterLimit,
+} from "../src/lib/admin/community-admin-field-limits";
+import {
+  validateWellnessCategoryForm,
+  validateWellnessCourseForm,
+  validateWellnessLessonForm,
+  validateWellnessCourseEdit,
+  validateWellnessLessonEdit,
+} from "../src/lib/admin/wellness-form-validation";
+import {
+  EMAIL_FORMAT_MESSAGE,
+  EMAIL_LOCAL_PART_MAX,
+  hasFieldErrors,
+  isValidEmailAddress,
+  validateEmailField,
+} from "../src/lib/admin/form-validation-utils";
+import {
+  COMMUNITY_SETUP_NAME_MAX,
+  COMMUNITY_SETUP_NAME_MAX_MESSAGE,
+  validateCommunitySetupForm,
+} from "../src/lib/admin/community-setup-validation";
+import {
+  clearRegisterOtpChallenge,
+  isPersistedChallengeFresh,
+  parseRegisterOtpChallengeCookie,
+  persistRegisterOtpChallenge,
+  rateLimitFromPersistedChallenge,
+  readRegisterOtpChallenge,
+  REGISTER_OTP_CHALLENGE_KEY,
+  resendAvailableAtFromRateLimit,
+} from "../src/lib/auth/register-otp-challenge";
+import {
+  GUEST_EMAIL_FORMAT_MESSAGE,
+  GUEST_EMAIL_EXISTS_MESSAGE,
+  GUEST_NAME_FORMAT_MESSAGE,
+  GUEST_DURATION_MIN_MESSAGE,
+  GUEST_DURATION_MAX_MESSAGE,
+  GUEST_START_PAST_MESSAGE,
+  addCalendarYears,
+  canSubmitGuestInvite,
+  guestAccessLatestEnd,
+  guestAccessLatestEndLocalValue,
+  guestDurationFieldError,
+  guestEmailFieldError,
+  GUEST_NAME_MAX_MESSAGE,
+  GUEST_NAME_MIN_MESSAGE,
+  GUEST_NAME_REQUIRED_MESSAGE,
+  guestNameFieldError,
+  isDuplicateGuestEmailError,
+  guestPermissionsFieldError,
+  guestStartFieldError,
+  normalizeGuestInviteWindow,
+} from "../src/lib/admin/guest-invite-validation";
+import { parseDatetimeLocalValue } from "../src/lib/admin/datetime-local";
+import {
+  GUEST_PERMISSION_REQUIRED_MESSAGE,
+  INITIAL_GUEST_INVITE_PERMISSIONS,
+  applyGuestPermissionToggle,
+} from "../src/lib/guest-permissions";
+import {
+  getCompleteProfileFieldVisibility,
+  shouldUseSimpleCompleteProfileSubmit,
+} from "../src/lib/admin/complete-profile-fields";
+import { validateCompleteProfileForm } from "../src/lib/admin/complete-profile-validation";
+import { validateAgreementDetails } from "../src/lib/admin/agreement-form-validation";
+
+let passed = 0;
+let failed = 0;
+
+function assert(condition: boolean, message: string) {
+  if (condition) {
+    passed += 1;
+    console.log(`  ✓ ${message}`);
+  } else {
+    failed += 1;
+    console.error(`  ✗ ${message}`);
+  }
+}
+
+function assertHasError(errors: Record<string, string | undefined>, field: string, message: string) {
+  assert(Boolean(errors[field]), `${message} (field: ${field})`);
+}
+
+function assertNoErrors(errors: Record<string, string | undefined>, message: string) {
+  assert(!hasFieldErrors(errors), message);
+}
+
+console.log("\nCommunity admin registration email validation");
+{
+  const under64 = `${"a".repeat(20)}@example.com`;
+  const exactly64 = `${"a".repeat(EMAIL_LOCAL_PART_MAX)}@example.com`;
+  const over64 = `${"a".repeat(EMAIL_LOCAL_PART_MAX + 1)}@example.com`;
+
+  assert(isValidEmailAddress(under64), "accepts local part under 64 characters");
+  assert(validateEmailField(under64) === null, "validateEmailField accepts local part under 64");
+  assert(isValidEmailAddress(exactly64), "accepts local part of exactly 64 characters");
+  assert(validateEmailField(exactly64) === null, "validateEmailField accepts local part of exactly 64");
+  assert(!isValidEmailAddress(over64), "rejects local part over 64 characters so OTP is not requested");
+  assert(
+    validateEmailField(over64) === EMAIL_FORMAT_MESSAGE,
+    "over-64 local part shows Please enter a valid email address.",
+  );
+}
+
+console.log("\nCommunity setup name length");
+{
+  const base = {
+    regionId: "1",
+    address: "100 Palm Ave, Miami, FL",
+    regionsLoaded: true,
+  };
+  const under = validateCommunitySetupForm({ ...base, name: "Palm Court HOA" });
+  assertNoErrors(under, "accepts a community name under 100 characters");
+
+  const exactly = validateCommunitySetupForm({
+    ...base,
+    name: "A".repeat(COMMUNITY_SETUP_NAME_MAX),
+  });
+  assertNoErrors(exactly, "accepts a community name of exactly 100 characters");
+
+  const over = validateCommunitySetupForm({
+    ...base,
+    name: "A".repeat(COMMUNITY_SETUP_NAME_MAX + 1),
+  });
+  assert(over.name === COMMUNITY_SETUP_NAME_MAX_MESSAGE, "rejects more than 100 characters");
+}
+
+console.log("\nCommunity admin OTP challenge persistence");
+{
+  const memory = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => memory.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      memory.set(key, value);
+    },
+    removeItem: (key: string) => {
+      memory.delete(key);
+    },
+  };
+  const now = Date.parse("2026-09-17T12:00:00.000Z");
+  const expiresAt = "2026-09-17T12:05:00.000Z";
+  const resendAvailableAt = "2026-09-17T12:01:00.000Z";
+
+  persistRegisterOtpChallenge(
+    {
+      email: "Admin.Restore@example.com",
+      intent: "signup",
+      expiresAt,
+      resendAvailableAt,
+      code: "123456",
+    } as never,
+    storage,
+  );
+  assert(storage.getItem(REGISTER_OTP_CHALLENGE_KEY) === null, "refuses to persist an OTP code");
+
+  persistRegisterOtpChallenge(
+    { email: "Admin.Restore@example.com", intent: "signup", expiresAt, resendAvailableAt },
+    storage,
+  );
+  const stored = readRegisterOtpChallenge(storage, now);
+  assert(stored?.email === "admin.restore@example.com", "restores the email being verified");
+  assert(stored?.expiresAt === expiresAt, "restores the original expiry timestamp");
+  assert(isPersistedChallengeFresh(stored!, now), "keeps a still-valid challenge");
+  assert(!JSON.stringify(stored).includes("123456"), "never stores the OTP code");
+  assert(
+    rateLimitFromPersistedChallenge(stored!, now).retry_after_seconds === 60,
+    "restores the original resend cooldown",
+  );
+
+  const later = Date.parse("2026-09-17T12:00:20.000Z");
+  assert(
+    rateLimitFromPersistedChallenge(stored!, later).retry_after_seconds === 40,
+    "refresh does not reset the resend cooldown",
+  );
+
+  persistRegisterOtpChallenge(
+    { email: "admin.restore@example.com", intent: "signup", expiresAt, resendAvailableAt },
+    storage,
+  );
+  assert(
+    readRegisterOtpChallenge(storage, Date.parse("2026-09-17T12:05:01.000Z")) === null,
+    "clears expired verification state",
+  );
+
+  persistRegisterOtpChallenge(
+    { email: "admin.restore@example.com", intent: "signup", expiresAt, resendAvailableAt },
+    storage,
+  );
+  clearRegisterOtpChallenge(storage);
+  assert(readRegisterOtpChallenge(storage, now) === null, "clears persisted state after logout/expiry");
+
+  const availableAt = resendAvailableAtFromRateLimit({ retry_after_seconds: 45 }, now);
+  assert(availableAt === "2026-09-17T12:00:45.000Z", "derives resend availability from server rate limit");
+
+  const cookieRaw = encodeURIComponent(
+    JSON.stringify({ email: "admin.restore@example.com", intent: "signup", expiresAt, resendAvailableAt }),
+  );
+  assert(
+    parseRegisterOtpChallengeCookie(cookieRaw, now)?.email === "admin.restore@example.com",
+    "SSR cookie restores verify-code state without a flicker fetch",
+  );
+}
+
+console.log("\nInvite member validation");
+{
+  const emptyPhone = emptyPhoneField();
+  const empty = validateInviteMemberForm({ name: "", email: "", unit: "" }, emptyPhone);
+  assertHasError(empty, "name", "requires name");
+  assertHasError(empty, "email", "requires email");
+  assertHasError(empty, "phone", "requires phone");
+  assertHasError(empty, "unit", "requires unit");
+
+  const badEmail = validateInviteMemberForm(
+    { name: "Jane Doe", email: "not-an-email", unit: "12B" },
+    emptyPhone,
+  );
+  assertHasError(badEmail, "email", "rejects invalid email");
+
+  const longUnit = validateInviteMemberForm(
+    { name: "Jane Doe", email: "jane@example.com", unit: "x".repeat(21) },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
+  assertHasError(longUnit, "unit", "rejects long unit");
+  assert(longUnit.unit === INVITE_MEMBER_UNIT_RULE_MESSAGE, "unit length uses rule message");
+
+  const badName = validateInviteMemberForm(
+    { name: "Jane2", email: "jane@example.com", unit: "B-12" },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
+  assert(badName.name === INVITE_MEMBER_NAME_RULE_MESSAGE, "rejects numbers in name");
+
+  const badUnitChars = validateInviteMemberForm(
+    { name: "Jane Doe", email: "jane@example.com", unit: "B21+[" },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
+  assert(badUnitChars.unit === INVITE_MEMBER_UNIT_RULE_MESSAGE, "rejects unsupported unit characters");
+
+  assert(inviteMemberNameLiveError("") === null, "empty name has no live format error");
+  assert(inviteMemberNameLiveError("Jane2") === INVITE_MEMBER_NAME_RULE_MESSAGE, "live name error while typing");
+  assert(inviteMemberNameLiveError("Jane Doe") === null, "clears name error when valid");
+  assert(inviteMemberUnitLiveError("") === null, "empty unit has no live format error");
+  assert(inviteMemberUnitLiveError("B21+[") === INVITE_MEMBER_UNIT_RULE_MESSAGE, "rejects + and [ immediately");
+  assert(inviteMemberUnitLiveError("B@12") === INVITE_MEMBER_UNIT_RULE_MESSAGE, "rejects @");
+  assert(inviteMemberUnitLiveError("B#12") === INVITE_MEMBER_UNIT_RULE_MESSAGE, "rejects #");
+  assert(inviteMemberUnitLiveError("B-12") === null, "clears unit error when valid");
+  assert(inviteMemberUnitLiveError("12B/3") === null, "allows slash");
+
+  const ok = validateInviteMemberForm(
+    { name: "Jane Doe", email: "jane@example.com", unit: "12B" },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
+  assertNoErrors(ok, "accepts valid invite");
+}
+
+console.log("\nGuest invite validation");
+{
+  assert(guestNameFieldError("") === GUEST_NAME_REQUIRED_MESSAGE, "empty name is required");
+  assert(guestNameFieldError("   ") === GUEST_NAME_REQUIRED_MESSAGE, "blank name is required");
+  assert(guestNameFieldError("A") === GUEST_NAME_MIN_MESSAGE, "rejects a 1 character name");
+  assert(guestNameFieldError("Al") === null, "accepts a 2 character name");
+  assert(guestNameFieldError("A".repeat(25)) === null, "accepts a 25 character name");
+  assert(guestNameFieldError("A".repeat(26)) === GUEST_NAME_MAX_MESSAGE, "rejects a 26 character name");
+  assert(guestNameFieldError("Alex Johnson") === null, "accepts letters and spaces");
+  assert(guestNameFieldError("J. R. Ewing") === null, "accepts full stops");
+  assert(guestNameFieldError("Alex2") === GUEST_NAME_FORMAT_MESSAGE, "rejects numbers in name");
+  assert(guestNameFieldError("Alex@") === GUEST_NAME_FORMAT_MESSAGE, "rejects special characters in name");
+  assert(guestEmailFieldError("") === null, "empty email has no live format error");
+  assert(guestEmailFieldError("guest@email.com") === null, "accepts valid email");
+  assert(guestEmailFieldError("not-an-email") === GUEST_EMAIL_FORMAT_MESSAGE, "rejects invalid email");
+  assert(
+    isDuplicateGuestEmailError({ guest_email: "This email already exists. Please use a different email." }),
+    "detects duplicate email field error",
+  );
+  assert(
+    isDuplicateGuestEmailError({}, {
+      response: { data: { code: "CONTACT_ALREADY_EXISTS", message: "This email already exists. Please use a different email." } },
+    }),
+    "detects duplicate email API code",
+  );
+  assert(
+    !isDuplicateGuestEmailError({ guest_phone: "This phone number already exists. Please use a different phone number." }, {
+      response: { data: { code: "CONTACT_ALREADY_EXISTS", message: "This phone number already exists. Please use a different phone number." } },
+    }),
+    "does not treat duplicate phone as email",
+  );
+  assert(
+    !isDuplicateGuestEmailError({ guest_email: "Please enter a valid email address." }),
+    "does not treat format error as duplicate email",
+  );
+  assert(GUEST_EMAIL_EXISTS_MESSAGE === "An account with this email address already exists.", "inline duplicate copy");
+
+  const window = { starts_at: "2026-09-11T10:00", ends_at: "2026-09-12T10:00" };
+  const now = new Date("2026-09-11T10:00");
+  const emptyPhone = emptyPhoneField();
+  assert(
+    !canSubmitGuestInvite({ guest_name: "", guest_email: "a@b.com", ...window }, emptyPhone, now),
+    "button blocked when name empty",
+  );
+  assert(
+    !canSubmitGuestInvite({ guest_name: "A", guest_email: "a@b.com", ...window }, emptyPhone, now),
+    "button blocked when name is shorter than 2 characters",
+  );
+  assert(
+    !canSubmitGuestInvite({ guest_name: "A".repeat(26), guest_email: "a@b.com", ...window }, emptyPhone, now),
+    "button blocked when name is longer than 25 characters",
+  );
+  assert(
+    !canSubmitGuestInvite({ guest_name: "Alex2", guest_email: "a@b.com", ...window }, emptyPhone, now),
+    "button blocked when name invalid",
+  );
+  assert(
+    !canSubmitGuestInvite({ guest_name: "Alex", guest_email: "bad", ...window }, emptyPhone, now),
+    "button blocked when email invalid",
+  );
+  assert(
+    canSubmitGuestInvite({ guest_name: "Alex Johnson", guest_email: "guest@email.com", ...window }, emptyPhone, now),
+    "button enabled when required fields are valid",
+  );
+  assert(INITIAL_GUEST_INVITE_PERMISSIONS.wellness === true, "wellness is selected by default");
+  assert(
+    guestPermissionsFieldError({
+      feed: false,
+      notices: false,
+      events: false,
+      marketplace: false,
+      businesses: false,
+      wellness: false,
+    }) === GUEST_PERMISSION_REQUIRED_MESSAGE,
+    "requires at least one permission",
+  );
+  assert(
+    guestPermissionsFieldError(INITIAL_GUEST_INVITE_PERMISSIONS) === null,
+    "default wellness permission is valid",
+  );
+  const blocked = applyGuestPermissionToggle(INITIAL_GUEST_INVITE_PERMISSIONS, "wellness", false);
+  assert(blocked.permissions.wellness === true, "cannot uncheck the last permission");
+  assert(blocked.error === GUEST_PERMISSION_REQUIRED_MESSAGE, "shows permission required message");
+  const added = applyGuestPermissionToggle(INITIAL_GUEST_INVITE_PERMISSIONS, "feed", true);
+  assert(added.permissions.feed === true && added.error === null, "can select additional permissions");
+  const removedWellness = applyGuestPermissionToggle(added.permissions, "wellness", false);
+  assert(removedWellness.permissions.wellness === false && removedWellness.permissions.feed === true, "can deselect wellness when another remains");
+  assert(
+    !canSubmitGuestInvite({
+      guest_name: "Alex Johnson",
+      guest_email: "guest@email.com",
+      ...window,
+      permissions: {
+        feed: false,
+        notices: false,
+        events: false,
+        marketplace: false,
+        businesses: false,
+        wellness: false,
+      },
+    }, emptyPhone, now),
+    "button blocked when no permission is selected",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2026-09-11T10:01") === GUEST_DURATION_MIN_MESSAGE,
+    "rejects a 1-minute access window",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2026-09-11T10:29") === GUEST_DURATION_MIN_MESSAGE,
+    "rejects a 29-minute access window",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2026-09-11T10:30") === null,
+    "accepts a 30-minute access window",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2026-09-11T09:30") === GUEST_DURATION_MIN_MESSAGE,
+    "rejects an end time before start time",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2027-09-11T10:00") === null,
+    "accepts an end date exactly 1 year from start",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2027-03-11T10:00") === null,
+    "accepts an access period within 1 year",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2027-09-11T10:01") === GUEST_DURATION_MAX_MESSAGE,
+    "rejects an end one minute past 1 year",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2028-09-11T10:00") === GUEST_DURATION_MAX_MESSAGE,
+    "rejects an end date more than 1 year from start",
+  );
+  assert(
+    guestAccessLatestEndLocalValue("2026-09-11T10:00") === "2027-09-11T10:00",
+    "date picker max is 1 calendar year after start",
+  );
+  const leapStart = new Date(2024, 1, 29, 10, 0, 0, 0);
+  const leapLatest = addCalendarYears(leapStart, 1);
+  assert(
+    leapLatest.getFullYear() === 2025 && leapLatest.getMonth() === 1 && leapLatest.getDate() === 28,
+    "clamps Feb 29 start to Feb 28 the following year",
+  );
+  assert(
+    guestAccessLatestEnd(leapStart).getTime() === leapLatest.getTime(),
+    "latest allowed end matches calendar-year clamp",
+  );
+  assert(
+    !canSubmitGuestInvite({
+      guest_name: "Alex Johnson",
+      guest_email: "guest@email.com",
+      starts_at: "2026-09-11T10:00",
+      ends_at: "2028-09-11T10:00",
+    }, emptyPhone, now),
+    "button blocked when access exceeds 1 year",
+  );
+  assert(
+    canSubmitGuestInvite({
+      guest_name: "Alex Johnson",
+      guest_email: "guest@email.com",
+      starts_at: "2026-09-11T10:00",
+      ends_at: "2027-09-11T10:00",
+    }, emptyPhone, now),
+    "button enabled when access is exactly 1 year",
+  );
+  assert(
+    !canSubmitGuestInvite({
+      guest_name: "Alex Johnson",
+      guest_email: "guest@email.com",
+      starts_at: "2026-09-11T10:00",
+      ends_at: "2026-09-11T10:10",
+    }, emptyPhone, now),
+    "button blocked when duration is under 30 minutes",
+  );
+  assert(
+    guestStartFieldError("2026-09-11T09:59", now) === GUEST_START_PAST_MESSAGE,
+    "rejects a start one minute in the past",
+  );
+  assert(
+    guestStartFieldError("2025-09-11T10:00", now) === GUEST_START_PAST_MESSAGE,
+    "rejects a start from a previous year",
+  );
+  assert(
+    guestStartFieldError("2026-09-11T10:00", now) === null,
+    "accepts a start at the current minute",
+  );
+  assert(
+    guestStartFieldError("2026-09-11T10:01", now) === null,
+    "accepts a start in the future",
+  );
+  assert(
+    !canSubmitGuestInvite({
+      guest_name: "Alex Johnson",
+      guest_email: "guest@email.com",
+      starts_at: "2026-09-10T10:00",
+      ends_at: "2026-09-11T10:00",
+    }, emptyPhone, now),
+    "button blocked when start is in the past",
+  );
+  assert(
+    parseDatetimeLocalValue("2026-09-14T21:40")?.getHours() === 21,
+    "parses datetime-local as local wall-clock time",
+  );
+  const normalized = normalizeGuestInviteWindow(
+    "2026-09-14T21:40",
+    "2026-09-14T23:40",
+    new Date(2026, 8, 14, 21, 42, 0, 0),
+  );
+  assert(
+    normalized.starts_at === "2026-09-14T21:42" && normalized.ends_at === "2026-09-14T23:42",
+    "bumps stale start/end forward while preserving duration",
+  );
+}
+
+console.log("\nNotice form validation");
+{
+  const empty = validateNoticeForm(
+    { title: "", body: "", category: "general", location: "", event_date: "", event_time: "", event_time_end: "" },
+    { kind: "notice" },
+  );
+  assertHasError(empty, "title", "requires title");
+  assertHasError(empty, "body", "requires body");
+
+  const short = validateNoticeForm(
+    { title: "Hi", body: "Too short", category: "general", location: "", event_date: "", event_time: "", event_time_end: "" },
+    { kind: "notice" },
+  );
+  assertHasError(short, "title", "title min length");
+  assertHasError(short, "body", "body min length");
+
+  const eventPublish = validateNoticeForm(
+    {
+      title: "Community BBQ",
+      body: "Join us in the courtyard for food and fun.",
+      category: "event",
+      location: "",
+      event_date: "",
+      event_time: "",
+      event_time_end: "",
+    },
+    { kind: "event", publishNow: true },
+  );
+  assertHasError(eventPublish, "event_date", "event publish requires date");
+  assertHasError(eventPublish, "event_time", "event publish requires start");
+  assertHasError(eventPublish, "event_time_end", "event publish requires end");
+  assertHasError(eventPublish, "location", "event publish requires location");
+
+  const eventBadChars = validateNoticeForm(
+    {
+      title: "DSGFKJASD,EWR/?",
+      body: "Join us in the courtyard for food and fun.",
+      category: "event",
+      location: "JDSHFJHDSJHFDS.",
+      event_date: "2026-09-30",
+      event_time: "22:00",
+      event_time_end: "23:00",
+    },
+    { kind: "event", publishNow: true },
+  );
+  assertHasError(eventBadChars, "title", "event title rejects special chars");
+  assert(!eventBadChars.location, "valid location punctuation allowed");
+
+  const eventBadLocation = validateNoticeForm(
+    {
+      title: "Community BBQ",
+      body: "Join us in the courtyard for food and fun.",
+      category: "event",
+      location: "Room 101 ???",
+      event_date: "2026-09-30",
+      event_time: "22:00",
+      event_time_end: "23:00",
+    },
+    { kind: "event", publishNow: true },
+  );
+  assertHasError(eventBadLocation, "location", "event location rejects question marks");
+
+  const noticePublish = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: "",
+      event_time: "",
+      event_time_end: "",
+    },
+    { kind: "notice", publishNow: true },
+  );
+  assertHasError(noticePublish, "event_date", "notice publish requires date");
+  assertHasError(noticePublish, "event_time", "notice publish requires start");
+  assert(!noticePublish.event_time_end, "notice publish does not require end time");
+
+  const noticeReadyWithoutEnd = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: "2026-07-20",
+      event_end_date: "",
+      event_time: "09:00",
+      event_time_end: "",
+      event_capacity: "",
+    },
+    { kind: "notice", publishNow: true, now: new Date("2026-07-19T08:00:00") },
+  );
+  assertNoErrors(noticeReadyWithoutEnd, "notice publish without end date/time");
+
+  const alertPublish = validateNoticeForm(
+    {
+      title: "Power outage",
+      body: "Scheduled maintenance tonight in block A.",
+      category: "emergency",
+      location: "",
+      event_date: "",
+      event_time: "",
+      event_time_end: "",
+    },
+    { kind: "alert", publishNow: true },
+  );
+  assertHasError(alertPublish, "event_date", "alert publish requires date");
+
+  const alertMissingStartTime = validateNoticeForm(
+    {
+      title: "Power outage",
+      body: "Scheduled maintenance tonight in block A.",
+      category: "emergency",
+      location: "",
+      event_date: "2026-07-20",
+      event_time: "",
+      event_time_end: "",
+      event_capacity: "",
+    },
+    { kind: "alert", publishNow: true, now: new Date("2026-07-19T08:00:00") },
+  );
+  assertHasError(alertMissingStartTime, "event_time", "alert publish requires start time");
+
+  const alertReadyWithoutEnd = validateNoticeForm(
+    {
+      title: "Power outage",
+      body: "Scheduled maintenance tonight in block A.",
+      category: "emergency",
+      location: "",
+      event_date: "2026-07-20",
+      event_end_date: "",
+      event_time: "22:00",
+      event_time_end: "",
+      event_capacity: "",
+    },
+    { kind: "alert", publishNow: true, now: new Date("2026-07-19T08:00:00") },
+  );
+  assertNoErrors(alertReadyWithoutEnd, "alert publish without end date/time");
+
+  const alertBadTimes = validateNoticeForm(
+    {
+      title: "Power outage",
+      body: "Scheduled maintenance tonight in block A.",
+      category: "emergency",
+      location: "",
+      event_date: "2026-07-15",
+      event_time: "18:00",
+      event_time_end: "17:00",
+    },
+    { kind: "alert" },
+  );
+  assertHasError(alertBadTimes, "event_time_end", "alert end after start");
+
+  const badTimes = validateNoticeForm(
+    {
+      title: "Community meeting",
+      body: "Monthly residents meeting in the hall.",
+      category: "event",
+      location: "",
+      event_date: "2026-07-15",
+      event_time: "18:00",
+      event_time_end: "17:00",
+    },
+    { kind: "event" },
+  );
+  assertHasError(badTimes, "event_time_end", "end time after start");
+
+  assert(parseFlexibleTime("10:15 AM") === "10:15", "parses 10:15 AM");
+  assert(parseFlexibleTime("11:45 AM") === "11:45", "parses 11:45 AM");
+  assert(parseFlexibleTime("2:20 PM") === "14:20", "parses 2:20 PM");
+  assert(parseFlexibleTime("14:20") === "14:20", "parses 24-hour 14:20");
+  assert(parseFlexibleTime("2 PM") === "14:00", "parses hour-only 2 PM");
+  assert(parseFlexibleTime("25:00") === null, "rejects invalid hour");
+
+  const customTimes = validateNoticeForm(
+    {
+      title: "Community meeting",
+      body: "Monthly residents meeting in the hall.",
+      category: "event",
+      location: "Clubhouse",
+      event_date: "2026-07-15",
+      event_time: "10:15",
+      event_time_end: "11:45",
+    },
+    { kind: "event" },
+  );
+  assertNoErrors(customTimes, "accepts custom start and end minutes");
+
+  const customEndBeforeStart = validateNoticeForm(
+    {
+      title: "Community meeting",
+      body: "Monthly residents meeting in the hall.",
+      category: "event",
+      location: "Clubhouse",
+      event_date: "2026-07-15",
+      event_time: "14:20",
+      event_time_end: "14:10",
+    },
+    { kind: "event" },
+  );
+  assertHasError(customEndBeforeStart, "event_time_end", "custom end time after start");
+
+  const ok = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "Pool area",
+      event_date: "2026-07-12",
+      event_time: "09:00",
+      event_time_end: "17:00",
+      event_capacity: "",
+    },
+    { kind: "notice" },
+  );
+  assertNoErrors(ok, "accepts valid notice");
+
+  const noticeReady = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: "2026-07-20",
+      event_time: "09:00",
+      event_time_end: "10:00",
+      event_capacity: "",
+    },
+    { kind: "notice", publishNow: true },
+  );
+  assertNoErrors(noticeReady, "notice publish ready");
+
+  const eventReady = validateNoticeForm(
+    {
+      title: "Community BBQ",
+      body: "Join us in the courtyard for food and fun.",
+      category: "event",
+      location: "Courtyard",
+      event_date: "2026-07-20",
+      event_end_date: "2026-07-20",
+      event_time: "17:00",
+      event_time_end: "20:00",
+      event_capacity: "50",
+      requires_rsvp: false,
+    },
+    { kind: "event", publishNow: true, enforceFutureTimes: false },
+  );
+  assertNoErrors(eventReady, "event publish ready without RSVP");
+
+  const eventRsvpMissingDeadline = validateNoticeForm(
+    {
+      title: "Community BBQ",
+      body: "Join us in the courtyard for food and fun.",
+      category: "event",
+      location: "Courtyard",
+      event_date: "2026-07-20",
+      event_end_date: "2026-07-20",
+      event_time: "17:00",
+      event_time_end: "20:00",
+      requires_rsvp: true,
+    },
+    { kind: "event", publishNow: true, now: new Date("2026-07-19T08:00:00"), enforceFutureTimes: false },
+  );
+  assertHasError(eventRsvpMissingDeadline, "registration_deadline_date", "RSVP requires registration date");
+  assertHasError(eventRsvpMissingDeadline, "registration_deadline_time", "RSVP requires registration time");
+
+  const eventRsvpReady = validateNoticeForm(
+    {
+      title: "Community BBQ",
+      body: "Join us in the courtyard for food and fun.",
+      category: "event",
+      location: "Courtyard",
+      event_date: "2026-07-20",
+      event_end_date: "2026-07-20",
+      event_time: "17:00",
+      event_time_end: "20:00",
+      requires_rsvp: true,
+      registration_deadline_date: "2026-07-19",
+      registration_deadline_time: "12:00",
+    },
+    { kind: "event", publishNow: true, now: new Date("2026-07-19T08:00:00"), enforceFutureTimes: false },
+  );
+  assertNoErrors(eventRsvpReady, "event publish ready with RSVP + deadline");
+
+  const alertReady = validateNoticeForm(
+    {
+      title: "Power outage",
+      body: "Scheduled maintenance tonight in block A.",
+      category: "emergency",
+      location: "",
+      event_date: "2026-07-20",
+      event_time: "22:00",
+      event_time_end: "23:30",
+      event_capacity: "",
+    },
+    { kind: "alert", publishNow: true },
+  );
+  assertNoErrors(alertReady, "alert publish ready");
+
+  const scheduleNow = new Date("2026-07-19T08:00:00");
+
+  const scheduleMissing = validateNoticeForm(
+    {
+      title: "Future notice",
+      body: "This notice will publish tomorrow morning.",
+      category: "general",
+      location: "",
+      event_date: "2026-07-21",
+      event_time: "09:00",
+      event_time_end: "10:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "",
+      scheduled_at_time: "",
+    },
+    { kind: "notice", publishNow: true, now: scheduleNow },
+  );
+  assertHasError(scheduleMissing, "scheduled_at_date", "schedule later requires publish date");
+  assertHasError(scheduleMissing, "scheduled_at_time", "schedule later requires publish time");
+
+  const scheduleReady = validateNoticeForm(
+    {
+      title: "Future notice",
+      body: "This notice will publish tomorrow morning.",
+      category: "general",
+      location: "",
+      event_date: "2026-07-21",
+      event_time: "09:00",
+      event_time_end: "10:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "2026-07-20",
+      scheduled_at_time: "08:00",
+    },
+    { kind: "notice", publishNow: true, now: scheduleNow },
+  );
+  assertNoErrors(scheduleReady, "schedule later ready");
+
+  const scheduleAfterStart = validateNoticeForm(
+    {
+      title: "Future notice",
+      body: "This notice will publish after its start window.",
+      category: "general",
+      location: "",
+      event_date: "2026-07-21",
+      event_time: "09:00",
+      event_time_end: "10:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "2026-07-21",
+      scheduled_at_time: "10:00",
+    },
+    { kind: "notice", publishNow: true, now: scheduleNow },
+  );
+  assertHasError(scheduleAfterStart, "scheduled_at_time", "schedule later cannot be after start");
+  assert(
+    scheduleAfterStart.scheduled_at_time ===
+      "Publish date and time must be on or before the start date and time.",
+    "schedule after start message",
+  );
+
+  const scheduleEqualStart = validateNoticeForm(
+    {
+      title: "Future notice",
+      body: "This notice publishes at the same instant it starts.",
+      category: "general",
+      location: "",
+      event_date: "2026-07-21",
+      event_time: "09:00",
+      event_time_end: "10:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "2026-07-21",
+      scheduled_at_time: "09:00",
+    },
+    { kind: "notice", publishNow: true, now: scheduleNow },
+  );
+  assertNoErrors(scheduleEqualStart, "schedule later equal to start is allowed");
+
+  const schedulePastPublish = validateNoticeForm(
+    {
+      title: "Future notice",
+      body: "This notice publish time is already past.",
+      category: "general",
+      location: "",
+      event_date: "2026-07-21",
+      event_time: "09:00",
+      event_time_end: "10:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "2026-07-19",
+      scheduled_at_time: "07:00",
+    },
+    { kind: "notice", publishNow: true, now: scheduleNow },
+  );
+  assertHasError(schedulePastPublish, "scheduled_at_time", "schedule later must be in the future");
+
+  const alertScheduleAfterStart = validateNoticeForm(
+    {
+      title: "Future alert",
+      body: "Water shutoff will be announced after the alert date.",
+      category: "emergency",
+      location: "",
+      event_date: "2026-07-22",
+      event_time: "08:00",
+      event_time_end: "12:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "2026-07-22",
+      scheduled_at_time: "09:00",
+    },
+    { kind: "alert", publishNow: true, now: scheduleNow },
+  );
+  assertHasError(alertScheduleAfterStart, "scheduled_at_time", "alert schedule cannot be after start");
+
+  const today = new Date();
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const pastHour = Math.max(0, today.getHours() - 1);
+  const pastTime = `${String(pastHour).padStart(2, "0")}:00`;
+  const futureHour = Math.min(23, today.getHours() + 1);
+  // If near midnight, use current minute as allowed and skip future-hour case separately.
+  const futureTime =
+    futureHour > today.getHours()
+      ? `${String(futureHour).padStart(2, "0")}:00`
+      : `${String(today.getHours()).padStart(2, "0")}:${String(today.getMinutes()).padStart(2, "0")}`;
+
+  const pastTimeToday = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: todayIso,
+      event_time: pastTime,
+      event_time_end: "23:59",
+      event_capacity: "",
+    },
+    { kind: "notice", publishNow: true, now: today },
+  );
+  if (pastHour < today.getHours() || (pastHour === today.getHours() && today.getMinutes() > 0)) {
+    assertHasError(pastTimeToday, "event_time", "rejects past start time when notice date is today");
+    assert(pastTimeToday.event_time === "Please select a future date and time.", "past time uses exact message");
+  }
+
+  const futureTimeToday = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: todayIso,
+      event_time: futureTime,
+      event_time_end: "23:59",
+      event_capacity: "",
+    },
+    { kind: "notice", publishNow: true, now: today },
+  );
+  assertNoErrors(futureTimeToday, "allows current or future time when notice date is today");
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowIso = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+  const earlyTomorrow = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: tomorrowIso,
+      event_time: "01:00",
+      event_time_end: "02:00",
+      event_capacity: "",
+    },
+    { kind: "notice", publishNow: true, now: today },
+  );
+  assertNoErrors(earlyTomorrow, "allows any valid time on a future notice date");
+
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayIso = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+  const pastDate = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: yesterdayIso,
+      event_end_date: yesterdayIso,
+      event_time: "18:00",
+      event_time_end: "19:00",
+      event_capacity: "",
+    },
+    { kind: "notice", publishNow: true, now: today },
+  );
+  assert(pastDate.event_date === "Please select a future date and time.", "past date uses the future date message");
+  assert(pastDate.event_end_date === "Please select a future date and time.", "past end date uses the future date message");
+  assert(!pastDate.event_time, "a past date does not also mark the clock time");
+
+  const eventPastToday = validateNoticeForm(
+    {
+      title: "Evening social",
+      body: "Join neighbors for an evening social in the courtyard.",
+      category: "event",
+      location: "Courtyard",
+      event_date: todayIso,
+      event_time: pastTime,
+      event_time_end: "23:30",
+      event_capacity: "",
+    },
+    { kind: "event", publishNow: true, now: today },
+  );
+  if (pastHour < today.getHours() || (pastHour === today.getHours() && today.getMinutes() > 0)) {
+    assertHasError(eventPastToday, "event_time", "rejects a past event start time today");
+    assert(
+      eventPastToday.event_time === "Please select a future date and time.",
+      "event past start time uses the same future date message as notices",
+    );
+    assert(!eventPastToday.event_time_end, "event end time is not marked past when it is after the start");
+  }
+
+  const eventEarlyTomorrow = validateNoticeForm(
+    {
+      title: "Morning meetup",
+      body: "Join neighbors for coffee before the workday starts.",
+      category: "event",
+      location: "Lobby",
+      event_date: tomorrowIso,
+      event_time: "01:00",
+      event_time_end: "02:00",
+      event_capacity: "",
+    },
+    { kind: "event", publishNow: true, now: today },
+  );
+  assertNoErrors(eventEarlyTomorrow, "allows any valid time on a future event date");
+
+  const eventEndBeforeStart = validateNoticeForm(
+    {
+      title: "Evening social",
+      body: "Join neighbors for an evening social in the courtyard.",
+      category: "event",
+      location: "Courtyard",
+      event_date: tomorrowIso,
+      event_time: "18:00",
+      event_time_end: "17:00",
+      event_capacity: "",
+    },
+    { kind: "event", publishNow: true, now: today },
+  );
+  assertHasError(eventEndBeforeStart, "event_time_end", "event end time must be later than the start");
+  assert(eventEndBeforeStart.event_time_end === "End time must be after start time.", "end before start message");
+
+
+  const eventScheduleReady = validateNoticeForm(
+    {
+      title: "Future BBQ",
+      body: "Join us in the courtyard for food and fun.",
+      category: "event",
+      location: "Courtyard",
+      event_date: "2026-07-25",
+      event_time: "17:00",
+      event_time_end: "20:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "2026-07-20",
+      scheduled_at_time: "09:00",
+    },
+    { kind: "event", publishNow: true, now: scheduleNow },
+  );
+  assertNoErrors(eventScheduleReady, "event schedule later ready");
+
+  const alertScheduleReady = validateNoticeForm(
+    {
+      title: "Future alert",
+      body: "Water shutoff will be announced tomorrow.",
+      category: "emergency",
+      location: "",
+      event_date: "2026-07-22",
+      event_time: "08:00",
+      event_time_end: "12:00",
+      event_capacity: "",
+      schedule_later: true,
+      scheduled_at_date: "2026-07-21",
+      scheduled_at_time: "07:00",
+    },
+    { kind: "alert", publishNow: true, now: scheduleNow },
+  );
+  assertNoErrors(alertScheduleReady, "alert schedule later ready");
+}
+
+console.log("\nProfile validation");
+{
+  const emptyName = validateProfileForm("", emptyPhoneField(), "");
+  assertHasError(emptyName, "name", "requires name");
+
+  const longBio = validateProfileForm("Admin User", emptyPhoneField(), "x".repeat(501));
+  assertHasError(longBio, "bio", "rejects long bio");
+
+  const ok = validateProfileForm("Admin User", emptyPhoneField(), "Community admin.");
+  assertNoErrors(ok, "accepts valid profile without phone");
+
+  const communityAdminName = validateProfileForm("A".repeat(51), emptyPhoneField(), "", {
+    communityAdmin: true,
+  });
+  assertHasError(communityAdminName, "name", "community admin name max");
+  assert(communityAdminName.name === COMMUNITY_ADMIN_NAME_MAX_MESSAGE, "community admin name message");
+
+  const validCommunityAdminName = validateProfileForm("A".repeat(50), emptyPhoneField(), "", {
+    communityAdmin: true,
+  });
+  assertNoErrors(validCommunityAdminName, "accepts a 50 character community admin name");
+}
+
+console.log("\nPassword validation");
+{
+  const empty = validatePasswordForm("", "", "");
+  assertHasError(empty, "current", "requires current");
+  assertHasError(empty, "next", "requires new");
+  assertHasError(empty, "confirm", "requires confirm");
+
+  const short = validatePasswordForm("oldpass", "abc", "abc");
+  assertHasError(short, "next", "min length");
+
+  const mismatch = validatePasswordForm("oldpass", "newpassword", "different");
+  assertHasError(mismatch, "confirm", "match check");
+
+  const ok = validatePasswordForm("oldpass", "newpassword", "newpassword");
+  assertNoErrors(ok, "accepts valid password change");
+}
+
+console.log("\nProvision user validation");
+{
+  const invalidAdmin = validateCommunityAdminForm(
+    {
+      firstName: "",
+      lastName: "",
+      email: "bad",
+      phone: "",
+      region_id: "",
+      community_mode: "new",
+      community_id: "",
+      community_name: "",
+      community_address: "",
+      community_description: "",
+    },
+    emptyPhoneField(),
+  );
+  assertHasError(invalidAdmin, "firstName", "admin first name required");
+  assertHasError(invalidAdmin, "lastName", "admin last name required");
+  assertHasError(invalidAdmin, "email", "admin email");
+  assertHasError(invalidAdmin, "phone", "admin phone");
+  assertHasError(invalidAdmin, "region_id", "admin region");
+  assertHasError(invalidAdmin, "community_name", "admin community name");
+  assertHasError(invalidAdmin, "community_address", "admin community address");
+
+  const missingCommunity = validateCommunityAdminForm(
+    {
+      firstName: "Jane",
+      lastName: "Admin",
+      email: "jane@example.com",
+      phone: "",
+      region_id: 1,
+      community_mode: "",
+      community_id: "",
+      community_name: "",
+      community_address: "",
+      community_description: "",
+    },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
+  assertHasError(missingCommunity, "community_id", "admin must pick community or add new");
+
+  const okExistingCommunity = validateCommunityAdminForm(
+    {
+      firstName: "Jane",
+      lastName: "Admin",
+      email: "jane@example.com",
+      phone: "",
+      region_id: 1,
+      community_mode: "existing",
+      community_id: 12,
+      community_name: "",
+      community_address: "",
+      community_description: "",
+    },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
+  assertNoErrors(okExistingCommunity, "accepts existing unassigned community");
+
+  const invalidResident = validateResidentForm(
+    { name: "A", email: "", phone: "", region_id: "", community_id: "" },
+    emptyPhoneField(),
+  );
+  assertHasError(invalidResident, "name", "resident name min");
+  assertHasError(invalidResident, "phone", "resident phone");
+  assertHasError(invalidResident, "community_id", "resident community");
+
+  const okAdmin = validateCommunityAdminForm(
+    {
+      firstName: "Jane",
+      lastName: "Admin",
+      email: "jane@example.com",
+      phone: "",
+      region_id: 1,
+      community_mode: "new",
+      community_id: "",
+      community_name: "Sunset Heights",
+      community_address: "123 Main St",
+      community_description: "A friendly community.",
+    },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
+  assertNoErrors(okAdmin, "accepts valid admin provision (phone pre-validated)");
+}
+
+console.log("\nWellness form validation");
+{
+  const badCategory = validateWellnessCategoryForm({ title: "", color: "blue" });
+  assertHasError(badCategory, "title", "category requires title");
+  assertHasError(badCategory, "color", "category rejects invalid color");
+
+  const okCategory = validateWellnessCategoryForm({ title: "Mindfulness", color: "#1B4F8A" });
+  assertNoErrors(okCategory, "accepts valid category");
+
+  const badCourse = validateWellnessCourseForm({ title: "", description: "", category_id: null });
+  assertHasError(badCourse, "category_id", "course requires category");
+  assertHasError(badCourse, "title", "course requires title");
+  assertHasError(badCourse, "description", "course requires description");
+
+  const okCourse = validateWellnessCourseForm({
+    title: "Morning Yoga",
+    description: "Gentle flow for all levels.",
+    category_id: 1,
+  });
+  assertNoErrors(okCourse, "accepts valid course");
+
+  const badLesson = validateWellnessLessonForm({
+    title: "",
+    course_id: null,
+    link_url: "not-a-url",
+  });
+  assertHasError(badLesson, "course_id", "lesson requires course");
+  assertHasError(badLesson, "title", "lesson requires title");
+  assertHasError(badLesson, "link_url", "lesson rejects invalid link");
+  assertHasError(badLesson, "content", "lesson requires file or link");
+
+  const okLessonLink = validateWellnessLessonForm({
+    title: "Breathing Basics",
+    course_id: 1,
+    link_url: "https://example.com/lesson.mp4",
+  });
+  assertNoErrors(okLessonLink, "accepts lesson with link");
+
+  const okLessonFile = validateWellnessLessonForm({
+    title: "Breathing Basics",
+    course_id: 1,
+    hasFile: true,
+  });
+  assertNoErrors(okLessonFile, "accepts lesson with file");
+
+  const okCourseEdit = validateWellnessCourseEdit({
+    title: "Updated Course",
+    description: "Updated description.",
+  });
+  assertNoErrors(okCourseEdit, "accepts valid course edit");
+
+  const okLessonEdit = validateWellnessLessonEdit({
+    title: "Updated Lesson",
+    keepExistingFile: true,
+  });
+  assertNoErrors(okLessonEdit, "accepts lesson edit keeping existing file");
+}
+
+console.log("\nComplete profile field visibility (mobile parity)");
+{
+  const systemCreatedAdmin = getCompleteProfileFieldVisibility({
+    user: {
+      role: "community_admin",
+      community_admin_status: "approved",
+      memberships: [{ role: "admin", status: "approved" }],
+    },
+    role: "admin",
+  });
+  assert(!systemCreatedAdmin.showResidenceType, "system-created CA hides residence type");
+  assert(!systemCreatedAdmin.showUnitNumber, "system-created CA hides unit number");
+  assert(systemCreatedAdmin.showOfficeAddress, "system-created CA shows office address");
+  assert(systemCreatedAdmin.showUtilityBill, "system-created CA shows utility bill");
+  assert(!systemCreatedAdmin.showFamilyNumberField, "system-created CA hides family number");
+  assert(!systemCreatedAdmin.unitRequired, "system-created CA does not require unit");
+  assert(!systemCreatedAdmin.skipUtilityBill, "system-created CA does not skip utility bill");
+
+  const selfServeAdmin = getCompleteProfileFieldVisibility({
+    user: {
+      role: "community_admin",
+      community_admin_status: "pending",
+      memberships: [{ role: "admin", status: "pending" }],
+    },
+    role: "admin",
+  });
+  assert(!selfServeAdmin.showResidenceType, "self-serve CA hides residence type");
+  assert(!selfServeAdmin.showUnitNumber, "self-serve CA hides unit number");
+  assert(selfServeAdmin.showOfficeAddress, "self-serve CA shows office address");
+  assert(selfServeAdmin.showUtilityBill, "self-serve CA shows utility bill");
+  assert(!selfServeAdmin.showFamilyNumberField, "self-serve CA hides family number");
+  assert(!selfServeAdmin.skipUtilityBill, "self-serve CA does not skip utility bill");
+
+  const invitedAdmin = getCompleteProfileFieldVisibility({
+    user: {
+      role: "community_admin",
+      community_admin_status: "pending",
+      memberships: [{ role: "admin", status: "pending", invite_code_used: "INVITE-1" }],
+    },
+    role: "admin",
+  });
+  assert(invitedAdmin.showUtilityBill, "invited CA shows utility bill");
+  assert(!invitedAdmin.showResidenceType, "invited CA hides residence type");
+  assert(invitedAdmin.showOfficeAddress, "invited CA shows office address");
+  assert(!invitedAdmin.showFamilyNumberField, "invited CA hides family number");
+
+  const invitedQuery = getCompleteProfileFieldVisibility({
+    user: {
+      role: "community_admin",
+      community_admin_status: "pending",
+    },
+    role: "admin",
+    invited: true,
+  });
+  assert(invitedQuery.showUtilityBill, "invited=1 query still shows utility bill");
+
+  const residentJoin = getCompleteProfileFieldVisibility({
+    user: { role: "resident", memberships: [{ role: "resident", status: "pending" }] },
+    role: "resident",
+  });
+  assert(residentJoin.showFamilyNumberField, "resident join shows family number");
+  assert(residentJoin.showResidenceType, "resident join shows residence type");
+  assert(residentJoin.showUnitNumber, "resident join shows unit number");
+  assert(!residentJoin.showOfficeAddress, "resident join hides office address");
+  assert(residentJoin.showUtilityBill, "resident join shows utility bill");
+
+  const invitedResident = getCompleteProfileFieldVisibility({
+    user: {
+      role: "resident",
+      memberships: [{ role: "resident", status: "approved", invite_code_used: "ABC123" }],
+    },
+    role: "resident",
+    invited: true,
+  });
+  assert(invitedResident.showUtilityBill, "invited resident shows utility bill");
+  assert(!invitedResident.skipUtilityBill, "invited resident does not skip utility bill");
+
+  const approvedResident = getCompleteProfileFieldVisibility({
+    user: { role: "resident", memberships: [{ role: "resident", status: "approved" }] },
+    role: "resident",
+  });
+  assert(approvedResident.showUtilityBill, "admin-created resident shows utility bill");
+  assert(approvedResident.showFamilyNumberField, "admin-created resident still shows family");
+
+  const guest = getCompleteProfileFieldVisibility({
+    user: { role: "guest", memberships: [{ role: "guest", status: "approved" }] },
+    role: "guest",
+  });
+  assert(!guest.showFamilyNumberField, "guest hides family number");
+  assert(!guest.showResidenceType, "guest hides residence type");
+  assert(!guest.showUtilityBill, "guest hides utility bill");
+  assert(!guest.unitRequired, "guest unit is optional");
+
+  assert(
+    shouldUseSimpleCompleteProfileSubmit({
+      role: "resident",
+      invited_by_admin: true,
+    }),
+    "provisioned resident uses Submit label",
+  );
+  assert(
+    shouldUseSimpleCompleteProfileSubmit({
+      role: "community_admin",
+      community_admin_status: "approved",
+      invited_by_admin: true,
+    }),
+    "provisioned community admin uses Submit label",
+  );
+  assert(
+    !shouldUseSimpleCompleteProfileSubmit({
+      role: "resident",
+      memberships: [{ role: "member", status: "pending" }],
+    }),
+    "self-serve resident keeps approval label",
+  );
+  assert(
+    shouldUseSimpleCompleteProfileSubmit(null, { invited: true }),
+    "invited query param uses Submit label",
+  );
+}
+
+console.log("\nComplete profile form validation");
+{
+  const missingPhone = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "101",
+    residenceType: "homeowner",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: true,
+  });
+  assertHasError(missingPhone, "phone", "requires phone");
+
+  const systemCreatedOk = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "Admin Office",
+    residenceType: "homeowner",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: true,
+  });
+  assertNoErrors(systemCreatedOk, "accepts system-created CA without utility bill");
+
+  const selfServeNeedsBill = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "101",
+    residenceType: "homeowner",
+    utilityFile: null,
+    requireUtilityFile: true,
+    requireResidenceType: true,
+  });
+  assertHasError(selfServeNeedsBill, "utilityFile", "self-serve CA requires utility bill");
+
+  const guestOk = validateCompleteProfileForm({
+    name: "Guest User",
+    email: "guest@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "",
+    residenceType: "",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: false,
+    guestMode: true,
+  });
+  assertNoErrors(guestOk, "guest can skip unit, residence, and utility bill");
+
+  const longCommunityAdmin = validateCompleteProfileForm({
+    name: "A".repeat(51),
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "",
+    residenceType: "",
+    officeAddress: "1".repeat(256),
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: false,
+    communityAdmin: true,
+  });
+  assert(longCommunityAdmin.name === COMMUNITY_ADMIN_NAME_MAX_MESSAGE, "community admin profile name limit");
+  assert(longCommunityAdmin.officeAddress === COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE, "community admin office address limit");
+  assert(!longCommunityAdmin.unitNumber, "community admin does not require unit number");
+  assert(!longCommunityAdmin.residenceType, "community admin does not require residence type");
+
+  const withinLimit = validateCompleteProfileForm({
+    name: "A".repeat(50),
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "",
+    residenceType: "",
+    officeAddress: "100 Management Office, Oak Valley",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: false,
+    communityAdmin: true,
+  });
+  assert(!withinLimit.name && !withinLimit.officeAddress, "community admin profile accepts the limits");
+
+  const termsRequired = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "",
+    residenceType: "",
+    officeAddress: "100 Management Office, Oak Valley",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: false,
+    communityAdmin: true,
+    requireAcceptedTerms: true,
+    acceptedTerms: false,
+  });
+  assertHasError(termsRequired, "acceptedTerms", "requires terms acceptance when enabled");
+
+  const termsAccepted = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "",
+    residenceType: "",
+    officeAddress: "100 Management Office, Oak Valley",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: false,
+    communityAdmin: true,
+    requireAcceptedTerms: true,
+    acceptedTerms: true,
+  });
+  assertNoErrors(termsAccepted, "accepts form when terms are checked");
+
+  const residentUnit = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "1".repeat(21),
+    residenceType: "homeowner",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: true,
+  });
+  assert(!residentUnit.unitNumber, "resident unit limit stays above 20 characters");
+}
+
+console.log("\nCommunity admin edit validation");
+{
+  const phone = { digits: "4155552671", country: "US", valid: true, e164: "+14155552671" };
+  const tooLong = validateCommunityAdminEditForm("A".repeat(51), phone, "1".repeat(256));
+  assert(tooLong.name === COMMUNITY_ADMIN_NAME_MAX_MESSAGE, "edit name limit");
+  assert(tooLong.officeAddress === COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE, "edit office address limit");
+
+  const atLimit = validateCommunityAdminEditForm("A".repeat(50), phone, "1".repeat(255));
+  assert(!atLimit.name && !atLimit.officeAddress, "edit accepts the limits");
+
+  assert(applyCharacterLimit("Hello", "Hello world pasted", 5) === "Hello", "paste does not grow past the limit");
+  assert(applyCharacterLimit("Hello", "Hel", 5) === "Hel", "shorter input is kept");
+  assert(applyCharacterLimit("Too long already", "Too long alread", 5) === "Too long alread", "over-limit values can be shortened");
+}
+
+console.log("\nAgreement date validation");
+{
+  const base = {
+    title: "Community Rules",
+    description: "Residents agree to these community rules.",
+    category: "Rules & Policies",
+    hasFile: true,
+  };
+  const onNovember16 = new Date("2026-11-16T12:00:00Z");
+  const future = validateAgreementDetails({
+    ...base,
+    dueAt: "11/19/2026",
+    effectiveAt: "11/20/2026",
+    expiresAt: "11/28/2026",
+  }, { timeZone: "Asia/Karachi", now: onNovember16 });
+  assert(!future.dueAt && !future.effectiveAt && !future.expiresAt, "MM/DD/YYYY future dates are valid");
+
+  const iso = validateAgreementDetails({
+    ...base,
+    dueAt: "2026-11-19",
+    effectiveAt: "2026-11-20",
+    expiresAt: "2026-11-28",
+  }, { timeZone: "Asia/Karachi", now: onNovember16 });
+  assert(!iso.dueAt && !iso.effectiveAt && !iso.expiresAt, "ISO future dates are valid");
+
+  const today = validateAgreementDetails({
+    ...base,
+    dueAt: "11/16/2026",
+    effectiveAt: "2026-11-16",
+    expiresAt: "11/16/2026",
+  }, { timeZone: "Asia/Karachi", now: onNovember16 });
+  assert(!today.dueAt && !today.effectiveAt && !today.expiresAt, "the community's current date is valid");
+
+  const past = validateAgreementDetails({
+    ...base,
+    dueAt: "11/15/2026",
+    effectiveAt: "2026-11-15",
+    expiresAt: "11/01/2026",
+  }, { timeZone: "Asia/Karachi", now: onNovember16 });
+  assert(past.dueAt === "Due date cannot be in the past.", "a past due date is rejected");
+  assert(past.effectiveAt === "Effective date cannot be in the past.", "a past effective date is rejected");
+  assert(past.expiresAt === "Expiration date cannot be in the past.", "a past expiration date is rejected");
+
+  const stillNovember16InNewYork = new Date("2026-11-17T02:00:00Z");
+  const localToday = validateAgreementDetails({
+    ...base,
+    dueAt: "11/16/2026",
+    effectiveAt: "11/16/2026",
+    expiresAt: "11/16/2026",
+  }, { timeZone: "America/New_York", now: stillNovember16InNewYork });
+  assert(!localToday.dueAt && !localToday.effectiveAt && !localToday.expiresAt, "today in the community timezone is not treated as past");
+
+  const nextDayInKarachi = new Date("2026-11-16T22:30:00Z");
+  const rolled = validateAgreementDetails({
+    ...base,
+    dueAt: "11/16/2026",
+    effectiveAt: "11/17/2026",
+    expiresAt: "11/28/2026",
+  }, { timeZone: "Asia/Karachi", now: nextDayInKarachi });
+  assert(rolled.dueAt === "Due date cannot be in the past.", "a date before the community's local day is past");
+  assert(!rolled.effectiveAt && !rolled.expiresAt, "dates on or after the community's local day stay valid");
+
+  const order = validateAgreementDetails({
+    ...base,
+    dueAt: "11/9/2026",
+    effectiveAt: "11/20/2026",
+    expiresAt: "11/28/2026",
+  }, { timeZone: "Asia/Karachi", now: new Date("2026-11-01T12:00:00Z") });
+  assert(!order.dueAt && !order.effectiveAt && !order.expiresAt, "month-first dates are ordered by calendar day");
+}
+
+console.log(`\nResults: ${passed} passed, ${failed} failed\n`);
+if (failed > 0) process.exit(1);

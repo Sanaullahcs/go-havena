@@ -1,0 +1,1560 @@
+"use client";
+
+import { ClearableInput } from "@/components/admin/clearable-field";
+
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useSearchParams } from "next/navigation";
+import { AdminBadge, StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
+import { ArrowLeft, X } from "lucide-react";
+import { ResidentInviteProfileNotice } from "@/components/admin/resident-invite-profile-notice";
+import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
+import { UserAvatar } from "@/components/admin/user-avatar";
+import { ProvisionUserModal } from "@/components/admin/provision-user-modal";
+import { confirmAction, confirmDelete, confirmRejectWithReason, toastSuccess, toastError } from "@/lib/alert";
+import {
+  fetchMembers,
+  fetchMember,
+  inviteMember,
+  lookupResidentForInvite,
+  resendMemberInvite,
+  resendMemberInvites,
+  approveMember,
+  rejectMember,
+  suspendMember,
+  deactivateMember,
+  getAdminCommunityId,
+  roleLabel,
+  statusLabel,
+  membersToCsv,
+  downloadCsv,
+  type Member,
+  type MemberStats,
+  type MembershipStatus,
+} from "@/lib/api/members";
+import { apiError, apiFieldErrors } from "@/lib/api/client";
+import { fetchBilling, isCommunityBillingExempt, type BillingPayload } from "@/lib/api/billing";
+import { getManagedCommunityId, getUser, isSystemAdminUser } from "@/lib/auth/session";
+import { PageLoader, PageError } from "@/components/shared/page-states";
+import Link from "next/link";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
+import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { PhoneDisplay } from "@/components/admin/phone-display";
+import { AdminPhoneInput } from "@/components/admin/phone-input";
+import { MemberCommunitiesLabel, MemberUnitsLabel, ResidentDirectoryUnitsLabel } from "@/components/admin/member-units-label";
+import { MemberUnitsDetail } from "@/components/admin/member-units-detail";
+import { fetchAdminCommunities, type AdminCommunityOption } from "@/lib/api/communities";
+import { MemberInviteResultModal } from "@/components/admin/member-invite-result-modal";
+import { MemberBatchUploadModal } from "@/components/admin/member-batch-upload-modal";
+import { ResidentActivityModal } from "@/components/admin/resident-activity-modal";
+import { formatDisplayEmail } from "@/lib/user/email-display";
+import type { MemberInviteResult } from "@/lib/api/members";
+import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
+import {
+  collectInviteUnitNumbers,
+  inviteMemberNameLiveError,
+  inviteMemberUnitFieldError,
+  inviteMemberUnitLiveError,
+  validateSystemMemberInviteForm,
+} from "@/lib/admin/invite-member-validation";
+import { useResidentInviteEmailStep } from "@/lib/admin/use-resident-invite-email-step";
+import { phoneFieldFromE164 } from "@/lib/phone/format";
+import { UnitPickerField } from "@/components/admin/unit-picker-field";
+import {
+  approveUnitRegistrationPackage,
+  createAdminUnit,
+  fetchAdminUnits,
+  rejectUnitRegistrationPackage,
+} from "@/lib/api/property-services";
+import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
+import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
+
+const STATUS_META: Record<MembershipStatus, { tone: "green" | "amber" | "slate" | "red" | "blue"; label: string }> = {
+  approved:         { tone: "green", label: "Active" },
+  pending:          { tone: "amber", label: "Pending" },
+  invitation_sent:  { tone: "slate", label: "Invitation Sent" },
+  invite_rejected:  { tone: "red", label: "Invite Rejected" },
+  not_invited:      { tone: "amber", label: "Not Invited" },
+  onboarding:       { tone: "blue",  label: "Onboarding" },
+  banned:           { tone: "red",   label: "Suspended" },
+  rejected:         { tone: "slate", label: "Rejected" },
+  inactive:         { tone: "slate", label: "Inactive" },
+};
+
+const ROLE_STYLE: Record<string, string> = {
+  admin:     "bg-blue-100 text-blue-700",
+  moderator: "bg-violet-100 text-violet-700",
+  member:    "bg-slate-100 text-slate-600",
+  guest:     "bg-amber-100 text-amber-700",
+};
+
+type Filter = "all" | MembershipStatus;
+
+const EMPTY_STATS: MemberStats = { total: 0, approved: 0, pending: 0, banned: 0, rejected: 0, onboarding: 0, invitation_sent: 0, not_invited: 0, inactive: 0 };
+
+function isCancellableInvitation(m: Member) {
+  return !m.membership_id && (m.status === "invitation_sent" || m.status === "onboarding");
+}
+
+function canReceiveInvitation(m: Member) {
+  return m.role !== "admin" && m.status === "not_invited";
+}
+
+function contactDisplay(m: Member) {
+  const email = formatDisplayEmail(m.email);
+  if (email) return <span className="text-[12px] text-slate-600 truncate">{email}</span>;
+  if (m.phone || m.email) return <PhoneDisplay value={m.phone || m.email} compact />;
+  return <span className="text-[12px] text-slate-400">—</span>;
+}
+
+type MembersPageMode = "community" | "system-residents";
+
+function isOwnCommunityAdminRecord(m: Member, currentUserId?: number) {
+  return Boolean(currentUserId && m.id === currentUserId && m.role === "admin");
+}
+
+function isPendingResident(m: Member) {
+  return m.status === "pending" && m.role !== "admin" && Boolean(m.membership_id);
+}
+
+function canApproveRejectedMember(m: Member) {
+  if (m.status !== "rejected" || !m.membership_id) return false;
+  if (m.rejected_by === "system_admin") return isSystemAdminUser();
+  return true;
+}
+
+export default function MembersPage({ mode = "community" }: { mode?: MembersPageMode }) {
+  const isSystemResidents = mode === "system-residents";
+  const searchParams = useSearchParams();
+  const initialFilter = (searchParams.get("status") as Filter | null) ?? "all";
+  const [filter, setFilter] = useState<Filter>(
+    ["all", "approved", "pending", "banned", "rejected", "inactive", "onboarding", "invitation_sent"].includes(initialFilter)
+      ? initialFilter
+      : "all",
+  );
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 450);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
+  const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", unit: "", units: [""] as string[], communityId: "" });
+  const [invitePhone, setInvitePhone] = useState<PhoneFieldState>(emptyPhoneField());
+  const [phoneResetKey, setPhoneResetKey] = useState(0);
+  const { touch, clearError, showError, setErrors, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
+  const [communities, setCommunities] = useState<AdminCommunityOption[]>([]);
+  const [communitiesLoading, setCommunitiesLoading] = useState(false);
+  const [viewing, setViewing] = useState<Member | null>(null);
+  const [activityMember, setActivityMember] = useState<Member | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [profileActionLoading, setProfileActionLoading] = useState(false);
+  const [busyUnitPackageId, setBusyUnitPackageId] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [inviteResult, setInviteResult] = useState<MemberInviteResult | null>(null);
+  const [inviting, setInviting] = useState(false);
+  const [inviteEmailStepError, setInviteEmailStepError] = useState<string | null>(null);
+  const [invitePhoneE164, setInvitePhoneE164] = useState("");
+  const [provisionOpen, setProvisionOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [scopeCommunityId, setScopeCommunityId] = useState<number | "all" | undefined>(() => {
+    if (isSystemResidents || isSystemAdminUser()) return "all";
+    return getManagedCommunityId();
+  });
+  const [scopeCommunities, setScopeCommunities] = useState<AdminCommunityOption[]>([]);
+
+  const [members, setMembers] = useState<Member[]>([]);
+  const [stats, setStats] = useState<MemberStats>(EMPTY_STATS);
+  const [total, setTotal] = useState(0);
+  const [lastPage, setLastPage] = useState(1);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [billing, setBilling] = useState<BillingPayload | null>(null);
+  const hasLoadedOnce = useRef(false);
+  const currentUser = getUser();
+
+  const systemInviteWithoutUnit = isSystemResidents || isSystemAdminUser();
+  const inviteLiveErrors = useMemo(
+    () => validateSystemMemberInviteForm(form, invitePhone, { requireUnits: !systemInviteWithoutUnit }),
+    [form, invitePhone, systemInviteWithoutUnit],
+  );
+  const canInvite = !hasFieldErrors(inviteLiveErrors);
+  const nameShownError = inviteMemberNameLiveError(form.name) || showError("name", inviteLiveErrors);
+  const primaryUnit = (form.units ?? [])[0] ?? form.unit;
+  const unitShownError = inviteMemberUnitLiveError(primaryUnit) || showError("unit", inviteLiveErrors);
+
+  const inviteCommunityId = form.communityId ? Number(form.communityId) : null;
+  const {
+    step: inviteStep,
+    setStep: setInviteStep,
+    lookupLoading: inviteLookupLoading,
+    profileLocked: inviteProfileLocked,
+    lookupNotice: inviteLookupNotice,
+    resetInviteSteps,
+    continueWithEmail: continueInviteWithEmail,
+  } = useResidentInviteEmailStep(inviteCommunityId);
+
+  useEffect(() => {
+    if (!modal || inviteStep !== "details" || !form.email.trim() || !form.communityId) return;
+
+    let cancelled = false;
+    void lookupResidentForInvite(form.email.trim(), Number(form.communityId)).then((data) => {
+      if (cancelled) return;
+      if (data.auto_fill && data.name && data.phone) {
+        setForm((f) => ({ ...f, name: data.name! }));
+        setInvitePhone(phoneFieldFromE164(data.phone));
+        setInvitePhoneE164(data.phone);
+        setPhoneResetKey((k) => k + 1);
+      }
+      if (data.invitable === false && data.message) {
+        setErrors((prev) => ({ ...prev, email: data.message }));
+        touch("email");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [modal, inviteStep, form.communityId, form.email, setErrors, touch]);
+
+  const load = useCallback(async (silent = false) => {
+    if (!hasLoadedOnce.current) {
+      setInitialLoading(true);
+    } else if (!silent) {
+      setRefreshing(true);
+    }
+    setError(null);
+    try {
+      const res = await fetchMembers({
+        page,
+        per_page: ADMIN_TABLE_PAGE_SIZE,
+        community_id: scopeCommunityId,
+        ...(isSystemResidents ? { role: "member" } : {}),
+        ...(filter !== "all" ? { status: filter } : {}),
+        ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+      });
+      setMembers(Array.isArray(res.data) ? res.data : []);
+      setTotal(res.meta?.total ?? 0);
+      setLastPage(res.meta?.last_page ?? 1);
+      if (res.meta?.stats) setStats(res.meta.stats);
+    } catch (err) {
+      setError(apiError(err));
+    } finally {
+      hasLoadedOnce.current = true;
+      setInitialLoading(false);
+      setRefreshing(false);
+    }
+  }, [filter, debouncedSearch, page, scopeCommunityId, isSystemResidents]);
+
+  // Reset to page 1 when filters change; skip the stale-page fetch that would otherwise fire first.
+  const filterKey = `${filter}|${debouncedSearch}|${scopeCommunityId ?? ""}`;
+  const prevFilterKey = useRef(filterKey);
+  useEffect(() => {
+    if (prevFilterKey.current !== filterKey) {
+      prevFilterKey.current = filterKey;
+      setSelectedIds([]);
+      if (page !== 1) {
+        setPage(1);
+        return;
+      }
+    }
+    void load();
+  }, [filterKey, page, load]);
+
+  useEffect(() => {
+    fetchAdminCommunities()
+      .then((res) => setScopeCommunities(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setScopeCommunities([]));
+  }, []);
+
+  useEffect(() => {
+    if (isSystemResidents || isSystemAdminUser()) {
+      setBilling(null);
+      return;
+    }
+    fetchBilling()
+      .then(setBilling)
+      .catch(() => setBilling(null));
+  }, [isSystemResidents, members?.length]);
+
+  const viewingAllCommunities = scopeCommunityId === "all";
+
+  const scopePresetCommunity = useMemo(() => {
+    if (scopeCommunityId === "all" || !scopeCommunityId) return null;
+    const community = scopeCommunities.find((c) => c.id === scopeCommunityId);
+    if (!community) return null;
+    return {
+      id: community.id,
+      name: community.name,
+      regionId: community.region_id,
+      regionTitle: community.region_title ?? community.region,
+    };
+  }, [scopeCommunityId, scopeCommunities]);
+
+  const statTiles = useMemo(() => [
+    { label: isSystemResidents ? "Total Residents" : "Total Members", value: String(stats.total), hint: isSystemResidents ? "Across all communities" : "All community members", tone: "blue" as const, icon: <IcoMembers /> },
+    { label: "Pending Approval", value: String(stats.pending), hint: "Awaiting review", tone: "amber" as const, icon: <IcoClock /> },
+    { label: "Active", value: String(stats.approved), hint: "Approved residents", tone: "green" as const, icon: <IcoActivity /> },
+    { label: "Invitation Sent", value: String(stats.invitation_sent ?? 0), hint: "Awaiting signup", tone: "slate" as const, icon: <IcoUser /> },
+    { label: "Onboarding", value: String(stats.onboarding ?? 0), hint: "Finishing profile or unit enrollment", tone: "cyan" as const, icon: <IcoUser /> },
+    { label: "Suspended", value: String(stats.banned), hint: "Banned from community", tone: "slate" as const, icon: <IcoBanStat /> },
+    { label: "Inactive", value: String(stats.inactive ?? 0), hint: "Former members", tone: "slate" as const, icon: <IcoUser /> },
+  ], [stats, isSystemResidents]);
+
+  const filters = (["all", "approved", "pending", "invitation_sent", "onboarding", "banned", "rejected", "inactive"] as Filter[]).map((f) => ({
+    key: f,
+    label: f === "all" ? "All" : STATUS_META[f as MembershipStatus]?.label ?? f,
+    count: f === "all" ? stats.total : stats[f as keyof MemberStats],
+  }));
+
+  const billingExempt = Boolean(billing && isCommunityBillingExempt(billing));
+  const billingSetup = billing?.setup;
+  const billingSeats = billing?.seats;
+  const canInviteResidents = Boolean(billingExempt || billingSetup?.can_invite_residents);
+
+  const openInviteModal = async () => {
+    if (billing && !billingExempt && !canInviteResidents) {
+      if (!billing.setup?.subscription_active) {
+        toastError("An active subscription is required before inviting residents.");
+      } else if ((billing.seats?.seats_available ?? 0) <= 0) {
+        toastError("All seats are in use. Upgrade your plan to invite more residents.");
+      } else if (!billing.setup?.community_approved) {
+        toastError("Your community is still awaiting platform approval.");
+      } else {
+        toastError("You cannot invite residents right now. Check Billing.");
+      }
+      return;
+    }
+
+    resetTouched();
+    setInvitePhone(emptyPhoneField());
+    setInvitePhoneE164("");
+    setPhoneResetKey((k) => k + 1);
+    setInviteEmailStepError(null);
+    resetInviteSteps();
+    setModal(true);
+    setCommunitiesLoading(true);
+    try {
+      const res = await fetchAdminCommunities();
+      const communityRows = Array.isArray(res.data) ? res.data : [];
+      setCommunities(communityRows);
+      const defaultId = getAdminCommunityId();
+      const match = defaultId ? communityRows.find((c) => c.id === defaultId) : null;
+      setForm({
+        name: "",
+        email: "",
+        unit: "",
+        units: [""],
+        communityId: match ? String(match.id) : communityRows[0] ? String(communityRows[0].id) : "",
+      });
+    } catch (err) {
+      toastError(apiError(err));
+      setCommunities([]);
+      setForm({ name: "", email: "", unit: "", units: [""], communityId: "" });
+    } finally {
+      setCommunitiesLoading(false);
+    }
+  };
+
+  const closeInviteModal = () => {
+    if (inviting) return;
+    setModal(false);
+    resetTouched();
+    setInvitePhone(emptyPhoneField());
+    setInvitePhoneE164("");
+    setPhoneResetKey((k) => k + 1);
+    setInviteEmailStepError(null);
+    resetInviteSteps();
+    setForm({ name: "", email: "", unit: "", units: [""], communityId: "" });
+  };
+
+  const handleInviteEmailContinue = async () => {
+    setInviteEmailStepError(null);
+    const result = await continueInviteWithEmail(form.email.trim());
+    if (!result.ok) {
+      setInviteEmailStepError(result.error);
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      email: f.email.trim(),
+      name: result.name || f.name,
+    }));
+    setInvitePhone(result.phone);
+    setInvitePhoneE164(result.phone.e164);
+    setPhoneResetKey((k) => k + 1);
+  };
+
+  const openProfile = async (member: Member) => {
+    setViewLoading(true);
+    setBusyUnitPackageId(null);
+    setViewing(member);
+    try {
+      const detail = await fetchMember(
+        member.id,
+        isSystemResidents ? "all" : memberCommunityId(member),
+      );
+      setViewing(detail);
+    } catch (err) {
+      toastError(apiError(err));
+      setViewing(null);
+    } finally {
+      setViewLoading(false);
+    }
+  };
+
+  const refreshViewingMember = async (member: Member) => {
+    const detail = await fetchMember(
+      member.id,
+      isSystemResidents ? "all" : memberCommunityId(member),
+    );
+    setViewing(detail);
+    await load(true);
+  };
+
+  const runApproveUnitPackage = async (packageId: number, unitNumber: string, communityId?: number | null) => {
+    if (!viewing) return;
+    const confirmed = await confirmAction({
+      title: `Approve unit ${unitNumber}?`,
+      text: "This activates the requested unit for the resident. Other units are unchanged.",
+      confirmText: "Approve",
+      color: "blue",
+    });
+    if (!confirmed.isConfirmed) return;
+
+    setBusyUnitPackageId(packageId);
+    try {
+      await approveUnitRegistrationPackage(packageId, communityId);
+      toastSuccess(`Unit ${unitNumber} approved.`);
+      await refreshViewingMember(viewing);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setBusyUnitPackageId(null);
+    }
+  };
+
+  const runRejectUnitPackage = async (packageId: number, unitNumber: string, communityId?: number | null) => {
+    if (!viewing) return;
+    const result = await confirmRejectWithReason({
+      title: `Reject unit ${unitNumber}?`,
+      text: "Only this unit request is rejected. The resident keeps access to their other approved units.",
+      confirmText: "Reject",
+    });
+    if (!result.isConfirmed || !result.value) return;
+
+    setBusyUnitPackageId(packageId);
+    try {
+      await rejectUnitRegistrationPackage(packageId, String(result.value), communityId);
+      toastSuccess(`Unit ${unitNumber} rejected.`);
+      await refreshViewingMember(viewing);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setBusyUnitPackageId(null);
+    }
+  };
+
+  const memberCommunityId = (member: Member) =>
+    member.community_id ?? (scopeCommunityId !== "all" ? scopeCommunityId : undefined);
+
+  const eligibleMembers = useMemo(
+    () => (Array.isArray(members) ? members : []).filter(canReceiveInvitation),
+    [members],
+  );
+  const eligibleIdSet = useMemo(() => new Set(eligibleMembers.map((member) => member.id)), [eligibleMembers]);
+  const selectedMembers = eligibleMembers.filter((member) => selectedIds.includes(member.id));
+  const allEligibleSelected =
+    eligibleMembers.length > 0 && selectedMembers.length === eligibleMembers.length;
+  const someEligibleSelected = selectedMembers.length > 0 && !allEligibleSelected;
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someEligibleSelected;
+    }
+  }, [someEligibleSelected, allEligibleSelected, eligibleMembers.length]);
+
+  useEffect(() => {
+    setSelectedIds((current) => {
+      const next = current.filter((id) => eligibleIdSet.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [eligibleIdSet]);
+
+  const toggleMemberSelection = (memberId: number) => {
+    if (!eligibleIdSet.has(memberId)) return;
+    setSelectedIds((current) =>
+      current.includes(memberId) ? current.filter((id) => id !== memberId) : [...current, memberId],
+    );
+  };
+
+  const toggleAllEligible = () => {
+    if (eligibleMembers.length === 0) return;
+    const visibleIds = eligibleMembers.map((member) => member.id);
+    setSelectedIds((current) => {
+      const withoutVisible = current.filter((id) => !visibleIds.includes(id));
+      if (visibleIds.every((id) => current.includes(id))) return withoutVisible;
+      return [...withoutVisible, ...visibleIds];
+    });
+  };
+
+  const sendSelectedInvitations = async () => {
+    if (selectedMembers.length === 0 || profileActionLoading) return;
+    const count = selectedMembers.length;
+    const residentWord = count === 1 ? "resident" : "residents";
+    const confirmed = await confirmAction({
+      title: "Send Invitations?",
+      text: `You are about to send invitations to ${count} selected ${residentWord}. Would you like to continue?`,
+      confirmText: "Send Invitations",
+    });
+    if (!confirmed.isConfirmed) return;
+
+    setProfileActionLoading(true);
+    try {
+      const groups = new Map<number | undefined, number[]>();
+      for (const member of selectedMembers) {
+        const communityId = memberCommunityId(member);
+        const ids = groups.get(communityId) ?? [];
+        ids.push(member.id);
+        groups.set(communityId, ids);
+      }
+
+      let sent = 0;
+      let failed = 0;
+      const failedNames: string[] = [];
+      for (const [communityId, ids] of groups) {
+        try {
+          const result = await resendMemberInvites(ids, communityId);
+          sent += result.data.sent_count;
+          failed += result.data.failed_count;
+          for (const item of result.data.failed) {
+            if (item.name) failedNames.push(item.name);
+          }
+        } catch {
+          failed += ids.length;
+        }
+      }
+
+      const sentPart = sent === 1 ? "1 invitation sent successfully." : `${sent} invitations sent successfully.`;
+      const failedPart = failed === 1 ? "1 invitation failed." : `${failed} invitations failed.`;
+      const who = failedNames.length > 0 ? ` Failed: ${failedNames.join(", ")}.` : "";
+      const message = failed === 0 ? sentPart : sent === 0 ? `${failedPart}${who}` : `${sentPart} ${failedPart}${who}`;
+      if (sent > 0) toastSuccess(message);
+      else toastError(message);
+      setSelectedIds([]);
+      await load(true);
+    } finally {
+      setProfileActionLoading(false);
+    }
+  };
+
+  const activityMenuItem = (member: Member) => ({
+    label: "Activity",
+    icon: "view" as const,
+    onClick: () => setActivityMember(member),
+  });
+
+  const runApproveMember = async (member: Member, { closeProfile = false } = {}) => {
+    const r = await confirmAction({
+      title: `Approve ${member.name}?`,
+      text: "They will be granted full resident access.",
+      confirmText: "Approve",
+      color: "blue",
+    });
+    if (!r.isConfirmed) return;
+
+    setProfileActionLoading(true);
+    try {
+      await approveMember(member.id, memberCommunityId(member));
+      toastSuccess(`${member.name} approved successfully.`);
+      await load(true);
+      if (closeProfile) setViewing(null);
+      else if (viewing?.id === member.id) {
+        const detail = await fetchMember(
+          member.id,
+          isSystemResidents ? "all" : memberCommunityId(member),
+        );
+        setViewing(detail);
+      }
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setProfileActionLoading(false);
+    }
+  };
+
+  const runRejectMember = async (member: Member, { closeProfile = false } = {}) => {
+    const r = await confirmRejectWithReason({
+      title: `Reject ${member.name}?`,
+      text: "A reason is required. The resident will see it in the mobile app.",
+      confirmText: "Reject",
+    });
+    if (!r.isConfirmed) return;
+
+    setProfileActionLoading(true);
+    try {
+      await rejectMember(member.id, String(r.value ?? "").trim(), memberCommunityId(member));
+      toastSuccess(`${member.name}'s request was rejected.`);
+      await load(true);
+      if (closeProfile) setViewing(null);
+      else if (viewing?.id === member.id) {
+        const detail = await fetchMember(
+          member.id,
+          isSystemResidents ? "all" : memberCommunityId(member),
+        );
+        setViewing(detail);
+      }
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setProfileActionLoading(false);
+    }
+  };
+
+  const showProfileApproveReject =
+    viewing &&
+    !viewLoading &&
+    !isOwnCommunityAdminRecord(viewing, currentUser?.id) &&
+    isPendingResident(viewing);
+
+  const showProfileReapprove =
+    viewing &&
+    !viewLoading &&
+    !isOwnCommunityAdminRecord(viewing, currentUser?.id) &&
+    canApproveRejectedMember(viewing);
+
+  const showProfileReactivate =
+    viewing &&
+    !viewLoading &&
+    !isOwnCommunityAdminRecord(viewing, currentUser?.id) &&
+    viewing.status === "inactive" &&
+    Boolean(viewing.membership_id);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await fetchMembers({
+        page: 1,
+        per_page: 1000,
+        community_id: scopeCommunityId,
+        ...(isSystemResidents ? { role: "member" } : {}),
+        ...(filter !== "all" ? { status: filter } : {}),
+        ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+      });
+      const csv = membersToCsv(res.data);
+      downloadCsv(`members-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+      toastSuccess(`Exported ${res.data.length} member(s).`);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  if (initialLoading) return <PageLoader skeleton />;
+  if (error) return <PageError message={error} onRetry={() => load()} />;
+
+  const seatsBanner = !isSystemResidents && billing && !billingExempt ? (
+    <div
+      className={[
+        "flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-[13px]",
+        billing.seats?.in_grace
+          ? "border-amber-200 bg-amber-50 text-amber-950"
+          : !billing.setup?.subscription_active
+            ? "border-sky-200 bg-sky-50 text-sky-950"
+            : (billing.seats?.seats_available ?? 0) <= 0
+              ? "border-rose-200 bg-rose-50 text-rose-950"
+              : "border-slate-200 bg-white text-slate-700",
+      ].join(" ")}
+    >
+      <p>
+        <span className="font-semibold">
+          {billing.seats?.seats_used ?? 0} / {billing.seats?.seat_limit || "—"} seats used
+        </span>
+        {!billing.setup?.subscription_active
+          ? " — choose a plan before inviting residents."
+          : (billing.seats?.seats_available ?? 0) <= 0
+            ? " — upgrade to add more residents."
+            : billing.seats?.in_grace
+              ? " — update payment to keep inviting."
+              : "."}
+      </p>
+      <Link href="/admin/billing" className="font-semibold text-[#1B4F8A] underline-offset-2 hover:underline">
+        {billing.setup?.subscription_active ? "Manage billing" : "Choose a plan"}
+      </Link>
+    </div>
+  ) : null;
+
+  return (
+    <div className="space-y-6">
+      {seatsBanner}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="nl-eyebrow">{isSystemResidents ? "User Management" : "Community"}</p>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+            {isSystemResidents ? "Residents" : "Members"}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {isSystemResidents
+              ? "View residents across all communities, filter by status, and provision new accounts."
+              : "Manage residents, approve new joiners, and monitor membership."}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          {(isSystemResidents || isSystemAdminUser()) ? (
+            <div className="min-w-[200px]">
+              <label className="nl-label">Community scope</label>
+              <select
+                value={scopeCommunityId === "all" ? "all" : String(scopeCommunityId)}
+                onChange={(e) => setScopeCommunityId(e.target.value === "all" ? "all" : Number(e.target.value))}
+                className="nl-input nl-select mt-1.5 w-full min-w-[200px]"
+              >
+                <option value="all">All communities</option>
+                {scopeCommunities.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name}{c.region_title ? ` — ${c.region_title}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          <div className="flex items-center gap-2">
+            <button type="button" className="nl-btn-secondary" onClick={handleExport} disabled={exporting}>
+              <IcoDownload /> {exporting ? "Exporting…" : "Export CSV"}
+            </button>
+            {isSystemResidents ? (
+              <button type="button" className="nl-btn-primary" onClick={() => setProvisionOpen(true)}>
+                <IcoPlus /> Invite Resident
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="nl-btn-secondary disabled:opacity-60"
+                  onClick={() => setBatchOpen(true)}
+                  disabled={Boolean(billing && !billingExempt && !canInviteResidents)}
+                  title={
+                    billing && !billingExempt && !canInviteResidents
+                      ? "Subscription or seats required — open Billing"
+                      : undefined
+                  }
+                >
+                  Batch Upload
+                </button>
+                <button
+                  type="button"
+                  className="nl-btn-primary disabled:opacity-60"
+                  onClick={openInviteModal}
+                  disabled={Boolean(billing && !billingExempt && !canInviteResidents)}
+                  title={
+                    billing && !billingExempt && !canInviteResidents
+                      ? "Subscription or seats required — open Billing"
+                      : undefined
+                  }
+                >
+                  <IcoPlus /> Invite Member
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {statTiles.map((s) => <StatTile key={s.label} {...s} />)}
+      </div>
+
+      <DataTable
+        title={isSystemResidents ? "All Residents" : "All Members"}
+        search={searchInput}
+        onSearch={(value) => {
+          if (provisionOpen) return;
+          setSearchInput(value);
+        }}
+        searchDisabled={provisionOpen}
+        searchPlaceholder="Search by name or email"
+        filters={filters}
+        activeFilter={filter}
+        onFilter={(key) => setFilter(key as Filter)}
+        filterAccessory={
+          eligibleMembers.length > 0 ? (
+            <ClearableInput
+              ref={selectAllRef}
+              type="checkbox"
+              aria-label="Select all eligible members"
+              checked={allEligibleSelected}
+              onClick={(event) => event.stopPropagation()}
+              onChange={toggleAllEligible}
+              className="nl-member-check"
+            />
+          ) : null
+        }
+        toolbar={
+          selectedMembers.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[12.5px] font-semibold tabular-nums text-slate-600">
+                {selectedMembers.length} selected
+              </span>
+              <button
+                type="button"
+                onClick={() => void sendSelectedInvitations()}
+                disabled={profileActionLoading}
+                className="h-8 rounded-lg bg-blue-600 px-3 text-[12.5px] font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+              >
+                Send Invitation
+              </button>
+            </div>
+          ) : null
+        }
+        isEmpty={members.length === 0}
+        empty="No members match your search or filters."
+        searching={isSearchPending}
+        loading={adminTableBusy(refreshing, profileActionLoading)}
+      >
+        <DtTable>
+          <DtHead cols={[
+            { label: "Member" },
+            ...(viewingAllCommunities ? [{ label: "Community" }] : []),
+            { label: "Unit" },
+            { label: "Role" },
+            { label: "Joined" },
+            { label: "Status" },
+            { label: "Actions", right: true },
+          ]} />
+          <tbody>
+            {members.map((m) => {
+              const st = STATUS_META[m.status] ?? STATUS_META.pending;
+              const selectable = canReceiveInvitation(m);
+              const selected = selectable && selectedIds.includes(m.id);
+              return (
+                <DtRow
+                  key={isSystemResidents ? String(m.id) : `${m.id}-${m.community_id ?? "none"}-${m.membership_id ?? m.status}`}
+                  muted={m.status === "banned" || m.status === "inactive"}
+                  className={selected ? "bg-blue-50/70" : undefined}
+                >
+                  <DtCell first>
+                    <div className="flex items-center gap-3">
+                      {selectable ? (
+                        <ClearableInput
+                          type="checkbox"
+                          aria-label={`Select ${m.name}`}
+                          checked={selected}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={() => toggleMemberSelection(m.id)}
+                          className="nl-member-check"
+                        />
+                      ) : null}
+                      <UserAvatar name={m.name ?? ""} src={m.avatar_url} size={32} />
+                      <div>
+                        <p className="font-semibold text-slate-900">{m.name}</p>
+                        <div className="text-[12px] text-slate-400">{contactDisplay(m)}</div>
+                      </div>
+                    </div>
+                  </DtCell>
+                  {viewingAllCommunities && (
+                    <DtCell nowrap muted>
+                      {isSystemResidents ? (
+                        <MemberCommunitiesLabel
+                          communities={m.communities}
+                          fallbackName={m.community_name}
+                        />
+                      ) : (
+                        (m.community_name ?? "—")
+                      )}
+                    </DtCell>
+                  )}
+                  <DtCell nowrap>
+                    {isSystemResidents ? (
+                      <ResidentDirectoryUnitsLabel
+                        communities={m.communities}
+                        units={m.units}
+                        unitNumber={m.unit_number}
+                      />
+                    ) : (
+                      <MemberUnitsLabel units={m.units} unitNumber={m.unit_number} />
+                    )}
+                  </DtCell>
+                  <DtCell>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${ROLE_STYLE[m.role] ?? ROLE_STYLE.member}`}>
+                      {roleLabel(m.role)}
+                    </span>
+                  </DtCell>
+                  <DtCell nowrap muted>
+                    {new Date(m.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  </DtCell>
+                  <DtCell>
+                    <AdminBadge tone={st.tone}>{st.label}</AdminBadge>
+                  </DtCell>
+                  <DtCell last right>
+                    <AdminActionsMenu
+                      actions={
+                        isOwnCommunityAdminRecord(m, currentUser?.id)
+                          ? [{ label: "View profile", icon: "view", onClick: () => openProfile(m) }]
+                          : isPendingResident(m)
+                            ? [
+                                { label: "Approve", icon: "approve", tone: "primary", onClick: () => runApproveMember(m) },
+                                { label: "Reject", icon: "reject", tone: "danger", onClick: () => runRejectMember(m) },
+                                activityMenuItem(m),
+                                { label: "View profile", icon: "view", onClick: () => openProfile(m) },
+                              ]
+                            : [
+                                {
+                                  label: "Approve",
+                                  icon: "approve",
+                                  tone: "primary",
+                                  hidden: !(m.status === "rejected" && canApproveRejectedMember(m)),
+                                  onClick: () => runApproveMember(m),
+                                },
+                                {
+                                  label: "Suspend",
+                                  icon: "ban",
+                                  tone: "danger",
+                                  hidden: m.status !== "approved",
+                                  onClick: async () => {
+                                    const r = await confirmDelete({ title: `Suspend ${m.name}?`, text: "They will lose access until reinstated.", confirmText: "Suspend" });
+                                    if (r.isConfirmed) {
+                                      setProfileActionLoading(true);
+                                      try {
+                                        await suspendMember(m.id, memberCommunityId(m));
+                                        toastSuccess(`${m.name} has been suspended.`);
+                                        await load(true);
+                                      } catch (err) {
+                                        toastError(apiError(err));
+                                      } finally {
+                                        setProfileActionLoading(false);
+                                      }
+                                    }
+                                  },
+                                },
+                                {
+                                  label: "Reinstate",
+                                  icon: "approve",
+                                  tone: "primary",
+                                  hidden: m.status !== "banned",
+                                  onClick: async () => {
+                                    const r = await confirmAction({ title: `Reinstate ${m.name}?`, text: "They will regain community access.", confirmText: "Reinstate", color: "green" });
+                                    if (r.isConfirmed) {
+                                      setProfileActionLoading(true);
+                                      try {
+                                        await approveMember(m.id, memberCommunityId(m));
+                                        toastSuccess(`${m.name} has been reinstated.`);
+                                        await load(true);
+                                      } catch (err) {
+                                        toastError(apiError(err));
+                                      } finally {
+                                        setProfileActionLoading(false);
+                                      }
+                                    }
+                                  },
+                                },
+                                {
+                                  label: "Reactivate",
+                                  icon: "approve",
+                                  tone: "primary",
+                                  hidden: m.status !== "inactive" || !m.membership_id,
+                                  onClick: async () => {
+                                    const r = await confirmAction({
+                                      title: `Reactivate ${m.name}?`,
+                                      text: "Their existing member record will be restored. Historical activity stays intact.",
+                                      confirmText: "Reactivate",
+                                      color: "green",
+                                    });
+                                    if (r.isConfirmed) {
+                                      setProfileActionLoading(true);
+                                      try {
+                                        await approveMember(m.id, memberCommunityId(m));
+                                        toastSuccess(`${m.name} has been reactivated.`);
+                                        await load(true);
+                                      } catch (err) {
+                                        toastError(apiError(err));
+                                      } finally {
+                                        setProfileActionLoading(false);
+                                      }
+                                    }
+                                  },
+                                },
+                                {
+                                  label: "Resend Invite",
+                                  icon: "view",
+                                  hidden: !isCancellableInvitation(m) || m.status !== "invitation_sent",
+                                  onClick: async () => {
+                                    setProfileActionLoading(true);
+                                    try {
+                                      await resendMemberInvite(m.id, memberCommunityId(m));
+                                      toastSuccess(`Invitation email sent to ${formatDisplayEmail(m.email) || m.name}.`);
+                                    } catch (err) {
+                                      toastError(apiError(err));
+                                    } finally {
+                                      setProfileActionLoading(false);
+                                    }
+                                  },
+                                },
+                                {
+                                  label: isCancellableInvitation(m) ? "Cancel invitation" : "Remove member",
+                                  icon: "delete",
+                                  tone: "danger",
+                                  hidden: isSystemResidents || m.role === "admin" || m.status === "inactive" || m.status === "invite_rejected",
+                                  onClick: async () => {
+                                    const canCancelInvite = isCancellableInvitation(m);
+                                    const r = await confirmDelete({
+                                      title: canCancelInvite ? `Cancel invitation for ${m.name}?` : `Remove ${m.name}?`,
+                                      text: canCancelInvite
+                                        ? "This cancels the pending invite. They will not be able to join with this code."
+                                        : "They will be marked inactive and lose access. Their history is kept so you can reactivate them later with the same email.",
+                                      confirmText: canCancelInvite ? "Cancel invitation" : "Remove",
+                                    });
+                                    if (r.isConfirmed) {
+                                      setProfileActionLoading(true);
+                                      try {
+                                        await deactivateMember(m.id, memberCommunityId(m));
+                                        toastSuccess(
+                                          canCancelInvite
+                                            ? "Invitation cancelled successfully."
+                                            : "Member deactivated successfully.",
+                                        );
+                                        if (viewing?.id === m.id) setViewing(null);
+                                        await load(true);
+                                      } catch (err) {
+                                        toastError(apiError(err));
+                                      } finally {
+                                        setProfileActionLoading(false);
+                                      }
+                                    }
+                                  },
+                                },
+                                activityMenuItem(m),
+                                { label: "View profile", icon: "view", onClick: () => openProfile(m) },
+                              ]
+                      }
+                    />
+                  </DtCell>
+                </DtRow>
+              );
+            })}
+          </tbody>
+        </DtTable>
+        <DtPagination
+          showing={members.length}
+          total={total}
+          page={page}
+          lastPage={lastPage}
+          onPageChange={setPage}
+        />
+      </DataTable>
+
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
+          <div className="flex max-h-[min(92dvh,720px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div>
+                <h3 className="text-[15px] font-bold text-slate-900">Invite New Member</h3>
+                <p className="mt-0.5 text-[12.5px] text-slate-500">Create a resident account in your community.</p>
+              </div>
+              <button type="button" onClick={closeInviteModal} disabled={inviting} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:pointer-events-none disabled:opacity-40"><X className="h-4 w-4" strokeWidth={2} /></button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-5">
+              {inviteStep === "email" ? (
+                <>
+                  <h4 className="text-[13px] font-semibold text-slate-800">Resident email</h4>
+                  <div>
+                    <label className="nl-label">
+                      Email address <span className="text-red-500">*</span>
+                    </label>
+                    <ClearableInput
+                      type="email"
+                      autoFocus
+                      value={form.email}
+                      onChange={(e) => {
+                        setInviteEmailStepError(null);
+                        clearError("email");
+                        setForm((f) => ({ ...f, email: e.target.value }));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void handleInviteEmailContinue();
+                        }
+                      }}
+                      className={inputClass(inviteEmailStepError ?? undefined, "nl-input mt-1.5")}
+                      placeholder="resident@example.com"
+                    />
+                    {inviteEmailStepError ? (
+                      <p className="mt-1 text-xs text-red-600">{inviteEmailStepError}</p>
+                    ) : null}
+                  </div>
+                  <p className="text-[12px] leading-relaxed text-slate-500">
+                    If they are already in another community, we&apos;ll load their name and phone on the next step.
+                  </p>
+                </>
+              ) : (
+                <>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-600 hover:text-slate-900"
+                onClick={() => {
+                  setInviteStep("email");
+                  setInviteEmailStepError(null);
+                }}
+              >
+                <ArrowLeft className="h-4 w-4" strokeWidth={2} aria-hidden />
+                Change email
+              </button>
+              <p className="text-[12px] text-slate-500">{form.email}</p>
+              {inviteLookupNotice && inviteProfileLocked ? (
+                <ResidentInviteProfileNotice message={inviteLookupNotice} />
+              ) : null}
+              <div>
+                <label className="nl-label">Community</label>
+                <select
+                  value={form.communityId}
+                  onChange={(e) => {
+                    clearError("communityId");
+                    setForm((f) => ({ ...f, communityId: e.target.value }));
+                  }}
+                  onBlur={() => touch("communityId")}
+                  className={inputClass(showError("communityId", inviteLiveErrors), "nl-input nl-select mt-1.5")}
+                  disabled={communitiesLoading || communities.length === 0}
+                >
+                  {communitiesLoading ? (
+                    <option value="">Loading communities…</option>
+                  ) : communities.length === 0 ? (
+                    <option value="">No active communities</option>
+                  ) : (
+                    communities.map((c) => (
+                      <option key={c.id} value={String(c.id)}>
+                        {c.name}{c.region_title ? ` — ${c.region_title}` : ""}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {showError("communityId", inviteLiveErrors) ? (
+                  <p className="mt-1 text-xs text-red-600">{showError("communityId", inviteLiveErrors)}</p>
+                ) : null}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="nl-label">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <ClearableInput
+                    readOnly={inviteProfileLocked}
+                    value={form.name}
+                    onChange={(e) => {
+                      if (inviteProfileLocked) return;
+                      clearError("name");
+                      setForm((f) => ({ ...f, name: e.target.value }));
+                    }}
+                    onBlur={() => touch("name")}
+                    className={inputClass(nameShownError, "nl-input mt-1.5")}
+                    placeholder="e.g. Sarah Mitchell"
+                  />
+                  {nameShownError ? (
+                    <p className="mt-1 text-xs text-red-600">{nameShownError}</p>
+                  ) : null}
+                </div>
+                {!systemInviteWithoutUnit ? (
+                <div className="sm:col-span-2">
+                  <label className="nl-label">
+                    Units <span className="text-red-500">*</span>
+                  </label>
+                  <div className="mt-1.5">
+                    <UnitPickerField
+                      multiple
+                      dataField="units"
+                      values={(form.units ?? []).filter((u) => u.trim())}
+                      placeholder="Select one or more units"
+                      unitMax={20}
+                      error={unitShownError}
+                      validateNewUnit={(unit) => inviteMemberUnitFieldError(unit)}
+                      loadUnits={async () => {
+                        const rows = await fetchAdminUnits();
+                        return rows
+                          .filter((row) => row.kind !== "office")
+                          .map((row) => ({
+                            id: row.id,
+                            unit_number: row.unit_number,
+                            resident_count: row.resident_count ?? 0,
+                          }));
+                      }}
+                      createUnit={async (unitNumber) => {
+                        const created = await createAdminUnit({ unit_number: unitNumber });
+                        return {
+                          id: created.id,
+                          unit_number: created.unit_number,
+                          resident_count: created.resident_count ?? 0,
+                        };
+                      }}
+                      onBlur={() => touch("unit")}
+                      onChangeValues={(units) => {
+                        clearError("unit");
+                        const next = units.length > 0 ? units : [""];
+                        setForm((f) => ({ ...f, units: next, unit: next[0] ?? "" }));
+                      }}
+                    />
+                  </div>
+                  <p className="mt-1.5 text-[11.5px] text-slate-500">
+                    Click multiple units in the list (e.g. 910 and 911). One seat for this resident.
+                  </p>
+                  {unitShownError ? (
+                    <p className="mt-1 text-xs text-red-600">{unitShownError}</p>
+                  ) : null}
+                </div>
+                ) : (
+                  <p className="sm:col-span-2 text-[12px] leading-5 text-slate-500">
+                    This resident will add their unit on Complete Profile after accepting the invitation.
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="nl-label">
+                  Phone number <span className="text-red-500">*</span>
+                </label>
+                <div className="mt-1.5">
+                  <AdminPhoneInput
+                    resetKey={phoneResetKey}
+                    value={invitePhoneE164}
+                    required
+                    disabled={inviteProfileLocked}
+                    showError={Boolean(showError("phone", inviteLiveErrors))}
+                    onChange={(state) => {
+                      if (inviteProfileLocked) return;
+                      clearError("phone");
+                      setInvitePhone(state);
+                      setInvitePhoneE164(state.e164);
+                    }}
+                    onBlur={() => touch("phone")}
+                  />
+                </div>
+              </div>
+              </>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-100 bg-white px-6 py-4">
+              <button type="button" onClick={closeInviteModal} className="nl-btn-secondary" disabled={inviting}>Cancel</button>
+              {inviteStep === "email" ? (
+                <button
+                  type="button"
+                  className="nl-btn-primary disabled:opacity-60"
+                  disabled={inviteLookupLoading || !form.email.trim()}
+                  onClick={() => void handleInviteEmailContinue()}
+                >
+                  {inviteLookupLoading ? "Checking…" : "Continue"}
+                </button>
+              ) : (
+              <button type="button" onClick={async () => {
+                if (inviting || !validateOnSubmit(inviteLiveErrors)) return;
+                const selectedCommunity = communities.find((c) => String(c.id) === form.communityId);
+                const r = await confirmAction({
+                  title: "Send invitation?",
+                  text: `An account will be created for ${form.email}${selectedCommunity ? ` in ${selectedCommunity.name}` : ""}.`,
+                  confirmText: "Send Invite",
+                  color: "blue",
+                });
+                if (r.isConfirmed) {
+                  setInviting(true);
+                  try {
+                    const memberName = form.name;
+                    const memberEmail = form.email;
+                    const unitNumbers = systemInviteWithoutUnit ? [] : collectInviteUnitNumbers(form);
+                    const res = await inviteMember({
+                      name: memberName,
+                      email: memberEmail,
+                      phone: invitePhone.e164,
+                      role: "Resident",
+                      units: unitNumbers,
+                      community_id: Number(form.communityId),
+                    });
+                    setInviting(false);
+                    closeInviteModal();
+                    setInviteResult({
+                      ...res.data,
+                      member_name: memberName,
+                      member_email: memberEmail,
+                    });
+                    toastSuccess(`Invitation sent to ${memberEmail}`);
+                    load(true);
+                  } catch (err) {
+                    const fieldErrors = apiFieldErrors(err);
+                    if (fieldErrors.phone || fieldErrors.email) {
+                      setErrors((prev) => ({
+                        ...prev,
+                        ...(fieldErrors.email ? { email: fieldErrors.email } : {}),
+                        ...(fieldErrors.phone ? { phone: fieldErrors.phone } : {}),
+                      }));
+                      touch("email");
+                      touch("phone");
+                    }
+                    toastError(apiError(err));
+                    setInviting(false);
+                  }
+                }
+              }} className="nl-btn-primary disabled:opacity-60" disabled={communitiesLoading || !canInvite || inviting}>{inviting ? "Sending…" : <><IcoPlus /> Send Invitation</>}</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <MemberBatchUploadModal
+        open={batchOpen}
+        onClose={() => setBatchOpen(false)}
+        onCompleted={() => load(true)}
+      />
+
+      {inviteResult && (
+        <MemberInviteResultModal
+          result={inviteResult}
+          onClose={() => setInviteResult(null)}
+        />
+      )}
+
+      {isSystemResidents && (
+        <ProvisionUserModal
+          type="resident"
+          open={provisionOpen}
+          onClose={() => setProvisionOpen(false)}
+          onCreated={() => load(true)}
+          onResidentInvited={(result) => setInviteResult(result)}
+          presetCommunity={scopePresetCommunity}
+        />
+      )}
+
+      <ResidentActivityModal
+        key={activityMember?.id ?? "closed"}
+        member={activityMember}
+        communityId={activityMember ? memberCommunityId(activityMember) : undefined}
+        onClose={() => setActivityMember(null)}
+      />
+
+      {viewing && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="flex max-h-[min(92dvh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
+              <div className="min-w-0 pr-3">
+                <h3 className="truncate text-[15px] font-bold text-slate-900">{viewing.name}</h3>
+                <p className="mt-0.5 text-[12.5px] text-slate-500">Member profile</p>
+              </div>
+              <button type="button" onClick={() => setViewing(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"><X className="h-4 w-4" strokeWidth={2} /></button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 text-sm sm:px-6 sm:py-5">
+              {viewLoading ? (
+                <p className="text-slate-500">Loading profile…</p>
+              ) : (
+                <>
+                  <ProfileRow label="Email" value={formatDisplayEmail(viewing.email) ?? "—"} />
+                  <ProfileRow label="Role" value={roleLabel(viewing.role)} />
+                  <ProfileRow label="Status" value={statusLabel(viewing.status)} />
+                  {(viewing.status === "invitation_sent" || viewing.status === "invite_rejected") && viewing.invite_code ? (
+                    <ProfileRow
+                      label="Invite code"
+                      value={
+                        <span className="inline-flex items-center gap-2">
+                          <span className="font-mono text-[13px] font-semibold tracking-wide text-slate-900">
+                            {viewing.invite_code}
+                          </span>
+                          <button
+                            type="button"
+                            className="text-[12px] font-semibold text-blue-600 hover:text-blue-700"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(viewing.invite_code ?? "");
+                                toastSuccess("Invite code copied");
+                              } catch {
+                                toastError("Could not copy code");
+                              }
+                            }}
+                          >
+                            Copy
+                          </button>
+                        </span>
+                      }
+                    />
+                  ) : null}
+                  {viewing.status === "rejected" && viewing.rejection_reason ? (
+                    <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">
+                        Rejection reason
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-rose-800">{viewing.rejection_reason}</p>
+                    </div>
+                  ) : null}
+                  {viewing.rejected_by ? (
+                    <ProfileRow
+                      label="Rejected by"
+                      value={viewing.rejected_by === "system_admin" ? "System administrator" : "Community administrator"}
+                    />
+                  ) : null}
+                  <ProfileRow label="Phone" value={<PhoneDisplay value={viewing.phone} />} />
+                  {isSystemResidents ? (
+                    <ProfileRow
+                      label="Communities"
+                      value={
+                        (viewing.community_count ?? viewing.communities?.length ?? 0) > 0 ? (
+                          <span>
+                            {(viewing.community_count ?? viewing.communities?.length ?? 0) === 1
+                              ? (viewing.communities?.[0]?.name ?? viewing.community_name ?? "1 community")
+                              : `${viewing.community_count ?? viewing.communities?.length} communities`}
+                            {(viewing.communities?.length ?? 0) > 1 ? (
+                              <span className="mt-1.5 block space-y-1">
+                                {viewing.communities?.map((community, index) => (
+                                  <span
+                                    key={`${community.id ?? community.name ?? "community"}-${index}`}
+                                    className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-slate-600"
+                                  >
+                                    <span className="font-medium text-slate-800">{community.name ?? "Community"}</span>
+                                    {community.status ? (
+                                      <span className="rounded-full bg-slate-100 px-1.5 py-px text-[10px] font-semibold text-slate-500">
+                                        {statusLabel(community.status)}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                ))}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          (viewing.community_name ?? "—")
+                        )
+                      }
+                    />
+                  ) : viewing.community_name ? (
+                    <ProfileRow label="Community" value={viewing.community_name} />
+                  ) : null}
+                  <MemberUnitsDetail
+                    units={viewing.units}
+                    communities={isSystemResidents ? viewing.communities : undefined}
+                    fallbackUnitNumber={viewing.unit_number}
+                    fallbackResidenceType={viewing.residence_type}
+                    fallbackUtilityBillUrl={viewing.utility_bill_url}
+                    busyPackageId={busyUnitPackageId}
+                    onApprovePackage={(packageId, unitNumber, communityId) => {
+                      void runApproveUnitPackage(packageId, unitNumber, communityId);
+                    }}
+                    onRejectPackage={(packageId, unitNumber, communityId) => {
+                      void runRejectUnitPackage(packageId, unitNumber, communityId);
+                    }}
+                  />
+                  <ProfileRow label="Bio" value={viewing.bio?.trim() ? viewing.bio : "—"} />
+                  <ProfileRow label="Joined" value={new Date(viewing.created_at).toLocaleString()} />
+                </>
+              )}
+            </div>
+            {(showProfileApproveReject || showProfileReapprove || showProfileReactivate) ? (
+              <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-6">
+                {showProfileApproveReject ? (
+                  <>
+                    <button
+                      type="button"
+                      className="nl-btn-primary w-full sm:w-auto"
+                      disabled={profileActionLoading}
+                      onClick={() => runApproveMember(viewing, { closeProfile: true })}
+                    >
+                      {profileActionLoading ? "Working…" : "Approve"}
+                    </button>
+                    <button
+                      type="button"
+                      className="nl-btn-secondary w-full !border-red-200 !text-red-700 hover:!bg-red-50 sm:w-auto"
+                      disabled={profileActionLoading}
+                      onClick={() => runRejectMember(viewing, { closeProfile: true })}
+                    >
+                      {profileActionLoading ? "Working…" : "Reject"}
+                    </button>
+                    <button
+                      type="button"
+                      className="nl-btn-secondary w-full sm:w-auto"
+                      disabled={profileActionLoading}
+                      onClick={() => setViewing(null)}
+                    >
+                      Close
+                    </button>
+                  </>
+                ) : showProfileReactivate ? (
+                  <>
+                    <button
+                      type="button"
+                      className="nl-btn-primary w-full sm:w-auto"
+                      disabled={profileActionLoading}
+                      onClick={async () => {
+                        const r = await confirmAction({
+                          title: `Reactivate ${viewing.name}?`,
+                          text: "Their existing member record will be restored. Historical activity stays intact.",
+                          confirmText: "Reactivate",
+                          color: "green",
+                        });
+                        if (!r.isConfirmed) return;
+                        setProfileActionLoading(true);
+                        try {
+                          await approveMember(viewing.id, memberCommunityId(viewing));
+                          toastSuccess(`${viewing.name} has been reactivated.`);
+                          setViewing(null);
+                          await load(true);
+                        } catch (err) {
+                          toastError(apiError(err));
+                        } finally {
+                          setProfileActionLoading(false);
+                        }
+                      }}
+                    >
+                      {profileActionLoading ? "Working…" : "Reactivate"}
+                    </button>
+                    <button
+                      type="button"
+                      className="nl-btn-secondary w-full sm:w-auto"
+                      disabled={profileActionLoading}
+                      onClick={() => setViewing(null)}
+                    >
+                      Close
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="nl-btn-primary w-full sm:w-auto"
+                      disabled={profileActionLoading}
+                      onClick={() => runApproveMember(viewing, { closeProfile: true })}
+                    >
+                      {profileActionLoading ? "Working…" : "Approve"}
+                    </button>
+                    <button
+                      type="button"
+                      className="nl-btn-secondary w-full sm:w-auto"
+                      disabled={profileActionLoading}
+                      onClick={() => setViewing(null)}
+                    >
+                      Close
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="flex shrink-0 justify-end border-t border-slate-100 px-4 py-4 sm:px-6">
+                <button type="button" className="nl-btn-secondary w-full sm:w-auto" onClick={() => setViewing(null)}>
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProfileRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1 border-b border-slate-50 pb-2 last:border-0 sm:flex-row sm:gap-3">
+      <span className="w-full shrink-0 text-[12px] font-semibold text-slate-500 sm:w-24">{label}</span>
+      <span className="min-w-0 text-[13px] text-slate-800 break-words">{value || "—"}</span>
+    </div>
+  );
+}
+
+function IcoMembers()  { return <svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.8"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><circle cx="18.5" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.6"/><path d="M16 20c0-2.2 1.3-4 3-4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>; }
+function IcoClock()    { return <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
+function IcoActivity() { return <svg viewBox="0 0 24 24" fill="none"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
+function IcoUser()     { return <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.8"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }
+function IcoBanStat() { return <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M7.5 7.5l9 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }
+function IcoPlus()     { return <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }
+function IcoDownload() { return <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v8M5 8l3 3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 13h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>; }

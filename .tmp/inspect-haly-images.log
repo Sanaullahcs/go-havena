@@ -1,0 +1,57 @@
+=== seed wellness ===
+-rwxrwxr-x 1 gohvena gohvena  64K Sep 14 10:13 public/storage/seed/course-breathing.jpg
+-rwxrwxr-x 1 gohvena gohvena  64K Sep 14 10:13 public/storage/seed/course-communication.jpg
+-rwxrwxr-x 1 gohvena gohvena  48K Sep 14 10:13 public/storage/seed/course-exercise.jpg
+-rwxrwxr-x 1 gohvena gohvena  38K Sep 14 10:13 public/storage/seed/course-goals.jpg
+-rwxrwxr-x 1 gohvena gohvena 168K Sep 14 10:13 public/storage/seed/course-home-workout.jpg
+-rwxrwxr-x 1 gohvena gohvena  64K Sep 14 10:13 public/storage/seed/course-learning.jpg
+-rwxrwxr-x 1 gohvena gohvena  80K Sep 14 10:13 public/storage/seed/course-meal-prep.jpg
+-rwxrwxr-x 1 gohvena gohvena  44K Sep 14 10:13 public/storage/seed/course-mindful.jpg
+-rwxrwxr-x 1 gohvena gohvena  66K Sep 14 10:13 public/storage/seed/course-neighbors.jpg
+-rwxrwxr-x 1 gohvena gohvena  98K Sep 14 10:13 public/storage/seed/course-nutrition.jpg
+-rwxrwxr-x 1 gohvena gohvena  59K Sep 14 10:13 public/storage/seed/wellness-exercise.jpg
+-rwxrwxr-x 1 gohvena gohvena  43K Sep 14 10:13 public/storage/seed/wellness-learning.jpg
+-rwxrwxr-x 1 gohvena gohvena  60K Sep 14 10:13 public/storage/seed/wellness-social.jpg
+-rwxrwxr-x 1 gohvena gohvena  46K Sep 14 10:13 public/storage/seed/wellness-stress.jpg
+-rwxrwxr-x 1 gohvena gohvena 136K Sep 14 10:13 public/storage/seed/wellness-weight.jpg
+=== lesson files ===
+400 Understanding Macronutrients file= vid=https://www.youtube.com/watch?v=xyQY8a-ng6g
+401 Building Balanced Plates file= vid=https://www.youtube.com/watch?v=j7CcaUZrUoE
+402 Smart Snacking Strategies file= vid=https://www.youtube.com/watch?v=lEXBxijQREo
+403 Planning Your Prep Day file= vid=https://www.youtube.com/watch?v=cKeuCuBQjcU
+404 Batch Cooking Essentials file= vid=https://www.youtube.com/watch?v=4R_gUhgg70Q
+405 Warm-Up Basics file= vid=https://www.youtube.com/watch?v=v7AYKMP6rOE
+406 Core Strength Foundations file= vid=https://www.youtube.com/watch?v=O5YX5xg8Seg
+407 Cool Down & Stretch file= vid=https://www.youtube.com/watch?v=g_tea8ZNk5A
+408 Full-Body Circuit file= vid=https://www.youtube.com/watch?v=ml6cT4AZdqI
+409 Recovery Day Mobility file= vid=https://www.youtube.com/watch?v=qX9FSZJu448
+410 Box Breathing file= vid=https://www.youtube.com/watch?v=ArFVftAhcrw
+411 Extended Exhale Relaxation file= vid=https://www.youtube.com/watch?v=inpok4MKVLM
+412 Grounding Breath Break file= vid=https://www.youtube.com/watch?v=RcGyVTAoXEU
+413 Body Scan Relaxation file= vid=https://www.youtube.com/watch?v=ihwcw_ofuME
+414 Gratitude Practice file= vid=https://www.youtube.com/watch?v=fLJsdqxnZb0
+415 Growth Mindset Introduction file= vid=https://www.youtube.com/watch?v=_X0mgOOSpLU
+416 Daily Reflection Habit file= vid=https://www.youtube.com/watch?v=XJpGqTYtN2Y
+417 Habit Stacking file= vid=https://www.youtube.com/watch?v=mN5w13ztN54
+418 Writing SMART Goals file= vid=https://www.youtube.com/watch?v=XRiUT4EpIOg
+419 Introduction to Community Wellness file= vid=https://www.youtube.com/watch?v=qp0HIF3SfI4
+420 Active Listening Skills file= vid=https://www.youtube.com/watch?v=cSohjlYQI2A
+421 Planning a Group Activity file= vid=https://www.youtube.com/watch?v=hO8MwBZl-Vc
+422 Supporting Neighbors file= vid=https://www.youtube.com/watch?v=4q1dgn_C0AU
+423 Building Trust Over Time file= vid=https://www.youtube.com/watch?v=iCvmsMzlF7o
+424 Healthy Boundaries file= vid=https://www.youtube.com/watch?v=Ks-_Mh1QhMc
+425 Using "I" Statements file= vid=https://www.youtube.com/watch?v=eIho2S0ZahI
+426 Navigating Disagreements file= vid=https://www.youtube.com/watch?v=R1vskiVDhq8
+427 Digital Community Etiquette file= vid=https://www.youtube.com/watch?v=t7Xr3AsBEK4
+428 Giving and Receiving Feedback file= vid=https://www.youtube.com/watch?v=wtl5UrrgU8c
+429 Conflict De-escalation file= vid=https://www.youtube.com/watch?v=55hH4s5lVGg
+430 Celebrating Community Wins file= vid=https://www.youtube.com/watch?v=fW8amMCVAJQ
+=== deals cols ===
+id,community_id,created_by,business_id,title,title_es,title_ar,vendor,description,description_es,description_ar,type,discount_label,discount_label_es,discount_label_ar,original_price,discounted_price,promo_code,category,location,image_url,is_featured,status,starts_at,ends_at,created_at,updated_at,deleted_at
+
+=== biz cols ===
+id,community_id,owner_id,name,category,description,address,phone,hours,amenities,image_url,status,approved_at,approved_by,created_at,updated_at,deleted_at
+
+=== php gd ===
+gd=yes
+imagick=yes

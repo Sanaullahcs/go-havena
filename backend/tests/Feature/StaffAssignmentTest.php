@@ -1,0 +1,1206 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Mail\HavenaTransactionalMail;
+use App\Models\Community;
+use App\Models\CommunityMembership;
+use App\Models\CommunitySubscription;
+use App\Models\Region;
+use App\Models\User;
+use App\Services\ComplaintMailer;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+class StaffAssignmentTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private int $staffPhoneSequence = 1000000;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['billing.enabled' => false, 'billing.enforce' => false]);
+        Http::fake();
+        Mail::fake();
+    }
+
+    public function test_admin_assigns_staff_and_status_emails_reach_resident_and_staff(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/v1/admin/staff', [
+            'name' => 'Ali Ahmed',
+            'email' => 'ali.electrician@example.com',
+            'phone' => '+923001234567',
+            'staff_type' => 'external',
+            'specializations' => ['electrical'],
+            'status' => 'active',
+        ])->assertCreated();
+        $staffUser = User::query()->where('email', 'ali.electrician@example.com')->first();
+        if (in_array((string) config('mail.default'), ['log', 'array'], true)) {
+            $this->assertNotNull($created->json('data.delivery_error'));
+        }
+        $this->assertSame('pending', $created->json('data.invitation'));
+        $this->assertSame('resident', $staffUser->role);
+        $this->assertFalse(DB::table('community_memberships')->where('user_id', $staffUser->id)->exists());
+        $token = (string) DB::table('community_staff')->where('id', $created->json('data.id'))->value('invitation_token');
+
+        Sanctum::actingAs($resident);
+        $pendingComplaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'electrical',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Office Light Not Working',
+            'description' => 'The light in our office is not working and needs repair.',
+        ])->assertCreated()->json('data');
+        Sanctum::actingAs($admin);
+        $pendingAssignees = $this->getJson('/api/v1/admin/complaints/'.$pendingComplaint['id'].'/assignees')->assertOk()->json('data');
+        $this->assertNotContains($staffUser->id, collect($pendingAssignees)->pluck('id')->all());
+        $this->assertNull(DB::table('community_staff')->where('user_id', $staffUser->id)->value('activated_at'));
+
+        Sanctum::actingAs($staffUser);
+        $this->postJson('/api/v1/staff/invitations/accept', ['token' => $token])
+            ->assertOk()
+            ->assertJsonPath('email', 'ali.electrician@example.com');
+        $this->assertNotNull(DB::table('community_staff')->where('user_id', $staffUser->id)->value('activated_at'));
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$pendingComplaint['id'].'/assign', [
+            'assigned_to_user_id' => $staffUser->id,
+        ])->assertOk();
+        $this->postJson('/api/v1/admin/complaints/'.$pendingComplaint['id'].'/assign', [
+            'assigned_to_user_id' => 0,
+        ])->assertOk()->assertJsonPath('data.assigned_to_user_id', null);
+
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'electrical',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Office Light Not Working',
+            'description' => 'The light in our office is not working and needs repair.',
+        ])->assertCreated()->json('data');
+        $this->assertSame('community_admin', $complaint['routed_to']);
+        $this->assertNull($complaint['assigned_staff_id']);
+
+        Sanctum::actingAs($admin);
+        $assignees = $this->getJson('/api/v1/admin/complaints/'.$complaint['id'].'/assignees')->assertOk()->json('data');
+        $this->assertSame($staffUser->id, $assignees[0]['id']);
+        $this->assertTrue($assignees[0]['matched']);
+
+        $assigned = $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $staffUser->id,
+        ])->assertOk()->json('data');
+        $this->assertSame('Ali Ahmed · Electrical', $assigned['assigned_staff_label']);
+
+        Sanctum::actingAs($staffUser);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', ['status' => 'in_progress'])
+            ->assertStatus(422);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/respond', ['decision' => 'accept'])
+            ->assertOk();
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'in_progress',
+            'note' => 'Replacing the office light.',
+        ])->assertOk()->assertJsonPath('data.status', 'in_progress');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/status', [
+            'status' => 'waiting_on_resident',
+        ])->assertForbidden();
+
+        Sanctum::actingAs($staffUser);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'resolved',
+            'note' => 'The office light has been replaced.',
+        ])->assertOk()->assertJsonPath('data.status', 'resolved');
+
+        Sanctum::actingAs($resident);
+        $confirmed = $this->postJson('/api/v1/complaints/'.$complaint['id'].'/status', [
+            'status' => 'closed',
+        ])->assertOk()->json('data');
+        $this->assertSame('closed', $confirmed['status']);
+        $this->assertSame('Ali Ahmed · Electrical', $confirmed['assigned_staff_label']);
+
+        Mail::assertSent(HavenaTransactionalMail::class, function (HavenaTransactionalMail $mail) use ($resident) {
+            return $mail->hasTo($resident->email) && str_contains($mail->subjectLine, 'Status Updated');
+        });
+        Mail::assertSent(HavenaTransactionalMail::class, function (HavenaTransactionalMail $mail) use ($staffUser) {
+            return $mail->hasTo($staffUser->email) && str_contains($mail->subjectLine, 'Status Updated');
+        });
+        Mail::assertSent(HavenaTransactionalMail::class, function (HavenaTransactionalMail $mail) use ($admin) {
+            return $mail->hasTo($admin->email) && str_contains($mail->subjectLine, 'Status Updated');
+        });
+
+        $row = DB::table('complaints')->where('id', $complaint['id'])->first();
+        $eventId = (int) DB::table('complaint_events')->where('complaint_id', $row->id)->max('id');
+        $before = Mail::sent(HavenaTransactionalMail::class)->count();
+        app(ComplaintMailer::class)->statusChanged($row, 'resolved', 'closed', $resident, $eventId, null, false);
+        $this->assertSame($before, Mail::sent(HavenaTransactionalMail::class)->count());
+        $this->assertSame($community->id, (int) DB::table('community_staff')->where('user_id', $staffUser->id)->value('community_id'));
+    }
+
+    public function test_reassignment_decline_and_technical_complaints_stay_protected(): void
+    {
+        ['admin' => $admin, 'resident' => $resident, 'unit' => $unit, 'systemAdmin' => $systemAdmin] = $this->seedWorld();
+        $first = $this->staff($admin, 'First Electrician', 'first.staff@example.com', ['electrical']);
+        $second = $this->staff($admin, 'Second Electrician', 'second.staff@example.com', ['electrical']);
+
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'electrical',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Lobby socket failed',
+            'description' => 'The lobby socket no longer provides power.',
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $first->id,
+        ])->assertOk();
+
+        Sanctum::actingAs($first);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/respond', [
+            'decision' => 'decline',
+            'note' => 'I am not available today.',
+        ])->assertOk();
+        $this->getJson('/api/v1/staff/tasks/'.$complaint['id'])->assertNotFound();
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $second->id,
+        ])->assertOk()->assertJsonPath('data.assigned_to_user_id', $second->id);
+        $this->patchJson('/api/v1/admin/staff/'.DB::table('community_staff')->where('user_id', $second->id)->value('id'), [
+            'status' => 'inactive',
+        ])->assertOk();
+
+        Sanctum::actingAs($second);
+        $this->getJson('/api/v1/staff/tasks')->assertForbidden();
+        $this->assertNull(DB::table('complaints')->where('id', $complaint['id'])->value('assigned_to_user_id'));
+        $this->assertSame(
+            'unassigned',
+            DB::table('complaint_assignments')->where('complaint_id', $complaint['id'])->orderByDesc('id')->value('action'),
+        );
+
+        Sanctum::actingAs($resident);
+        $technical = $this->postJson('/api/v1/complaints', [
+            'type' => 'technical',
+            'category' => 'app_bug',
+            'priority' => 'normal',
+            'title' => 'Screen will not open',
+            'description' => 'The complaints screen closes as soon as it opens.',
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($admin);
+        $denied = $this->postJson('/api/v1/admin/complaints/'.$technical['id'].'/assign', [
+            'assigned_to_user_id' => $first->id,
+        ]);
+        $this->assertContains($denied->status(), [403, 404, 422], $denied->getContent());
+        $this->assertNull(DB::table('complaints')->where('id', $technical['id'])->value('assigned_staff_id'));
+
+        Sanctum::actingAs($systemAdmin);
+        $this->postJson('/api/v1/admin/complaints/'.$technical['id'].'/assign', [
+            'assigned_to_user_id' => $systemAdmin->id,
+        ])->assertOk()->assertJsonPath('data.assigned_staff_id', null);
+    }
+
+    public function test_a_resident_message_reaches_the_admin_and_clears_when_read(): void
+    {
+        ['admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Kitchen tap dripping',
+            'description' => 'The kitchen tap has been dripping since this morning.',
+        ])->assertCreated()->json('data');
+
+        $this->postJson('/api/v1/complaints/'.$complaint['id'].'/messages', [
+            'body' => 'The drip is getting worse.',
+        ])->assertStatus(403);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/messages', [
+            'body' => 'We will send a plumber shortly.',
+            'visibility' => 'public',
+        ])->assertOk();
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/complaints/'.$complaint['id'].'/messages', [
+            'body' => 'The drip is getting worse.',
+        ])->assertOk();
+
+        Sanctum::actingAs($admin);
+        $row = collect($this->getJson('/api/v1/admin/complaints')->assertOk()->json('data'))
+            ->firstWhere('id', $complaint['id']);
+        $this->assertSame(1, $row['unread_count']);
+        Mail::assertSent(HavenaTransactionalMail::class, fn (HavenaTransactionalMail $mail) => $mail->hasTo($admin->email) && str_contains($mail->subjectLine, 'New Message'));
+
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/read')->assertOk();
+        $fresh = collect($this->getJson('/api/v1/admin/complaints')->assertOk()->json('data'))
+            ->firstWhere('id', $complaint['id']);
+        $this->assertSame(0, $fresh['unread_count']);
+    }
+
+    public function test_resident_staff_access_stays_limited_to_accepted_communities(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+        $resident->forceFill([
+            'email_verified_at' => now(),
+            'phone' => $this->staffPhone(),
+        ])->save();
+
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/v1/admin/staff', [
+            'name' => 'Resident Electrician',
+            'email' => $resident->email,
+            'phone' => $this->staffPhone(),
+            'staff_type' => 'internal',
+            'specializations' => ['electrical'],
+        ])->assertCreated();
+        $staffId = (int) $created->json('data.id');
+        $this->assertSame($resident->id, (int) $created->json('data.user_id'));
+        $this->assertSame('resident', $resident->fresh()->role);
+        $this->assertNull(DB::table('community_staff')->where('id', $staffId)->value('activated_at'));
+        $this->assertTrue(DB::table('community_memberships')->where('user_id', $resident->id)->where('status', 'approved')->exists());
+
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/staff/tasks')->assertForbidden();
+        $this->getJson('/api/v1/staff/access')->assertOk()
+            ->assertJsonPath('data.active', false)
+            ->assertJsonPath('data.pending', true);
+        $this->postJson('/api/v1/staff/invitations/'.$staffId.'/accept')->assertOk();
+        $this->getJson('/api/v1/staff/access')->assertOk()->assertJsonPath('data.active', true);
+
+        $second = $this->secondCommunity();
+        Sanctum::actingAs($second['admin']);
+        $pending = $this->postJson('/api/v1/admin/staff', [
+            'name' => 'Resident Electrician',
+            'email' => $resident->email,
+            'phone' => '+19999999999',
+            'staff_type' => 'external',
+            'specializations' => ['plumbing'],
+        ])->assertCreated();
+        $this->assertSame($resident->id, (int) $pending->json('data.user_id'));
+        $this->assertSame($resident->phone, $pending->json('data.phone'));
+
+        Sanctum::actingAs($resident);
+        $invitations = $this->getJson('/api/v1/staff/invitations')->assertOk()->json('data');
+        $this->assertCount(1, $invitations);
+        $this->assertSame($second['community']->id, $invitations[0]['community_id']);
+        $this->assertSame('pending', $invitations[0]['status']);
+        $notice = DB::table('app_notifications')
+            ->where('user_id', $resident->id)
+            ->where('title', 'Staff invitation')
+            ->where('body', 'like', '%'.$second['community']->name.'%')
+            ->first();
+        $this->assertNotNull($notice);
+        $this->getJson('/api/v1/me')->assertOk()
+            ->assertJsonPath('data.pending_invitation_count', 1);
+        $this->assertCount(1, $this->getJson('/api/v1/staff/tasks')->assertOk()->json('meta.communities'));
+
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'electrical',
+            'priority' => 'high',
+            'unit_id' => $unit->id,
+            'title' => 'Hallway light is out',
+            'description' => 'The hallway light has been out since last night.',
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $resident->id,
+        ])->assertOk();
+        $notice = DB::table('app_notifications')
+            ->where('user_id', $resident->id)
+            ->where('action_url', 'like', '/screens/staff-tasks/detail?id='.$complaint['id'].'%')
+            ->first();
+        $this->assertNotNull($notice);
+
+        $outsider = $this->staff($admin, 'Other Worker', 'other.worker@example.com', ['electrical']);
+        Sanctum::actingAs($outsider);
+        $this->getJson('/api/v1/staff/tasks/'.$complaint['id'])->assertNotFound();
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/staff/invitations/'.$pending->json('data.id').'/accept')->assertOk();
+        Sanctum::actingAs($admin);
+        $this->patchJson('/api/v1/admin/staff/'.$staffId, ['status' => 'inactive'])->assertOk();
+        $this->assertNull(DB::table('complaints')->where('id', $complaint['id'])->value('assigned_staff_id'));
+        $this->assertTrue(DB::table('community_memberships')->where('user_id', $resident->id)->where('status', 'approved')->exists());
+
+        Sanctum::actingAs($resident);
+        $remaining = $this->getJson('/api/v1/staff/tasks')->assertOk()->json('meta.communities');
+        $this->assertCount(1, $remaining);
+        $this->assertSame($second['community']->id, $remaining[0]['id']);
+        $this->getJson('/api/v1/staff/tasks?community_id='.$community->id)->assertForbidden();
+        $this->getJson('/api/v1/staff/tasks?community_id='.$second['community']->id)->assertOk();
+    }
+
+    public function test_existing_resident_can_be_added_as_staff_without_losing_membership(): void
+    {
+        ['admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+        $resident->update([
+            'name' => 'Sara Resident',
+            'email' => 'resident.staff@example.com',
+            'phone' => '+923001112233',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $options = $this->getJson('/api/v1/admin/staff/residents?search=A-1')->assertOk()->json('data');
+        $this->assertSame($resident->id, $options[0]['id']);
+        $this->assertSame('A-1', $options[0]['unit']);
+        $this->assertSame('resident.staff@example.com', $options[0]['email']);
+
+        $membership = DB::table('community_memberships')->where('user_id', $resident->id)->first();
+        $created = $this->postJson('/api/v1/admin/staff', [
+            'user_id' => $resident->id,
+            'name' => 'Someone Else',
+            'email' => 'other@example.com',
+            'phone' => '+923001112233',
+            'staff_type' => 'internal',
+            'specializations' => ['plumbing'],
+        ])->assertCreated();
+
+        $this->assertSame($resident->id, $created->json('data.user_id'));
+        $this->assertSame('Sara Resident', $created->json('data.name'));
+        $this->assertSame('resident.staff@example.com', $created->json('data.email'));
+        $this->assertSame(1, User::query()->where('email', 'resident.staff@example.com')->count());
+        $still = DB::table('community_memberships')->where('user_id', $resident->id)->first();
+        $this->assertSame($membership->status, $still->status);
+        $this->assertSame($membership->role, $still->role);
+        $this->assertSame(1, DB::table('unit_residents')->where('user_id', $resident->id)->where('status', 'active')->count());
+
+        $this->postJson('/api/v1/admin/staff', [
+            'user_id' => $resident->id,
+            'name' => 'Sara Resident',
+            'email' => 'resident.staff@example.com',
+            'phone' => '+923001112233',
+            'staff_type' => 'external',
+            'specializations' => ['cleaning'],
+        ])->assertStatus(422)->assertJsonValidationErrors(['user_id']);
+
+        $listed = $this->getJson('/api/v1/admin/staff/residents?search=Sara')->assertOk()->json('data');
+        $this->assertCount(1, $listed);
+        $this->assertSame($resident->id, $listed[0]['id']);
+        $this->assertTrue($listed[0]['already_staff']);
+
+        Sanctum::actingAs($resident);
+        $filed = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Own resident complaint',
+            'description' => 'Staff access must not remove this resident complaint.',
+        ])->assertCreated();
+        $this->getJson('/api/v1/complaints/'.$filed->json('data.id'))
+            ->assertOk()
+            ->assertJsonPath('data.title', 'Own resident complaint');
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/staff', [
+            'name' => 'Bad Phone',
+            'email' => 'bad.phone.staff@example.com',
+            'phone' => '03001234567',
+            'staff_type' => 'external',
+            'specializations' => ['other'],
+        ])->assertStatus(422)->assertJsonValidationErrors(['phone']);
+    }
+
+    public function test_staff_resident_picker_pages_and_searches_every_approved_resident(): void
+    {
+        ['admin' => $admin, 'community' => $community, 'resident' => $resident] = $this->seedWorld();
+        $created = [$resident->id];
+        foreach ([
+            ['Noor', 'noor.resident@example.com', 'B-2'],
+            ['Zara', 'zara.resident@example.com', 'C-9'],
+            ['Imran', 'imran.resident@example.com', 'D-4'],
+        ] as [$name, $email, $unitNumber]) {
+            $user = User::factory()->create([
+                'name' => $name,
+                'email' => $email,
+                'role' => 'resident',
+                'status' => 'active',
+            ]);
+            CommunityMembership::query()->create([
+                'user_id' => $user->id,
+                'community_id' => $community->id,
+                'role' => 'member',
+                'status' => 'approved',
+            ]);
+            $unitId = DB::table('units')->insertGetId([
+                'community_id' => $community->id,
+                'unit_number' => $unitNumber,
+                'unit_number_normalized' => strtolower($unitNumber),
+                'kind' => 'residential',
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            DB::table('unit_residents')->insert([
+                'unit_id' => $unitId,
+                'community_id' => $community->id,
+                'user_id' => $user->id,
+                'status' => 'active',
+                'joined_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $created[] = $user->id;
+        }
+        $pending = User::factory()->create([
+            'name' => 'Pending Person',
+            'email' => 'pending.resident@example.com',
+            'role' => 'resident',
+            'status' => 'active',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $pending->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $first = $this->getJson('/api/v1/admin/staff/residents?per_page=2')->assertOk();
+        $first->assertJsonPath('meta.total', 4);
+        $first->assertJsonPath('meta.last_page', 2);
+        $first->assertJsonCount(2, 'data');
+        $second = $this->getJson('/api/v1/admin/staff/residents?per_page=2&page=2')->assertOk();
+        $second->assertJsonCount(2, 'data');
+        $ids = array_merge(array_column($first->json('data'), 'id'), array_column($second->json('data'), 'id'));
+        $this->assertEqualsCanonicalizing($created, $ids);
+
+        $byEmail = $this->getJson('/api/v1/admin/staff/residents?search=zara.resident@example.com')->assertOk()->json('data');
+        $this->assertCount(1, $byEmail);
+        $this->assertSame('Zara', $byEmail[0]['name']);
+        $this->assertSame('C-9', $byEmail[0]['unit']);
+
+        $byUnit = $this->getJson('/api/v1/admin/staff/residents?search=B-2')->assertOk()->json('data');
+        $this->assertCount(1, $byUnit);
+        $this->assertSame('Noor', $byUnit[0]['name']);
+    }
+
+    private function staffPhone(): string
+    {
+        $this->staffPhoneSequence++;
+
+        return '+92300'.$this->staffPhoneSequence;
+    }
+
+    public function test_staff_status_choices_require_a_not_resolved_note_and_share_the_reporter_phone(): void
+    {
+        ['admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+        $resident->forceFill(['phone' => '+92 300 1112233'])->save();
+        $staffUser = $this->staff($admin, 'Noor Plumber', 'noor.staff@example.com', ['plumbing']);
+
+        Sanctum::actingAs($resident);
+        $created = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Kitchen tap leaking',
+            'description' => 'The kitchen tap has been leaking since this morning.',
+        ])->assertCreated();
+        $created->assertJsonPath('data.status_label', 'Open')->assertJsonPath('data.workflow_status', 'open');
+        $complaint = $created->json('data');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $staffUser->id,
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'submitted')
+            ->assertJsonPath('data.status_label', 'Requested')
+            ->assertJsonPath('data.workflow_status', 'requested');
+
+        Sanctum::actingAs($staffUser);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'in_progress',
+        ])->assertStatus(422);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/respond', ['decision' => 'accept'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'in_review')
+            ->assertJsonPath('data.status_label', 'Pending')
+            ->assertJsonPath('data.workflow_status', 'pending');
+        $listed = $this->getJson('/api/v1/staff/tasks')->assertOk()->json('data');
+        $this->assertSame('+923001112233', collect($listed)->firstWhere('id', $complaint['id'])['reporter_phone']);
+
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'not_resolved',
+            'note' => 'No',
+        ])->assertStatus(422);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'not_resolved',
+            'note' => 'The part is not available.',
+        ])->assertOk()->assertJsonPath('data.status', 'not_resolved')->assertJsonPath('data.status_label', 'Not Resolved');
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'in_progress',
+            'note' => 'The replacement part arrived.',
+        ])->assertOk()->assertJsonPath('data.status', 'in_progress')->assertJsonPath('data.status_label', 'In Progress');
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'not_resolved',
+            'note' => 'The part is not available.',
+        ])->assertOk()->assertJsonPath('data.status', 'not_resolved');
+
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/complaints/'.$complaint['id'])
+            ->assertOk()
+            ->assertJsonPath('data.status_label', 'Not Resolved');
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/complaints/'.$complaint['id'])
+            ->assertOk()
+            ->assertJsonPath('data.status_label', 'Not Resolved')
+            ->assertJsonPath('data.workflow_status', 'not_resolved')
+            ->assertJsonPath('data.assigned_to_name', 'Noor Plumber')
+            ->assertJsonPath('data.allowed_transitions', []);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/status', [
+            'status' => 'in_progress',
+        ])->assertForbidden();
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/status', [
+            'status' => 'resolved',
+        ])->assertForbidden();
+
+        Sanctum::actingAs($staffUser);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'in_progress',
+            'note' => 'Ready to finish the repair.',
+        ])->assertOk();
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'not_resolved',
+            'note' => 'No',
+        ])->assertStatus(422);
+        // Resolved no longer requires a completion note.
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'resolved',
+        ])->assertOk()->assertJsonPath('data.status', 'resolved');
+
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/complaints/'.$complaint['id'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'resolved')
+            ->assertJsonPath('data.status_label', 'Resolved');
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/complaints/'.$complaint['id'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'resolved')
+            ->assertJsonPath('data.allowed_transitions', []);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/status', [
+            'status' => 'in_progress',
+        ])->assertForbidden();
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/status', [
+            'status' => 'reopened',
+        ])->assertForbidden();
+    }
+
+    public function test_resident_reopen_clears_assignment_until_admin_assigns_same_or_new_staff(): void
+    {
+        ['admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+        $first = $this->staff($admin, 'Noor Plumber', 'noor.reopen@example.com', ['plumbing']);
+        $second = $this->staff($admin, 'Second Plumber', 'second.reopen@example.com', ['plumbing']);
+
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Kitchen tap leaking',
+            'description' => 'The kitchen tap has been leaking since this morning.',
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $first->id,
+        ])->assertOk();
+
+        Sanctum::actingAs($first);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/respond', ['decision' => 'accept'])->assertOk();
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'resolved',
+            'note' => 'The kitchen tap has been repaired.',
+        ])->assertOk();
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/complaints/'.$complaint['id'].'/status', [
+            'status' => 'reopened',
+            'note' => 'Water is dripping again under the sink',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'reopened')
+            ->assertJsonPath('data.reopen_reason', 'Water is dripping again under the sink')
+            ->assertJsonPath('data.assigned_to_user_id', null);
+
+        Sanctum::actingAs($first);
+        $this->getJson('/api/v1/staff/tasks/'.$complaint['id'])->assertNotFound();
+
+        Sanctum::actingAs($admin);
+        $adminView = $this->getJson('/api/v1/admin/complaints/'.$complaint['id'])->assertOk();
+        $adminView
+            ->assertJsonPath('data.status', 'reopened')
+            ->assertJsonPath('data.reopen_reason', 'Water is dripping again under the sink')
+            ->assertJsonPath('data.assigned_to_user_id', null)
+            ->assertJsonPath('data.previous_assigned_to_user_id', $first->id)
+            ->assertJsonPath('data.previous_assigned_to_name', 'Noor Plumber')
+            ->assertJsonPath('data.previous_assignee_available', true);
+
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $second->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'reopened')
+            ->assertJsonPath('data.workflow_status', 'requested')
+            ->assertJsonPath('data.assigned_to_user_id', $second->id);
+
+        Sanctum::actingAs($second);
+        $task = $this->getJson('/api/v1/staff/tasks/'.$complaint['id'])->assertOk();
+        $task
+            ->assertJsonPath('data.status', 'reopened')
+            ->assertJsonPath('data.assignment_state', 'pending')
+            ->assertJsonPath('data.reopen_reason', 'Water is dripping again under the sink');
+
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/respond', ['decision' => 'accept'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'in_review');
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'in_progress',
+            'note' => 'Rechecking the joint.',
+        ])->assertOk()->assertJsonPath('data.status', 'in_progress');
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'resolved',
+            'note' => 'Replaced the washer again.',
+        ])->assertOk()->assertJsonPath('data.status', 'resolved');
+    }
+
+    public function test_reopened_admin_assigns_same_staff_and_blocks_duplicate_requests(): void
+    {
+        ['admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+        $plumber = $this->staff($admin, 'Noor Plumber', 'noor.same@example.com', ['plumbing']);
+
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Kitchen tap leaking',
+            'description' => 'The kitchen tap has been leaking since this morning.',
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $plumber->id,
+        ])->assertOk();
+
+        Sanctum::actingAs($plumber);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/respond', ['decision' => 'accept'])->assertOk();
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'resolved',
+            'note' => 'Tap repaired.',
+        ])->assertOk();
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/complaints/'.$complaint['id'].'/status', [
+            'status' => 'reopened',
+            'note' => 'Still leaking overnight',
+        ])->assertOk()->assertJsonPath('data.assigned_to_user_id', null);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $plumber->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'reopened')
+            ->assertJsonPath('data.workflow_status', 'requested')
+            ->assertJsonPath('data.assigned_to_user_id', $plumber->id)
+            ->assertJsonPath('data.reopen_reason', 'Still leaking overnight');
+
+        $duplicate = $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $plumber->id,
+        ]);
+        $duplicate->assertStatus(422);
+        $this->assertStringContainsString('pending assignment request', strtolower((string) $duplicate->json('message')));
+    }
+
+    public function test_reopened_assign_same_staff_rejected_when_previous_staff_unavailable(): void
+    {
+        ['admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+        $plumber = $this->staff($admin, 'Noor Plumber', 'noor.unavail@example.com', ['plumbing']);
+
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Kitchen tap leaking',
+            'description' => 'The kitchen tap has been leaking since this morning.',
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $plumber->id,
+        ])->assertOk();
+
+        Sanctum::actingAs($plumber);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/respond', ['decision' => 'accept'])->assertOk();
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'resolved',
+            'note' => 'Tap repaired.',
+        ])->assertOk();
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/complaints/'.$complaint['id'].'/status', [
+            'status' => 'reopened',
+            'note' => 'Leak came back',
+        ])->assertOk();
+
+        DB::table('community_staff')->where('user_id', $plumber->id)->update(['availability' => 'unavailable']);
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/complaints/'.$complaint['id'])
+            ->assertOk()
+            ->assertJsonPath('data.previous_assigned_to_user_id', $plumber->id)
+            ->assertJsonPath('data.previous_assignee_available', false);
+
+        $denied = $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $plumber->id,
+        ]);
+        $denied->assertStatus(422);
+        $this->assertStringContainsString('change staff', strtolower((string) $denied->json('message')));
+    }
+
+    public function test_community_admin_reassigns_a_not_resolved_complaint_without_changing_its_status(): void
+    {
+        ['admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+        $first = $this->staff($admin, 'Noor Plumber', 'noor.reassign@example.com', ['plumbing']);
+        $second = $this->staff($admin, 'Second Plumber', 'second.reassign@example.com', ['plumbing']);
+
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Kitchen tap leaking',
+            'description' => 'The kitchen tap has been leaking since this morning.',
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $first->id,
+        ])->assertOk();
+
+        Sanctum::actingAs($first);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/respond', ['decision' => 'accept'])->assertOk();
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'not_resolved',
+            'note' => 'The part is not available.',
+        ])->assertOk();
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $second->id,
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'not_resolved')
+            ->assertJsonPath('data.status_label', 'Not Resolved')
+            ->assertJsonPath('data.workflow_status', 'not_resolved')
+            ->assertJsonPath('data.assigned_to_name', 'Second Plumber')
+            ->assertJsonPath('data.allowed_transitions', []);
+
+        $listed = collect($this->getJson('/api/v1/admin/complaints')->assertOk()->json('data'))
+            ->firstWhere('id', $complaint['id']);
+        $this->assertSame('Second Plumber', $listed['assigned_to_name']);
+        $this->assertSame('Not Resolved', $listed['status_label']);
+        $this->assertSame([], $listed['allowed_transitions']);
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $resident->id,
+            'title' => 'Staff assigned',
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $second->id,
+            'title' => 'Service request assigned to you',
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $first->id,
+            'title' => 'Assignment updated',
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $resident->id,
+            'title' => 'Service request Not Resolved',
+        ]);
+    }
+
+    public function test_declining_an_assignment_returns_the_complaint_to_open(): void
+    {
+        ['admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+        $staffUser = $this->staff($admin, 'Decline Plumber', 'decline.staff@example.com', ['plumbing']);
+
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Blocked drain',
+            'description' => 'The bathroom drain is blocked and water is standing.',
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $staffUser->id,
+        ])->assertOk();
+
+        Sanctum::actingAs($staffUser);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/respond', [
+            'decision' => 'decline',
+            'note' => 'I am not available today.',
+        ])->assertOk();
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/complaints/'.$complaint['id'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'submitted')
+            ->assertJsonPath('data.status_label', 'Open')
+            ->assertJsonPath('data.workflow_status', 'open')
+            ->assertJsonPath('data.assigned_to_user_id', null);
+
+        Sanctum::actingAs($staffUser);
+        $this->getJson('/api/v1/staff/tasks/'.$complaint['id'])->assertNotFound();
+    }
+
+    public function test_complaint_workflow_emails_each_party_once(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+        $staffUser = $this->staff($admin, 'Noor Plumber', 'noor.plumber@example.com', ['plumbing']);
+
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'plumbing',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Kitchen tap dripping',
+            'description' => 'The kitchen tap has been dripping since this morning.',
+        ])->assertCreated()->json('data');
+
+        $this->assertSame(1, $this->mailsTo($resident->email, 'submitted')->count());
+        $this->assertSame(1, $this->mailsTo($admin->email, 'submitted')->count());
+        $submitted = $this->mailsTo($resident->email, 'submitted')->first();
+        $this->assertTrue(collect($submitted->details)->contains(fn ($row) => $row['label'] === 'Ticket' && $row['value'] === $complaint['reference']));
+        $this->assertTrue(collect($submitted->details)->contains(fn ($row) => $row['label'] === 'Community' && $row['value'] === $community->name));
+        $this->assertTrue(collect($submitted->details)->contains(fn ($row) => $row['label'] === 'Status' && $row['value'] === 'Open'));
+        $this->assertStringContainsString('/screens/complaints/detail?id='.$complaint['id'], (string) $submitted->ctaUrl);
+
+        $duplicate = DB::table('complaints')->where('id', $complaint['id'])->first();
+        $duplicate->id = 900001;
+        $duplicate->reference = 'CMP-DEDUPE';
+        $duplicate->reporter_user_id = $admin->id;
+        $before = Mail::sent(HavenaTransactionalMail::class)->count();
+        app(ComplaintMailer::class)->submitted($duplicate);
+        $this->assertSame($before + 1, Mail::sent(HavenaTransactionalMail::class)->count());
+        app(ComplaintMailer::class)->submitted($duplicate);
+        $this->assertSame($before + 1, Mail::sent(HavenaTransactionalMail::class)->count());
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $staffUser->id,
+        ])->assertOk();
+
+        Sanctum::actingAs($staffUser);
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/respond', ['decision' => 'accept'])->assertOk();
+        foreach ([$resident, $admin, $staffUser] as $person) {
+            $this->assertSame(1, $this->mailsTo($person->email, 'Assignment Accepted')->count());
+        }
+        $accepted = $this->mailsTo($staffUser->email, 'Assignment Accepted')->first();
+        $this->assertTrue(collect($accepted->details)->contains(fn ($row) => $row['label'] === 'Status' && $row['value'] === 'Pending'));
+        $this->assertTrue(collect($accepted->details)->contains(fn ($row) => $row['label'] === 'Staff' && $row['value'] === 'Noor Plumber'));
+        $this->assertStringContainsString('havena://screens/staff-tasks/detail?id='.$complaint['id'], (string) $accepted->ctaUrl);
+        $this->assertStringContainsString('complaint='.$complaint['id'], (string) $this->mailsTo($admin->email, 'Assignment Accepted')->first()->ctaUrl);
+
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/status', [
+            'status' => 'in_progress',
+            'note' => 'Replacing the washer.',
+        ])->assertOk();
+        foreach ([$resident, $admin, $staffUser] as $person) {
+            $this->assertSame(1, $this->mailsTo($person->email, 'Status Updated')->count());
+        }
+
+        $this->postJson('/api/v1/staff/tasks/'.$complaint['id'].'/updates', [
+            'body' => 'The washer is replaced and the tap is dry.',
+        ])->assertOk();
+        foreach ([$resident, $admin, $staffUser] as $person) {
+            $mail = $this->mailsTo($person->email, 'Work Update');
+            $this->assertSame(1, $mail->count());
+            $this->assertTrue(collect($mail->first()->paragraphs)->contains(fn ($line) => str_contains($line, 'The washer is replaced and the tap is dry.')));
+        }
+    }
+
+    public function test_staff_actions_follow_invitation_and_assignment_status(): void
+    {
+        ['admin' => $admin, 'resident' => $resident, 'unit' => $unit] = $this->seedWorld();
+
+        Sanctum::actingAs($admin);
+        $pending = $this->postJson('/api/v1/admin/staff', [
+            'name' => 'Pending Worker',
+            'email' => 'pending.worker@example.com',
+            'phone' => $this->staffPhone(),
+            'staff_type' => 'internal',
+            'specializations' => ['electrical'],
+        ])->assertCreated();
+        $pendingId = (int) $pending->json('data.id');
+        $pendingUserId = (int) $pending->json('data.user_id');
+        $this->assertSame('pending', $pending->json('data.invitation'));
+
+        Sanctum::actingAs($resident);
+        $complaint = $this->postJson('/api/v1/complaints', [
+            'type' => 'maintenance',
+            'category' => 'electrical',
+            'priority' => 'normal',
+            'unit_id' => $unit->id,
+            'title' => 'Corridor light is out',
+            'description' => 'The corridor light has not worked since yesterday.',
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $pendingUserId,
+        ])->assertStatus(422);
+        $this->patchJson('/api/v1/admin/staff/'.$pendingId, ['status' => 'inactive'])->assertStatus(422);
+        $this->assertSame('active', DB::table('community_staff')->where('id', $pendingId)->value('status'));
+
+        DB::table('community_staff')->where('id', $pendingId)->update([
+            'invitation_expires_at' => now()->subMinute(),
+        ]);
+        $this->postJson('/api/v1/admin/staff/'.$pendingId.'/cancel-invitation')->assertStatus(422);
+        config(['mail.default' => 'smtp']);
+        $this->postJson('/api/v1/admin/staff/'.$pendingId.'/invite')->assertOk()
+            ->assertJsonPath('data.invitation', 'pending');
+
+        $this->postJson('/api/v1/admin/staff/'.$pendingId.'/cancel-invitation')->assertOk();
+        $this->assertNull(DB::table('community_staff')->where('id', $pendingId)->first());
+        $this->assertNotNull(User::query()->find($pendingUserId));
+
+        $accepted = $this->staff($admin, 'Accepted Worker', 'accepted.worker@example.com', ['electrical']);
+        $staffId = (int) DB::table('community_staff')->where('user_id', $accepted->id)->value('id');
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $accepted->id,
+        ])->assertOk();
+        $this->deleteJson('/api/v1/admin/staff/'.$staffId)->assertStatus(422);
+        $this->assertNotNull(DB::table('community_staff')->where('id', $staffId)->first());
+        $this->assertSame($staffId, (int) DB::table('complaints')->where('id', $complaint['id'])->value('assigned_staff_id'));
+
+        $this->patchJson('/api/v1/admin/staff/'.$staffId, ['status' => 'inactive'])->assertOk()
+            ->assertJsonPath('data.invitation', 'accepted')
+            ->assertJsonPath('data.status', 'inactive');
+        $this->assertNull(DB::table('complaints')->where('id', $complaint['id'])->value('assigned_staff_id'));
+        $this->assertSame(
+            'unassigned',
+            DB::table('complaint_assignments')->where('complaint_id', $complaint['id'])->orderByDesc('id')->value('action'),
+        );
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $accepted->id,
+        ])->assertStatus(422);
+
+        $this->patchJson('/api/v1/admin/staff/'.$staffId, ['status' => 'active'])->assertOk()
+            ->assertJsonPath('data.availability', 'available');
+        $this->postJson('/api/v1/admin/complaints/'.$complaint['id'].'/assign', [
+            'assigned_to_user_id' => $accepted->id,
+        ])->assertOk();
+        DB::table('complaints')->where('id', $complaint['id'])->update(['status' => 'closed']);
+        $this->deleteJson('/api/v1/admin/staff/'.$staffId)->assertOk();
+        $this->assertNull(DB::table('community_staff')->where('id', $staffId)->first());
+        $this->assertNotNull(User::query()->find($accepted->id));
+        $this->assertTrue(DB::table('complaint_assignments')->where('complaint_id', $complaint['id'])->exists());
+        $this->assertNotNull(DB::table('complaints')->where('id', $complaint['id'])->first());
+    }
+
+    public function test_new_staff_full_name_validation_messages(): void
+    {
+        ['admin' => $admin] = $this->seedWorld();
+        Sanctum::actingAs($admin);
+
+        $payload = [
+            'email' => 'name.check@example.com',
+            'phone' => '+923009998877',
+            'staff_type' => 'external',
+            'specializations' => ['electrical'],
+        ];
+
+        $this->postJson('/api/v1/admin/staff', $payload + ['name' => '   '])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.name.0', 'Full name is required.');
+        $this->postJson('/api/v1/admin/staff', $payload + ['name' => 'Ali 2'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.name.0', 'Full name cannot contain numbers.');
+        $this->postJson('/api/v1/admin/staff', $payload + ['name' => 'Ali@Khan'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.name.0', 'Full name cannot contain special characters.');
+        $this->postJson('/api/v1/admin/staff', $payload + ['name' => 'A'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.name.0', 'Full name must contain at least 2 characters.');
+        $this->postJson('/api/v1/admin/staff', $payload + ['name' => str_repeat('A', 51)])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.name.0', 'Full name cannot exceed 50 characters.');
+        $this->postJson('/api/v1/admin/staff', $payload + ['name' => '  Ali  Ahmed  '])
+            ->assertCreated()
+            ->assertJsonPath('data.name', 'Ali  Ahmed');
+    }
+
+    private function mailsTo(string $email, string $subjectPart)
+    {
+        return Mail::sent(HavenaTransactionalMail::class, function (HavenaTransactionalMail $mail) use ($email, $subjectPart) {
+            return $mail->hasTo($email) && str_contains($mail->subjectLine, $subjectPart);
+        });
+    }
+
+    private function staff(User $admin, string $name, string $email, array $skills): User
+    {
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/v1/admin/staff', [
+            'name' => $name,
+            'email' => $email,
+            'phone' => $this->staffPhone(),
+            'staff_type' => 'internal',
+            'specializations' => $skills,
+        ])->assertCreated();
+        $token = (string) DB::table('community_staff')->where('id', $created->json('data.id'))->value('invitation_token');
+        $staffUser = User::query()->where('email', $email)->firstOrFail();
+        Sanctum::actingAs($staffUser);
+        $this->postJson('/api/v1/staff/invitations/accept', ['token' => $token])->assertOk();
+
+        return $staffUser;
+    }
+
+    /** @return array<string, mixed> */
+    private function seedWorld(): array
+    {
+        $region = Region::query()->create([
+            'title' => 'Staff Region',
+            'area' => 'Staff Area',
+            'users_label' => '0 users',
+            'sort_order' => 1,
+            'status' => 'active',
+        ]);
+        $community = Community::query()->create([
+            'name' => 'Holy Tower',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+        $admin = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status' => 'active',
+            'active_context' => 'community_admin',
+            'active_context_community_id' => $community->id,
+        ]);
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'active_context_community_id' => $community->id,
+        ]);
+        $systemAdmin = User::factory()->create([
+            'role' => 'system_admin',
+            'status' => 'active',
+        ]);
+        foreach ([[$admin, 'admin'], [$resident, 'member']] as [$user, $role]) {
+            CommunityMembership::query()->create([
+                'user_id' => $user->id,
+                'community_id' => $community->id,
+                'role' => $role,
+                'status' => 'approved',
+            ]);
+        }
+        $unitId = DB::table('units')->insertGetId([
+            'community_id' => $community->id,
+            'unit_number' => 'A-1',
+            'unit_number_normalized' => 'a-1',
+            'kind' => 'residential',
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('unit_residents')->insert([
+            'unit_id' => $unitId,
+            'community_id' => $community->id,
+            'user_id' => $resident->id,
+            'status' => 'active',
+            'joined_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'growth',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_TRIALING,
+            'seat_limit' => 150,
+            'stripe_customer_id' => 'cus_staff',
+            'stripe_subscription_id' => 'sub_staff',
+            'current_period_start' => now(),
+            'current_period_end' => now()->addDays(30),
+            'meta' => ['card_on_file' => true],
+        ]);
+
+        return compact('community', 'admin', 'resident', 'systemAdmin') + ['unit' => (object) ['id' => $unitId]];
+    }
+
+    /** @return array{community: Community, admin: User} */
+    private function secondCommunity(): array
+    {
+        $regionId = (int) Region::query()->value('id');
+        $community = Community::query()->create([
+            'name' => 'DHA Community',
+            'region_id' => $regionId,
+            'region' => 'Staff Region',
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+        $admin = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status' => 'active',
+            'active_context' => 'community_admin',
+            'active_context_community_id' => $community->id,
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $admin->id,
+            'community_id' => $community->id,
+            'role' => 'admin',
+            'status' => 'approved',
+        ]);
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'growth',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_TRIALING,
+            'seat_limit' => 150,
+            'stripe_customer_id' => 'cus_staff_two',
+            'stripe_subscription_id' => 'sub_staff_two',
+            'current_period_start' => now(),
+            'current_period_end' => now()->addDays(30),
+            'meta' => ['card_on_file' => true],
+        ]);
+
+        return compact('community', 'admin');
+    }
+}

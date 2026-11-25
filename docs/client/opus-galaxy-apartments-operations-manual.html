@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Havena Operations Manual — Opus Galaxy Apartments</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 18mm 22mm 18mm;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      color: #1a2332;
+      font: 10.75pt/1.55 "Calibri", "Segoe UI", Arial, sans-serif;
+    }
+    .cover {
+      page-break-after: always;
+      min-height: 250mm;
+    }
+    .rule {
+      height: 3px;
+      background: #1B4F8A;
+      border: 0;
+      margin: 0 0 22px;
+    }
+    .rule-thin {
+      height: 1px;
+      background: #c5d0dc;
+      border: 0;
+      margin: 16px 0 20px;
+    }
+    .doc-kicker {
+      color: #1B4F8A;
+      font-size: 9.5pt;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 10px 0 8px;
+      color: #122033;
+      font-size: 26pt;
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+    .cover h1 { font-size: 30pt; margin-top: 28px; }
+    .subtitle {
+      margin: 0 0 22px;
+      color: #3d4d63;
+      font-size: 13pt;
+      font-weight: 400;
+    }
+    .meta {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 28px 0 0;
+      font-size: 10.5pt;
+    }
+    .meta th {
+      width: 32%;
+      text-align: left;
+      font-weight: 700;
+      color: #1B4F8A;
+      padding: 7px 10px 7px 0;
+      border-bottom: 1px solid #e2e8f0;
+      background: none;
+    }
+    .meta td {
+      padding: 7px 0;
+      border-bottom: 1px solid #e2e8f0;
+      background: none;
+    }
+    .toc { page-break-after: always; }
+    .toc ol { margin: 8px 0 0 22px; }
+    .toc li { margin: 7px 0; }
+    h2 {
+      page-break-before: always;
+      margin: 0 0 12px;
+      padding-bottom: 7px;
+      border-bottom: 2px solid #1B4F8A;
+      color: #1B4F8A;
+      font-size: 16pt;
+      font-weight: 700;
+    }
+    h2.first { page-break-before: auto; }
+    h3 {
+      margin: 18px 0 6px;
+      color: #122033;
+      font-size: 12.5pt;
+      font-weight: 700;
+    }
+    h4 {
+      margin: 14px 0 4px;
+      color: #1B4F8A;
+      font-size: 11pt;
+      font-weight: 700;
+    }
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 4px 0 10px 20px; padding: 0; }
+    li { margin: 3px 0; }
+    table.data {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 14px;
+      font-size: 10.25pt;
+    }
+    table.data th {
+      text-align: left;
+      background: #1B4F8A;
+      color: #fff;
+      padding: 7px 9px;
+      font-weight: 650;
+    }
+    table.data td {
+      padding: 7px 9px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+    table.data tr:nth-child(even) td { background: #f5f8fb; }
+    .callout, .template {
+      border: 1px solid #d5deea;
+      border-left: 4px solid #1B4F8A;
+      background: #f5f8fb;
+      padding: 10px 12px;
+      margin: 10px 0 14px;
+    }
+    .callout.warn {
+      border-left-color: #9a3412;
+      background: #fff7ed;
+    }
+    .template {
+      border-left-color: #475569;
+      background: #f8fafc;
+    }
+    .tree {
+      background: #f5f8fb;
+      border: 1px solid #d5deea;
+      padding: 12px 14px;
+      margin: 10px 0 14px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 9.75pt;
+      white-space: pre-wrap;
+    }
+    a { color: #1B4F8A; text-decoration: none; }
+    .muted { color: #5b6b7c; font-size: 9.75pt; }
+    .footer {
+      margin-top: 24px;
+      padding-top: 8px;
+      border-top: 1px solid #c5d0dc;
+      color: #5b6b7c;
+      font-size: 9pt;
+    }
+  </style>
+</head>
+<body>
+
+  <section class="cover">
+    <hr class="rule" />
+    <p class="doc-kicker">Operations manual</p>
+    <h1>Opus Galaxy Apartments</h1>
+    <p class="subtitle">Community administration guide for Havena</p>
+    <p>This document describes how the management office of Opus Galaxy Apartments, Lahore, will operate its society on the Havena platform. It is written for community administrators and office staff. Residents require only Section 4.</p>
+    <table class="meta">
+      <tr><th>Document owner</th><td>Havena</td></tr>
+      <tr><th>Audience</th><td>Society management, Opus Galaxy Apartments</td></tr>
+      <tr><th>Location</th><td>Lahore, Punjab, Pakistan</td></tr>
+      <tr><th>Version</th><td>1.0</td></tr>
+      <tr><th>Effective date</th><td>9 September 2026</td></tr>
+      <tr><th>Classification</th><td>For client use — not for public circulation</td></tr>
+      <tr><th>Support</th><td>hello@gohavena.com</td></tr>
+    </table>
+    <hr class="rule-thin" />
+    <p class="muted">Pakistan communities are billing-exempt. Opus Galaxy Apartments is not required to add a payment card or complete Stripe checkout.</p>
+    <p class="footer">Havena &nbsp;·&nbsp; Operations Manual &nbsp;·&nbsp; Opus Galaxy Apartments &nbsp;·&nbsp; Version 1.0</p>
+  </section>
+
+  <section class="toc">
+    <h2 class="first">Contents</h2>
+    <ol>
+      <li>Purpose and access</li>
+      <li>Getting started</li>
+      <li>Administration reference</li>
+      <li>Resident onboarding (share this section)</li>
+      <li>Operating standards</li>
+      <li>Organisation of the platform</li>
+      <li>Support and exception handling</li>
+      <li>Account provisioning checklist</li>
+    </ol>
+    <h3>Access points</h3>
+    <table class="data">
+      <thead>
+        <tr><th>Role</th><th>Channel</th><th>Address</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Community administrator</td><td>Web portal</td><td>https://gohavena.com/login</td></tr>
+        <tr><td>Resident</td><td>Web portal</td><td>https://gohavena.com/resident-login</td></tr>
+        <tr><td>Resident</td><td>Mobile application</td><td>Provided by Havena on request</td></tr>
+        <tr><td>Support</td><td>Email</td><td>hello@gohavena.com</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <h2>1. Purpose and access</h2>
+  <p>Havena is the operational system for Opus Galaxy Apartments. Management uses it to communicate with residents, issue notices and alerts, manage membership, control guest access, and maintain rules, documents, and amenity bookings.</p>
+  <p>The platform is organised as follows:</p>
+  <ol>
+    <li><strong>Lahore</strong> is the city (location).</li>
+    <li><strong>Opus Galaxy Apartments</strong> is the society (community).</li>
+    <li>The office account is the <strong>community administrator</strong>.</li>
+    <li>Households are <strong>residents</strong> of this society only.</li>
+  </ol>
+  <p>Other societies in Lahore may be added to Havena independently. Their residents, notices, and records remain separate from Opus Galaxy Apartments.</p>
+  <div class="callout">
+    <strong>Billing.</strong> Communities in Pakistan do not require a credit card, Stripe subscription, or bank connection (Plaid). Those menus may be ignored.
+  </div>
+
+  <h2>2. Getting started</h2>
+
+  <h3>2.1 Prerequisites</h3>
+  <p>Before first login, the administrator should have:</p>
+  <ul>
+    <li>The work email address registered as the Havena login</li>
+    <li>Access to that inbox (one-time passcodes are sent there)</li>
+    <li>A current mobile number</li>
+    <li>An initial resident list: full name, email, unit, and telephone</li>
+  </ul>
+  <p>A payment card is not required.</p>
+
+  <h3>2.2 Sign in</h3>
+  <ol>
+    <li>Open a current browser (Chrome or Microsoft Edge recommended).</li>
+    <li>Go to <strong>https://gohavena.com/login</strong>. This address is for administrators only. Residents must use the resident portal.</li>
+    <li>Enter the registered email address and request a one-time passcode (OTP).</li>
+    <li>Open the Havena message in email, copy the OTP, and enter it on the website.</li>
+  </ol>
+  <p>If the message is not in the inbox, check Spam or Junk. Passcodes expire; request a new code if authentication fails. Bookmark the administrator login for subsequent use.</p>
+  <p>If Havena provisioned the account, the administrator proceeds to the profile form and then the dashboard. Self-registered accounts may remain pending until Havena approves the society. No payment is required in either case.</p>
+
+  <h3>2.3 Complete the administrator profile</h3>
+  <p>Complete the profile accurately. The display name appears on notices issued to residents.</p>
+  <ol>
+    <li><strong>Full name</strong> — the administrator’s professional name.</li>
+    <li><strong>Telephone</strong> — select Pakistan (+92) and enter the mobile number.</li>
+    <li><strong>Unit / office</strong> — enter <em>Office</em> or <em>Management</em>.</li>
+    <li>A short biography is optional.</li>
+  </ol>
+  <p>Save the form. A utility-bill upload is not required when Havena has already approved the account. Successful completion opens the <strong>Dashboard</strong>. The left-hand menu is the primary navigation for daily operations.</p>
+
+  <h3>2.4 Invite the first residents</h3>
+  <p>Invite residents before publishing content. An initial group of approximately ten occupied units is sufficient to begin operations.</p>
+  <ol>
+    <li>Open <strong>Members</strong>.</li>
+    <li>Select <strong>Invite</strong>.</li>
+    <li>Enter full name, email (used for login), telephone, and unit number (for example, A-12).</li>
+    <li>Send the invitation.</li>
+    <li>Record the invite code and QR image displayed on screen.</li>
+    <li>Send the code or QR to the resident through the office’s usual channel (for example, WhatsApp or email).</li>
+  </ol>
+  <p><strong>Suggested resident message</strong></p>
+  <div class="template">
+    Dear Resident,<br><br>
+    Opus Galaxy Apartments now uses Havena for official notices, events, and guest registration.<br><br>
+    1. Open https://gohavena.com/resident-login<br>
+    2. Sign in with your email: [resident email]<br>
+    3. Enter the one-time code sent to that inbox<br>
+    4. Enter this invite code: [CODE]<br>
+    5. Complete your name and unit number<br><br>
+    For assistance, contact the management office.
+  </div>
+  <p>Invite office staff or a floor representative first so they can assist other residents.</p>
+
+  <h3>2.5 Publish the first notice</h3>
+  <ol>
+    <li>Open <strong>Notices</strong> and create a new notice.</li>
+    <li>Use a clear title, for example: <em>Welcome to Havena at Opus Galaxy Apartments</em>.</li>
+    <li>State that this is the official notice board, how service updates will be issued, and how residents should contact the office.</li>
+    <li>Publish the notice.</li>
+  </ol>
+  <p>Keep notices brief. Residents respond to concise, actionable messages.</p>
+
+  <h3>2.6 Establish core society records</h3>
+  <p>Complete the following when time allows. They are not required in the first hour, but they should be in place within the first week.</p>
+  <table class="data">
+    <thead>
+      <tr><th>Task</th><th>Menu</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Record 5–10 standing house rules</td><td>Community Rules</td><td>Residents can consult policy without requesting a paper copy</td></tr>
+      <tr><td>Upload bylaws, SOPs, and circulars</td><td>Documents</td><td>Controlled distribution of official files</td></tr>
+      <tr><td>Register bookable facilities</td><td>Amenities</td><td>Residents reserve the hall, gym, or lawn in the system</td></tr>
+      <tr><td>Review reservation requests</td><td>Booking Request</td><td>Management retains approval of facility use</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Administration reference</h2>
+  <p>Menu items appear in a fixed order. Not every item is required for day-to-day operations.</p>
+
+  <h3>3.1 Primary functions</h3>
+
+  <h4>Dashboard</h4>
+  <p>Review this view at the start of each working day. Pending memberships, guests, and bookings are surfaced here.</p>
+
+  <h4>Members</h4>
+  <p>The official resident register.</p>
+  <ul>
+    <li>Invite new residents.</li>
+    <li>Approve pending join requests.</li>
+    <li>Confirm that unit numbers are accurate. Unit data is used for notices and guest control.</li>
+  </ul>
+  <p>Invite only persons who reside or work at Opus Galaxy Apartments.</p>
+
+  <h4>Notices</h4>
+  <p>Routine operational communication: water schedules, lift maintenance, generator tests, and office hours. Each notice should state what is happening, when, and what residents should do.</p>
+
+  <h4>Events</h4>
+  <p>Dated activities such as the annual general meeting, festival gatherings, or lawn programmes. Residents can view event details and, where enabled, indicate attendance.</p>
+
+  <h4>Alerts</h4>
+  <p>Reserved for urgent conditions: fire or evacuation, suspected gas leak, abrupt water failure, or a security incident. Do not use Alerts for routine meetings. Overuse reduces response.</p>
+
+  <h4>Messages</h4>
+  <p>Private correspondence with an individual resident. Use this channel for case-specific matters rather than circulating the administrator’s personal telephone number for every enquiry.</p>
+
+  <h4>Guest Users</h4>
+  <p>Visitor registrations submitted by residents (family, drivers, or service staff). Approve known guests and decline unrecognised requests. This is a security control, not an optional courtesy.</p>
+
+  <h4>Community Rules</h4>
+  <p>Standing regulations in plain language, for example: visitors must be registered; quiet hours after 22:00; parking only in the allotted bay.</p>
+
+  <h4>Documents</h4>
+  <p>Official files: bylaws, forms, SOPs, emergency contacts, and fee circulars. Use descriptive file names (for example, <em>Opus-Galaxy-Visitor-Policy.pdf</em>), not scanner defaults.</p>
+
+  <h4>Amenities</h4>
+  <p>Facilities available for reservation: community hall, gymnasium, lawn or rooftop, and guest rooms if applicable. Record opening hours and any usage limits.</p>
+
+  <h4>Booking Request</h4>
+  <p>Incoming reservations. Approve when the slot is available and the purpose is permitted. Decline conflicts or policy breaches and notify the resident through a notice or message.</p>
+
+  <h4>Feed Moderation</h4>
+  <p>Resident posts. Remove content that is abusive, spam, or commercial matter that belongs in Marketplace. Apply decisions consistently.</p>
+
+  <h4>Marketplace and Businesses</h4>
+  <p>Optional. May be used later for trusted neighbourhood services. Not required in the first week of operations.</p>
+
+  <h3>3.2 Functions not required in Pakistan</h3>
+  <div class="callout warn">
+    <table class="data">
+      <thead>
+        <tr><th>Menu</th><th>Guidance</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Billing</td><td>Not applicable. Pakistan societies are billing-exempt.</td></tr>
+        <tr><td>Plaid</td><td>United States bank-linking service. Do not use.</td></tr>
+        <tr><td>Refer &amp; Earn</td><td>Optional. Not required to operate the society.</td></tr>
+      </tbody>
+    </table>
+    <p>If Billing appears empty or incomplete, close the page. That state is expected.</p>
+  </div>
+
+  <h2>4. Resident onboarding</h2>
+  <p>This section may be circulated to residents. Residents must not use the administrator login.</p>
+
+  <h3>4.1 Website</h3>
+  <ol>
+    <li>Open <strong>https://gohavena.com/resident-login</strong>.</li>
+    <li>Enter the email address used by the office in the invitation.</li>
+    <li>Enter the OTP sent to that inbox.</li>
+    <li>Enter the invite code supplied by the office, or scan the QR code.</li>
+    <li>Complete full name and unit number.</li>
+    <li>The Home view then displays notices, events, and the society feed.</li>
+  </ol>
+
+  <h3>4.2 Mobile application</h3>
+  <p>The sequence is the same: email, OTP, invite code, profile. The website is sufficient if the application has not yet been installed. Havena will provide Android and iPhone installation links on request.</p>
+
+  <h3>4.3 Common issues</h3>
+  <table class="data">
+    <thead>
+      <tr><th>Resident report</th><th>Office action</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>No passcode received</td><td>Ask the resident to check Spam. Resend the invitation if required.</td></tr>
+      <tr><td>Invite code rejected</td><td>Confirm the full code. Codes may expire; issue a new invitation.</td></tr>
+      <tr><td>Wrong email used</td><td>The resident must use the invited address. Invite the correct email.</td></tr>
+      <tr><td>Opened the manager page</td><td>Direct them to resident-login, not /login.</td></tr>
+      <tr><td>Resident of another building</td><td>Do not add them to Opus Galaxy Apartments. Each society is separate.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Operating standards</h2>
+
+  <h3>5.1 First week</h3>
+  <p><strong>Day 1.</strong> Sign in, complete the profile, invite ten residents, and publish the welcome notice.</p>
+  <p><strong>Day 2.</strong> Enter community rules and upload one or two essential documents (visitor policy, emergency contacts).</p>
+  <p><strong>Day 3.</strong> Register the facilities actually managed by the office. Notify residents that hall or gym bookings are now submitted in Havena.</p>
+  <p><strong>Days 4–5.</strong> Invite remaining occupied units by floor. Correct unit numbers before large-scale invitation.</p>
+  <p><strong>End of week.</strong> Issue one operational notice. Clear pending members and bookings.</p>
+
+  <h3>5.2 Ongoing cadence</h3>
+  <table class="data">
+    <thead>
+      <tr><th>Frequency</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Each morning</td><td>Review the Dashboard. Process guest and booking requests.</td></tr>
+      <tr><td>When conditions change</td><td>Publish a Notice the same day. Do not wait for a paper circular.</td></tr>
+      <tr><td>Urgent safety matter</td><td>Issue an Alert.</td></tr>
+      <tr><td>Scheduled gathering</td><td>Create an Event.</td></tr>
+      <tr><td>Weekly</td><td>Review Feed Moderation and remove unsuitable posts.</td></tr>
+      <tr><td>Monthly</td><td>Update Documents when policy changes.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>5.3 Notice writing</h3>
+  <ul>
+    <li>One subject per notice</li>
+    <li>Opening line: the information</li>
+    <li>Second line: date and time</li>
+    <li>Third line: the required resident action</li>
+    <li>Urdu may be used in the body if that is the office standard. Menu labels remain in English.</li>
+  </ul>
+  <div class="template">
+    <strong>Water supply — Thursday</strong><br>
+    Water will be available from 10:00 to 14:00 on 12 September.<br>
+    Please store what you require. We regret the inconvenience.<br>
+    — Management, Opus Galaxy Apartments
+  </div>
+
+  <h2>6. Organisation of the platform</h2>
+  <div class="tree">Havena
+ └── Pakistan
+       └── Punjab
+             └── Lahore                         City / location
+                   └── Opus Galaxy Apartments   Society / community
+                         ├── Management
+                         ├── Residents (by unit)
+                         └── Guests</div>
+  <ul>
+    <li>Residents of another Lahore society cannot see Opus Galaxy notices.</li>
+    <li>A subsequent society in Lahore receives its own membership and notice board.</li>
+    <li>This office administers Opus Galaxy Apartments only.</li>
+  </ul>
+
+  <h2>7. Support and exception handling</h2>
+  <p><strong>Unable to sign in.</strong> Use https://gohavena.com/login, not the resident portal. Request a new OTP and check Spam.</p>
+  <p><strong>Dashboard remains pending.</strong> The society is awaiting Havena approval. Write to hello@gohavena.com and identify the account as Opus Galaxy Apartments, Lahore.</p>
+  <p><strong>Resident cannot see notices.</strong> Confirm membership and that the resident is using the invited email. Re-invite if necessary.</p>
+  <p><strong>Incorrect invitation issued.</strong> Do not circulate further codes to that person. Contact Havena to remove the membership if required.</p>
+  <p><strong>Billing or Plaid opened in error.</strong> Close the page. Neither function is used in Pakistan.</p>
+  <p><strong>Additional administrator required.</strong> Request a second community-administrator account from Havena. Each officer should use a distinct email address. Do not share a single login across the office.</p>
+
+  <h2>8. Account provisioning checklist</h2>
+  <p>If the administrator login has not yet been issued, send the following in a single email to <strong>hello@gohavena.com</strong>:</p>
+  <ul>
+    <li>Society name: <strong>Opus Galaxy Apartments</strong></li>
+    <li>City: <strong>Lahore</strong></li>
+    <li>Full street address</li>
+    <li>Administrator full name</li>
+    <li>Administrator email (this will be the login)</li>
+    <li>Administrator telephone</li>
+    <li>Approximate number of units</li>
+  </ul>
+  <p>Havena will create the society, approve the administrator, and confirm when sign-in is available. No payment card is required.</p>
+
+  <h3>Quick reference</h3>
+  <div class="callout">
+    <p><strong>Administrator:</strong> https://gohavena.com/login</p>
+    <p><strong>Resident:</strong> https://gohavena.com/resident-login</p>
+    <p><strong>Support:</strong> hello@gohavena.com</p>
+    <p><strong>First-day sequence:</strong> Sign in → OTP → Profile → Members → Notices → Rules and Documents → Amenities</p>
+    <p><strong>Not required in Lahore:</strong> payment card, Billing, Plaid</p>
+  </div>
+  <p class="footer">Havena &nbsp;·&nbsp; Operations Manual v1.0 &nbsp;·&nbsp; Opus Galaxy Apartments, Lahore &nbsp;·&nbsp; 9 September 2026<br>Intended for society management. Circulate Section 4 to residents as needed.</p>
+</body>
+</html>

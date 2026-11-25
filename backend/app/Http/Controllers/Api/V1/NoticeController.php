@@ -1,0 +1,2635 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\BlocksGuestReads;
+use App\Http\Controllers\Concerns\BlocksGuestWrites;
+use App\Services\EventWaitlistService;
+use App\Services\AdminRoleService;
+use App\Services\ActivityLogService;
+use App\Services\NoticeAudienceService;
+use App\Services\NotificationService;
+use App\Services\ScheduledNoticeService;
+use App\Services\AmenitySharedBillService;
+use App\Services\GuestAccessService;
+use App\Services\UnitServiceBillService;
+use App\Services\UserActingContextService;
+use App\Services\UserBlockService;
+use App\Support\ActivityActionCatalog;
+use App\Support\MediaUrl;
+use App\Support\NoticeExpiry;
+use App\Support\NoticePlainText;
+use App\Support\NoticeSchedule;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Database\QueryException;
+
+class NoticeController extends Controller
+{
+    use BlocksGuestReads;
+    use BlocksGuestWrites;
+    private const CATEGORIES = ['general', 'maintenance', 'event', 'security', 'finance', 'emergency'];
+    private const STATUSES     = ['draft', 'published', 'archived'];
+    private const REVIEW_STATUSES = ['pending', 'approved', 'rejected'];
+
+    /** GET /v1/notices */
+    public function index(Request $request)
+    {
+        $category = strtolower((string) ($request->query('category') ?? ''));
+        $this->assertGuestCanRead($request, $category === 'event' ? 'events' : 'notices');
+
+        ScheduledNoticeService::publishDue();
+
+        $user = auth()->user();
+
+        try {
+            $communityId = $this->resolveCommunityId($request, $user);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            if ($e->getStatusCode() === 422) {
+                return response()->json([
+                    'data' => [],
+                    'meta' => [
+                        'current_page' => 1,
+                        'last_page'    => 1,
+                        'total'        => 0,
+                        'reason'       => 'no_approved_membership',
+                    ],
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+
+            throw $e;
+        }
+
+        $isAdmin = $this->isCommunityAdmin($user);
+        $mine = $request->boolean('mine');
+
+        if (! $mine && ! $this->isPlatformAdmin($user) && ! GuestAccessService::isGuest($user)) {
+            app(UnitServiceBillService::class)->prepareResidentFinanceNotices($communityId, (int) $user->id);
+            app(AmenitySharedBillService::class)->backfillFinanceNoticesForResident($communityId, (int) $user->id);
+        }
+
+        if ($mine) {
+            app(\App\Services\CommunityFeatureService::class)->assertResidentCanAccess(
+                $user,
+                'events',
+            );
+        }
+
+        $query = $this->baseQuery();
+
+        if ($this->isPlatformAdmin($user)) {
+            if ($request->filled('community_id') && $request->community_id !== 'all') {
+                $query->where('notices.community_id', (int) $request->community_id);
+            }
+        } else {
+            $query->where(function ($q) use ($communityId) {
+                $q->where(function ($q2) use ($communityId) {
+                    $q2->where('notices.community_id', $communityId)
+                        ->where('notices.is_global', false);
+                })->orWhere('notices.is_global', true);
+            });
+        }
+
+        if ($mine) {
+            $query->where('notices.author_id', (int) $user->id)
+                ->where('notices.category', 'event');
+        } else {
+            // Resident-facing list: only super-admin-approved, published notices.
+            $query->where('notices.status', 'published')
+                ->where('notices.review_status', 'approved');
+
+            // Default resident feed hides ended schedules (home). Community Updates can
+            // pass include_expired=1 to keep past notices/events/alerts in the archive list.
+            if (! $request->boolean('include_expired')) {
+                NoticeExpiry::applyVisibleScheduleFilter($query, 'notices', $communityId);
+            }
+
+            if (! $this->isPlatformAdmin($user)) {
+                NoticeAudienceService::applyResidentVisibilityFilter($query, (int) $user->id);
+            }
+        }
+
+        if (! $mine && $request->filled('status') && $request->status !== 'all') {
+            $query->where('notices.status', $request->status);
+        }
+        if ($request->filled('review_status') && $request->review_status !== 'all') {
+            $query->where('notices.review_status', $request->review_status);
+        }
+        if ($mine) {
+            if ($request->filled('search')) {
+                $s = $request->search;
+                $query->where(function ($q) use ($s) {
+                    $q->where('notices.title', 'like', "%{$s}%")
+                        ->orWhere('notices.body', 'like', "%{$s}%")
+                        ->orWhere('notices.location', 'like', "%{$s}%");
+                });
+            }
+        } elseif ($request->filled('category_group')) {
+            $this->applyCategoryGroupFilter($query, $request->input('category_group'), $request->input('category'));
+        } elseif ($request->filled('category') && $request->category !== 'all') {
+            $query->where('notices.category', $this->normalizeCategory($request->category));
+        }
+        if (! $mine) {
+            $allowedNoticeCategories = app(\App\Services\CommunityFeatureService::class)
+                ->allowedNoticeCategories($user, $communityId);
+            if (is_array($allowedNoticeCategories)) {
+                $query->whereIn('notices.category', $allowedNoticeCategories);
+            }
+        }
+        if (! $mine && $request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('notices.title', 'like', "%{$s}%")
+                    ->orWhere('notices.body', 'like', "%{$s}%")
+                    ->orWhere('notices.location', 'like', "%{$s}%");
+            });
+        }
+
+        if ($mine && ! $request->boolean('include_expired')) {
+            NoticeExpiry::applyVisibleScheduleFilter($query, 'notices', $communityId);
+        }
+
+        NoticeExpiry::applyRelevantDateFilter($query, 'notices', $request->input('date_from'), $request->input('date_to'));
+
+        $notices = $this->applyNoticeOrdering($query, $communityId, $request)
+                         ->paginate($request->per_page ?? 15);
+
+        $items     = $notices->items();
+        $summaries = $this->batchEventRsvpSummaries($items, $user);
+
+        $payload = [
+            'data' => collect($items)->map(
+                fn ($n) => $this->formatNotice($n, $user, false, $summaries[(int) $n->id] ?? null),
+            )->values(),
+            'meta' => [
+                'current_page' => $notices->currentPage(),
+                'last_page'    => $notices->lastPage(),
+                'total'        => $notices->total(),
+            ],
+        ];
+
+        if ($isAdmin || $this->isPlatformAdmin($user)) {
+            $payload['meta']['stats'] = $this->communityStats($communityId, $user);
+        }
+
+        return response()->json($payload);
+    }
+
+    /** GET /v1/admin/notices */
+    public function adminIndex(Request $request)
+    {
+        ScheduledNoticeService::publishDue();
+
+        $this->ensureCanManageContent();
+
+        $query = $this->baseQuery()
+            ->leftJoin('communities', 'communities.id', '=', 'notices.community_id')
+            ->addSelect('communities.name as community_name');
+
+        $scopeId = AdminRoleService::resolveAdminCommunityScope(auth()->user(), $request);
+        if ($scopeId !== null) {
+            $query->where('notices.community_id', $scopeId);
+        } elseif ($request->filled('community_id') && $request->community_id !== 'all') {
+            $query->where('notices.community_id', (int) $request->community_id);
+        }
+
+        $this->applyCategoryGroupFilter($query, $request->input('category_group'), $request->input('category'));
+
+        if ($request->input('when') === 'upcoming') {
+            NoticeExpiry::applyUpcomingEventConstraints($query, 'notices', $scopeId);
+        } elseif ($request->filled('status') && $request->status !== 'all') {
+            $this->applyAdminStatusFilter($query, (string) $request->status);
+        }
+        if ($request->input('when') !== 'upcoming' && $request->filled('review_status') && $request->review_status !== 'all') {
+            $query->where('notices.review_status', $request->review_status);
+        }
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('notices.title', 'like', "%{$s}%")
+                    ->orWhere('notices.body', 'like', "%{$s}%")
+                    ->orWhere('notices.location', 'like', "%{$s}%")
+                    ->orWhere('communities.name', 'like', "%{$s}%");
+            });
+        }
+
+        NoticeExpiry::applyRelevantDateFilter($query, 'notices', $request->input('date_from'), $request->input('date_to'));
+
+        $notices = $this->applyNoticeOrdering($query, $scopeId, $request)
+            ->paginate(min((int) ($request->per_page ?? 15), 100));
+
+        $statsQuery = DB::table('notices')->whereNull('deleted_at');
+        if ($scopeId !== null) {
+            $statsQuery->where('community_id', $scopeId);
+        } elseif ($request->filled('community_id') && $request->community_id !== 'all') {
+            $statsQuery->where('community_id', (int) $request->community_id);
+        }
+        $this->applyCategoryGroupFilter($statsQuery, $request->input('category_group'), $request->input('category'), 'category');
+
+        $stats = [
+            'total'    => (clone $statsQuery)->count(),
+            'pending'  => (clone $statsQuery)->where('review_status', 'pending')->count(),
+            'approved' => (clone $statsQuery)->where('review_status', 'approved')->count(),
+            'rejected' => (clone $statsQuery)->where('review_status', 'rejected')->count(),
+            'published'=> (clone $statsQuery)->where('status', 'published')->count(),
+            'scheduled'=> (clone $statsQuery)
+                ->where('status', 'draft')
+                ->whereNotNull('scheduled_at')
+                ->where('scheduled_at', '>', now())
+                ->count(),
+            'draft'    => (clone $statsQuery)
+                ->where('status', 'draft')
+                ->where(function ($q) {
+                    $q->whereNull('scheduled_at')
+                        ->orWhere('scheduled_at', '<=', now());
+                })
+                ->count(),
+            'archived' => (clone $statsQuery)->where('status', 'archived')->count(),
+            'upcoming' => tap(clone $statsQuery, function ($upcoming) use ($scopeId) {
+                NoticeExpiry::applyUpcomingEventConstraints($upcoming, 'notices', $scopeId);
+            })->count(),
+        ];
+
+        $items     = $notices->items();
+        $summaries = $this->batchEventRsvpSummaries($items, auth()->user());
+
+        return response()->json([
+            'data' => collect($items)->map(
+                fn ($n) => $this->formatNotice($n, auth()->user(), false, $summaries[(int) $n->id] ?? null),
+            )->values(),
+            'meta' => [
+            'current_page' => $notices->currentPage(),
+            'last_page'    => $notices->lastPage(),
+            'total'        => $notices->total(),
+                'per_page'     => $notices->perPage(),
+                'stats'        => $stats,
+            ],
+        ]);
+    }
+
+    /** GET /v1/notices/{id} */
+    public function show(int $id)
+    {
+        ScheduledNoticeService::publishDue();
+
+        $notice = $this->baseQuery()->where('notices.id', $id)->first();
+
+        if (! $notice) {
+            return response()->json(['message' => 'Notice not found'], 404);
+        }
+
+        $user = auth()->user();
+        $isAuthor = $user && (int) $notice->author_id === (int) $user->id;
+
+        if ($notice->status !== 'published' || $notice->review_status !== 'approved') {
+            if (! $this->isPlatformAdmin($user) && ! $isAuthor) {
+                return response()->json(['message' => 'Notice not found'], 404);
+            }
+        }
+
+        if (! $notice->is_global) {
+            $communityId = $this->resolveCommunityId(request(), $user);
+            if ((int) $notice->community_id !== $communityId) {
+                return response()->json(['message' => 'Notice not found'], 404);
+            }
+        }
+
+        if (
+            ! $this->isPlatformAdmin($user)
+            && ! $isAuthor
+            && ! NoticeAudienceService::canUserViewNotice($notice, (int) $user->id)
+        ) {
+            return response()->json(['message' => 'Notice not found'], 404);
+        }
+
+        app(\App\Services\CommunityFeatureService::class)->assertResidentCanAccess(
+            $user,
+            \App\Services\CommunityFeatureService::featureKeyForNoticeCategory($notice->category ?? null),
+        );
+
+        // Expired schedules remain readable from Community Updates (include_expired list).
+
+        return response()->json(['data' => $this->formatNotice($notice, $user, true)]);
+    }
+
+    /** POST /v1/notices/{id}/rsvp — join or update event RSVP */
+    public function rsvp(Request $request, int $id)
+    {
+        $validated = $request->validate([
+            'status' => 'required|string|in:going,maybe,not_going',
+        ]);
+
+        $notice = $this->baseQuery()->where('notices.id', $id)->first();
+
+        if (! $notice) {
+            return response()->json(['message' => 'Notice not found'], 404);
+        }
+
+        $user = auth()->user();
+
+        if ($notice->status !== 'published' || $notice->review_status !== 'approved') {
+            return response()->json(['message' => 'This event is not available'], 404);
+        }
+
+        if ($notice->category !== 'event') {
+            return response()->json(['message' => 'RSVP is only available for events'], 422);
+        }
+
+        if (! ($notice->requires_rsvp ?? false)) {
+            return response()->json(['message' => 'This event does not accept RSVPs'], 422);
+        }
+
+        if (! $notice->is_global) {
+            $communityId = $this->resolveCommunityId($request, $user);
+            if ((int) $notice->community_id !== $communityId) {
+                return response()->json(['message' => 'Notice not found'], 404);
+            }
+        }
+
+        if ((int) $notice->author_id === (int) $user->id) {
+            return response()->json(['message' => 'Event organizers cannot RSVP to their own event'], 422);
+        }
+
+        $membership = DB::table('community_memberships')
+            ->where('user_id', $user->id)
+            ->where('community_id', $notice->community_id)
+            ->where('status', 'approved')
+            ->exists();
+
+        if (! $membership && ! $notice->is_global) {
+            return response()->json(['message' => 'Approved community membership required'], 403);
+        }
+
+        // After the registration deadline, residents can leave but cannot newly join/waitlist.
+        if ($validated['status'] !== 'not_going'
+            && $this->isEventRegistrationClosed($notice, (int) $notice->community_id)) {
+            return response()->json([
+                'message' => 'Registration for this event has closed.',
+                'errors'  => ['status' => ['Registration for this event has closed.']],
+            ], 422);
+        }
+
+        $rsvpChange = null;
+        $promotedUserIds = [];
+
+        try {
+            DB::transaction(function () use ($validated, $id, $user, &$rsvpChange, &$promotedUserIds) {
+                $lockedNotice = DB::table('notices')
+                    ->where('id', $id)
+                    ->whereNull('deleted_at')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $lockedNotice) {
+                    return;
+                }
+
+                $capacity = $this->readEventCapacity($lockedNotice);
+
+                if ($validated['status'] === 'not_going') {
+                    $existing = DB::table('event_rsvps')
+                        ->where('notice_id', $id)
+                        ->where('user_id', $user->id)
+                        ->first();
+
+                    if ($existing && $existing->status === 'going') {
+                        $rsvpChange = 'left';
+                    }
+
+                    DB::table('event_rsvps')
+                        ->where('notice_id', $id)
+                        ->where('user_id', $user->id)
+                        ->delete();
+
+                    if ($rsvpChange === 'left') {
+                        $promotedUserIds = EventWaitlistService::promoteFromWaitlist($id, $capacity);
+                    }
+
+                    return;
+                }
+
+                $existing = DB::table('event_rsvps')
+                    ->where('notice_id', $id)
+                    ->where('user_id', $user->id)
+                    ->first();
+
+                if ($validated['status'] === 'going') {
+                    if ($existing && $existing->status === 'waiting') {
+                        return;
+                    }
+
+                    $alreadyGoing = $existing && $existing->status === 'going';
+                    if (! $alreadyGoing && $this->isEventAtCapacity($lockedNotice, $existing)) {
+                        $now = now();
+
+                        if ($existing) {
+                            DB::table('event_rsvps')
+                                ->where('id', $existing->id)
+                                ->update([
+                                    'status'     => 'waiting',
+                                    'updated_at' => $now,
+                                ]);
+                        } else {
+                            DB::table('event_rsvps')->insert([
+                                'notice_id'  => $id,
+                                'user_id'    => $user->id,
+                                'status'     => 'waiting',
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ]);
+                        }
+
+                        $rsvpChange = 'waitlisted';
+
+                        return;
+                    }
+                }
+
+                $now = now();
+
+                if ($existing) {
+                    $wasGoing = $existing->status === 'going';
+                    DB::table('event_rsvps')
+                        ->where('id', $existing->id)
+                        ->update([
+                            'status'     => $validated['status'],
+                            'updated_at' => $now,
+                        ]);
+
+                    if ($validated['status'] === 'going' && ! $wasGoing) {
+                        $rsvpChange = 'joined';
+                    }
+                } else {
+                    DB::table('event_rsvps')->insert([
+                        'notice_id'  => $id,
+                        'user_id'    => $user->id,
+                        'status'     => $validated['status'],
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+
+                    if ($validated['status'] === 'going') {
+                        $rsvpChange = 'joined';
+                    }
+                }
+            });
+        } catch (QueryException $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Could not save your RSVP. Please try again.',
+                'code'    => 'rsvp_failed',
+            ], 500);
+        }
+
+        $freshAfterLock = DB::table('notices')
+            ->where('id', $id)
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if (! $freshAfterLock) {
+            return response()->json(['message' => 'Notice not found'], 404);
+        }
+
+        if ($promotedUserIds !== []) {
+            EventWaitlistService::notifyPromotedUsers($notice, $promotedUserIds);
+        }
+
+        if ($rsvpChange) {
+            $totalGoing = (int) DB::table('event_rsvps')
+                ->where('notice_id', $id)
+                ->where('status', 'going')
+                ->count();
+
+            $this->notifyOrganizerEventRsvp($notice, $user, $rsvpChange, $totalGoing);
+        }
+
+        $fresh = $this->baseQuery()->where('notices.id', $id)->first();
+
+        $message = match (true) {
+            $validated['status'] === 'not_going' => 'You left this event',
+            $validated['status'] === 'maybe'     => 'Your RSVP was updated',
+            $rsvpChange === 'waitlisted'         => "You're on the waiting list",
+            default                              => 'You joined this event',
+        };
+
+        return response()->json([
+            'data'    => $this->formatNotice($fresh, $user, true),
+            'message' => $message,
+        ]);
+    }
+
+    /** POST /v1/events — resident event submission (pending admin approval) */
+    public function submitEvent(Request $request)
+    {
+        $this->assertNotGuestWrite($request, 'create_event');
+
+        $user = auth()->user();
+
+        if (AdminRoleService::isActiveCommunityAdmin($user) || AdminRoleService::isSystemAdmin($user)) {
+            return response()->json([
+                'message' => 'Community admins should use the admin events endpoint.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'title'          => 'required|string|max:80',
+            'body'           => 'required|string',
+            'location'       => 'nullable|string|max:255',
+            'image_url'      => 'nullable|string|max:2048',
+            'event_date'      => 'required|date',
+            'event_end_date'  => 'nullable|date',
+            'event_time'      => 'required|string|max:20',
+            'event_time_end'  => 'required|string|max:20',
+            'registration_deadline_date' => 'nullable|date',
+            'registration_deadline_time' => 'nullable|string|max:20',
+            'event_capacity' => 'nullable|integer|min:1|max:100000',
+            'requires_rsvp'  => 'nullable|boolean',
+        ], [
+            'title.max' => 'Event name must be 80 characters or less.',
+        ]);
+
+        if ($request->hasAny(['is_pinned', 'scheduled_at'])) {
+            return response()->json(['message' => 'Admin-only event options are not allowed for resident submissions'], 422);
+        }
+
+        $communityId = $this->resolveCommunityId($request, $user);
+
+        $membership = DB::table('community_memberships')
+            ->where('user_id', $user->id)
+            ->where('community_id', $communityId)
+            ->where('status', 'approved')
+            ->first();
+
+        if (! $membership) {
+            return response()->json(['message' => 'Approved community membership required'], 403);
+        }
+
+        if (! DB::table('communities')->where('id', $communityId)->exists()) {
+            return response()->json(['message' => 'Community not found. Please contact support.'], 422);
+        }
+
+        $this->assertEventPlainTextFields($validated, true);
+        $this->normalizeEventEndDate($validated);
+
+        if ($response = $this->assertContentScheduleWindow($validated)) {
+            return $response;
+        }
+        if ($response = $this->assertContentScheduleNotInPast($validated, $communityId)) {
+            return $response;
+        }
+        $requiresRsvp = $request->boolean('requires_rsvp');
+        if ($response = $this->assertRegistrationDeadlinePresent($validated, 'published', false, $requiresRsvp)) {
+            return $response;
+        }
+        if ($requiresRsvp) {
+            if ($response = $this->assertRegistrationDeadlineRules($validated, $communityId)) {
+                return $response;
+            }
+        }
+
+        $id = DB::table('notices')->insertGetId([
+            'community_id'   => $communityId,
+            'author_id'      => auth()->id(),
+            'title'          => $validated['title'],
+            'category'       => 'event',
+            'body'           => $validated['body'],
+            'location'       => $validated['location'] ?? null,
+            'image_url'      => MediaUrl::normalize($validated['image_url'] ?? null),
+            'event_date'     => $validated['event_date'],
+            'event_end_date' => $validated['event_end_date'] ?? null,
+            'event_time'     => $validated['event_time'],
+            'event_time_end' => $validated['event_time_end'] ?? null,
+            'registration_deadline_date' => $requiresRsvp
+                ? ($validated['registration_deadline_date'] ?? null)
+                : null,
+            'registration_deadline_time' => $requiresRsvp
+                ? ($validated['registration_deadline_time'] ?? null)
+                : null,
+            'event_capacity' => $this->parseEventCapacity($validated['event_capacity'] ?? null),
+            'requires_rsvp'  => $requiresRsvp,
+            'status'         => 'draft',
+            'review_status'  => 'pending',
+            'is_global'      => false,
+            'published_at'   => null,
+            'created_at'     => now(),
+            'updated_at'     => now(),
+        ]);
+
+        $this->notifyCommunityAdminsPendingNotice($communityId, $validated['title'], 'event');
+
+        ActivityLogService::user(
+            'event_submitted',
+            "Submitted event for approval: \"{$validated['title']}\"",
+            'Notice',
+            $id,
+        );
+
+        $notice = $this->baseQuery()->where('notices.id', $id)->first();
+
+        return response()->json([
+            'data'    => $this->formatNotice($notice),
+            'message' => 'Event submitted for admin approval',
+        ], 201);
+    }
+
+    /** POST /v1/events/upload-image */
+    public function uploadEventImage(Request $request)
+    {
+        $user = auth()->user();
+
+        if (AdminRoleService::isActiveCommunityAdmin($user) || AdminRoleService::isSystemAdmin($user)) {
+            return response()->json([
+                'message' => 'Community admins should use the admin upload endpoint.',
+            ], 422);
+        }
+
+        $communityId = $this->resolveCommunityId($request, $user);
+
+        $membership = DB::table('community_memberships')
+            ->where('user_id', $user->id)
+            ->where('community_id', $communityId)
+            ->where('status', 'approved')
+            ->first();
+
+        if (! $membership) {
+            return response()->json(['message' => 'Approved community membership required'], 403);
+        }
+
+        return $this->storeUploadedCover($request);
+    }
+
+    /** POST /v1/admin/notices */
+    public function store(Request $request)
+    {
+        return $this->createItem($request, null);
+    }
+
+    /** POST /v1/admin/events */
+    public function storeEvent(Request $request)
+    {
+        return $this->createItem($request, 'event');
+    }
+
+    /** POST /v1/admin/alerts */
+    public function storeAlert(Request $request)
+    {
+        return $this->createItem($request, 'emergency');
+    }
+
+    /** PATCH /v1/admin/notices/{id} */
+    public function update(int $id, Request $request)
+    {
+        $this->ensureCanManageContent();
+
+        $notice = DB::table('notices')->where('id', $id)->whereNull('deleted_at')->first();
+        if (! $notice) {
+            return response()->json(['message' => 'Notice not found'], 404);
+        }
+
+        AdminRoleService::assertCanManageCommunity(auth()->user(), (int) $notice->community_id);
+
+        if (NoticeExpiry::isEventSchedulePast($notice)) {
+            return response()->json(['message' => 'Past events cannot be edited.'], 403);
+        }
+
+        $validated = $request->validate([
+            'title'          => 'sometimes|string|max:200',
+            'category'       => 'sometimes|string',
+            'body'           => 'sometimes|string',
+            'location'       => 'nullable|string|max:255',
+            'image_url'      => 'nullable|string|max:2048',
+            'event_date'      => 'nullable|date',
+            'event_end_date'  => 'nullable|date',
+            'event_time'      => 'nullable|string|max:20',
+            'event_time_end'  => 'nullable|string|max:20',
+            'registration_deadline_date' => 'nullable|date',
+            'registration_deadline_time' => 'nullable|string|max:20',
+            'event_capacity'  => 'nullable|integer|min:1|max:100000',
+            'status'          => 'sometimes|in:draft,published,archived',
+            'is_global'      => 'sometimes|boolean',
+            'is_pinned'      => 'sometimes|boolean',
+            'scheduled_at'   => 'nullable|date',
+            'requires_rsvp'  => 'sometimes|boolean',
+            'audience_type'      => 'sometimes|in:all,selected',
+            'recipient_user_ids' => 'nullable|array',
+            'recipient_user_ids.*' => 'integer|min:1',
+        ]);
+
+        $data = [];
+
+        foreach ([
+            'title', 'body', 'location', 'event_date', 'event_end_date', 'event_time', 'event_time_end',
+            'registration_deadline_date', 'registration_deadline_time', 'status',
+        ] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $data[$field] = $validated[$field];
+            }
+        }
+
+        if (
+            array_key_exists('event_date', $validated)
+            || array_key_exists('event_end_date', $validated)
+            || array_key_exists('event_time', $validated)
+            || array_key_exists('event_time_end', $validated)
+            || array_key_exists('registration_deadline_date', $validated)
+            || array_key_exists('registration_deadline_time', $validated)
+        ) {
+            $scheduleCheck = [
+                'event_date'     => $data['event_date'] ?? $notice->event_date,
+                'event_end_date' => $data['event_end_date'] ?? $notice->event_end_date ?? null,
+                'event_time'     => $data['event_time'] ?? $notice->event_time,
+                'event_time_end' => $data['event_time_end'] ?? $notice->event_time_end,
+                'registration_deadline_date' => $data['registration_deadline_date']
+                    ?? $notice->registration_deadline_date
+                    ?? null,
+                'registration_deadline_time' => $data['registration_deadline_time']
+                    ?? $notice->registration_deadline_time
+                    ?? null,
+            ];
+            $this->normalizeEventEndDate($scheduleCheck);
+            if ($response = $this->assertContentScheduleWindow($scheduleCheck)) {
+                return $response;
+            }
+            $data['event_end_date'] = $scheduleCheck['event_end_date'] ?? null;
+
+            if ($notice->category === 'event') {
+                $nextStatus = $data['status'] ?? $notice->status;
+                $hasScheduled = array_key_exists('scheduled_at', $validated)
+                    ? $validated['scheduled_at'] !== null
+                    : ! empty($notice->scheduled_at);
+                $nextRequiresRsvp = array_key_exists('requires_rsvp', $validated)
+                    ? (bool) $validated['requires_rsvp']
+                    : (bool) ($notice->requires_rsvp ?? false);
+                if ($response = $this->assertRegistrationDeadlinePresent(
+                    $scheduleCheck,
+                    $nextStatus,
+                    $hasScheduled,
+                    $nextRequiresRsvp,
+                )) {
+                    return $response;
+                }
+                if ($nextRequiresRsvp) {
+                    if ($response = $this->assertRegistrationDeadlineRules(
+                        $scheduleCheck,
+                        (int) $notice->community_id,
+                    )) {
+                        return $response;
+                    }
+                }
+            }
+        }
+
+        if (array_key_exists('image_url', $validated)) {
+            $data['image_url'] = MediaUrl::normalize($validated['image_url']);
+        }
+
+        if (isset($validated['category'])) {
+            $category = $this->normalizeCategory($validated['category']);
+            if (! in_array($category, self::CATEGORIES, true)) {
+                return response()->json(['message' => 'Invalid category'], 422);
+            }
+            $data['category'] = $category;
+        }
+
+        if ($this->isPlatformAdmin(auth()->user()) && array_key_exists('is_global', $validated)) {
+            $data['is_global'] = (bool) $validated['is_global'];
+        }
+
+        if (array_key_exists('event_capacity', $validated)) {
+            if ($notice->category !== 'event') {
+                return response()->json(['message' => 'Capacity applies to events only'], 422);
+            }
+
+            $capacity = $this->parseEventCapacity($validated['event_capacity']);
+            $this->assertEventCapacityNotBelowAttendance($id, $capacity);
+            $data['event_capacity'] = $capacity;
+        }
+
+        if ($notice->category === 'event') {
+            if (array_key_exists('is_pinned', $validated)) {
+                $data['is_pinned'] = (bool) $validated['is_pinned'];
+            }
+
+            if (array_key_exists('requires_rsvp', $validated)) {
+                $data['requires_rsvp'] = (bool) $validated['requires_rsvp'];
+            }
+
+            $nextRequiresRsvp = array_key_exists('requires_rsvp', $data)
+                ? (bool) $data['requires_rsvp']
+                : (bool) ($notice->requires_rsvp ?? false);
+
+            if (! $nextRequiresRsvp) {
+                // RSVP off → registration deadline does not apply.
+                if (
+                    array_key_exists('requires_rsvp', $validated)
+                    || array_key_exists('registration_deadline_date', $validated)
+                    || array_key_exists('registration_deadline_time', $validated)
+                ) {
+                    $data['registration_deadline_date'] = null;
+                    $data['registration_deadline_time'] = null;
+                }
+            } else {
+                $deadlineCheck = [
+                    'event_date' => $data['event_date'] ?? $notice->event_date,
+                    'event_time' => $data['event_time'] ?? $notice->event_time,
+                    'registration_deadline_date' => $data['registration_deadline_date']
+                        ?? $notice->registration_deadline_date
+                        ?? null,
+                    'registration_deadline_time' => $data['registration_deadline_time']
+                        ?? $notice->registration_deadline_time
+                        ?? null,
+                ];
+                $nextStatus = $data['status'] ?? $notice->status;
+                $hasScheduled = array_key_exists('scheduled_at', $validated)
+                    ? $validated['scheduled_at'] !== null
+                    : ! empty($notice->scheduled_at);
+                if ($response = $this->assertRegistrationDeadlinePresent(
+                    $deadlineCheck,
+                    $nextStatus,
+                    $hasScheduled,
+                    true,
+                )) {
+                    return $response;
+                }
+                if ($response = $this->assertRegistrationDeadlineRules(
+                    $deadlineCheck,
+                    (int) $notice->community_id,
+                )) {
+                    return $response;
+                }
+            }
+
+            if (array_key_exists('scheduled_at', $validated)) {
+                $scheduledAt = NoticeSchedule::normalizeForStorage(
+                    $validated['scheduled_at'],
+                    (int) $notice->community_id,
+                );
+                $scheduleFields = [
+                    'event_date' => $data['event_date'] ?? $notice->event_date,
+                    'event_time' => $data['event_time'] ?? $notice->event_time,
+                    'registration_deadline_date' => $data['registration_deadline_date']
+                        ?? $notice->registration_deadline_date
+                        ?? null,
+                    'registration_deadline_time' => $data['registration_deadline_time']
+                        ?? $notice->registration_deadline_time
+                        ?? null,
+                ];
+                if ($response = $this->assertScheduledAtNotAfterStart(
+                    $scheduledAt,
+                    $scheduleFields,
+                    (int) $notice->community_id,
+                )) {
+                    return $response;
+                }
+                if ($nextRequiresRsvp) {
+                    if ($response = $this->assertScheduledAtBeforeRegistrationDeadline(
+                        $scheduledAt,
+                        $scheduleFields,
+                        (int) $notice->community_id,
+                    )) {
+                        return $response;
+                    }
+                }
+                $data['scheduled_at'] = $scheduledAt;
+
+                if ($scheduledAt !== null && NoticeSchedule::isFuture($scheduledAt, (int) $notice->community_id)) {
+                    $data['status'] = 'draft';
+                    $data['published_at'] = null;
+                }
+            }
+        } elseif ($this->categorySupportsPinAndSchedule($notice->category)) {
+            if (array_key_exists('is_pinned', $validated)) {
+                $data['is_pinned'] = (bool) $validated['is_pinned'];
+            }
+
+            if (array_key_exists('scheduled_at', $validated)) {
+                $scheduledAt = NoticeSchedule::normalizeForStorage(
+                    $validated['scheduled_at'],
+                    (int) $notice->community_id,
+                );
+                $scheduleFields = [
+                    'event_date' => $data['event_date'] ?? $notice->event_date,
+                    'event_time' => $data['event_time'] ?? $notice->event_time,
+                ];
+                if ($response = $this->assertScheduledAtNotAfterStart(
+                    $scheduledAt,
+                    $scheduleFields,
+                    (int) $notice->community_id,
+                )) {
+                    return $response;
+                }
+                $data['scheduled_at'] = $scheduledAt;
+
+                if ($scheduledAt !== null && NoticeSchedule::isFuture($scheduledAt, (int) $notice->community_id)) {
+                    $data['status'] = 'draft';
+                    $data['published_at'] = null;
+                }
+            }
+
+            if (array_key_exists('requires_rsvp', $validated)) {
+                return response()->json(['message' => 'RSVP applies to events only'], 422);
+            }
+        } elseif (array_key_exists('is_pinned', $validated) || array_key_exists('scheduled_at', $validated) || array_key_exists('requires_rsvp', $validated)) {
+            return response()->json(['message' => 'These options are not available for this notice type'], 422);
+        }
+
+        if (isset($data['status']) && $data['status'] === 'published' && $notice->status !== 'published') {
+            if ($notice->review_status !== 'approved') {
+                return response()->json(['message' => 'Item must be approved before publishing'], 422);
+            }
+            $data['published_at'] = now();
+            $this->notifyResidentsForNotice($notice, $data['title'] ?? $notice->title);
+            ActivityLogService::user('notice_published', "Published notice: \"{$notice->title}\"", 'Notice', $id);
+        }
+
+        if (isset($data['status']) && $data['status'] === 'draft') {
+            $data['published_at'] = null;
+        }
+
+        $effectiveCategory = $data['category'] ?? $notice->category;
+        if ($effectiveCategory === 'event') {
+            $this->assertEventPlainTextFields([
+                'title' => $data['title'] ?? $notice->title,
+                'location' => $data['location'] ?? $notice->location,
+            ], true);
+        }
+        $audienceType = NoticeAudienceService::normalizeAudienceType(
+            $validated['audience_type'] ?? $notice->audience_type ?? NoticeAudienceService::TYPE_ALL,
+        );
+        $recipientIds = null;
+
+        if (NoticeAudienceService::categorySupportsAudienceTargeting($effectiveCategory)) {
+            if (array_key_exists('audience_type', $validated) || array_key_exists('recipient_user_ids', $validated)) {
+                $recipientIds = NoticeAudienceService::validateRecipientIds(
+                    (int) $notice->community_id,
+                    $audienceType,
+                    $validated['recipient_user_ids'] ?? (
+                        $audienceType === NoticeAudienceService::TYPE_SELECTED
+                            ? NoticeAudienceService::recipientUserIds($id)
+                            : []
+                    ),
+                );
+                $data['audience_type'] = $audienceType;
+            }
+        } elseif (
+            array_key_exists('audience_type', $validated)
+            && $validated['audience_type'] === NoticeAudienceService::TYPE_SELECTED
+        ) {
+            return response()->json(['message' => 'Recipient targeting applies to notices only'], 422);
+        }
+
+        $wasPublished = $notice->status === 'published';
+        $contentFields = ['title', 'body', 'category'];
+        $contentChanged = collect($contentFields)->contains(fn ($field) => array_key_exists($field, $data));
+
+        $data['updated_at'] = now();
+        DB::table('notices')->where('id', $id)->update($data);
+
+        if ($recipientIds !== null) {
+            if ($audienceType === NoticeAudienceService::TYPE_SELECTED) {
+                NoticeAudienceService::syncRecipients($id, $recipientIds);
+            } else {
+                DB::table('notice_recipients')->where('notice_id', $id)->delete();
+            }
+        }
+
+        $fresh = $this->baseQuery()->where('notices.id', $id)->first();
+        $noticeFields = ['title', 'body', 'category', 'location', 'image_url', 'event_date', 'event_end_date', 'event_time', 'event_time_end', 'registration_deadline_date', 'registration_deadline_time', 'event_capacity', 'status', 'is_global', 'is_pinned', 'scheduled_at', 'requires_rsvp', 'audience_type'];
+        ActivityLogService::recordUpdate(
+            'notice_updated',
+            'Notice',
+            $id,
+            ActivityLogService::snapshot($notice, $noticeFields),
+            ActivityLogService::snapshot($fresh ?? $notice, $noticeFields),
+            [],
+            null,
+            null,
+            ['related_item' => $fresh->title ?? $notice->title, 'status' => $fresh->status ?? $notice->status],
+        );
+
+        if ($fresh && $fresh->status === 'published' && $wasPublished && $contentChanged) {
+            $this->syncNoticeNotifications($fresh);
+        }
+
+        return response()->json([
+            'data'    => $this->formatNotice($fresh),
+            'message' => 'Notice updated',
+        ]);
+    }
+
+    /** PATCH /v1/admin/notices/{id}/approve */
+    public function approve(int $id)
+    {
+        $notice = DB::table('notices')->where('id', $id)->whereNull('deleted_at')->first();
+        if (! $notice) {
+            return response()->json(['message' => 'Notice not found'], 404);
+        }
+
+        AdminRoleService::assertCanManageCommunity(auth()->user(), (int) $notice->community_id);
+
+        $wasRejected = ($notice->review_status ?? '') === 'rejected';
+
+        DB::table('notices')->where('id', $id)->update([
+            'review_status'    => 'approved',
+            'status'           => 'published',
+            'published_at'     => now(),
+            'approved_by'      => auth()->id(),
+            'approved_at'      => now(),
+            'rejection_reason' => null,
+            'updated_at'       => now(),
+        ]);
+
+        $fresh = DB::table('notices')->where('id', $id)->first();
+        $this->notifyResidentsForNotice($fresh, $fresh->title);
+
+        ActivityLogService::user(
+            $wasRejected ? 'notice_reapproved' : 'notice_approved',
+            ($wasRejected ? 'Re-approved' : 'Approved')." notice: \"{$notice->title}\"",
+            'Notice',
+            $id,
+        );
+
+        if ($notice->author_id && (int) $notice->author_id !== (int) auth()->id()) {
+            NotificationService::send(
+                (int) $notice->author_id,
+                'success',
+                $wasRejected ? 'Content re-approved' : 'Content approved',
+                "Your {$this->categoryLabel($notice->category)} \"{$notice->title}\" is now live.",
+                "/notices/{$id}",
+                ['category' => $notice->category ?? 'general'],
+            );
+        }
+
+        return response()->json([
+            'data'    => $this->formatNotice($this->baseQuery()->where('notices.id', $id)->first()),
+            'message' => $wasRejected ? 'Re-approved and published' : 'Approved and published',
+        ]);
+    }
+
+    /** PATCH /v1/admin/notices/{id}/reject */
+    public function reject(int $id, Request $request)
+    {
+        $request->validate(['reason' => 'nullable|string|max:500']);
+
+        $notice = DB::table('notices')->where('id', $id)->whereNull('deleted_at')->first();
+        if (! $notice) {
+            return response()->json(['message' => 'Notice not found'], 404);
+        }
+
+        AdminRoleService::assertCanManageCommunity(auth()->user(), (int) $notice->community_id);
+
+        DB::table('notices')->where('id', $id)->update([
+            'review_status'    => 'rejected',
+            'status'           => 'draft',
+            'published_at'     => null,
+            'approved_by'      => null,
+            'approved_at'      => null,
+            'rejection_reason' => $request->reason,
+            'updated_at'       => now(),
+        ]);
+
+        ActivityLogService::user('notice_rejected', "Rejected notice: \"{$notice->title}\"", 'Notice', $id, 'warning');
+
+        if ($notice->author_id && (int) $notice->author_id !== (int) auth()->id()) {
+            $reason = $request->reason ? " Reason: {$request->reason}" : '';
+            NotificationService::send(
+                (int) $notice->author_id,
+                'warning',
+                'Content not approved',
+                "Your {$this->categoryLabel($notice->category)} \"{$notice->title}\" was not approved.{$reason}",
+            );
+        }
+
+        return response()->json(['message' => 'Rejected']);
+    }
+
+    /** DELETE /v1/admin/notices/{id} */
+    public function destroy(int $id)
+    {
+        $this->ensureCanManageContent();
+
+        $notice = DB::table('notices')->where('id', $id)->whereNull('deleted_at')->first();
+        if (! $notice) {
+            return response()->json(['message' => 'Notice not found'], 404);
+        }
+
+        AdminRoleService::assertCanManageCommunity(auth()->user(), (int) $notice->community_id);
+
+        // Notify before soft-delete so audience/recipient rows are still available.
+        if (($notice->category ?? '') === 'event') {
+            NoticeAudienceService::notifyEventCancelled(
+                $notice,
+                auth()->id() ? (int) auth()->id() : null,
+            );
+        }
+
+        DB::table('notices')->where('id', $id)->update(['deleted_at' => now()]);
+
+        // Point prior deep-links away from the deleted event detail page.
+        DB::table('app_notifications')
+            ->where('action_url', "/notices/{$id}")
+            ->update([
+                'action_url' => '/screens/notices',
+                'updated_at' => now(),
+            ]);
+
+        ActivityLogService::user('notice_deleted', "Deleted notice: \"{$notice->title}\"", 'Notice', $id, 'warning');
+
+        return response()->json(['message' => 'Notice deleted']);
+    }
+
+    /** POST /v1/admin/notices/upload-image */
+    public function uploadImage(Request $request)
+    {
+        $this->ensureCanManageContent();
+
+        return $this->storeUploadedCover($request);
+    }
+
+    private function createItem(Request $request, ?string $forcedCategory)
+    {
+        $this->ensureCanManageContent();
+
+        $user = auth()->user();
+
+        $validated = $request->validate([
+            'title'              => 'required|string|max:200',
+            'category'           => $forcedCategory ? 'nullable|string' : 'required|string',
+            'body'               => 'required|string',
+            'location'           => 'nullable|string|max:255',
+            'image_url'          => 'nullable|string|max:2048',
+            'event_date'         => 'nullable|date',
+            'event_end_date'     => 'nullable|date',
+            'event_time'         => 'nullable|string|max:20',
+            'event_time_end'     => 'nullable|string|max:20',
+            'registration_deadline_date' => 'nullable|date',
+            'registration_deadline_time' => 'nullable|string|max:20',
+            'event_capacity'     => 'nullable|integer|min:1|max:100000',
+            'status'             => 'nullable|in:draft,published,archived',
+            'community_id'       => 'nullable|integer',
+            'is_global'          => 'nullable|boolean',
+            'as_platform_admin'  => 'nullable|boolean',
+            'is_pinned'          => 'nullable|boolean',
+            'scheduled_at'       => 'nullable|date',
+            'requires_rsvp'      => 'nullable|boolean',
+            'audience_type'      => 'nullable|in:all,selected',
+            'recipient_user_ids' => 'nullable|array',
+            'recipient_user_ids.*' => 'integer|min:1',
+        ]);
+
+        $category = $this->normalizeCategory($forcedCategory ?? $validated['category'] ?? 'general');
+
+        if (! in_array($category, self::CATEGORIES, true)) {
+            return response()->json(['message' => 'Invalid category'], 422);
+        }
+
+        if ($category === 'event') {
+            $this->assertEventPlainTextFields($validated, true);
+        }
+
+        $this->normalizeEventEndDate($validated);
+
+        if ($response = $this->assertContentSchedulePresent($validated, $category, $validated['status'] ?? 'published')) {
+            return $response;
+        }
+
+        if ($response = $this->assertContentScheduleWindow($validated)) {
+            return $response;
+        }
+
+        if ($category === 'event') {
+            $requiresRsvp = $request->boolean('requires_rsvp');
+            if ($response = $this->assertRegistrationDeadlinePresent(
+                $validated,
+                $validated['status'] ?? 'published',
+                $request->filled('scheduled_at'),
+                $requiresRsvp,
+            )) {
+                return $response;
+            }
+        }
+
+        if (array_key_exists('event_capacity', $validated) && $category !== 'event') {
+            return response()->json(['message' => 'Capacity applies to events only'], 422);
+        }
+
+        $platformCreate = $this->isPlatformAdmin($user) && $request->boolean('as_platform_admin');
+        $isGlobal       = $platformCreate && $request->boolean('is_global');
+
+        if ($isGlobal) {
+            $communityId = (int) (DB::table('communities')->orderBy('id')->value('id') ?? 1);
+        } elseif ($platformCreate) {
+            $communityId = $request->filled('community_id')
+                ? (int) $request->community_id
+                : $this->resolveCommunityId($request, $user);
+        } else {
+            $membership = $this->getApprovedAdminMembership($user);
+            if (! $membership) {
+                return response()->json(['message' => 'Community admin access required'], 403);
+            }
+            $communityId = (int) $membership->community_id;
+        }
+
+        if (! DB::table('communities')->where('id', $communityId)->exists()) {
+            return response()->json(['message' => 'Community not found. Please contact support.'], 422);
+        }
+
+        if ($response = $this->assertContentScheduleNotInPast($validated, $communityId)) {
+            return $response;
+        }
+
+        if ($category === 'event') {
+            $requiresRsvp = $request->boolean('requires_rsvp');
+            if ($requiresRsvp) {
+                if ($response = $this->assertRegistrationDeadlineRules($validated, $communityId)) {
+                    return $response;
+                }
+            }
+        }
+
+        if ($platformCreate) {
+            $reviewStatus = 'approved';
+            $status       = $validated['status'] ?? 'published';
+        } elseif (AdminRoleService::isActiveCommunityAdmin($user)) {
+            $reviewStatus = 'approved';
+            $status       = $validated['status'] ?? 'published';
+        } else {
+            return response()->json(['message' => 'Approved community admin access required'], 403);
+        }
+
+        $scheduledAt  = null;
+        $isPinned     = false;
+        $requiresRsvp = false;
+
+        if ($category === 'event') {
+            $requiresRsvp = $request->boolean('requires_rsvp');
+        }
+
+        if ($this->categorySupportsPinAndSchedule($category)) {
+            $isPinned = $request->boolean('is_pinned');
+
+            if ($request->filled('scheduled_at')) {
+                $scheduledAt = NoticeSchedule::normalizeForStorage(
+                    $validated['scheduled_at'],
+                    $communityId,
+                );
+                if ($response = $this->assertScheduledAtInFuture($scheduledAt)) {
+                    return $response;
+                }
+                if ($response = $this->assertScheduledAtNotAfterStart($scheduledAt, $validated, $communityId)) {
+                    return $response;
+                }
+                if ($category === 'event') {
+                    if ($response = $this->assertScheduledAtBeforeRegistrationDeadline($scheduledAt, $validated, $communityId)) {
+                        return $response;
+                    }
+                }
+                $status = 'draft';
+            }
+        }
+
+        $publishedAt = null;
+        if ($status === 'published' && $reviewStatus === 'approved' && $scheduledAt === null) {
+            $publishedAt = now();
+        }
+
+        $audienceType = NoticeAudienceService::TYPE_ALL;
+        $recipientIds = [];
+
+        if (NoticeAudienceService::categorySupportsAudienceTargeting($category)) {
+            $audienceType = NoticeAudienceService::normalizeAudienceType($validated['audience_type'] ?? null);
+            $recipientIds = NoticeAudienceService::validateRecipientIds(
+                $communityId,
+                $audienceType,
+                $validated['recipient_user_ids'] ?? null,
+            );
+        } elseif (
+            ($validated['audience_type'] ?? NoticeAudienceService::TYPE_ALL) === NoticeAudienceService::TYPE_SELECTED
+            || ! empty($validated['recipient_user_ids'])
+        ) {
+            return response()->json(['message' => 'Recipient targeting applies to notices only'], 422);
+        }
+
+        $id = DB::table('notices')->insertGetId([
+            'community_id'     => $communityId,
+            'author_id'        => auth()->id(),
+            'title'            => $validated['title'],
+            'category'         => $category,
+            'body'             => $validated['body'],
+            'location'         => $validated['location'] ?? null,
+            'image_url'        => MediaUrl::normalize($validated['image_url'] ?? null),
+            'event_date'       => $validated['event_date'] ?? null,
+            'event_end_date'   => $validated['event_end_date'] ?? null,
+            'event_time'       => $validated['event_time'] ?? null,
+            'event_time_end'   => $validated['event_time_end'] ?? null,
+            'registration_deadline_date' => $category === 'event' && $requiresRsvp
+                ? ($validated['registration_deadline_date'] ?? null)
+                : null,
+            'registration_deadline_time' => $category === 'event' && $requiresRsvp
+                ? ($validated['registration_deadline_time'] ?? null)
+                : null,
+            'event_capacity'   => $category === 'event'
+                ? $this->parseEventCapacity($validated['event_capacity'] ?? null)
+                : null,
+            'is_pinned'        => $isPinned,
+            'requires_rsvp'    => $category === 'event' ? $requiresRsvp : false,
+            'scheduled_at'     => $scheduledAt,
+            'status'           => $status,
+            'review_status'    => $reviewStatus,
+            'is_global'        => $isGlobal,
+            'audience_type'    => $audienceType,
+            'published_at'     => $publishedAt,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+
+        if ($audienceType === NoticeAudienceService::TYPE_SELECTED) {
+            NoticeAudienceService::syncRecipients($id, $recipientIds);
+        }
+
+        if ($reviewStatus === 'approved' && $status === 'published' && $scheduledAt === null) {
+            $fresh = DB::table('notices')->where('id', $id)->first();
+            $this->notifyResidentsForNotice($fresh, $validated['title']);
+        }
+
+        $logType = match ($category) {
+            'event'     => 'event_created',
+            'emergency' => 'alert_created',
+            default     => 'notice_created',
+        };
+
+        ActivityLogService::user($logType, "Created {$this->categoryLabel($category)}: \"{$validated['title']}\"", 'Notice', $id);
+
+        $notice = $this->baseQuery()->where('notices.id', $id)->first();
+
+        $message = $platformCreate
+            ? ($isGlobal ? 'Published to all communities' : ucfirst($this->categoryLabel($category)).' published')
+            : ($scheduledAt
+                ? ucfirst($this->categoryLabel($category)).' scheduled for later'
+                : ucfirst($this->categoryLabel($category)).' published to your community');
+
+        return response()->json([
+            'data'    => $this->formatNotice($notice),
+            'message' => $message,
+        ], 201);
+    }
+
+    private function baseQuery()
+    {
+        return DB::table('notices')
+            ->join('users', 'users.id', '=', 'notices.author_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'notices.author_id')
+            ->select(
+                'notices.*',
+                'users.name as author_name',
+                'profiles.avatar_url as author_avatar',
+            )
+            ->whereNull('notices.deleted_at');
+    }
+
+    private function formatNotice(object $notice, $user = null, bool $withRsvp = false, ?array $eventSummary = null): array
+    {
+        $audienceType = $notice->audience_type ?? NoticeAudienceService::TYPE_ALL;
+        $recipients = $audienceType === NoticeAudienceService::TYPE_SELECTED
+            ? NoticeAudienceService::recipients((int) $notice->id)
+            : [];
+
+        $payload = [
+            'id'               => (int) $notice->id,
+            'community_id'     => (int) $notice->community_id,
+            'community_name'   => $notice->community_name ?? null,
+            'author_id'        => (int) $notice->author_id,
+            'title'            => $notice->title,
+            'title_es'         => $notice->title_es ?? null,
+            'title_ar'         => $notice->title_ar ?? null,
+            'body'             => $notice->body,
+            'body_es'          => $notice->body_es ?? null,
+            'body_ar'          => $notice->body_ar ?? null,
+            'description'      => $notice->body,
+            'category'         => $notice->category,
+            'location'         => $notice->location,
+            'image_url'        => MediaUrl::toPublic($notice->image_url, request()),
+            'event_date'       => $notice->event_date,
+            'event_end_date'   => $notice->event_end_date ?? null,
+            'event_time'       => $notice->event_time,
+            'event_time_end'   => $notice->event_time_end ?? null,
+            'registration_deadline_date' => $notice->registration_deadline_date ?? null,
+            'registration_deadline_time' => $notice->registration_deadline_time ?? null,
+            'is_registration_open' => $notice->category === 'event'
+                ? ! $this->isEventRegistrationClosed($notice, (int) $notice->community_id)
+                : null,
+            'schedule_timezone' => $notice->category === 'event'
+                ? NoticeExpiry::resolveTimezone((int) $notice->community_id)
+                : null,
+            'status'           => $notice->status,
+            'review_status'    => $notice->review_status ?? 'approved',
+            'is_global'        => (bool) ($notice->is_global ?? false),
+            'approved_by'      => $notice->approved_by ? (int) $notice->approved_by : null,
+            'approved_at'      => ActivityActionCatalog::utcIsoTimestamp($notice->approved_at ?? null),
+            'rejection_reason' => $notice->rejection_reason,
+            // UTC ISO-8601 so clients convert to device local time correctly.
+            'published_at'     => ActivityActionCatalog::utcIsoTimestamp($notice->published_at ?? null),
+            'scheduled_at'     => ActivityActionCatalog::utcIsoTimestamp($notice->scheduled_at ?? null),
+            'is_pinned'        => (bool) ($notice->is_pinned ?? false),
+            'is_pinned_active' => $this->isPinActive($notice),
+            'requires_rsvp'    => (bool) ($notice->requires_rsvp ?? false),
+            'audience_type'    => $audienceType,
+            'recipient_user_ids' => array_column($recipients, 'id'),
+            'recipients'       => $recipients,
+            'created_at'       => ActivityActionCatalog::utcIsoTimestamp($notice->created_at ?? null),
+            'updated_at'       => ActivityActionCatalog::utcIsoTimestamp($notice->updated_at ?? null),
+            'author_name'      => $notice->author_name,
+            'author_avatar'    => MediaUrl::toPublic($notice->author_avatar ?? null, request()),
+            'can_report'       => $this->canReportNotice($notice, $user),
+        ];
+
+        if (($notice->category ?? '') === 'finance') {
+            $payload['service_bill'] = app(UnitServiceBillService::class)->findBillForNotice((int) $notice->id);
+            $viewerId = $user ? (int) $user->id : 0;
+            $payload['amenity_bill'] = $payload['service_bill'] || $viewerId < 1
+                ? null
+                : app(AmenitySharedBillService::class)->findBillForNotice(
+                    (int) $notice->id,
+                    $viewerId,
+                );
+        }
+
+        if ($notice->category === 'event') {
+            $capacity = isset($notice->event_capacity) ? (int) $notice->event_capacity : null;
+            $payload['event_capacity'] = $capacity;
+
+            if ($withRsvp) {
+                $payload = array_merge(
+                    $payload,
+                    $this->eventRsvpPayload((int) $notice->id, (int) $notice->author_id, $user, $capacity),
+                );
+            } else {
+                $payload = array_merge(
+                    $payload,
+                    $eventSummary ?? $this->eventRsvpSummary((int) $notice->id, (int) $notice->author_id, $user, $capacity),
+                );
+            }
+        }
+
+        return $payload;
+    }
+
+    /** Lightweight RSVP counts for list views (no attendee avatars). */
+    private function eventRsvpSummary(int $noticeId, int $authorId, $user, ?int $eventCapacity = null): array
+    {
+        $goingCount = (int) DB::table('event_rsvps')
+            ->where('notice_id', $noticeId)
+            ->where('status', 'going')
+            ->count();
+
+        $userId      = $user ? (int) $user->id : null;
+        $isOrganizer = $userId !== null && $userId === $authorId;
+        $isJoined    = false;
+        $isWaitlisted = false;
+
+        if ($userId) {
+            $isJoined = DB::table('event_rsvps')
+                ->where('notice_id', $noticeId)
+                ->where('user_id', $userId)
+                ->where('status', 'going')
+                ->exists();
+
+            $isWaitlisted = EventWaitlistService::isUserWaitlisted($noticeId, $userId);
+        }
+
+        $spotsRemaining = $eventCapacity !== null ? max(0, $eventCapacity - $goingCount) : null;
+        $isFull         = $eventCapacity !== null && $goingCount >= $eventCapacity;
+        $waitlistCount  = EventWaitlistService::waitlistCount($noticeId);
+
+        return [
+            'rsvp_count'        => $goingCount,
+            'waitlist_count'    => $waitlistCount,
+            'spots_remaining'   => $spotsRemaining,
+            'is_full'           => $isFull,
+            'is_joined'         => $isJoined,
+            'is_waitlisted'     => $isWaitlisted,
+            'waitlist_position' => $isWaitlisted
+                ? EventWaitlistService::waitlistPosition($noticeId, $userId)
+                : null,
+            'is_organizer'      => $isOrganizer,
+        ];
+    }
+
+    /** Batch RSVP summaries for paginated event lists. */
+    private function batchEventRsvpSummaries(array $notices, $user): array
+    {
+        $eventIds   = [];
+        $capacities = [];
+        $authorIds  = [];
+
+        foreach ($notices as $notice) {
+            if (($notice->category ?? null) !== 'event') {
+                continue;
+            }
+
+            $id             = (int) $notice->id;
+            $eventIds[]     = $id;
+            $capacities[$id] = isset($notice->event_capacity) ? (int) $notice->event_capacity : null;
+            $authorIds[$id]  = (int) $notice->author_id;
+        }
+
+        if ($eventIds === []) {
+            return [];
+        }
+
+        $counts = DB::table('event_rsvps')
+            ->whereIn('notice_id', $eventIds)
+            ->where('status', 'going')
+            ->groupBy('notice_id')
+            ->selectRaw('notice_id, COUNT(*) as cnt')
+            ->pluck('cnt', 'notice_id');
+
+        $waitlistCounts = EventWaitlistService::batchWaitlistCounts($eventIds);
+
+        $joinedSet = [];
+        $waitlistedSet = [];
+        $userId    = $user ? (int) $user->id : null;
+
+        if ($userId) {
+            $joinedSet = DB::table('event_rsvps')
+                ->whereIn('notice_id', $eventIds)
+                ->where('user_id', $userId)
+                ->where('status', 'going')
+                ->pluck('notice_id')
+                ->map(fn ($id) => (int) $id)
+                ->flip()
+                ->all();
+
+            $waitlistedSet = DB::table('event_rsvps')
+                ->whereIn('notice_id', $eventIds)
+                ->where('user_id', $userId)
+                ->where('status', 'waiting')
+                ->pluck('notice_id')
+                ->map(fn ($id) => (int) $id)
+                ->flip()
+                ->all();
+        }
+
+        $summaries = [];
+
+        foreach ($eventIds as $id) {
+            $going          = (int) ($counts[$id] ?? 0);
+            $capacity       = $capacities[$id];
+            $spotsRemaining = $capacity !== null ? max(0, $capacity - $going) : null;
+            $isFull         = $capacity !== null && $going >= $capacity;
+
+            $summaries[$id] = [
+                'rsvp_count'        => $going,
+                'waitlist_count'    => (int) ($waitlistCounts[$id] ?? 0),
+                'spots_remaining'   => $spotsRemaining,
+                'is_full'           => $isFull,
+                'is_joined'         => isset($joinedSet[$id]),
+                'is_waitlisted'     => isset($waitlistedSet[$id]),
+                'waitlist_position' => isset($waitlistedSet[$id])
+                    ? EventWaitlistService::waitlistPosition($id, $userId)
+                    : null,
+                'is_organizer'      => $userId !== null && $userId === ($authorIds[$id] ?? 0),
+            ];
+        }
+
+        return $summaries;
+    }
+
+    private function eventRsvpPayload(int $noticeId, int $authorId, $user, ?int $eventCapacity = null): array
+    {
+        $goingCount = (int) DB::table('event_rsvps')
+            ->where('notice_id', $noticeId)
+            ->where('status', 'going')
+            ->count();
+
+        $attendees = DB::table('event_rsvps')
+            ->join('users', 'users.id', '=', 'event_rsvps.user_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'event_rsvps.user_id')
+            ->where('event_rsvps.notice_id', $noticeId)
+            ->where('event_rsvps.status', 'going')
+            ->select('users.id', 'users.name', 'profiles.avatar_url')
+            ->orderBy('event_rsvps.created_at')
+            ->limit(8)
+            ->get()
+            ->map(fn ($row) => [
+                'id'         => (int) $row->id,
+                'name'       => $row->name,
+                'avatar_url' => MediaUrl::toPublic($row->avatar_url ?? null, request()),
+            ])
+            ->values()
+            ->all();
+
+        $userId = $user ? (int) $user->id : null;
+        $isOrganizer = $userId !== null && $userId === $authorId;
+        $isJoined = false;
+        $isWaitlisted = false;
+
+        if ($userId) {
+            $isJoined = DB::table('event_rsvps')
+                ->where('notice_id', $noticeId)
+                ->where('user_id', $userId)
+                ->where('status', 'going')
+                ->exists();
+
+            $isWaitlisted = EventWaitlistService::isUserWaitlisted($noticeId, $userId);
+        }
+
+        $spotsRemaining = $eventCapacity !== null ? max(0, $eventCapacity - $goingCount) : null;
+        $isFull         = $eventCapacity !== null && $goingCount >= $eventCapacity;
+        $waitlistCount  = EventWaitlistService::waitlistCount($noticeId);
+
+        $payload = [
+            'rsvp_count'        => $goingCount,
+            'waitlist_count'    => $waitlistCount,
+            'attendees'         => $attendees,
+            'is_joined'         => $isJoined,
+            'is_waitlisted'     => $isWaitlisted,
+            'waitlist_position' => $isWaitlisted
+                ? EventWaitlistService::waitlistPosition($noticeId, $userId)
+                : null,
+            'is_organizer'      => $isOrganizer,
+            'spots_remaining'   => $spotsRemaining,
+            'is_full'           => $isFull,
+        ];
+
+        if ($this->canViewEventWaitlist($noticeId, $authorId, $user)) {
+            $payload['waitlist'] = EventWaitlistService::waitlistEntries($noticeId);
+        }
+
+        return $payload;
+    }
+
+    private function canViewEventWaitlist(int $noticeId, int $authorId, $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ((int) $user->id === $authorId) {
+            return true;
+        }
+
+        if (AdminRoleService::isSystemAdmin($user)) {
+            return true;
+        }
+
+        $communityId = (int) DB::table('notices')->where('id', $noticeId)->value('community_id');
+
+        return AdminRoleService::canManageCommunity($user, $communityId);
+    }
+
+    private function parseEventCapacity(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return max(1, min(100000, (int) $value));
+    }
+
+    private function assertEventCapacityNotBelowAttendance(int $noticeId, ?int $capacity): void
+    {
+        if ($capacity === null) {
+            return;
+        }
+
+        $going = (int) DB::table('event_rsvps')
+            ->where('notice_id', $noticeId)
+            ->where('status', 'going')
+            ->count();
+
+        if ($going > $capacity) {
+            abort(response()->json([
+                'message' => "Capacity cannot be less than current attendance ({$going}).",
+                'code'    => 'capacity_below_attendance',
+            ], 422));
+        }
+    }
+
+    private function isEventAtCapacity(object $notice, ?object $existingRsvp = null): bool
+    {
+        $capacity = $this->readEventCapacity($notice);
+        if ($capacity === null) {
+            return false;
+        }
+
+        if ($existingRsvp && $existingRsvp->status === 'going') {
+            return false;
+        }
+
+        $goingCount = (int) DB::table('event_rsvps')
+            ->where('notice_id', $notice->id)
+            ->where('status', 'going')
+            ->count();
+
+        return $goingCount >= $capacity;
+    }
+
+    private function readEventCapacity(object $notice): ?int
+    {
+        if (! property_exists($notice, 'event_capacity') || $notice->event_capacity === null) {
+            return null;
+        }
+
+        return max(1, (int) $notice->event_capacity);
+    }
+
+    private function applyNoticeOrdering($query, ?int $communityId, Request $request)
+    {
+        NoticeExpiry::applyListOrdering(
+            $query,
+            'notices',
+            $communityId,
+            $this->resolveNoticeSortGroup($request),
+            (string) $request->input('sort', 'relevant'),
+        );
+
+        return $query;
+    }
+
+    private function resolveNoticeSortGroup(Request $request): string
+    {
+        if ($request->boolean('mine')) {
+            return 'events';
+        }
+
+        $group = (string) $request->input('category_group', '');
+        if (in_array($group, ['events', 'alerts', 'notices'], true)) {
+            return $group;
+        }
+
+        $category = $this->normalizeCategory((string) $request->input('category', ''));
+        if ($category === 'event') {
+            return 'events';
+        }
+        if ($category === 'emergency') {
+            return 'alerts';
+        }
+        if ($category !== '' && $category !== 'all') {
+            return 'notices';
+        }
+
+        return 'mixed';
+    }
+
+    private function isPinActive(object $notice): bool
+    {
+        if (! ($notice->is_pinned ?? false)) {
+            return false;
+        }
+
+        return ! NoticeExpiry::isExpired($notice, null, (int) ($notice->community_id ?? 0));
+    }
+
+    private function communityStats(int $communityId, $user): array
+    {
+        $query = DB::table('notices')->whereNull('deleted_at');
+
+        if (! $this->isPlatformAdmin($user)) {
+            $query->where(function ($q) use ($communityId) {
+                $q->where('community_id', $communityId)->orWhere('is_global', true);
+            });
+        }
+
+        $rows = (clone $query)
+            ->select('status', DB::raw('count(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $published = (int) ($rows['published'] ?? 0);
+        $draft     = (int) ($rows['draft'] ?? 0);
+        $archived  = (int) ($rows['archived'] ?? 0);
+        $total     = $published + $draft + $archived;
+
+        $pendingReview = (clone $query)->where('review_status', 'pending')->count();
+
+        return [
+            'total'          => $total,
+            'published'      => $published,
+            'draft'          => $draft,
+            'archived'       => $archived,
+            'pending_review' => (int) $pendingReview,
+        ];
+    }
+
+    private function normalizeCategory(string $category): string
+    {
+        return strtolower(trim($category));
+    }
+
+    private function applyAdminStatusFilter($query, string $status): void
+    {
+        if ($status === 'scheduled') {
+            $this->applyScheduledDraftScope($query);
+
+            return;
+        }
+
+        if ($status === 'draft') {
+            $this->applyPlainDraftScope($query);
+
+            return;
+        }
+
+        $query->where('notices.status', $status);
+    }
+
+    private function applyScheduledDraftScope($query): void
+    {
+        $query->where('notices.status', 'draft')
+            ->whereNotNull('notices.scheduled_at')
+            ->where('notices.scheduled_at', '>', now());
+    }
+
+    private function applyPlainDraftScope($query): void
+    {
+        $query->where('notices.status', 'draft')
+            ->where(function ($q) {
+                $q->whereNull('notices.scheduled_at')
+                    ->orWhere('notices.scheduled_at', '<=', now());
+            });
+    }
+
+    /** Notices, events, and alerts support pin + scheduled publish. */
+    private function categorySupportsPinAndSchedule(string $category): bool
+    {
+        return in_array($this->normalizeCategory($category), [
+            'event', 'general', 'maintenance', 'security', 'finance', 'emergency',
+        ], true);
+    }
+
+    private function assertScheduledAtInFuture(?string $scheduledAtUtc): ?\Illuminate\Http\JsonResponse
+    {
+        if ($scheduledAtUtc === null) {
+            return null;
+        }
+
+        if (NoticeSchedule::isDue($scheduledAtUtc)) {
+            return response()->json([
+                'message' => 'Scheduled publish time must be in the future.',
+                'errors'  => ['scheduled_at' => ['Scheduled publish time must be in the future.']],
+            ], 422);
+        }
+
+        return null;
+    }
+
+    /**
+     * Scheduled publish must be strictly before the notice/alert/event start date/time.
+     * When start time is omitted, only calendar dates are compared.
+     */
+    private function assertScheduledAtNotAfterStart(
+        ?string $scheduledAtUtc,
+        array $validated,
+        int $communityId,
+    ): ?\Illuminate\Http\JsonResponse {
+        if ($scheduledAtUtc === null) {
+            return null;
+        }
+
+        $startDate = isset($validated['event_date']) ? trim((string) $validated['event_date']) : '';
+        if ($startDate === '') {
+            return null;
+        }
+
+        $startDate = substr($startDate, 0, 10);
+        $startTime = isset($validated['event_time']) ? trim((string) $validated['event_time']) : '';
+        $tz = NoticeSchedule::resolveInputTimezone($communityId);
+        $scheduledLocal = Carbon::parse($scheduledAtUtc, 'UTC')->setTimezone($tz);
+
+        $message = 'Publish date and time must be before the event start date and time.';
+
+        if ($startTime === '') {
+            if ($scheduledLocal->toDateString() >= $startDate) {
+                return response()->json([
+                    'message' => $message,
+                    'errors'  => ['scheduled_at' => [$message]],
+                ], 422);
+            }
+
+            return null;
+        }
+
+        $minutes = $this->parseScheduleTimeToMinutes($startTime);
+        if ($minutes === null) {
+            return null;
+        }
+
+        $startLocal = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            sprintf('%s %02d:%02d:00', $startDate, intdiv($minutes, 60), $minutes % 60),
+            $tz,
+        );
+
+        if ($scheduledLocal->gte($startLocal)) {
+            return response()->json([
+                'message' => $message,
+                'errors'  => ['scheduled_at' => [$message]],
+            ], 422);
+        }
+
+        return null;
+    }
+
+    private function assertScheduledAtBeforeRegistrationDeadline(
+        ?string $scheduledAtUtc,
+        array $validated,
+        int $communityId,
+    ): ?\Illuminate\Http\JsonResponse {
+        if ($scheduledAtUtc === null) {
+            return null;
+        }
+
+        $deadlineDate = isset($validated['registration_deadline_date'])
+            ? trim((string) $validated['registration_deadline_date'])
+            : '';
+        if ($deadlineDate === '') {
+            return null;
+        }
+
+        $deadlineDate = substr($deadlineDate, 0, 10);
+        $deadlineTime = isset($validated['registration_deadline_time'])
+            ? trim((string) $validated['registration_deadline_time'])
+            : '';
+        $tz = NoticeSchedule::resolveInputTimezone($communityId);
+        $scheduledLocal = Carbon::parse($scheduledAtUtc, 'UTC')->setTimezone($tz);
+        $message = 'Publish date and time must be before the registration deadline.';
+
+        if ($deadlineTime === '') {
+            if ($scheduledLocal->toDateString() >= $deadlineDate) {
+                return response()->json([
+                    'message' => $message,
+                    'errors'  => ['scheduled_at' => [$message]],
+                ], 422);
+            }
+
+            return null;
+        }
+
+        $minutes = $this->parseScheduleTimeToMinutes($deadlineTime);
+        if ($minutes === null) {
+            return null;
+        }
+
+        $deadlineLocal = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            sprintf('%s %02d:%02d:00', $deadlineDate, intdiv($minutes, 60), $minutes % 60),
+            $tz,
+        );
+
+        if ($scheduledLocal->gte($deadlineLocal)) {
+            return response()->json([
+                'message' => $message,
+                'errors'  => ['scheduled_at' => [$message]],
+            ], 422);
+        }
+
+        return null;
+    }
+
+    private function assertRegistrationDeadlinePresent(
+        array $validated,
+        string $status = 'published',
+        bool $hasScheduledPublish = false,
+        bool $requiresRsvp = false,
+    ): ?\Illuminate\Http\JsonResponse {
+        // Registration deadline applies only when RSVP / join is enabled.
+        if (! $requiresRsvp) {
+            return null;
+        }
+
+        if ($status === 'draft' && ! $hasScheduledPublish) {
+            return null;
+        }
+
+        $missing = [];
+        if (empty($validated['registration_deadline_date'])) {
+            $missing['registration_deadline_date'] = ['Registration last date is required.'];
+        }
+        if (empty($validated['registration_deadline_time'])) {
+            $missing['registration_deadline_time'] = ['Registration last time is required.'];
+        }
+
+        if ($missing === []) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => 'Registration last date and time are required when RSVP is enabled.',
+            'errors'  => $missing,
+        ], 422);
+    }
+
+    private function assertRegistrationDeadlineRules(array $validated, int $communityId): ?\Illuminate\Http\JsonResponse
+    {
+        $deadlineDate = isset($validated['registration_deadline_date'])
+            ? trim((string) $validated['registration_deadline_date'])
+            : '';
+        if ($deadlineDate === '') {
+            return null;
+        }
+
+        $deadlineDate = substr($deadlineDate, 0, 10);
+        $deadlineTime = isset($validated['registration_deadline_time'])
+            ? trim((string) $validated['registration_deadline_time'])
+            : '';
+        $now = NoticeExpiry::nowInTimezone($communityId);
+        $today = $now->toDateString();
+        $pastMessage = 'Please select a future date and time.';
+        $errors = [];
+
+        if ($deadlineDate < $today) {
+            $errors['registration_deadline_date'] = [$pastMessage];
+        } elseif ($deadlineDate === $today && $deadlineTime !== '') {
+            $minutes = $this->parseScheduleTimeToMinutes($deadlineTime);
+            $nowMinutes = ((int) $now->format('H')) * 60 + (int) $now->format('i');
+            if ($minutes !== null && $minutes <= $nowMinutes) {
+                $errors['registration_deadline_time'] = [$pastMessage];
+            }
+        }
+
+        $startDate = isset($validated['event_date']) ? substr(trim((string) $validated['event_date']), 0, 10) : '';
+        $startTime = isset($validated['event_time']) ? trim((string) $validated['event_time']) : '';
+        if ($startDate !== '' && $deadlineDate !== '' && empty($errors)) {
+            $beforeStartMessage = 'Registration deadline must be before the event start date and time.';
+            if ($deadlineTime === '' || $startTime === '') {
+                if ($deadlineDate > $startDate) {
+                    $errors['registration_deadline_date'] = [$beforeStartMessage];
+                }
+            } else {
+                $deadlineMinutes = $this->parseScheduleTimeToMinutes($deadlineTime);
+                $startMinutes = $this->parseScheduleTimeToMinutes($startTime);
+                if ($deadlineMinutes !== null && $startMinutes !== null) {
+                    $deadlineStamp = sprintf('%s %04d', $deadlineDate, $deadlineMinutes);
+                    $startStamp = sprintf('%s %04d', $startDate, $startMinutes);
+                    if ($deadlineStamp >= $startStamp) {
+                        $errors['registration_deadline_time'] = [$beforeStartMessage];
+                    }
+                }
+            }
+        }
+
+        if ($errors === []) {
+            return null;
+        }
+
+        $message = reset($errors)[0] ?? $pastMessage;
+
+        return response()->json([
+            'message' => $message,
+            'errors'  => $errors,
+        ], 422);
+    }
+
+    private function isEventRegistrationClosed(object $notice, int $communityId): bool
+    {
+        $deadlineDate = isset($notice->registration_deadline_date)
+            ? substr(trim((string) $notice->registration_deadline_date), 0, 10)
+            : '';
+        if ($deadlineDate === '') {
+            return false;
+        }
+
+        $deadlineTime = isset($notice->registration_deadline_time)
+            ? trim((string) $notice->registration_deadline_time)
+            : '';
+        $now = NoticeExpiry::nowInTimezone($communityId);
+
+        if ($deadlineTime === '') {
+            return $now->toDateString() > $deadlineDate;
+        }
+
+        $minutes = $this->parseScheduleTimeToMinutes($deadlineTime);
+        if ($minutes === null) {
+            return $now->toDateString() > $deadlineDate;
+        }
+
+        $tz = NoticeSchedule::resolveInputTimezone($communityId);
+        $deadlineLocal = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            sprintf('%s %02d:%02d:00', $deadlineDate, intdiv($minutes, 60), $minutes % 60),
+            $tz,
+        );
+
+        return $now->gte($deadlineLocal);
+    }
+
+    /** Categories that require relevance date + start/end times on create. */
+    private function categoryRequiresContentSchedule(string $category): bool
+    {
+        return in_array($this->normalizeCategory($category), [
+            'event', 'general', 'maintenance', 'security', 'finance', 'emergency',
+        ], true);
+    }
+
+    private function assertContentSchedulePresent(array $validated, string $category, string $status = 'published'): ?\Illuminate\Http\JsonResponse
+    {
+        if ($status === 'draft' || ! $this->categoryRequiresContentSchedule($category)) {
+            return null;
+        }
+
+        $missing = [];
+        $normalized = $this->normalizeCategory($category);
+        if (empty($validated['event_date'])) {
+            $missing['event_date'] = [$normalized === 'emergency' ? 'Alert date is required.' : 'Start date is required.'];
+        }
+
+        if ($normalized === 'event') {
+            if (empty($validated['event_end_date'])) {
+                $missing['event_end_date'] = ['End date is required.'];
+            }
+            if (empty($validated['event_time'])) {
+                $missing['event_time'] = ['Start time is required.'];
+            }
+            if (empty($validated['event_time_end'])) {
+                $missing['event_time_end'] = ['End time is required.'];
+            }
+        } else {
+            // Notices and alerts: start time required; end date/time optional.
+            if (empty($validated['event_time'])) {
+                $missing['event_time'] = ['Start time is required.'];
+            }
+        }
+
+        if ($missing !== []) {
+            $message = array_key_exists('event_time', $missing) || array_key_exists('event_time_end', $missing)
+                ? ($normalized === 'event'
+                    ? 'Start/end date and start/end time are required.'
+                    : ($normalized === 'emergency'
+                        ? 'Alert date and start time are required.'
+                        : 'Start date and start time are required.'))
+                : ($normalized === 'emergency' ? 'Alert date is required.' : 'Start date is required.');
+
+            return response()->json([
+                'message' => $message,
+                'errors'  => $missing,
+            ], 422);
+        }
+
+        return null;
+    }
+
+    /**
+     * When the notice date is today (community/app timezone), times must be current or future.
+     */
+    private function assertContentScheduleNotInPast(array $validated, int $communityId): ?\Illuminate\Http\JsonResponse
+    {
+        $startDate = isset($validated['event_date']) ? trim((string) $validated['event_date']) : '';
+        if ($startDate === '') {
+            return null;
+        }
+
+        $endDate = isset($validated['event_end_date']) && trim((string) $validated['event_end_date']) !== ''
+            ? trim((string) $validated['event_end_date'])
+            : $startDate;
+
+        $now = NoticeExpiry::nowInTimezone($communityId);
+        $today = $now->toDateString();
+        $message = 'Please select a future date and time.';
+        $errors = [];
+        $nowMinutes = ((int) $now->format('H')) * 60 + (int) $now->format('i');
+
+        if ($startDate < $today) {
+            $errors['event_date'] = [$message];
+        }
+
+        $endDay = substr($endDate, 0, 10);
+        if ($endDay !== '' && $endDay < $today) {
+            $errors['event_end_date'] = [$message];
+        }
+
+        if ($today === $startDate) {
+            $raw = isset($validated['event_time']) ? trim((string) $validated['event_time']) : '';
+            if ($raw !== '') {
+                $minutes = $this->parseScheduleTimeToMinutes($raw);
+                if ($minutes !== null && $minutes < $nowMinutes) {
+                    $errors['event_time'] = [$message];
+                }
+            }
+        }
+
+        if ($today === substr($endDate, 0, 10)) {
+            $raw = isset($validated['event_time_end']) ? trim((string) $validated['event_time_end']) : '';
+            if ($raw !== '') {
+                $minutes = $this->parseScheduleTimeToMinutes($raw);
+                if ($minutes !== null && $minutes < $nowMinutes) {
+                    $errors['event_time_end'] = [$message];
+                }
+            }
+        }
+
+        if ($errors === []) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => $message,
+            'errors'  => $errors,
+        ], 422);
+    }
+
+    /** Default end date to start date when omitted (legacy clients). */
+    private function normalizeEventEndDate(array &$validated): void
+    {
+        $start = isset($validated['event_date']) ? trim((string) $validated['event_date']) : '';
+        if ($start === '') {
+            return;
+        }
+
+        $end = isset($validated['event_end_date']) ? trim((string) $validated['event_end_date']) : '';
+        if ($end === '') {
+            $validated['event_end_date'] = $start;
+        }
+    }
+
+    private function assertContentScheduleWindow(array $validated): ?\Illuminate\Http\JsonResponse
+    {
+        $startDate = isset($validated['event_date']) ? trim((string) $validated['event_date']) : '';
+        if ($startDate === '') {
+            return null;
+        }
+
+        $this->normalizeEventEndDate($validated);
+        $endDate = trim((string) $validated['event_end_date']);
+        $startTime = isset($validated['event_time']) ? trim((string) $validated['event_time']) : '';
+        $endTime = isset($validated['event_time_end']) ? trim((string) $validated['event_time_end']) : '';
+
+        if ($endDate !== '' && $endDate < substr($startDate, 0, 10)) {
+            return response()->json([
+                'message' => 'End date must be on or after the start date.',
+                'errors'  => ['event_end_date' => ['End date must be on or after the start date.']],
+            ], 422);
+        }
+
+        if ($startTime === '' || $endTime === '') {
+            return null;
+        }
+
+        $startMinutes = $this->parseScheduleTimeToMinutes($startTime);
+        $endMinutes = $this->parseScheduleTimeToMinutes($endTime);
+        if ($startMinutes === null || $endMinutes === null) {
+            return null;
+        }
+
+        if ($endDate === substr($startDate, 0, 10) && $endMinutes <= $startMinutes) {
+            return response()->json([
+                'message' => 'End time must be after start time.',
+                'errors'  => ['event_time_end' => ['End time must be after start time.']],
+            ], 422);
+        }
+
+        return null;
+    }
+
+    private function parseScheduleTimeToMinutes(string $value): ?int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $value, $m)) {
+            $h = (int) $m[1];
+            $min = (int) $m[2];
+            if ($h >= 0 && $h <= 23 && $min >= 0 && $min <= 59) {
+                return $h * 60 + $min;
+            }
+
+            return null;
+        }
+
+        if (preg_match('/^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])$/', $value, $m)) {
+            $h = (int) $m[1];
+            $min = isset($m[2]) && $m[2] !== '' ? (int) $m[2] : 0;
+            $period = strtoupper($m[3]);
+            if ($h < 1 || $h > 12 || $min < 0 || $min > 59) {
+                return null;
+            }
+            if ($period === 'AM') {
+                if ($h === 12) {
+                    $h = 0;
+                }
+            } elseif ($h !== 12) {
+                $h += 12;
+            }
+
+            return $h * 60 + $min;
+        }
+
+        return null;
+    }
+
+    private function categoryLabel(string $category): string
+    {
+        return match ($category) {
+            'event'     => 'event',
+            'emergency' => 'alert',
+            default     => 'notice',
+        };
+    }
+
+    private function applyCategoryGroupFilter($query, ?string $group, ?string $category, string $column = 'notices.category'): void
+    {
+        if ($category && $category !== 'all') {
+            $query->where($column, $this->normalizeCategory($category));
+
+            return;
+        }
+
+        if ($group === 'events') {
+            $query->where($column, 'event');
+
+            return;
+        }
+
+        if ($group === 'alerts') {
+            $query->where($column, 'emergency');
+
+            return;
+        }
+
+        if ($group === 'notices') {
+            $query->whereNotIn($column, ['event', 'emergency']);
+        }
+    }
+
+    private function resolveCommunityId(Request $request, $user): int
+    {
+        if ($request->filled('community_id') && $request->community_id !== 'all') {
+            return (int) $request->community_id;
+        }
+
+        $header = $request->header('X-Community-Id');
+        if ($header) {
+            return (int) $header;
+        }
+
+        if ($user) {
+            $current = UserActingContextService::currentCommunityId($user);
+            if ($current) {
+                return $current;
+            }
+        }
+
+        if ($user && ($this->isPlatformAdmin($user) || $this->isCommunityAdmin($user))) {
+            $communityId = DB::table('communities')
+                ->where('status', 'active')
+                ->orderBy('id')
+                ->value('id');
+
+            if (! $communityId) {
+                $communityId = DB::table('communities')->orderBy('id')->value('id');
+            }
+
+            if ($communityId) {
+                return (int) $communityId;
+            }
+        }
+
+        abort(422, 'No community is assigned to your account.');
+    }
+
+    private function isPlatformAdmin($user): bool
+    {
+        return AdminRoleService::isSystemAdmin($user);
+    }
+
+    private function isCommunityAdmin($user): bool
+    {
+        return AdminRoleService::isActiveCommunityAdmin($user);
+    }
+
+    private function getApprovedAdminMembership($user): ?object
+    {
+        return $user ? AdminRoleService::getApprovedAdminMembership($user) : null;
+    }
+
+    private function ensureCanManageContent(): void
+    {
+        $user = auth()->user();
+        if (! AdminRoleService::isSystemAdmin($user) && ! AdminRoleService::isActiveCommunityAdmin($user)) {
+            abort(403, 'Admin access required');
+        }
+    }
+
+    private function ensurePlatformAdmin(): void
+    {
+        if (! $this->isPlatformAdmin(auth()->user())) {
+            abort(403, 'Platform admin access required');
+        }
+    }
+
+    private function storeUploadedCover(Request $request)
+    {
+        $request->validate(
+            ['image' => 'required|image|mimes:jpeg,jpg,png,webp,gif|max:5120'],
+            [
+                'image.required' => 'Please choose a cover image.',
+                'image.image'    => 'The cover must be a JPG, PNG, WEBP, or GIF image.',
+                'image.mimes'    => 'The cover must be a JPG, PNG, WEBP, or GIF image.',
+                'image.max'      => 'The cover image must be 5 MB or smaller.',
+            ],
+        );
+
+        $file = $request->file('image');
+        if (! $file instanceof UploadedFile || ! $file->isValid()) {
+            $code = $file instanceof UploadedFile ? $file->getError() : UPLOAD_ERR_NO_FILE;
+
+            return response()->json(['message' => $this->phpUploadErrorMessage($code)], 422);
+        }
+
+        try {
+            $relative = $this->storeImage($file);
+        } catch (\Throwable $e) {
+            Log::error('Notice image upload failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => $this->imageStoreFailureMessage($e)], 422);
+        }
+
+        return response()->json([
+            'data'    => ['image_url' => MediaUrl::toPublic($relative, $request)],
+            'message' => 'Image uploaded',
+        ]);
+    }
+
+    private function storeImage(UploadedFile $file): string
+    {
+        Storage::disk('public')->makeDirectory('notices');
+        $path = $file->store('notices', 'public');
+        if (! is_string($path) || $path === '') {
+            throw new \RuntimeException('The server could not save the cover image.');
+        }
+
+        return MediaUrl::normalize('/storage/'.$path) ?? '/storage/'.$path;
+    }
+
+    private function phpUploadErrorMessage(int $code): string
+    {
+        return match ($code) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'This image is larger than the server allows. Use a JPG or PNG under 5 MB.',
+            UPLOAD_ERR_PARTIAL => 'The image upload was interrupted. Please try again.',
+            UPLOAD_ERR_NO_FILE => 'Please choose a cover image.',
+            UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_CANT_WRITE => 'The server could not save the cover image. Please try again or contact support.',
+            default => 'The cover image could not be uploaded. Please try a smaller JPG or PNG.',
+        };
+    }
+
+    private function imageStoreFailureMessage(\Throwable $e): string
+    {
+        $raw = $e->getMessage();
+        if (stripos($raw, 'memory') !== false) {
+            return 'This image is too large for the server to process. Try a smaller JPG or PNG under 2 MB.';
+        }
+        if (stripos($raw, 'permission') !== false || stripos($raw, 'unable to write') !== false) {
+            return 'The server could not save the cover image. Please try again or contact support.';
+        }
+
+        return 'The cover image could not be uploaded. Please try a smaller JPG or PNG.';
+    }
+
+    private function notifyOrganizerEventRsvp(object $notice, $member, string $change, int $totalGoing): void
+    {
+        $organizerId = (int) $notice->author_id;
+        if ($organizerId <= 0 || $organizerId === (int) $member->id) {
+            return;
+        }
+
+        $memberName = trim((string) ($member->name ?? 'A neighbor'));
+        if ($memberName === '') {
+            $memberName = 'A neighbor';
+        }
+
+        $countLabel = $totalGoing === 1
+            ? 'Total people coming: 1'
+            : "Total people coming: {$totalGoing}";
+
+        $body = match ($change) {
+            'left'       => "{$memberName} left your event. {$countLabel}.",
+            'waitlisted' => "{$memberName} joined the waiting list. {$countLabel}.",
+            default      => "{$memberName} joined your event. {$countLabel}.",
+        };
+
+        NotificationService::send(
+            $organizerId,
+            'info',
+            'Event Update',
+            $body,
+            "/notices/{$notice->id}",
+            ['category' => 'event', 'notice_id' => (int) $notice->id],
+        );
+    }
+
+    private function notifyResidentsForNotice(object $notice, string $title): void
+    {
+        try {
+            NoticeAudienceService::notifyForNotice(
+                $notice,
+                $title,
+                auth()->id() ? (int) auth()->id() : null,
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Notice resident notify failed', [
+                'notice_id' => $notice->id ?? null,
+                'error'     => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function syncNoticeNotifications(object $notice): void
+    {
+        $category = $notice->category ?? 'general';
+
+        $label = match ($category) {
+            'event'     => 'New Event',
+            'emergency' => 'New Alert',
+            default     => 'New Notice',
+        };
+
+        $summary = trim((string) ($notice->body ?: $notice->title));
+        if ($summary === '') {
+            $summary = $notice->title;
+        }
+
+        DB::table('app_notifications')
+            ->where('action_url', "/notices/{$notice->id}")
+            ->update([
+                'type'       => $category === 'emergency' ? 'warning' : 'info',
+                'title'      => $label,
+                'body'       => $summary,
+                'updated_at' => now(),
+            ]);
+    }
+
+    private function notifyCommunityAdminsPendingNotice(int $communityId, string $title, string $category): void
+    {
+        $adminIds = DB::table('community_memberships')
+            ->where('community_id', $communityId)
+            ->where('status', 'approved')
+            ->whereIn('role', ['admin', 'moderator'])
+            ->pluck('user_id');
+
+        $label = $this->categoryLabel($category);
+        $kind = match ($category) {
+            'event'     => 'event',
+            'emergency' => 'alert',
+            default     => 'notice',
+        };
+        $href = "/screens/admin-content-review?kind={$kind}";
+
+        $actorId = auth()->id() ? (int) auth()->id() : 0;
+
+        foreach ($adminIds as $userId) {
+            if ($actorId > 0 && (int) $userId === $actorId) {
+                continue;
+            }
+            NotificationService::send(
+                (int) $userId,
+                'info',
+                "{$label} pending approval",
+                "A resident submitted \"{$title}\" for review.",
+                $href,
+                ['category' => $category, 'kind' => $kind, 'community_id' => $communityId],
+            );
+        }
+    }
+
+    private function canReportNotice(object $notice, $user): bool
+    {
+        if (! $user || ($notice->category ?? '') !== 'event') {
+            return false;
+        }
+
+        $viewerId = (int) $user->id;
+        $authorId = (int) $notice->author_id;
+
+        return $viewerId !== $authorId
+            && UserBlockService::canBlock($viewerId, $authorId, (int) $notice->community_id);
+    }
+
+    /** @param  array<string, mixed>  $fields */
+    private function assertEventPlainTextFields(array $fields, bool $requireLocation): void
+    {
+        $errors = [];
+
+        if ($msg = NoticePlainText::validateField(isset($fields['title']) ? (string) $fields['title'] : null, true)) {
+            $errors['title'] = ["Event name: {$msg}"];
+        }
+
+        $location = isset($fields['location']) ? (string) $fields['location'] : '';
+        if ($msg = NoticePlainText::validateField($location, $requireLocation)) {
+            $errors['location'] = ["Location: {$msg}"];
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+}

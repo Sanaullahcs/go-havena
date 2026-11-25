@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Auth email field: left-aligned, vertically centered. Do not force 56px
+   height on the inner input — the box is already 56px including the border. */
+.havena-email-input,
+input[type="email"],
+input[inputmode="email"] {
+  box-sizing: border-box;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin: 0 !important;
+  text-align: left;
+}
+
+@layer components {
+  .section-label {
+    @apply font-bold text-[13px] uppercase tracking-wider text-[#14B8A6];
+  }
+
+  .login-phone-input {
+    @apply mt-2 h-[60px] rounded-[14px] border-2 bg-white px-4 font-regular text-[16px] text-black;
+    border-color: rgba(20, 184, 166, 0.28);
+  }
+
+  .signup-country-code {
+    @apply mr-3 h-12 min-w-[64px] items-center justify-center rounded-[12px] border border-[#E6E9EE] bg-white;
+  }
+
+  .signup-phone-input {
+    @apply h-12 flex-1 rounded-[12px] border border-[#E6E9EE] bg-white px-4 font-regular text-base text-[#1B4F8A];
+  }
+
+  .auth-divider {
+    @apply h-px bg-[#D1D1D1];
+  }
+
+  .auth-link {
+    @apply font-semibold text-[#14B8A6];
+  }
+
+  .auth-footer {
+    @apply text-center font-regular text-xs text-[#6B7280];
+  }
+
+  .chip-pill {
+    @apply flex-row items-center gap-2 rounded-full border border-[#E5E7EB] bg-white px-3.5 py-2.5;
+  }
+
+  .card-surface {
+    @apply rounded-[16px] border border-[#E5E7EB] bg-white;
+  }
+}

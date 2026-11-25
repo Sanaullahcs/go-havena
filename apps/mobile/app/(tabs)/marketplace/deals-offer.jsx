@@ -1,0 +1,605 @@
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { MarketplaceType } from "../../../constants/marketplace-type";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  RefreshControl,
+} from "react-native";
+import { Image } from "expo-image";
+import CrispImage from "../../../components/ui/crisp-image";
+import { Fonts } from "../../../constants/font";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenHeader from "../../../components/layout/screen-header";
+import ThemedIconBox from "../../../components/ui/themed-icon-box";
+import { getCurrentRole } from "../../../constants/role-session";
+import { fetchDeals, toggleSaveDeal } from "../../../services/deals-api";
+import { fetchMyBusiness } from "../../../services/businesses-api";
+import {
+  MarketplaceRoutes,
+  dealDetailsParams,
+  withMarketplaceRole,
+} from "../../../constants/marketplace-routes";
+import { MARKETPLACE_FEATURES } from "../../../constants/marketplace-features";
+import { MarketplaceTheme, marketplaceSharedStyles } from "../../../constants/marketplace-theme";
+import { DealsOfferSkeleton } from "../../../components/ui/skeleton-loader";
+import { localizedField } from "../../../i18n";
+import { useAppDialog } from "../../../providers/app-dialog-provider";
+import { promptAddBusinessBeforeDeal } from "../../../utils/marketplace-business-prompt";
+
+const DEAL_PLACEHOLDER = require("../../../assets/images/food-bowl.png");
+
+/** Favorites first, then featured, then newest. */
+function sortFavoritesFirst(list) {
+  return [...(list ?? [])].sort((a, b) => {
+    const likedDiff = Number(!!b.isLiked) - Number(!!a.isLiked);
+    if (likedDiff !== 0) return likedDiff;
+    const featuredDiff = Number(!!b.isTrending) - Number(!!a.isTrending);
+    if (featuredDiff !== 0) return featuredDiff;
+    return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+  });
+}
+
+export default function DealsOffer({ embedded = false }) {
+  const router = useRouter();
+  const { t } = useTranslation();
+  const { showDialog } = useAppDialog();
+  const { role: roleParam } = useLocalSearchParams();
+  const activeRole =
+    roleParam === "admin" || roleParam === "resident"
+      ? roleParam
+      : getCurrentRole();
+  const isAdmin = activeRole === "admin";
+
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [deals, setDeals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const [myBusiness, setMyBusiness] = useState(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const [{ deals: rows }, mine] = await Promise.all([
+        fetchDeals({ includeExpired: true }),
+        fetchMyBusiness(),
+      ]);
+      setDeals(sortFavoritesFirst(rows));
+      setMyBusiness(mine);
+    } catch (err) {
+      setError(err?.message || t("deals.couldntLoadDeals"));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    load();
+  }, [load]);
+
+  const handleToggleLike = useCallback(async (deal) => {
+    const nextLiked = !deal.isLiked;
+    setDeals((prev) =>
+      sortFavoritesFirst(
+        prev.map((d) => (d.id === deal.id ? { ...d, isLiked: nextLiked } : d)),
+      ),
+    );
+    try {
+      const res = await toggleSaveDeal(deal.id);
+      const liked = Boolean(res?.liked ?? res?.saved);
+      setDeals((prev) =>
+        sortFavoritesFirst(
+          prev.map((d) => (d.id === deal.id ? { ...d, isLiked: liked } : d)),
+        ),
+      );
+    } catch {
+      setDeals((prev) =>
+        sortFavoritesFirst(
+          prev.map((d) => (d.id === deal.id ? { ...d, isLiked: deal.isLiked } : d)),
+        ),
+      );
+    }
+  }, []);
+
+  const categories = [
+    "All",
+    ...Array.from(new Set(deals.map((d) => d.category).filter(Boolean))),
+  ];
+
+  const filteredDeals = useMemo(() => {
+    const list =
+      selectedCategory === "All"
+        ? deals
+        : deals.filter((deal) => deal.category === selectedCategory);
+    return sortFavoritesFirst(list);
+  }, [deals, selectedCategory]);
+
+  const Root = embedded ? View : SafeAreaView;
+  const rootProps = embedded
+    ? { style: [styles.container, styles.containerEmbedded] }
+    : { style: styles.container, edges: ["left", "right"] };
+
+  return (
+    <Root {...rootProps}>
+      {!embedded ? (
+        <ScreenHeader
+          layout="inline"
+          title={t("deals.dealsAndOffers")}
+          iconOnly
+          compact
+          right={
+            isAdmin ? (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.createDealBtn}
+                onPress={() => {
+                  if (!myBusiness) {
+                    promptAddBusinessBeforeDeal(showDialog, t, {
+                      confirmKey: "marketplace.addBusiness",
+                      isCommunityAdmin: isAdmin,
+                      onContinue: () =>
+                        router.push({
+                          pathname: MarketplaceRoutes.ADD_BUSINESS,
+                          params: withMarketplaceRole(activeRole),
+                        }),
+                    });
+                    return;
+                  }
+                  router.push({
+                    pathname: MarketplaceRoutes.CREATE_DEAL,
+                    params: withMarketplaceRole(activeRole),
+                  });
+                }}
+              >
+                <Text style={styles.createDealBtnText}>{t("deals.createDeal")}</Text>
+              </TouchableOpacity>
+            ) : null
+          }
+        />
+      ) : null}
+
+      <ScrollView
+        style={embedded ? styles.scrollEmbedded : undefined}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {loading ? (
+          <DealsOfferSkeleton
+            count={3}
+            showCouponsCard={MARKETPLACE_FEATURES.coupons}
+          />
+        ) : (
+          <>
+            {MARKETPLACE_FEATURES.coupons ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() =>
+                  router.push({
+                    pathname: MarketplaceRoutes.MY_COUPONS,
+                    params: withMarketplaceRole(activeRole),
+                  })
+                }
+                style={styles.savedCouponsCard}
+              >
+                <View style={styles.savedLeft}>
+                  <ThemedIconBox
+                    name="bookmark"
+                    size="md"
+                    color={MarketplaceTheme.accent}
+                    backgroundColor={MarketplaceTheme.accentSoft}
+                  />
+                  <View>
+                    <Text style={styles.savedTitle}>{t("deals.mySavedCoupons")}</Text>
+                    <Text style={styles.savedSubTitle}>{t("deals.viewActiveOffers")}</Text>
+                  </View>
+                </View>
+
+                <Image
+                  source={require("../../../assets/images/next-icon.png")}
+                  style={{ width: 20, height: 20, tintColor: MarketplaceTheme.accent }}
+                />
+              </TouchableOpacity>
+            ) : null}
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryContent}
+            >
+              {categories.map((category) => {
+                const isSelected = selectedCategory === category;
+
+                return (
+                  <TouchableOpacity
+                    key={category}
+                    onPress={() => setSelectedCategory(category)}
+                    style={[
+                      marketplaceSharedStyles.chip,
+                      isSelected && marketplaceSharedStyles.chipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        marketplaceSharedStyles.chipText,
+                        isSelected && marketplaceSharedStyles.chipTextActive,
+                      ]}
+                    >
+                      {category === "All" ? t("deals.allCategory") : category}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.listWrap}>
+              {error ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>{t("deals.couldntLoadDeals")}</Text>
+                  <Text style={styles.emptySubTitle}>{error}</Text>
+                  <TouchableOpacity onPress={load} style={{ marginTop: 10 }}>
+                    <Text style={[styles.emptySubTitle, { color: "#14B8A6" }]}>
+                      {t("deals.tapToRetry")}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {!error &&
+                filteredDeals.map((deal) => (
+                  <TouchableOpacity
+                    key={deal.id}
+                    style={styles.dealCard}
+                    activeOpacity={0.8}
+                    onPress={() =>
+                      router.push({
+                        pathname: MarketplaceRoutes.DEAL_DETAILS,
+                        params: dealDetailsParams(deal, activeRole),
+                      })
+                    }
+                  >
+              <View style={styles.imageWrap}>
+                <CrispImage
+                  source={deal.imageUrl || DEAL_PLACEHOLDER}
+                  style={styles.dealImage}
+                  contentFit="cover"
+                />
+
+                {deal.isTrending ? (
+                  <View style={styles.trendingTag}>
+                    <Image
+                      source={require("../../../assets/images/white-curl.svg")}
+                      style={{ width: 12, height: 12 }}
+                    />
+                    <Text style={styles.trendingText}>{t("deals.trending")}</Text>
+                  </View>
+                ) : null}
+
+                <TouchableOpacity
+                  style={styles.likeButton}
+                  activeOpacity={0.8}
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    handleToggleLike(deal);
+                  }}
+                  hitSlop={8}
+                  accessibilityLabel={deal.isLiked ? t("deals.unsaveDeal") : t("deals.saveDeal")}
+                >
+                  {deal.isLiked ? (
+                    <Image
+                      source={require("../../../assets/images/heart-red.svg")}
+                      style={{ width: 20, height: 20 }}
+                    />
+                  ) : (
+                    <Image
+                      source={require("../../../assets/images/heart-border.svg")}
+                      style={{ width: 20, height: 20 }}
+                    />
+                  )}
+                </TouchableOpacity>
+
+                <View
+                  style={[
+                    styles.offerTag,
+                    {
+                      backgroundColor: deal.isTrending ? "#FE9A00" : "#1B4F8A",
+                    },
+                  ]}
+                >
+                  <Text style={styles.offerTagText}>{localizedField(deal, "offerTag") || deal.offerTag}</Text>
+                </View>
+              </View>
+
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{localizedField(deal, "title") || deal.title}</Text>
+                {deal.vendor ? (
+                  <Text style={styles.vendorText}>{t("deals.byVendor", { vendor: deal.vendor })}</Text>
+                ) : null}
+                {(localizedField(deal, "description") || deal.description) ? (
+                  <Text style={styles.descriptionText} numberOfLines={2}>
+                    {localizedField(deal, "description") || deal.description}
+                  </Text>
+                ) : null}
+
+                <View style={styles.metaRow}>
+                  {deal.location ? (
+                    <View style={styles.metaItem}>
+                      <Image
+                        source={require("../../../assets/images/grey-location.svg")}
+                        style={styles.metaIcon}
+                      />
+                      <Text style={styles.metaText} numberOfLines={1}>
+                        {deal.location}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {deal.validUntil ? (
+                    <View style={styles.metaItem}>
+                      <Image
+                        source={require("../../../assets/images/grey-clock.svg")}
+                        style={styles.metaIcon}
+                      />
+                      <Text style={styles.metaText}>
+                        {t("marketplace.validUntil")} {deal.validUntil}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            </TouchableOpacity>
+                ))}
+
+              {!error && filteredDeals.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>{t("deals.noDealsFound")}</Text>
+                  <Text style={styles.emptySubTitle}>
+                    {selectedCategory === "All"
+                      ? t("deals.checkBackSoon")
+                      : t("deals.tryAnotherCategory")}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </Root>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
+  containerEmbedded: {
+    minHeight: 0,
+  },
+  scrollEmbedded: {
+    flex: 1,
+    minHeight: 0,
+  },
+  createDealBtn: {
+    backgroundColor: "rgba(20, 184, 166, 1)",
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+  },
+  createDealBtnText: {
+    color: "#FFFFFF",
+    fontFamily: Fonts.bold,
+    fontSize: MarketplaceType.body,
+    lineHeight: MarketplaceType.headingLine,
+    fontWeight: "700",
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 6,
+    paddingBottom: 32,
+  },
+  savedCouponsCard: {
+    borderRadius: 14,
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: MarketplaceTheme.accentBorder,
+  },
+  savedLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  savedTitle: {
+    fontFamily: Fonts.bold,
+    fontWeight: "700",
+    fontSize: MarketplaceType.body,
+    lineHeight: MarketplaceType.headingLine,
+    color: "#101828",
+  },
+  savedSubTitle: {
+    marginTop: 2,
+    fontFamily: Fonts.regular,
+    fontWeight: "400",
+    fontSize: MarketplaceType.caption,
+    lineHeight: MarketplaceType.captionLine,
+    color: "#6A7282",
+  },
+  categoryContent: {
+    paddingTop: 8,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  listWrap: {
+    gap: 14,
+    paddingTop: 2,
+  },
+  dealCard: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  imageWrap: {
+    position: "relative",
+    height: 160,
+  },
+  dealImage: {
+    width: "100%",
+    height: "100%",
+  },
+  trendingTag: {
+    position: "absolute",
+    top: 12,
+    start: 12,
+    backgroundColor: "#FE9A00",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    boxShadow: "0px 4px 6px -4px #0000001A",
+
+    boxShadow: "0px 10px 15px -3px #0000001A",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  trendingText: {
+    fontFamily: Fonts.bold,
+    fontWeight: 700,
+    color: "#FFFFFF",
+    fontSize: MarketplaceType.caption,
+    lineHeight: MarketplaceType.captionLine,
+  },
+  likeButton: {
+    position: "absolute",
+    top: 12,
+    end: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 50,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0px 4px 6px -4px #0000001A",
+    boxShadow: "0px 10px 15px -3px #0000001A",
+  },
+  likeIcon: {
+    color: "#94A3B8",
+    fontSize: MarketplaceType.heading,
+    lineHeight: MarketplaceType.bodyMdLine,
+  },
+  likeIconActive: {
+    color: "#F43F5E",
+  },
+  offerTag: {
+    position: "absolute",
+    end: 12,
+    bottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+  },
+  offerTagText: {
+    color: "#FFFFFF",
+    fontFamily: Fonts.bold,
+    fontSize: MarketplaceType.bodyMd,
+    lineHeight: MarketplaceType.bodyMdLine,
+    fontWeight: 700,
+  },
+  cardBody: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  cardTitle: {
+    color: "#000000",
+    fontFamily: Fonts.bold,
+    fontWeight: 700,
+    fontSize: MarketplaceType.heading,
+    lineHeight: MarketplaceType.stat,
+  },
+  vendorText: {
+    marginTop: 3,
+    color: "#4A5565",
+    fontFamily: Fonts.medium,
+    fontWeight: 500,
+    fontSize: MarketplaceType.body,
+    lineHeight: MarketplaceType.headingLine,
+  },
+  descriptionText: {
+    marginTop: 14,
+    color: "#6A7282",
+    fontFamily: Fonts.medium,
+    fontWeight: 500,
+    fontSize: MarketplaceType.caption,
+    lineHeight: MarketplaceType.headingLine,
+  },
+  metaRow: {
+    marginTop: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  metaIcon: {
+    width: 12,
+    height: 12,
+  },
+  metaText: {
+    color: "#6A7282",
+    fontFamily: Fonts.medium,
+    fontWeight: 500,
+    fontSize: MarketplaceType.caption,
+    lineHeight: MarketplaceType.captionLine,
+  },
+  emptyState: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 20,
+    alignItems: "center",
+  },
+  emptyTitle: {
+    fontFamily: Fonts.bold,
+    fontWeight: 700,
+    fontSize: MarketplaceType.heading,
+    lineHeight: MarketplaceType.stat,
+    color: "#111827",
+  },
+  emptySubTitle: {
+    marginTop: 2,
+    fontFamily: Fonts.regular,
+    fontWeight: 400,
+    fontSize: MarketplaceType.body,
+    lineHeight: MarketplaceType.headingLine,
+    color: "#667085",
+  },
+});

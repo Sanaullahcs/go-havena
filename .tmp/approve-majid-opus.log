@@ -1,0 +1,7 @@
+before membership=pending
+after user=131 majid@namuve.com role=community_admin admin=approved status=active
+after membership 95 role=admin status=approved
+umer membership status=banned
+access next=ready platform=yes billing=yes profile=yes mobile=yes community=43
+blocking=
+has_admin_assigned=yes

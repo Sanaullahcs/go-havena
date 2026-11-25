@@ -1,0 +1,9 @@
+table listings cols=id,community_id,user_id,type,category,condition,title,price,description,location,images,status,is_verified,approved_at,approved_by,created_at,updated_at,deleted_at
+no_table marketplace_listings
+no_table classifieds
+no_table services
+table businesses cols=id,community_id,owner_id,name,category,description,address,phone,hours,amenities,image_url,status,approved_at,approved_by,created_at,updated_at,deleted_at
+table deals cols=id,community_id,created_by,business_id,title,title_es,title_ar,vendor,description,description_es,description_ar,type,discount_label,discount_label_es,discount_label_ar,original_price,discounted_price,promo_code,category,location,image_url,is_featured,status,starts_at,ends_at,created_at,updated_at,deleted_at
+hits_listings=0
+communities=[{"id":52,"name":"Haly Tower"}]
+haly_listings=0

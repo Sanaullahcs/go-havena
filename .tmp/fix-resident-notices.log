@@ -1,0 +1,32 @@
+archived_other=26
+notice general Welcome to Harbor Point Residences community-cover.jpg
+notice maintenance Domestic Water Service on Wednesday feed-plumber.jpg
+notice maintenance Elevator B Modernization amenity-gym.jpg
+notice maintenance Pool Deck Closed Monday to Wednesday amenity-pool.jpg
+notice security Gate and Amenity Codes Rotate This Month notice-security.jpg
+notice general Saturday Shuttle to Boston Public Market feed-market.jpg
+notice finance Q3 Budget Summary is in Documents feed-books.jpg
+notice general Clubhouse Open Until 10:00 PM on Weekends amenity-clubhouse.jpg
+notice security Register Overnight Guests Before 9:00 PM feed-keys.jpg
+notice general Package Room Open 7:00 AM to 9:00 PM feed-packages.jpg
+event Quarterly Residents Town Hall event-townhall.jpg
+event Fitness Bootcamp Saturday event-bootcamp.jpg
+event Kids Arts & Crafts Afternoon listing-plants.jpg
+event Holiday Cookie Exchange event-cookies.jpg
+published=14 notices=10 events=4
+dup_images=none
+68	maintenance	pin=1	2026-09-17	feed-plumber.jpg	Domestic Water Service on Wednesday
+29	general	pin=1	2026-10-06	community-cover.jpg	Welcome to Harbor Point Residences
+44	event	pin=0	2026-09-16	event-bootcamp.jpg	Fitness Bootcamp Saturday
+40	event	pin=0	2026-09-17	event-townhall.jpg	Quarterly Residents Town Hall
+46	event	pin=0	2026-09-19	listing-plants.jpg	Kids Arts & Crafts Afternoon
+72	general	pin=0	2026-09-19	feed-market.jpg	Saturday Shuttle to Boston Public Market
+70	maintenance	pin=0	2026-09-21	amenity-pool.jpg	Pool Deck Closed Monday to Wednesday
+74	general	pin=0	2026-09-23	amenity-clubhouse.jpg	Clubhouse Open Until 10:00 PM on Weekends
+76	general	pin=0	2026-09-24	feed-packages.jpg	Package Room Open 7:00 AM to 9:00 PM
+42	event	pin=0	2026-09-25	event-cookies.jpg	Holiday Cookie Exchange
+75	security	pin=0	2026-09-25	feed-keys.jpg	Register Overnight Guests Before 9:00 PM
+73	finance	pin=0	2026-09-27	feed-books.jpg	Q3 Budget Summary is in Documents
+69	maintenance	pin=0	2026-09-29	amenity-gym.jpg	Elevator B Modernization
+71	security	pin=0	2026-10-01	notice-security.jpg	Gate and Amenity Codes Rotate This Month
+DONE

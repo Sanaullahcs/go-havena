@@ -1,0 +1,260 @@
+import i18n from "../i18n";
+import { describeApiConnectionHint } from "../constants/api-config";
+import { setBlockedAccountNotice } from "../services/auth-session";
+import { getApiErrorCode, getApiErrorMessage, isNetworkLikeError } from "./api-error-core";
+import { isExistingAccountSignupError } from "./signup-errors";
+import {
+  blockedAccountNoticeFromError,
+  buildBlockedAccountDialogOptions,
+  buildSuspendedSignInDialogOptions,
+  isSuspendedSignInBlock,
+} from "./blocked-account-dialog";
+import { guestPermissionDialogTitle, resolveGuestFeatureError } from "./guest-permission-errors";
+import { isGuestAccessRejectedError, navigateToGuestRejectedStatus } from "./guest-access-schedule";
+
+export { getApiErrorCode, getApiErrorMessage, isNetworkLikeError } from "./api-error-core";
+export {
+  ACCOUNT_SUSPENDED_MESSAGE,
+  ACCOUNT_SUSPENDED_TITLE,
+  blockedAccountNoticeFromError,
+  buildBlockedAccountDialogOptions,
+} from "./blocked-account-dialog";
+
+const BLOCKED_ACCOUNT_CODES = new Set([
+  "ACCOUNT_SUSPENDED",
+  "COMMUNITY_DEACTIVATED",
+  "COMMUNITY_ADMIN_REJECTED",
+  "COMMUNITY_REQUEST_REJECTED",
+  "MEMBERSHIP_REJECTED",
+]);
+
+export function isAccountSuspendedError(error) {
+  return BLOCKED_ACCOUNT_CODES.has(error?.code);
+}
+
+export async function persistBlockedAccountNotice(error) {
+  const notice = blockedAccountNoticeFromError(error);
+  if (notice) {
+    await setBlockedAccountNotice(notice);
+  }
+}
+
+export async function showSuspendedAccountDialog(dialog, message, error) {
+  if (isSuspendedSignInBlock(error)) {
+    await dialog.showDialog(buildSuspendedSignInDialogOptions());
+    return;
+  }
+  await dialog.showDialog(buildBlockedAccountDialogOptions(error, message));
+}
+
+export function loginRouteWithSuspendedNotice() {
+  return { pathname: "/screens/login", params: { suspended: "1" } };
+}
+
+/** Contextual auth error handling with interactive dialog actions. */
+export async function handleAuthApiError(error, dialog, router, { phone, email } = {}) {
+  const code = getApiErrorCode(error);
+  const message = getApiErrorMessage(error);
+
+  if (isExistingAccountSignupError(error)) {
+    await dialog.showDialog({
+      type: "warning",
+      title: i18n.t("auth.alreadyRegistered"),
+      message: i18n.t("auth.alreadyRegisteredMsg"),
+      actions: [
+        {
+          key: "cancel",
+          label: i18n.t("common.cancel"),
+          variant: "secondary",
+          onPress: () => {},
+        },
+        {
+          key: "login",
+          label: i18n.t("auth.goToLogin"),
+          variant: "primary",
+          onPress: () => router.replace("/screens/login"),
+        },
+      ],
+    });
+    return;
+  }
+
+  if (code === "ACCOUNT_NOT_FOUND_USE_SIGNUP") {
+    await dialog.showDialog({
+      type: "info",
+      title: i18n.t("auth.noAccountFound"),
+      message: i18n.t("auth.noAccountFoundMsg"),
+      actions: [
+        {
+          key: "cancel",
+          label: i18n.t("common.cancel"),
+          variant: "secondary",
+          onPress: () => {},
+        },
+        {
+          key: "signup",
+          label: i18n.t("auth.signUp"),
+          variant: "primary",
+          onPress: () => router.push("/screens/roles"),
+        },
+      ],
+    });
+    return;
+  }
+
+  if (isAccountSuspendedError(error)) {
+    await showSuspendedAccountDialog(dialog, message, error);
+    return;
+  }
+
+  if (code === "RATE_LIMITED") {
+    await dialog.showError(i18n.t("auth.tooManyAttempts"), message);
+    return;
+  }
+
+  if (code === "OTP_COOLDOWN" || code === "OTP_RESEND_LOCKED" || code === "OTP_VERIFY_LOCKED") {
+    return;
+  }
+
+  if (code === "INVALID_OTP") {
+    await dialog.showError(i18n.t("auth.invalidCode"), message);
+    return;
+  }
+
+  if (code === "INVALID_PHONE" || code === "INVALID_EMAIL") {
+    await dialog.showError(
+      code === "INVALID_EMAIL" ? i18n.t("auth.invalidEmail") : i18n.t("auth.invalidPhoneNumber"),
+      message,
+    );
+    return;
+  }
+
+  if (code === "ACCESS_NOT_STARTED") {
+    await dialog.showError(i18n.t("guest.accessNotStartedTitle"), message);
+    return;
+  }
+
+  if (code === "GUEST_ACCESS_EXPIRED") {
+    await dialog.showError(i18n.t("guest.guestAccessExpired"), message);
+    return;
+  }
+
+  if (code === "GUEST_ACCESS_REJECTED" || isGuestAccessRejectedError(error)) {
+    if (router?.replace) {
+      await navigateToGuestRejectedStatus(router, error, { email });
+      return;
+    }
+    await dialog.showError(i18n.t("guests.guestAccessDeclined"), message);
+    return;
+  }
+
+  if (code === "GUEST_ACCESS_REVOKED") {
+    await dialog.showError(i18n.t("guest.guestAccessRevoked"), message);
+    return;
+  }
+
+  if (code === "GUEST_FEATURE_DENIED") {
+    const resolved = resolveGuestFeatureError(error, error?.feature);
+    await dialog.showDialog({
+      type: "warning",
+      layout: "status",
+      title: resolved.title,
+      message: resolved.message,
+      statusLabel: i18n.t("auth.notIncluded"),
+      highlight: {
+        label: i18n.t("auth.whatYouCanDo"),
+        value: i18n.t("auth.contactResidentOrAdmin"),
+      },
+      actions: [{ key: "ok", label: i18n.t("blockedAccount.gotIt"), variant: "primary" }],
+    });
+    return;
+  }
+
+  if (code === "NO_GUEST_INVITATION") {
+    await dialog.showDialog({
+      type: "warning",
+      title: i18n.t("guest.noInvitationTitle"),
+      message: message || i18n.t("guest.noInvitationMsg"),
+      actions: [{ key: "ok", label: i18n.t("blockedAccount.gotIt"), variant: "primary" }],
+    });
+    return;
+  }
+
+  if (code === "NOT_GUEST_ACCOUNT") {
+    await dialog.showDialog({
+      type: "warning",
+      title: i18n.t("guest.notGuestAccountTitle"),
+      message: message || i18n.t("guest.notGuestAccountMsg"),
+      actions: [{ key: "ok", label: i18n.t("blockedAccount.gotIt"), variant: "primary" }],
+    });
+    return;
+  }
+
+  if (code === "USE_RESIDENT_LOGIN") {
+    await dialog.showDialog({
+      type: "info",
+      title: i18n.t("guest.useResidentLoginTitle"),
+      message: message || i18n.t("guest.useResidentLoginMsg"),
+      actions: [
+        {
+          key: "cancel",
+          label: i18n.t("common.cancel"),
+          variant: "secondary",
+          onPress: () => {},
+        },
+        {
+          key: "login",
+          label: i18n.t("guest.signInNormally"),
+          variant: "primary",
+          onPress: () => router?.replace?.("/screens/login"),
+        },
+      ],
+    });
+    return;
+  }
+
+  if (code === "INVALID_INVITE") {
+    await dialog.showError(
+      i18n.t("guest.invalidInviteTitle"),
+      message || i18n.t("guest.invalidInviteMsg"),
+    );
+    return;
+  }
+
+  if (code === "NETWORK_ERROR" || isNetworkLikeError(error)) {
+    await showNetworkErrorDialog(dialog);
+    return;
+  }
+
+  await dialog.showError(i18n.t("common.error"), message || i18n.t("auth.pleaseTryAgain"));
+}
+
+export async function showApiSuccess(dialog, title, message) {
+  await dialog.showSuccess(title, message);
+}
+
+export async function showNetworkErrorDialog(dialog) {
+  if (__DEV__) {
+    const hint = describeApiConnectionHint();
+    if (hint) console.warn("[Havena]", hint);
+  }
+  await dialog.showDialog({
+    type: "error",
+    layout: "compact",
+    title: i18n.t("onboarding.noInternetConnection"),
+    message: i18n.t("propertyMgmt.offlineBody"),
+    actions: [{ label: i18n.t("common.ok"), variant: "primary" }],
+  });
+}
+
+export async function showApiFailure(dialog, title, error, field) {
+  if (isNetworkLikeError(error)) {
+    await showNetworkErrorDialog(dialog);
+    return;
+  }
+  const permissionTitle = guestPermissionDialogTitle(error, error?.feature);
+  await dialog.showError(
+    permissionTitle ?? title,
+    getApiErrorMessage(error, field),
+  );
+}

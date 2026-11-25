@@ -1,0 +1,946 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Community;
+use App\Models\CommunityMembership;
+use App\Models\CommunitySeatReservation;
+use App\Models\InviteCode;
+use App\Models\Region;
+use App\Models\User;
+use App\Services\CommunityBillingService;
+use App\Services\ContactIdentityService;
+use App\Services\InviteCodeService;
+use App\Services\MemberWelcomeNotification;
+use Illuminate\Support\Facades\DB;
+use Database\Seeders\SystemAdminSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+class MemberInviteTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function seedCommunityAdmin(Community $community): User
+    {
+        $admin = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'phone'                  => '+12015550700',
+            'phone_verified_at'      => now(),
+            'email'                  => 'admin.invite@example.com',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $admin->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        return $admin;
+    }
+
+    private function seedCommunity(): Community
+    {
+        $region = Region::query()->create([
+            'title'       => 'Invite Region',
+            'area'        => 'Invite Area',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        return Community::query()->create([
+            'name'          => 'Invite Community',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+    }
+
+    public function test_member_invite_code_claims_placeholder_and_allows_profile_email(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
+        $adminToken = $admin->createToken('test')->plainTextToken;
+        $inviteResponse = $this->withToken($adminToken)
+            ->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Jane Resident',
+            'email'       => 'jane.invite@example.com',
+            'phone'       => '+12025550123',
+            'unit_number' => 'Unit 12B',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $invitedUserId = $inviteResponse->json('data.id');
+        $this->assertNotEmpty($inviteCode);
+
+        $this->assertDatabaseMissing('community_memberships', [
+            'user_id' => $invitedUserId,
+            'community_id' => $community->id,
+        ]);
+
+        // Invited resident logging in with the invite email must redeem the code first.
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => 'jane.invite@example.com',
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $invitedLogin = $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => 'jane.invite@example.com',
+            'code' => '123456',
+            'intent' => 'login',
+        ])->assertOk();
+
+        $this->assertTrue($invitedLogin->json('user.needs_invite_code'));
+        $this->assertSame([], $invitedLogin->json('user.memberships') ?? []);
+
+        $email = 'invite.claimant@example.com';
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email'  => $email,
+            'intent' => 'signup',
+        ])->assertStatus(202);
+
+        $verify = $this->postJson('/api/v1/auth/otp/verify', [
+            'email'  => $email,
+            'code'   => '123456',
+            'intent' => 'signup',
+            'role'   => 'resident',
+        ])->assertOk();
+
+        $token = $verify->json('token');
+        $claimantId = $verify->json('user.id');
+        $this->assertSame('resident', $verify->json('user.role'));
+
+        $claimant = User::query()->findOrFail($claimantId);
+        Sanctum::actingAs($claimant);
+
+        $this->postJson('/api/v1/communities/join-by-invite', ['invite_code' => $inviteCode])
+            ->assertCreated()
+            ->assertJsonPath('data.invited_profile.email', 'jane.invite@example.com')
+            ->assertJsonPath('data.invited_profile.display_name', 'Jane Resident')
+            ->assertJsonPath('data.invited_profile.unit_number', 'Unit 12B');
+
+        $this->assertSoftDeleted('users', ['id' => $invitedUserId]);
+        $this->assertDatabaseHas('users', [
+            'id'    => $claimantId,
+            'email' => 'jane.invite@example.com',
+        ]);
+        $this->assertDatabaseHas('profiles', [
+            'user_id'      => $claimantId,
+            'display_name' => 'Jane Resident',
+            'unit_number'  => 'Unit 12B',
+        ]);
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id'          => $claimantId,
+            'community_id'     => $community->id,
+            'status'           => 'pending',
+            'invite_code_used' => $inviteCode,
+        ]);
+
+        Sanctum::actingAs($claimant);
+
+        $this->putJson('/api/v1/me', [
+                'display_name'   => 'Jane Resident',
+                'email'          => 'jane.invite@example.com',
+                'unit_number'    => 'Unit 12B',
+                'residence_type' => 'tenant',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['utility_bill']);
+
+        $claimant->unsetRelation('profile');
+        $claimant->profile()->update(['utility_bill_url' => '/storage/utility-bills/jane.jpg']);
+        $claimant->refresh();
+
+        $this->putJson('/api/v1/me', [
+                'display_name'   => 'Jane Resident',
+                'email'          => 'jane.invite@example.com',
+                'unit_number'    => 'Unit 12B',
+                'residence_type' => 'tenant',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.email', 'jane.invite@example.com')
+            ->assertJsonPath('data.profile.unit_number', 'Unit 12B');
+
+        $this->putJson('/api/v1/me', [
+                'display_name' => 'Jane Resident',
+                'unit_number'  => 'Unit 99Z',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['unit_number']);
+
+        $this->putJson('/api/v1/me', [
+                'display_name' => 'Jane Resident',
+                'unit_number'  => '',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['unit_number']);
+
+        $this->assertDatabaseHas('profiles', [
+            'user_id'     => $claimantId,
+            'unit_number' => 'Unit 12B',
+        ]);
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id'      => $claimantId,
+            'community_id' => $community->id,
+            'status'       => 'approved',
+        ]);
+    }
+
+    public function test_community_admin_can_view_invited_resident_profile_with_invite_code(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Profile View Resident',
+            'email'       => 'profile.view@example.com',
+            'phone'       => '+12025550888',
+            'unit_number' => 'Unit 3A',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $invitedUserId = (int) $inviteResponse->json('data.id');
+
+        $this->getJson("/api/v1/admin/members/{$invitedUserId}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $invitedUserId)
+            ->assertJsonPath('data.status', 'invitation_sent')
+            ->assertJsonPath('data.invite_code', $inviteCode)
+            ->assertJsonPath('data.community_id', $community->id);
+    }
+
+    public function test_community_admin_can_cancel_onboarding_invitation_without_deleting_user(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        $billing = app(CommunityBillingService::class);
+        $billing->activateManualSubscription($community, 'growth');
+
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Onboarding Resident',
+            'email'       => 'onboarding.resident@example.com',
+            'phone'       => '+12025550999',
+            'unit_number' => 'Unit 8',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $invitedUserId = (int) $inviteResponse->json('data.id');
+        $seatsAfterInvite = $billing->seatsUsed($community->id);
+
+        $invited = $this->getJson('/api/v1/admin/members?status=invitation_sent&role=member')
+            ->assertOk();
+        $this->assertSame(1, $invited->json('meta.stats.invitation_sent'));
+        $this->assertSame(0, $invited->json('meta.stats.onboarding'));
+        $this->assertTrue(collect($invited->json('data'))->contains(
+            fn ($row) => (int) $row['id'] === $invitedUserId && $row['status'] === 'invitation_sent',
+        ));
+
+        $onboarding = $this->getJson('/api/v1/admin/members?status=onboarding&role=member')
+            ->assertOk();
+        $this->assertSame(0, $onboarding->json('meta.stats.onboarding'));
+        $this->assertFalse(collect($onboarding->json('data'))->contains(fn ($row) => (int) $row['id'] === $invitedUserId));
+
+        $this->deleteJson("/api/v1/admin/members/{$invitedUserId}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Invitation cancelled successfully.');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $invitedUserId,
+            'email' => 'onboarding.resident@example.com',
+            'status' => 'active',
+            'deleted_at' => null,
+        ]);
+        $this->assertSoftDeleted('invite_codes', [
+            'code' => $inviteCode,
+            'invited_user_id' => $invitedUserId,
+            'community_id' => $community->id,
+        ]);
+        $this->assertDatabaseHas('community_seat_reservations', [
+            'community_id' => $community->id,
+            'user_id' => $invitedUserId,
+            'status' => CommunitySeatReservation::STATUS_RELEASED,
+        ]);
+        $this->assertLessThan($seatsAfterInvite, $billing->seatsUsed($community->id));
+
+        $after = $this->getJson('/api/v1/admin/members?status=invitation_sent&role=member')
+            ->assertOk();
+        $this->assertSame(0, $after->json('meta.stats.invitation_sent'));
+        $this->assertSame(0, $after->json('meta.stats.onboarding'));
+        $this->assertFalse(collect($after->json('data'))->contains(fn ($row) => (int) $row['id'] === $invitedUserId));
+
+        $claimant = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'email' => 'late.claimer@example.com',
+        ]);
+        Sanctum::actingAs($claimant);
+
+        $this->postJson('/api/v1/communities/join-by-invite', ['invite_code' => $inviteCode])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['invite_code']);
+
+        $this->assertNull(InviteCode::query()->where('code', $inviteCode)->first());
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => 'onboarding.resident@example.com',
+            'intent' => 'login',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'MEMBER_INVITE_INACTIVE');
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => 'onboarding.resident@example.com',
+            'code' => '123456',
+            'intent' => 'login',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'MEMBER_INVITE_INACTIVE');
+    }
+
+    public function test_invite_status_moves_invitation_sent_to_onboarding_then_active(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Status Resident',
+            'email'       => 'status.resident@example.com',
+            'phone'       => '+12025550888',
+            'unit_number' => 'Unit 3',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $invitedUserId = (int) $inviteResponse->json('data.id');
+
+        $afterInvite = $this->getJson('/api/v1/admin/members?role=member')->assertOk();
+        $invitedRow = collect($afterInvite->json('data'))->first(fn ($row) => (int) $row['id'] === $invitedUserId);
+        $this->assertSame('invitation_sent', $invitedRow['status']);
+        $this->assertSame(1, $afterInvite->json('meta.stats.invitation_sent'));
+        $this->assertSame(0, $afterInvite->json('meta.stats.onboarding'));
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => 'status.resident@example.com',
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => 'status.resident@example.com',
+            'code' => '123456',
+            'intent' => 'login',
+        ])->assertOk();
+
+        Sanctum::actingAs($admin);
+        $afterSignup = $this->getJson('/api/v1/admin/members?role=member')->assertOk();
+        $stillInvited = collect($afterSignup->json('data'))->first(fn ($row) => (int) $row['id'] === $invitedUserId);
+        $this->assertSame('invitation_sent', $stillInvited['status']);
+        $this->assertSame(1, $afterSignup->json('meta.stats.invitation_sent'));
+        $this->assertSame(0, $afterSignup->json('meta.stats.onboarding'));
+
+        Sanctum::actingAs(User::query()->findOrFail($invitedUserId));
+        $this->postJson('/api/v1/communities/join-by-invite', ['invite_code' => $inviteCode])
+            ->assertCreated()
+            ->assertJsonPath('data.membership.status', 'pending');
+
+        Sanctum::actingAs($admin);
+        $afterJoin = $this->getJson('/api/v1/admin/members?role=member')->assertOk();
+        $onboardingAfterJoin = collect($afterJoin->json('data'))->first(fn ($row) => (int) $row['id'] === $invitedUserId);
+        $this->assertSame('onboarding', $onboardingAfterJoin['status']);
+        $this->assertSame(0, $afterJoin->json('meta.stats.invitation_sent'));
+        $this->assertSame(1, $afterJoin->json('meta.stats.onboarding'));
+        $this->assertSame(0, $afterJoin->json('meta.stats.approved'));
+
+        Sanctum::actingAs(User::query()->findOrFail($invitedUserId));
+        DB::table('profiles')->where('user_id', $invitedUserId)->update([
+            'utility_bill_url' => '/storage/utility-bills/status.jpg',
+        ]);
+        $this->putJson('/api/v1/me', [
+            'display_name'   => 'Status Resident',
+            'unit_number'    => 'Unit 3',
+            'residence_type' => 'tenant',
+        ])->assertOk();
+
+        Sanctum::actingAs($admin);
+        $afterProfile = $this->getJson('/api/v1/admin/members?role=member')->assertOk();
+        $activeRow = collect($afterProfile->json('data'))->first(fn ($row) => (int) $row['id'] === $invitedUserId);
+        $this->assertSame('approved', $activeRow['status']);
+        $this->assertSame(0, $afterProfile->json('meta.stats.invitation_sent'));
+        $this->assertSame(0, $afterProfile->json('meta.stats.onboarding'));
+        $this->assertSame(1, $afterProfile->json('meta.stats.approved'));
+    }
+
+    public function test_member_invite_rejects_duplicate_phone_instead_of_server_error(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $existing = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'email'  => 'already.here@example.com',
+            'phone'  => '+12345678987',
+        ]);
+        $existing->delete();
+
+        $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Zara Resident',
+            'email'       => 'za1@gmail.com',
+            'phone'       => '+12345678987',
+            'unit_number' => '12',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'CONTACT_ALREADY_EXISTS')
+            ->assertJsonPath('message', ContactIdentityService::DUPLICATE_PHONE_MESSAGE)
+            ->assertJsonPath('errors.phone.0', ContactIdentityService::DUPLICATE_PHONE_MESSAGE);
+
+        $this->assertDatabaseMissing('users', [
+            'email' => 'za1@gmail.com',
+            'deleted_at' => null,
+        ]);
+    }
+
+    public function test_join_by_invite_accepts_spaced_and_hyphenless_member_codes(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Copy Paste Resident',
+            'email'       => 'copy.paste.invite@example.com',
+            'phone'       => '+12025550777',
+            'unit_number' => '9A',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $this->assertMatchesRegularExpression('/^NBR-[A-Z0-9]{4}-\d{4}$/', $inviteCode);
+        $this->assertSame($inviteCode, InviteCodeService::normalize(str_replace('-', ' - ', $inviteCode)));
+
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'email' => 'copy.paste.claimer@example.com',
+        ]);
+        Sanctum::actingAs($resident);
+
+        $this->postJson('/api/v1/communities/join-by-invite', [
+            'invite_code' => str_replace('-', '', $inviteCode),
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.membership.invite_code_used', $inviteCode)
+            ->assertJsonPath('data.membership.status', 'pending');
+    }
+
+    public function test_join_by_invite_accepts_unicode_dashes_from_email_copy(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Dash Resident',
+            'email'       => 'dash.invite@example.com',
+            'phone'       => '+12025550778',
+            'unit_number' => '10A',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $messy = str_replace('-', "\u{2013}", $inviteCode);
+
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'email' => 'dash.claimer@example.com',
+        ]);
+        Sanctum::actingAs($resident);
+
+        $this->postJson('/api/v1/communities/join-by-invite', [
+            'invite_code' => $messy,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.membership.invite_code_used', $inviteCode);
+    }
+
+    public function test_member_invite_rejects_invalid_name_and_unit(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Jane 2',
+            'email'       => 'jane.invalid@example.com',
+            'phone'       => '+12025550123',
+            'unit_number' => 'B-12',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['name']);
+
+        $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Jane Resident',
+            'email'       => 'jane.invalid.unit@example.com',
+            'phone'       => '+12025550124',
+            'unit_number' => 'B21+[',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['unit_number'])
+            ->assertJsonPath('errors.unit_number.0', 'Please enter a valid Unit / Apartment number.');
+
+        $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => str_repeat('A', 26),
+            'email'       => 'jane.long@example.com',
+            'phone'       => '+12025550125',
+            'unit_number' => str_repeat('B', 21),
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['name', 'unit_number']);
+    }
+
+    public function test_system_admin_invite_creates_invitation_sent_resident(): void
+    {
+        Mail::fake();
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        $this->seed(SystemAdminSeeder::class);
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
+        Sanctum::actingAs($systemAdmin);
+
+        $response = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Direct Resident',
+            'email' => 'direct.resident@example.com',
+            'phone' => '+12025550888',
+            'unit_number' => '101',
+            'community_id' => $community->id,
+        ])->assertCreated();
+
+        $response->assertJsonPath('data.invite_code', fn ($code) => filled($code));
+
+        $userId = (int) $response->json('data.id');
+        $this->assertDatabaseMissing('community_memberships', [
+            'user_id' => $userId,
+            'community_id' => $community->id,
+        ]);
+        $this->assertDatabaseHas('invite_codes', [
+            'invited_user_id' => $userId,
+            'community_id' => $community->id,
+        ]);
+    }
+
+    public function test_system_admin_can_resend_invite_without_community_scope(): void
+    {
+        Mail::fake();
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Scope Resident',
+            'email' => 'scope.invite@example.com',
+            'phone' => '+12025550999',
+            'unit_number' => '920',
+        ])->assertCreated();
+
+        $invitedUserId = (int) $inviteResponse->json('data.id');
+
+        $this->seed(SystemAdminSeeder::class);
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
+        Sanctum::actingAs($systemAdmin);
+
+        $this->postJson("/api/v1/admin/members/{$invitedUserId}/resend-invite", [
+            'community_id' => 'all',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Invitation email sent.');
+    }
+
+    public function test_bulk_resend_sends_only_pending_invitations(): void
+    {
+        Mail::fake();
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $first = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Bulk One',
+            'email' => 'bulk.one@example.com',
+            'phone' => '+12025550131',
+            'unit_number' => '11',
+        ])->assertCreated();
+        $second = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Bulk Two',
+            'email' => 'bulk.two@example.com',
+            'phone' => '+12025550132',
+            'unit_number' => '12',
+        ])->assertCreated();
+
+        $joined = User::factory()->create([
+            'role' => 'resident',
+            'email' => 'bulk.joined@example.com',
+            'phone' => '+12025550133',
+            'phone_verified_at' => now(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $joined->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+
+        $response = $this->postJson('/api/v1/admin/members/resend-invites', [
+            'member_ids' => [
+                (int) $first->json('data.id'),
+                (int) $second->json('data.id'),
+                $joined->id,
+            ],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.sent_count', 2);
+        $response->assertJsonPath('data.failed_count', 1);
+        $response->assertJsonPath('message', '2 invitations sent successfully. 1 invitation failed.');
+        $this->assertSame('approved', CommunityMembership::query()->where('user_id', $joined->id)->value('status'));
+    }
+
+    public function test_batch_upload_previews_row_errors_and_invites_only_valid_residents(): void
+    {
+        Mail::fake();
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $csv = implode("\n", [
+            'Name,Email,Phone Number,Unit / Apartment,Residence Type,Role',
+            'Jane Resident,jane.batch@example.com,+12025550111,B-12,Homeowner,admin',
+            'Bad Email,not-an-email,+12025550112,B-13,Tenant',
+            'Jane Resident,jane.batch@example.com,+12025550113,B-14,Tenant',
+            'Bad Phone,phone.batch@example.com,123,B-15,Homeowner',
+            'Bad Type,type.batch@example.com,+12025550114,B-16,Owner',
+        ]);
+
+        $preview = $this->post('/api/v1/admin/members/invite-batch/preview', [
+            'file' => \Illuminate\Http\UploadedFile::fake()->createWithContent('members.csv', $csv),
+        ]);
+        $preview->assertOk();
+        $preview->assertJsonPath('data.valid_count', 1);
+        $preview->assertJsonPath('data.invalid_count', 4);
+        $preview->assertJsonPath('data.rows.1.errors.0', 'Email address is invalid');
+        $preview->assertJsonPath('data.rows.2.errors.0', 'Email already exists');
+        $preview->assertJsonPath('data.rows.3.errors.0', 'Phone number is invalid');
+        $preview->assertJsonPath('data.rows.4.errors.0', 'Residence Type is not valid');
+
+        $commit = $this->post('/api/v1/admin/members/invite-batch', [
+            'file' => \Illuminate\Http\UploadedFile::fake()->createWithContent('members.csv', $csv),
+        ]);
+        $commit->assertOk();
+        $commit->assertJsonPath('data.sent_count', 1);
+        $commit->assertJsonPath('data.failed_count', 4);
+        Mail::assertNothingSent();
+
+        $user = User::query()->where('email', 'jane.batch@example.com')->first();
+        $this->assertNotNull($user);
+        $this->assertSame('resident', $user->role);
+        $this->assertSame('homeowner', $user->profile?->residence_type);
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $user->id,
+            'status' => 'not_invited',
+        ]);
+        $this->assertDatabaseMissing('invite_codes', ['invited_user_id' => $user->id]);
+        $this->assertDatabaseMissing('users', ['email' => 'type.batch@example.com']);
+
+        $this->postJson('/api/v1/admin/members/resend-invites', [
+            'member_ids' => [$user->id],
+        ])->assertOk()
+            ->assertJsonPath('data.sent_count', 1)
+            ->assertJsonPath('message', '1 invitation sent successfully.');
+
+        $this->assertDatabaseMissing('community_memberships', [
+            'user_id' => $user->id,
+            'status' => 'not_invited',
+        ]);
+        $this->assertDatabaseHas('invite_codes', [
+            'invited_user_id' => $user->id,
+            'community_id' => $community->id,
+        ]);
+    }
+
+    public function test_deactivate_member_preserves_record_and_allows_email_reactivation(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'email' => 'former.member@example.com',
+            'phone' => '+12025550999',
+            'status' => 'active',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+
+        $adminToken = $admin->createToken('test')->plainTextToken;
+
+        $this->withToken($adminToken)
+            ->postJson("/api/v1/admin/members/{$resident->id}/deactivate")
+            ->assertOk()
+            ->assertJsonPath('message', 'Member deactivated');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $resident->id,
+            'email' => 'former.member@example.com',
+            'status' => 'active',
+        ]);
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => 'inactive',
+        ]);
+        $this->assertDatabaseMissing('users', [
+            'id' => $resident->id,
+            'status' => 'deleted',
+        ]);
+
+        $this->withToken($adminToken)
+            ->getJson('/api/v1/admin/members?status=inactive')
+            ->assertOk()
+            ->assertJsonPath('meta.stats.inactive', 1);
+
+        $this->withToken($adminToken)
+            ->postJson("/api/v1/admin/members/{$resident->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('message', 'Member reactivated');
+
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => 'approved',
+        ]);
+
+        $this->withToken($adminToken)
+            ->postJson("/api/v1/admin/members/{$resident->id}/deactivate")
+            ->assertOk();
+
+        $reinvite = $this->withToken($adminToken)
+            ->postJson('/api/v1/admin/members/invite', [
+                'name' => 'Former Member',
+                'email' => 'former.member@example.com',
+                'phone' => '+12025550999',
+                'unit_number' => 'A-1',
+            ])
+            ->assertCreated();
+
+        $this->assertTrue((bool) $reinvite->json('data.reactivated'));
+        $this->assertSame($resident->id, $reinvite->json('data.id'));
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => 'approved',
+        ]);
+        $this->assertSame(1, User::query()->where('email', 'former.member@example.com')->count());
+    }
+
+    public function test_welcome_notification_is_sent_once_after_profile_completion(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $community->update(['name' => 'Japanese Community']);
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Welcome Resident',
+            'email'       => 'welcome.resident@example.com',
+            'phone'       => '+12025550666',
+            'unit_number' => 'Unit 8',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $invitedUserId = (int) $inviteResponse->json('data.id');
+
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $invitedUserId,
+            'title'   => 'Welcome to Japanese Community!',
+        ]);
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $admin->id,
+            'title'   => 'Welcome to Japanese Community!',
+        ]);
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email'  => 'welcome.resident@example.com',
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email'  => 'welcome.resident@example.com',
+            'code'   => '123456',
+            'intent' => 'login',
+        ])->assertOk();
+
+        $this->assertSame(0, $this->welcomeCount($invitedUserId));
+
+        Sanctum::actingAs(User::query()->findOrFail($invitedUserId));
+        User::query()->whereKey($invitedUserId)->update(['push_notifications_enabled' => false]);
+
+        $this->postJson('/api/v1/communities/join-by-invite', ['invite_code' => $inviteCode])
+            ->assertCreated()
+            ->assertJsonPath('data.membership.status', 'pending');
+
+        $this->assertSame(0, $this->welcomeCount($invitedUserId));
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $invitedUserId,
+            'title'   => 'Community invitation',
+        ]);
+
+        $this->putJson('/api/v1/me', [
+            'display_name' => 'Welcome Resident',
+            'bio'          => 'Happy to be here',
+            'unit_number'  => 'Unit 8',
+        ])->assertUnprocessable();
+
+        $this->assertSame(0, $this->welcomeCount($invitedUserId));
+
+        DB::table('profiles')->where('user_id', $invitedUserId)->update([
+            'utility_bill_url' => '/storage/utility-bills/welcome.jpg',
+        ]);
+
+        $beforeUnread = $this->getJson('/api/v1/notifications')->json('unread');
+
+        $this->putJson('/api/v1/me', [
+            'display_name'   => 'Welcome Resident',
+            'bio'            => 'Happy to be here',
+            'unit_number'    => 'Unit 8',
+            'residence_type' => 'tenant',
+        ])->assertOk();
+
+        $this->assertSame(1, $this->welcomeCount($invitedUserId));
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id'    => $invitedUserId,
+            'title'      => 'Welcome to Japanese Community!',
+            'body'       => "You're now a member of Japanese Community! Explore your community and stay connected with your neighbors.",
+            'action_url' => '/(tabs)/home',
+            'read_at'    => null,
+        ]);
+        $welcome = DB::table('app_notifications')
+            ->where('user_id', $invitedUserId)
+            ->where('title', 'Welcome to Japanese Community!')
+            ->first();
+        $welcomeData = json_decode((string) $welcome->data, true);
+        $this->assertSame('member_welcome', $welcomeData['kind'] ?? null);
+        $this->assertSame($community->id, (int) ($welcomeData['community_id'] ?? 0));
+
+        $after = $this->getJson('/api/v1/notifications')->assertOk();
+        $this->assertSame($beforeUnread + 1, $after->json('unread'));
+        $this->assertSame('Welcome to Japanese Community!', $after->json('data.0.title'));
+
+        $this->putJson('/api/v1/me', [
+            'display_name' => 'Welcome Resident',
+            'bio'          => 'Updated bio',
+        ])->assertOk();
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email'  => 'welcome.resident@example.com',
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email'  => 'welcome.resident@example.com',
+            'code'   => '123456',
+            'intent' => 'login',
+        ])->assertOk();
+
+        $this->assertSame(1, $this->welcomeCount($invitedUserId));
+
+        $second = Community::query()->create([
+            'name'          => 'Cedar Hills',
+            'region_id'     => $community->region_id,
+            'region'        => $community->region,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+        $membership = CommunityMembership::query()->create([
+            'user_id'      => $invitedUserId,
+            'community_id' => $second->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        MemberWelcomeNotification::sendIfReady(User::query()->findOrFail($invitedUserId), $membership);
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $invitedUserId,
+            'title'   => 'Welcome to Cedar Hills!',
+        ]);
+        $this->assertSame(1, $this->welcomeCount($invitedUserId, 'Welcome to Japanese Community!'));
+        $this->assertSame(1, $this->welcomeCount($invitedUserId, 'Welcome to Cedar Hills!'));
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $admin->id,
+            'title'   => 'Welcome to Japanese Community!',
+        ]);
+    }
+
+    private function welcomeCount(int $userId, ?string $title = null): int
+    {
+        return DB::table('app_notifications')
+            ->where('user_id', $userId)
+            ->when($title, fn ($query) => $query->where('title', $title))
+            ->where('title', 'like', 'Welcome to %')
+            ->count();
+    }
+}

@@ -1,0 +1,30 @@
+{
+  "PK": {
+    "punjab": [
+      "Lahore", "Faisalabad", "Rawalpindi", "Multan", "Gujranwala", "Sialkot", "Sargodha",
+      "Bahawalpur", "Sheikhupura", "Jhang", "Rahim Yar Khan", "Gujrat", "Kasur", "Sahiwal",
+      "Okara", "Wah Cantonment", "Dera Ghazi Khan", "Chiniot", "Kamoke", "Hafizabad",
+      "Mandi Bahauddin", "Khanewal", "Vehari", "Jhelum", "Taxila", "Attock", "Chakwal",
+      "Mianwali", "Bhakkar", "Layyah", "Muzaffargarh", "Khanpur", "Pakpattan", "Bahawalnagar",
+      "Narowal", "Khushab", "Toba Tek Singh", "Muridke", "Wazirabad", "Kamalia", "Jaranwala",
+      "Burewala", "Gojra", "Daska", "Ahmadpur East", "Kot Addu", "Walled City of Lahore"
+    ],
+    "sindh": [
+      "Karachi", "Hyderabad", "Sukkur", "Larkana", "Nawabshah", "Mirpur Khas", "Jacobabad",
+      "Shikarpur", "Khairpur", "Dadu", "Tando Adam", "Tando Allahyar", "Thatta", "Badin",
+      "Kotri", "Umerkot", "Ghotki", "Kashmore", "Sanghar"
+    ],
+    "khyber pakhtunkhwa": [
+      "Peshawar", "Mardan", "Abbottabad", "Mingora", "Kohat", "Bannu", "Dera Ismail Khan",
+      "Swabi", "Charsadda", "Nowshera", "Mansehra", "Haripur", "Timergara", "Chitral", "Hangu"
+    ],
+    "balochistan": [
+      "Quetta", "Turbat", "Khuzdar", "Chaman", "Gwadar", "Sibi", "Zhob", "Loralai", "Hub", "Pasni"
+    ],
+    "islamabad": ["Islamabad", "Islamabad Capital Territory"],
+    "islamabad capital territory": ["Islamabad"],
+    "gilgit-baltistan": ["Gilgit", "Skardu", "Hunza", "Chilas"],
+    "azad kashmir": ["Muzaffarabad", "Mirpur", "Kotli", "Rawalakot"],
+    "azad jammu and kashmir": ["Muzaffarabad", "Mirpur", "Kotli"]
+  }
+}

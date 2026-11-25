@@ -1,0 +1,62 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "environment": "development"
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "environment": "preview",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "channel": "production",
+      "autoIncrement": true,
+      "credentialsSource": "local",
+      "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://apis.gohavena.com/api/v1",
+        "EXPO_PUBLIC_ADMIN_URL": "https://gohavena.com"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "resourceClass": "m-medium"
+      }
+    },
+    "apk": {
+      "channel": "preview",
+      "distribution": "internal",
+      "credentialsSource": "local",
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://apis.gohavena.com/api/v1",
+        "EXPO_PUBLIC_ADMIN_URL": "https://gohavena.com"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascApiKeyPath": "./apple-secrets/AuthKey_D8J758WQLT.p8",
+        "ascApiKeyId": "D8J758WQLT",
+        "ascApiKeyIssuerId": "69a6de93-d81e-47e3-e053-5b8c7c11a4d1",
+        "appleTeamId": "6X37JEX924",
+        "ascAppId": "6800697897"
+      }
+    }
+  }
+}

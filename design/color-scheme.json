@@ -1,0 +1,17 @@
+{
+  "name": "Havena Color Scheme — Ocean Breeze",
+  "primary": {
+    "darkNavy": "#1B4F8A",
+    "darkTeal": "#0D9488",
+    "teal": "#14B8A6",
+    "softMint": "#D1FAF5",
+    "canvas": "#F4F8FD"
+  },
+  "neutral": {
+    "darkText": "#1B4F8A",
+    "mediumGray": "#6B7280",
+    "lightGray": "#E5E7EB",
+    "background": "#F4F8FD",
+    "white": "#FFFFFF"
+  }
+}

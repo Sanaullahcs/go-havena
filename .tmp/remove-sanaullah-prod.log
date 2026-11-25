@@ -1,0 +1,6 @@
+users_found=1
+before id=72 email=sanaullah6065cs@gmail.com role=community_admin status=active trashed=no
+removing user 72 sanaullah6065cs@gmail.com
+deleted_email_otps=0
+remaining_with_original_email=0
+after id=72 email=deleted-72-260917120436@deleted.havena.local status=deleted trashed=yes

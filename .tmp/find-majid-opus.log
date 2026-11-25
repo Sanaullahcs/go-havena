@@ -1,0 +1,9 @@
+users=1
+user 131 email=majid@namuve.com name=Majid Yaseen role=community_admin admin=approved status=active susp=null
+community 43 Opus Luxury Apartments status=active review=approved requested_by=null
+memberships_for_131=1
+membership 95 community=43 Opus Luxury Apartments role=admin status=pending
+opus_admin_memberships=2
+opus_admin 68 user=59 umer@namuve.com Umer role=community_admin admin=approved user_status=active mem_status=banned
+opus_admin 95 user=131 majid@namuve.com Majid Yaseen role=community_admin admin=approved user_status=active mem_status=pending
+has_profiles=yes

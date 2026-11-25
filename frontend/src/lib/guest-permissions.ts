@@ -1,0 +1,79 @@
+export type GuestPermissionKey =
+  | "feed"
+  | "notices"
+  | "events"
+  | "marketplace"
+  | "businesses"
+  | "wellness";
+
+export type GuestPermissions = Record<GuestPermissionKey, boolean>;
+
+export const GUEST_PERMISSION_OPTIONS: Array<{
+  key: GuestPermissionKey;
+  label: string;
+  description: string;
+}> = [
+  { key: "feed", label: "Community feed", description: "Posts and neighborhood updates" },
+  { key: "notices", label: "Notice board", description: "General, maintenance, and security notices" },
+  { key: "events", label: "Events", description: "Community events and RSVPs" },
+  { key: "marketplace", label: "Marketplace", description: "Listings, deals, and offers" },
+  { key: "businesses", label: "Local businesses", description: "Business directory" },
+  { key: "wellness", label: "Wellness", description: "Wellness programs and lessons" },
+];
+
+export const DEFAULT_GUEST_PERMISSIONS: GuestPermissions = {
+  feed: true,
+  notices: true,
+  events: true,
+  marketplace: true,
+  businesses: true,
+  wellness: true,
+};
+
+/** Invite form opens with Wellness on; the admin can add more modules. */
+export const INITIAL_GUEST_INVITE_PERMISSIONS: GuestPermissions = {
+  feed: false,
+  notices: false,
+  events: false,
+  marketplace: false,
+  businesses: false,
+  wellness: true,
+};
+
+export const GUEST_PERMISSION_REQUIRED_MESSAGE = "Please select at least one permission.";
+
+export function hasSelectedGuestPermission(
+  permissions?: Partial<GuestPermissions> | null,
+): boolean {
+  if (!permissions) return true;
+
+  return GUEST_PERMISSION_OPTIONS.some((option) => permissions[option.key] === true);
+}
+
+export function applyGuestPermissionToggle(
+  current: GuestPermissions,
+  key: GuestPermissionKey,
+  checked: boolean,
+): { permissions: GuestPermissions; error: string | null } {
+  const next = { ...current, [key]: checked };
+  if (!hasSelectedGuestPermission(next)) {
+    return { permissions: current, error: GUEST_PERMISSION_REQUIRED_MESSAGE };
+  }
+
+  return { permissions: next, error: null };
+}
+
+export function normalizeGuestPermissions(
+  permissions?: Partial<GuestPermissions> | null,
+): GuestPermissions {
+  const next = { ...DEFAULT_GUEST_PERMISSIONS };
+  if (!permissions) return next;
+
+  for (const option of GUEST_PERMISSION_OPTIONS) {
+    if (typeof permissions[option.key] === "boolean") {
+      next[option.key] = permissions[option.key] as boolean;
+    }
+  }
+
+  return next;
+}

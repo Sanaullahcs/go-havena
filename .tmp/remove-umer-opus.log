@@ -1,0 +1,12 @@
+before user=59 umer@namuve.com role=community_admin admin=approved status=active
+before community=43 Opus Luxury Apartments status=active requested_by=59
+target_memberships=1
+target membership 68 role=admin status=approved
+other_members=2
+after_user_memberships=1
+after membership 68 community=43 role=admin status=banned
+opus_approved_admins=0
+after user role=community_admin admin=approved status=active
+after community status=active requested_by=null
+has_admin_assigned=no
+needs_reassign=yes

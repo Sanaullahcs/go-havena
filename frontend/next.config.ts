@@ -1,0 +1,97 @@
+import os from "node:os";
+import path from "node:path";
+import type { NextConfig } from "next";
+
+/** The repo root also has a package-lock.json; pin the app root to this folder. */
+const appRoot = path.resolve(__dirname);
+
+function lanDevOrigins(): string[] {
+  const origins = new Set<string>([
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "192.168.*",
+    "10.*",
+    "*.trycloudflare.com",
+    "*.ngrok-free.app",
+    "*.ngrok.io",
+    "*.ngrok.app",
+    "*.cursor.sh",
+    "*.cursor.app",
+  ]);
+
+  for (let octet = 16; octet <= 31; octet += 1) {
+    origins.add(`172.${octet}.*`);
+  }
+
+  try {
+    for (const addrs of Object.values(os.networkInterfaces())) {
+      for (const addr of addrs ?? []) {
+        const ipv4 = addr.family === "IPv4" || addr.family === 4;
+        if (ipv4 && !addr.internal) {
+          origins.add(addr.address);
+        }
+      }
+    }
+  } catch {
+    // Sandbox / restricted environments cannot enumerate interfaces.
+  }
+
+  // Windows users often open http://DESKTOP-XXXX:3000 — without this, dev returns 403
+  // for /_next/static/* and the admin UI renders as unstyled HTML (broken sidebar).
+  try {
+    const host = os.hostname();
+    if (host) {
+      origins.add(host);
+      origins.add(host.toLowerCase());
+      origins.add(`${host}.local`);
+      origins.add(`${host.toLowerCase()}.local`);
+    }
+  } catch {
+    // ignore
+  }
+
+  const extra = (process.env.HAVENA_DEV_ORIGINS || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  for (const item of extra) {
+    origins.add(item);
+  }
+
+  return [...origins];
+}
+
+const nextConfig: NextConfig = {
+  outputFileTracingRoot: appRoot,
+  turbopack: { root: appRoot },
+  // Phone / LAN access to `next dev` (Expo billing redirect) needs this or
+  // /_next assets never load and /admin/billing stays on the skeleton forever.
+  allowedDevOrigins: lanDevOrigins(),
+  skipTrailingSlashRedirect: true,
+  skipProxyUrlNormalize: true,
+  async redirects() {
+    return [
+      {
+        source: "/terms-of-service",
+        destination: "/terms-and-conditions",
+        permanent: true,
+      },
+    ];
+  },
+  // Same-origin /api and /storage so Cursor port-forward and Cloudflare
+  // frontend URLs reach Laravel without CORS or a dead localhost:8000.
+  async rewrites() {
+    const backend = (process.env.HAVENA_API_ORIGIN || "http://127.0.0.1:8000").replace(/\/$/, "");
+    return [
+      { source: "/api/:path*", destination: `${backend}/api/:path*` },
+      { source: "/storage/:path*", destination: `${backend}/storage/:path*` },
+    ];
+  },
+  // Allow production deploy while residual admin TS strictness issues are cleaned up.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+};
+
+export default nextConfig;

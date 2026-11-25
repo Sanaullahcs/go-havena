@@ -1,0 +1,10 @@
+check contact_submissions.email=0
+check email_otps.email=0
+check family_add_member_requests.email=0
+check guest_invitations.guest_email=0
+check password_reset_tokens.email=0
+check transactional_email_sends.recipient_email=0
+check users.email=0
+check users.email_verified_at=0
+users_email=0
+leftover_email_columns=none

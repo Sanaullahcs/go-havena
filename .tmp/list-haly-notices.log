@@ -1,0 +1,3 @@
+community=52 Haly Tower
+cols=id,community_id,author_id,title,title_es,title_ar,category,body,body_es,body_ar,location,image_url,event_date,event_time,event_time_end,event_capacity,is_pinned,requires_rsvp,status,review_status,is_global,audience_type,approved_by,approved_at,rejection_reason,published_at,scheduled_at,created_at,updated_at,deleted_at
+count=0

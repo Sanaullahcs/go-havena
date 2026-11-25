@@ -1,0 +1,50 @@
+=== migrate status ===
+  2026_08_25_100000_create_community_plaid_connections_table ........ [24] Ran  
+  2026_08_28_120000_create_email_otps_table ......................... [24] Ran  
+  2026_08_28_130000_make_guest_invitation_phone_nullable ............ [24] Ran  
+  2026_08_31_180000_drop_phone_otps_table ........................... [24] Ran  
+  2026_08_31_180100_make_family_add_member_request_phone_nullable ... [24] Ran  
+  2026_09_03_100000_add_coordinates_to_communities_table ............ [25] Ran  
+  2026_09_04_120000_add_image_url_to_wellness_categories ............ [26] Ran  
+  2026_09_04_123000_add_image_url_to_wellness_lessons ............... [26] Ran  
+  2026_09_04_140000_drop_image_url_from_wellness_lessons ............ [26] Ran  
+  2026_09_08_000001_create_countries_and_states_tables .............. [27] Ran  
+  2026_09_08_000002_add_state_id_to_regions_table ................... [27] Ran  
+  2026_09_08_120000_seed_all_countries .............................. [27] Ran  
+  2026_09_08_190000_seed_all_country_states ......................... [27] Ran  
+  2026_09_09_120000_create_user_blocks_table ........................ [28] Ran  
+  2026_09_09_130000_add_comment_id_to_post_reports_table ............ [28] Ran  
+  2026_09_09_140000_add_listing_id_to_reports_table ................. [28] Ran  
+  2026_09_09_150000_create_transactional_email_sends_table .......... [28] Ran  
+  2026_09_09_160000_add_notice_id_to_reports_table .................. [28] Ran  
+  2026_09_10_160000_add_deleted_at_to_invite_codes_table ............ [29] Ran  
+  2026_09_10_164700_add_utility_bill_review_status_to_profiles_table  [29] Ran  
+  2026_09_11_100000_add_cancelled_status_to_guest_invitations ....... [30] Ran  
+  2026_09_11_173000_add_shared_billing_to_amenities_table ........... [30] Ran  
+  2026_09_11_180000_create_amenity_shared_bills_tables .............. [30] Ran  
+  2026_09_11_190000_add_payment_proof_to_amenity_resident_bills ..... [30] Ran  
+  2026_09_11_190800_widen_amenity_floor_column ...................... [30] Ran  
+  2026_09_11_200000_add_payment_review_to_amenity_resident_bills .... [30] Ran  
+  2026_09_11_210000_create_amenity_resident_bill_notifications_table  [30] Ran  
+  2026_09_14_120000_add_booking_fee_to_amenities_table .............. [30] Ran  
+  2026_09_14_120100_add_booking_payment_proof_to_bookings_table ..... [30] Ran  
+
+=== files ===
+3:import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+57:  const prevFilterKey = useRef(`|${debouncedSearch}`);
+269:          <p className="mt-0.5 text-[11px] text-slate-400">gohavena.com</p>
+270:          <p className="mt-0.5 text-[11px] text-slate-400">support@gohavena.com</p>
+api_bills=yes
+fe_next=yes
+=== pm2 ===
+┌────┬────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name           │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ havena-prod    │ default     │ 16.2.9  │ fork    │ 995361   │ 30s    │ 2    │ online    │ 0%       │ 162.2mb  │ root     │ disabled │
+│ 1  │ havena-uat     │ default     │ 16.2.9  │ fork    │ 2537     │ 3D     │ 0    │ online    │ 0%       │ 187.3mb  │ root     │ disabled │
+└────┴────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+=== health ===
+api:200
+web:200
+feed:200
+DONE

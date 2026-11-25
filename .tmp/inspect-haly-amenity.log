@@ -1,0 +1,33 @@
+{
+    "id": 36,
+    "community_id": 52,
+    "created_by": 93,
+    "name": "Asperiores dignissimos cum rerum dolores amet",
+    "name_es": null,
+    "name_ar": null,
+    "description": "Facere non cillum quo fugit nostrud esse eos laborum Aut est dolorem",
+    "description_es": null,
+    "description_ar": null,
+    "status": "bookable",
+    "review_status": "approved",
+    "rejection_reason": null,
+    "capacity": 100,
+    "floor": "Architecto in id eiusmod iusto quaerat m",
+    "image_url": null,
+    "icon_key": "pool",
+    "shared_billing_enabled": 1,
+    "shared_billing_type": "all_residents",
+    "shared_billing_frequency": "monthly",
+    "shared_billing_amount": "100.00",
+    "shared_billing_due_day": 1,
+    "booking_fee": "0.00",
+    "hours": "2:27 PM - 5:30 PM",
+    "start_time": "14:27:00",
+    "end_time": "17:30:00",
+    "weekends_available": 1,
+    "slot_duration_minutes": 60,
+    "created_at": "2026-09-16 08:27:24",
+    "updated_at": "2026-09-16 08:27:24"
+}
+cols=id,community_id,created_by,name,name_es,name_ar,description,description_es,description_ar,status,review_status,rejection_reason,capacity,floor,image_url,icon_key,shared_billing_enabled,shared_billing_type,shared_billing_frequency,shared_billing_amount,shared_billing_due_day,booking_fee,hours,start_time,end_time,weekends_available,slot_duration_minutes,created_at,updated_at
+   Illuminate\Database\QueryException  SQLSTATE[42S22]: Column not found: 1054 Unknown column 'deleted_at' in 'field list' (Connection: mysql, SQL: select `id`, `name`, `status`, `deleted_at` from `amenities` where `community_id` = 52).
