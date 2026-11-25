@@ -102,7 +102,7 @@ type StaffAssignMode = "assign" | "change" | "reassign";
 const STAFF_ASSIGN_COPY: Record<StaffAssignMode, { title: string; confirmTitle: string; confirmText: string; confirmButton: string; color: "blue" | "amber" }> = {
   assign: {
     title: "Assign Staff",
-    confirmTitle: "Assign this complaint?",
+    confirmTitle: "Assign this service request?",
     confirmText: "The selected staff member will be notified.",
     confirmButton: "Assign",
     color: "blue",
@@ -116,8 +116,8 @@ const STAFF_ASSIGN_COPY: Record<StaffAssignMode, { title: string; confirmTitle: 
   },
   reassign: {
     title: "Reassign Staff",
-    confirmTitle: "Reassign this complaint?",
-    confirmText: "The previous and new staff members will be notified. The complaint history is kept.",
+    confirmTitle: "Reassign this service request?",
+    confirmText: "The previous and new staff members will be notified. The service request history is kept.",
     confirmButton: "Reassign",
     color: "blue",
   },
@@ -170,8 +170,9 @@ const ACTIVITY_ACTION: Record<string, string> = {
   attachment: "Attachment added",
 };
 
-function activityTitle(action: string, toStatus?: string | null) {
-  if (action === "status_changed" && toStatus === "reopened") return "Complaint reopened";
+function activityTitle(action: string, toStatus?: string | null, maintenance = true) {
+  if (action === "created") return maintenance ? "Service request submitted" : "Complaint submitted";
+  if (action === "status_changed" && toStatus === "reopened") return maintenance ? "Service request reopened" : "Complaint reopened";
   const label = ACTIVITY_ACTION[action] ?? action.replaceAll("_", " ");
   if (action !== "status_changed" || !toStatus) return label;
   return `${label} · ${ACTIVITY_STATUS[toStatus] ?? toStatus.replaceAll("_", " ")}`;
@@ -216,6 +217,7 @@ function ComplaintFiltersButton({
   categories,
   categoryHints,
   showDates = false,
+  ariaLabel = "Complaint filters",
   onApply,
 }: {
   value: ComplaintFilterValue;
@@ -223,6 +225,7 @@ function ComplaintFiltersButton({
   categories: readonly (readonly [string, string])[];
   categoryHints: Record<string, string>;
   showDates?: boolean;
+  ariaLabel?: string;
   onApply: (next: ComplaintFilterValue) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -300,7 +303,7 @@ function ComplaintFiltersButton({
         <div
           ref={panelRef}
           role="dialog"
-          aria-label="Complaint filters"
+          aria-label={ariaLabel}
           style={style}
           className="overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_40px_rgba(10,42,67,0.16)]"
         >
@@ -670,7 +673,7 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
     setBusy(true);
     try {
       const updated = await updateAdminComplaintStatus(row.id, next);
-      toastSuccess("Complaint updated");
+      toastSuccess(audience === "community" && communityTab === "queue" ? "Service request updated" : "Complaint updated");
       setDetail((current) => (current?.id === updated.id ? updated : current));
       await load();
     } catch (err) {
@@ -704,10 +707,11 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   const assign = async (userId: number) => {
     if (!detail) return;
     const removing = userId <= 0;
+    const issueNoun = detail.type !== "technical" ? "service request" : "complaint";
     const confirmed = await confirmAction({
-      title: removing ? "Remove this assignment?" : detail.assigned_to_user_id ? "Change this assignment?" : "Assign this complaint?",
+      title: removing ? "Remove this assignment?" : detail.assigned_to_user_id ? "Change this assignment?" : `Assign this ${issueNoun}?`,
       text: removing
-        ? "The complaint stays open and can be assigned again."
+        ? `The ${issueNoun} stays open and can be assigned again.`
         : "The selected staff member will be notified.",
       confirmText: removing ? "Remove" : "Assign",
       color: removing ? "amber" : "blue",
@@ -801,7 +805,7 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   const cancelRequest = async (row: ComplaintRecord) => {
     const confirmed = await confirmAction({
       title: "Cancel this request?",
-      text: "The assignment request will be withdrawn. The complaint returns to Open, and its history is kept.",
+      text: "The assignment request will be withdrawn. The service request returns to Open, and its history is kept.",
       confirmText: "Cancel",
       cancelText: "Keep",
       color: "amber",
@@ -906,7 +910,7 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
   };
   const summary = audience === "community" ? (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
-      <StatTile label="Total Complaints" value={Number(counts.all ?? 0)} hint="All resident complaints" icon={<ClipboardList />} tone="violet" pressed={summaryActive("all")} onClick={() => chooseSummary("all")} />
+      <StatTile label="Total Service Requests" value={Number(counts.all ?? 0)} hint="All resident service requests" icon={<ClipboardList />} tone="violet" pressed={summaryActive("all")} onClick={() => chooseSummary("all")} />
       <StatTile label="Open" value={openCount} hint="Awaiting action" icon={<CircleDot />} tone="amber" pressed={summaryActive("open")} onClick={() => chooseSummary("open")} />
       <StatTile label="In Progress" value={progressCount} hint="Being worked on" icon={<Clock />} tone="blue" pressed={summaryActive("in_progress")} onClick={() => chooseSummary("in_progress")} />
       <StatTile label="Resolved" value={resolvedCount} hint="Resolved, not closed" icon={<CheckCircle2 />} tone="green" pressed={summaryActive("resolved")} onClick={() => chooseSummary("resolved")} />
@@ -927,8 +931,8 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="nl-eyebrow">Community</p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Complaints</h2>
-            <p className="mt-1 text-sm text-slate-500">Manage, track, and resolve resident complaints efficiently.</p>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Service Requests</h2>
+            <p className="mt-1 text-sm text-slate-500">Manage, track, and resolve resident service requests efficiently.</p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <button
@@ -946,7 +950,7 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
         <div className="nl-segment-control max-w-md">
           {(
             [
-              ["queue", "Community complaints"],
+              ["queue", "Community service requests"],
               ["my_reports", "My technical reports"],
             ] as const
           ).map(([key, label]) => (
@@ -970,7 +974,7 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
       ) : null}
       {audience === "community" && communityTab === "my_reports" ? (
         <p className="text-sm leading-6 text-slate-500">
-          Technical issues you send to System Admin. Resident maintenance stays in the community complaints queue.
+          Technical issues you send to System Admin. Resident maintenance stays in the community service requests queue.
         </p>
       ) : null}
       {audience === "system" || communityTab === "queue" ? summary : null}
@@ -980,7 +984,7 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
             ? "Complaints & Support"
             : communityTab === "my_reports"
               ? "My technical reports"
-              : "All Complaints"
+              : "All Service Requests"
         }
         search={searchInput}
         onSearch={(value) => {
@@ -988,7 +992,7 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
           setSearchInput(value);
         }}
         searching={isSearchPending}
-        searchPlaceholder={communityTab === "my_reports" ? "Search your reports" : "Search complaints"}
+        searchPlaceholder={communityTab === "my_reports" ? "Search your reports" : "Search service requests"}
         searchClassName="min-w-[12rem] sm:w-[17.5rem]"
         loading={loading}
         toolbar={(
@@ -998,6 +1002,13 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
             categories={categories}
             categoryHints={audience === "system" || communityTab === "my_reports" ? TECHNICAL_CATEGORY_HINTS : CATEGORY_HINTS}
             showDates={audience === "system"}
+            ariaLabel={
+              audience === "system"
+                ? "Complaint filters"
+                : communityTab === "my_reports"
+                  ? "Technical report filters"
+                  : "Service request filters"
+            }
             onApply={applyFilters}
           />
         )}
@@ -1005,14 +1016,14 @@ export function ComplaintsPanel({ audience }: { audience: "community" | "system"
         empty={
           audience === "community" && communityTab === "my_reports"
             ? "You have not submitted any technical reports yet."
-            : "No complaints match your filters."
+            : "No service requests match your filters."
         }
       >
         <div className="overflow-x-auto">
         <table className="min-w-full border-separate border-spacing-0 text-left">
           <thead>
             <tr className="text-[11px] font-medium uppercase tracking-[0.06em] text-slate-400">
-              {["Ticket", "Complaint", "Resident", "Unit", "Category", "Priority", "Assigned Staff", "Submitted", "Status", "Actions"].map((label) => (
+              {["Ticket", audience === "community" && communityTab === "queue" ? "Service request" : "Complaint", "Resident", "Unit", "Category", "Priority", "Assigned Staff", "Submitted", "Status", "Actions"].map((label) => (
                 <th key={label} className={`sticky top-0 whitespace-nowrap border-b border-slate-100 bg-white px-3 py-2.5 font-medium first:pl-4 last:pr-4 ${label === "Actions" ? "text-right" : ""}`}>{label}</th>
               ))}
             </tr>
@@ -1463,12 +1474,12 @@ function AttachmentPreviewModal({
   );
 }
 
-function ActivityTimeline({ events }: { events: NonNullable<ComplaintRecord["events"]> }) {
+function ActivityTimeline({ events, maintenance = true }: { events: NonNullable<ComplaintRecord["events"]>; maintenance?: boolean }) {
   if (events.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-[#F8FAFC] px-4 py-8 text-center">
         <p className="text-sm font-medium text-slate-500">No activity yet</p>
-        <p className="mt-1 text-[12px] text-slate-400">Updates will appear here as the complaint moves forward.</p>
+        <p className="mt-1 text-[12px] text-slate-400">Updates will appear here as the {maintenance ? "service request" : "complaint"} moves forward.</p>
       </div>
     );
   }
@@ -1496,7 +1507,7 @@ function ActivityTimeline({ events }: { events: NonNullable<ComplaintRecord["eve
             </span>
             <span className={`min-w-0 flex-1 ${last ? "pb-0.5" : "pb-3.5"}`}>
               <p className="text-[12px] font-semibold leading-4 tracking-[-0.01em] text-[#0A2A43]">
-                {activityTitle(event.action, event.to_status)}
+                {activityTitle(event.action, event.to_status, maintenance)}
               </p>
               {event.actor_name ? (
                 <p className="mt-0.5 text-[11px] leading-4 text-slate-500">By {event.actor_name}</p>
@@ -1540,6 +1551,8 @@ function ComplaintDetailModal({
   allowStatusChanges: boolean;
   onStatus: (next: ComplaintStatus) => void;
 }) {
+  const maintenanceIssue = detail?.type !== "technical";
+  const issueLabel = maintenanceIssue ? "Service request" : "Complaint";
   const staffChoices = [
     ...(detail?.assigned_to_user_id && detail.type !== "technical"
       ? [{ value: "remove", label: "Remove assignment" }]
@@ -1612,7 +1625,7 @@ function ComplaintDetailModal({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="rounded-full bg-[#1B4F8A]/10 px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.04em] text-[#1B4F8A] ring-1 ring-[#1B4F8A]/10">
-                  {detail?.reference ?? "Complaint"}
+                  {detail?.reference ?? issueLabel}
                 </span>
                 {detail ? (
                   <>
@@ -1628,7 +1641,7 @@ function ComplaintDetailModal({
                 id="complaint-view-title"
                 className="mt-1.5 break-words text-[1.25rem] font-bold leading-tight tracking-[-0.02em] text-[#0A2A43]"
               >
-                {detail?.title ?? (error ? "Could not open complaint" : "Loading complaint")}
+                {detail?.title ?? (error ? `Could not open ${issueLabel.toLowerCase()}` : `Loading ${issueLabel.toLowerCase()}…`)}
               </h3>
               {detail ? (
                 <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] text-slate-500">
@@ -1683,7 +1696,7 @@ function ComplaintDetailModal({
         >
           {error ? <PageError message={error} onRetry={onRetry} /> : null}
           {!detail && !error ? (
-            <p className="py-8 text-center text-sm text-slate-500">Loading complaint…</p>
+            <p className="py-8 text-center text-sm text-slate-500">Loading…</p>
           ) : null}
           {detail ? (
             <div className="space-y-3">
@@ -1739,7 +1752,7 @@ function ComplaintDetailModal({
                   <section className={cardClass}>
                     <div className="mb-2.5 flex items-center gap-2">
                       <span className="h-4 w-1 rounded-full bg-[#1B4F8A]" aria-hidden />
-                      <p className="text-[12px] font-bold tracking-[-0.01em] text-[#0A2A43]">Complaint details</p>
+                      <p className="text-[12px] font-bold tracking-[-0.01em] text-[#0A2A43]">{issueLabel} details</p>
                     </div>
                     <ul className="space-y-1.5">
                       {facts.map((fact) => {
@@ -1931,7 +1944,7 @@ function ComplaintDetailModal({
                       <p className="text-[12px] font-bold tracking-[-0.01em] text-[#0A2A43]">Activity</p>
                     </div>
                     <div className="max-h-[28rem] overflow-y-auto overscroll-contain pr-0.5">
-                      <ActivityTimeline events={events} />
+                      <ActivityTimeline events={events} maintenance={maintenanceIssue} />
                     </div>
                   </aside>
                 </div>
@@ -1942,7 +1955,7 @@ function ComplaintDetailModal({
                     <p className="text-[12px] font-bold tracking-[-0.01em] text-[#0A2A43]">History</p>
                   </div>
                   <div className="max-h-[28rem] overflow-y-auto overscroll-contain pr-0.5">
-                    <ActivityTimeline events={events} />
+                    <ActivityTimeline events={events} maintenance={maintenanceIssue} />
                   </div>
                 </section>
               )}

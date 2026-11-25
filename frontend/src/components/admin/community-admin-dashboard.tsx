@@ -521,7 +521,7 @@ export default function CommunityAdminDashboard() {
         icon: dashIcon(Building2),
       },
       {
-        label: "Open Complaints",
+        label: "Open Service Requests",
         value: openComplaints == null ? "—" : String(openComplaints),
         hint: openComplaints ? "Need a response" : "Nothing open right now",
         tone: "amber",
@@ -611,7 +611,7 @@ export default function CommunityAdminDashboard() {
       icon: dashIcon(AlertTriangle),
     },
     {
-      label: "Complaints",
+      label: "Service Requests",
       href: "/admin/complaints",
       desc: "Maintenance requests and resident support",
       badge: openComplaints ? `${openComplaints} open` : undefined,

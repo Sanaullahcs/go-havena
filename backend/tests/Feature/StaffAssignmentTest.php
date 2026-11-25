@@ -835,7 +835,7 @@ class StaffAssignmentTest extends TestCase
         ]);
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $second->id,
-            'title' => 'Complaint assigned to you',
+            'title' => 'Service request assigned to you',
         ]);
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $first->id,
@@ -843,7 +843,7 @@ class StaffAssignmentTest extends TestCase
         ]);
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $resident->id,
-            'title' => 'Complaint Not Resolved',
+            'title' => 'Service request Not Resolved',
         ]);
     }
 

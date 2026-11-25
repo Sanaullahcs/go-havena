@@ -176,7 +176,7 @@ export default function StaffHomeScreen() {
         </View>
         {loading ? <ActivityIndicator color={NAVY} style={styles.loader} /> : null}
         {!loading && error ? <EmptyState icon="alert-circle" title="Could not load tasks" body={error} actionLabel="Try again" actionIcon="refresh-cw" onAction={() => { setLoading(true); void load(); }} /> : null}
-        {!loading && !error && rows.length === 0 ? <EmptyState icon="clipboard" title="No assigned tasks" body="Complaints assigned to you will appear here." /> : null}
+        {!loading && !error && rows.length === 0 ? <EmptyState icon="clipboard" title="No assigned tasks" body="Service requests assigned to you will appear here." /> : null}
         {!loading && !error ? rows.map((row) => {
           const priority = priorityTone(row.priority);
           const status = staffStatusTone(row.status, row.workflow_status);

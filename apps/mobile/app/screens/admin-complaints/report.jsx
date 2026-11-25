@@ -117,7 +117,7 @@ export default function AdminTechnicalReportScreen() {
         contentContainerStyle={styles.form}
         onScrollBeginDrag={() => setMenu(null)}
       >
-        <Text style={styles.lead}>This is for technical issues in the app. Community maintenance is handled from the complaint queue.</Text>
+        <Text style={styles.lead}>This is for technical issues in the app. Community maintenance is handled from the service request queue.</Text>
 
         <View style={[styles.card, menu && styles.cardOpen]}>
           <FormSelect

@@ -18,8 +18,6 @@ import { currentCommunityId, isCommunityAdmin, isResidentMode } from "../../serv
 import {
   ensureNotificationCommunityContext,
   fetchNotificationUnreadCount,
-  isAdminAgreementSignedNotification,
-  openAdminSignedAgreement,
 } from "../../services/notifications-api";
 import { emitMessageUnreadRefresh, emitNotificationRefresh } from "../../services/notification-events";
 
@@ -51,25 +49,6 @@ function shouldShowCommunityAdminBanner(data) {
 async function navigateFromNotificationResponse(response) {
   const content = response?.notification?.request?.content;
   const data = content?.data ?? {};
-  const signedNotification = {
-    title: content?.title ?? data.title ?? "",
-    description: content?.body ?? data.body ?? "",
-    actionUrl: data.action_url ?? data.actionUrl ?? null,
-    kind: data.kind ?? null,
-    type: data.type ?? null,
-    documentId: data.document_id ?? data.documentId ?? null,
-    assignmentId: data.assignment_id ?? data.assignmentId ?? null,
-    openSignedPdf: data.open_signed === true || data.open_signed === 1 || data.open_signed === "1" || data.open_signed === "true",
-  };
-  if (isAdminAgreementSignedNotification(signedNotification)) {
-    try {
-      if (await openAdminSignedAgreement(signedNotification)) return;
-    } catch {
-      return;
-    }
-    return;
-  }
-
   const route = handleNotificationResponse(response);
   if (!route?.pathname) return;
 

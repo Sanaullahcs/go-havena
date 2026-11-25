@@ -27,8 +27,9 @@ import InternalScreenHeader from "../../../../components/layout/internal-screen-
 import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { Fonts } from "../../../../constants/font";
 import { sw, sf } from "../../../../utils/responsive";
-import { fetchCommunityDocument, fetchSignedAgreementLink, signAgreement } from "../../../../services/documents-api";
+import { fetchAgreementDetail, fetchCommunityDocument, fetchSignedAgreementLink, signAgreement } from "../../../../services/documents-api";
 import { PropertyManagementRoutes } from "../../../../constants/property-management-routes";
+import { getCurrentRole } from "../../../../constants/role-session";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { useAppDialog } from "../../../../providers/app-dialog-provider";
 
@@ -458,6 +459,7 @@ export default function SignAgreement() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
   const [copyBusy, setCopyBusy] = useState(null);
+  const [adminRecipient, setAdminRecipient] = useState(null);
   const webRef = useRef(null);
   const lock = useRef(false);
   const typeInputRef = useRef(null);
@@ -465,6 +467,7 @@ export default function SignAgreement() {
   const typeBoxFrame = useRef(null);
   const viewOnly = mode === "view";
   const viewingSigned = viewOnly && source === "signed";
+  const adminPreview = viewingSigned && getCurrentRole() === "admin";
 
   const loadPdfUrl = useCallback(async (url) => {
     const response = await fetch(url);
@@ -496,9 +499,42 @@ export default function SignAgreement() {
     };
   }, [documentId]);
 
-  const assignment = (doc?.assignments ?? []).find(
-    (item) => String(item.assignment_id) === String(assignmentId),
-  ) ?? doc?.assignments?.[0];
+  useEffect(() => {
+    if (!viewingSigned || !adminPreview || !documentId || !assignmentId) {
+      setAdminRecipient(null);
+      return undefined;
+    }
+    let cancelled = false;
+    fetchAgreementDetail(documentId)
+      .then((detail) => {
+        const row = (detail?.recipients ?? []).find((item) => String(item.id) === String(assignmentId));
+        if (!cancelled) setAdminRecipient(row ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setAdminRecipient(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewingSigned, adminPreview, documentId, assignmentId]);
+
+  const assignment = useMemo(() => {
+    const fromDoc = (doc?.assignments ?? []).find(
+      (item) => String(item.assignment_id) === String(assignmentId),
+    );
+    if (fromDoc) return fromDoc;
+    if (adminRecipient) {
+      return {
+        assignment_id: adminRecipient.id,
+        signature_status: adminRecipient.signature_status,
+        signed_at: adminRecipient.signed_at,
+        signed_file_url: adminRecipient.signed_file_url,
+        unit_label: adminRecipient.unit_label,
+        resident_name: adminRecipient.resident_name,
+      };
+    }
+    return doc?.assignments?.[0];
+  }, [doc?.assignments, assignmentId, adminRecipient]);
 
   useEffect(() => {
     if (!doc) return undefined;
@@ -526,7 +562,16 @@ export default function SignAgreement() {
     return () => {
       cancelled = true;
     };
-  }, [doc?.id, doc?.file_url, viewOnly, viewingSigned, assignment?.signature_status, assignment?.signed_file_url, loadPdfUrl]);
+  }, [
+    doc?.id,
+    doc?.file_url,
+    viewOnly,
+    viewingSigned,
+    assignment?.assignment_id,
+    assignment?.signature_status,
+    assignment?.signed_file_url,
+    loadPdfUrl,
+  ]);
 
   useEffect(() => {
     if (step !== "signed" || !doc?.id || !assignment?.assignment_id) return undefined;
@@ -825,9 +870,10 @@ export default function SignAgreement() {
   }
 
   if (step === "signed") {
-    const signedAt = formatWhen(result?.signature?.signed_at);
+    const signedAt = formatWhen(result?.signature?.signed_at ?? assignment?.signed_at);
     const signature = result?.signature;
     const reference = signature?.checksum ? String(signature.checksum).slice(0, 8).toUpperCase() : null;
+    const residentLabel = assignment?.resident_name ? String(assignment.resident_name) : null;
 
     const signedUrl = async () => {
       try {
@@ -881,9 +927,17 @@ export default function SignAgreement() {
         <View style={styles.signedBanner}>
           <View style={styles.signedCheck}><Feather name="check" size={sf(14)} color="#FFFFFF" /></View>
           <View style={styles.docHeadText}>
-            <Text style={styles.signedBannerTitle}>{t("propertyMgmt.agreementSigned")}</Text>
-            <Text style={styles.signedBannerBody} numberOfLines={2}>
-              {result?.replayed ? t("propertyMgmt.agreementAlreadySignedBody") : t("propertyMgmt.signedOpenHint")}
+            <Text style={styles.signedBannerTitle}>
+              {adminPreview && residentLabel
+                ? t("propertyMgmt.statusSigned")
+                : t("propertyMgmt.agreementSigned")}
+            </Text>
+            <Text style={styles.signedBannerBody} numberOfLines={3}>
+              {adminPreview && residentLabel
+                ? `${residentLabel}${assignment?.unit_label ? ` · ${assignment.unit_label}` : ""}${signedAt ? ` · ${signedAt}` : ""}`
+                : result?.replayed
+                  ? t("propertyMgmt.agreementAlreadySignedBody")
+                  : t("propertyMgmt.signedOpenHint")}
             </Text>
           </View>
         </View>
@@ -900,6 +954,10 @@ export default function SignAgreement() {
             setSupportMultipleWindows={false}
             onShouldStartLoadWithRequest={keepViewerInside}
             onMessage={onViewerMessage}
+            scrollEnabled
+            nestedScrollEnabled
+            bounces
+            showsVerticalScrollIndicator
           />
         ) : (
           <View style={styles.fallback}>
@@ -919,19 +977,37 @@ export default function SignAgreement() {
         ) : null}
         {reference ? <Text style={styles.signedRef}>{t("propertyMgmt.signatureReference")} {reference}{signedAt ? ` · ${signedAt}` : ""}</Text> : null}
         <View style={[styles.footer, footerPad]}>
-          <View style={styles.footerRow}>
-            <Pressable style={[styles.secondary, styles.footerHalf, copyBusy && styles.disabled]} disabled={Boolean(copyBusy)} onPress={() => void saveSignedCopy("share")}>
-              {copyBusy === "share" ? <ActivityIndicator color="#1B4F8A" /> : <Feather name="share-2" size={sf(15)} color="#1B4F8A" />}
-              <Text style={styles.secondaryText}>{t("propertyMgmt.shareSignedCopy")}</Text>
-            </Pressable>
-            <Pressable style={[styles.primary, styles.footerHalf, copyBusy && styles.disabled]} disabled={Boolean(copyBusy)} onPress={() => void saveSignedCopy("download")}>
-              {copyBusy === "download" ? <ActivityIndicator color="#FFFFFF" /> : <Feather name="download" size={sf(16)} color="#FFFFFF" />}
-              <Text style={styles.primaryText}>{t("propertyMgmt.downloadPdf")}</Text>
-            </Pressable>
-          </View>
-          <Pressable style={styles.linkBtn} onPress={backToDocuments}>
-            <Text style={styles.linkText}>{t("propertyMgmt.backToDocuments")}</Text>
-          </Pressable>
+          {adminPreview ? (
+            <View style={styles.footerRow}>
+              <Pressable
+                style={[styles.secondary, styles.footerHalf, copyBusy && styles.disabled]}
+                disabled={Boolean(copyBusy)}
+                onPress={() => void saveSignedCopy("download")}
+              >
+                {copyBusy === "download" ? <ActivityIndicator color="#1B4F8A" /> : <Feather name="download" size={sf(16)} color="#1B4F8A" />}
+                <Text style={styles.secondaryText}>{t("propertyMgmt.downloadPdf")}</Text>
+              </Pressable>
+              <Pressable style={[styles.primary, styles.footerHalf]} onPress={() => router.back()}>
+                <Text style={styles.primaryText}>{t("common.back")}</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <View style={styles.footerRow}>
+                <Pressable style={[styles.secondary, styles.footerHalf, copyBusy && styles.disabled]} disabled={Boolean(copyBusy)} onPress={() => void saveSignedCopy("share")}>
+                  {copyBusy === "share" ? <ActivityIndicator color="#1B4F8A" /> : <Feather name="share-2" size={sf(15)} color="#1B4F8A" />}
+                  <Text style={styles.secondaryText}>{t("propertyMgmt.shareSignedCopy")}</Text>
+                </Pressable>
+                <Pressable style={[styles.primary, styles.footerHalf, copyBusy && styles.disabled]} disabled={Boolean(copyBusy)} onPress={() => void saveSignedCopy("download")}>
+                  {copyBusy === "download" ? <ActivityIndicator color="#FFFFFF" /> : <Feather name="download" size={sf(16)} color="#FFFFFF" />}
+                  <Text style={styles.primaryText}>{t("propertyMgmt.downloadPdf")}</Text>
+                </Pressable>
+              </View>
+              <Pressable style={styles.linkBtn} onPress={backToDocuments}>
+                <Text style={styles.linkText}>{t("propertyMgmt.backToDocuments")}</Text>
+              </Pressable>
+            </>
+          )}
         </View>
       </SafeAreaView>
     );

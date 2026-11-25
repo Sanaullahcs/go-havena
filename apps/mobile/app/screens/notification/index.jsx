@@ -19,8 +19,6 @@ import {
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
-  isAdminAgreementSignedNotification,
-  openAdminSignedAgreement,
   ensureNotificationCommunityContext,
   resolveNotificationRoute,
   sortNotifications,
@@ -272,23 +270,6 @@ export default function Notifications() {
         } catch (err) {
           await showFailure(t("notifications.couldNotUpdateNotification"), err);
         }
-      }
-
-      if (isAdminAgreementSignedNotification(item)) {
-        try {
-          const opened = await openAdminSignedAgreement(item);
-          if (opened) return;
-        } catch (err) {
-          await showFailure(t("notifications.couldNotOpenSignedAgreement"), err);
-          return;
-        }
-        await dialog.showDialog({
-          type: "info",
-          title: t("notifications.unableToOpen"),
-          message: t("notifications.couldNotOpenSignedAgreement"),
-          actions: [{ key: "ok", label: t("common.ok"), variant: "primary" }],
-        });
-        return;
       }
 
       const route = resolveNotificationRoute(item);
