@@ -7,6 +7,7 @@ use App\Support\AgreementDates;
 use App\Support\ContentFieldRules;
 use App\Support\DocumentCategories;
 use App\Services\ActivityLogService;
+use App\Services\AdminRoleService;
 use App\Services\AgreementService;
 use App\Services\UserActingContextService;
 use App\Support\MediaUrl;
@@ -33,12 +34,54 @@ class CommunityDocumentController extends Controller
 
     /* ─── helpers ─────────────────────────────────────────────── */
 
-    private function resolveCommunityId(Request $request, $user): int
+    /** Resident list/download and similar member-facing document routes. */
+    private function resolveResidentCommunityId(Request $request, $user): int
     {
         if ($this->isPlatformAdmin($user) && $request->filled('community_id')) {
             return (int) $request->community_id;
         }
+
+        $requested = 0;
+        if ($request->filled('community_id')) {
+            $requested = (int) $request->community_id;
+        } elseif ($request->header('X-Community-Id')) {
+            $requested = (int) $request->header('X-Community-Id');
+        }
+
+        if ($requested > 0) {
+            $allowed = UserActingContextService::residentAccessibleCommunityIds($user);
+            if (in_array($requested, $allowed, true)) {
+                return $requested;
+            }
+        }
+
         return UserActingContextService::requireCurrentCommunityId($user);
+    }
+
+    /** Community admin document management (respects managed scope + X-Community-Id). */
+    private function resolveAdminCommunityId(Request $request, $user): int
+    {
+        if ($this->isPlatformAdmin($user) && $request->filled('community_id')) {
+            return (int) $request->community_id;
+        }
+        if (UserActingContextService::isResidentMode($user) || ! $this->isCommunityAdmin($user)) {
+            return UserActingContextService::requireCurrentCommunityId($user);
+        }
+
+        return AdminRoleService::requireManagedCommunityId($user, $request);
+    }
+
+    /** GET /v1/documents/{id} — residents and admins in resident mode use membership; otherwise managed scope. */
+    private function resolveDocumentCommunityId(Request $request, $user): int
+    {
+        if ($this->isPlatformAdmin($user) && $request->filled('community_id')) {
+            return (int) $request->community_id;
+        }
+        if ($this->isCommunityAdmin($user) && ! UserActingContextService::isResidentMode($user)) {
+            return AdminRoleService::requireManagedCommunityId($user, $request);
+        }
+
+        return $this->resolveResidentCommunityId($request, $user);
     }
 
     private function isCommunityAdmin($user): bool
@@ -321,7 +364,7 @@ class CommunityDocumentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user        = $request->user();
-        $communityId = $this->resolveCommunityId($request, $user);
+        $communityId = $this->resolveResidentCommunityId($request, $user);
 
         $userId = (int) $user->id;
         $query = DB::table('community_documents')
@@ -389,7 +432,7 @@ class CommunityDocumentController extends Controller
     public function show(Request $request, int $id): JsonResponse
     {
         $user        = $request->user();
-        $communityId = $this->resolveCommunityId($request, $user);
+        $communityId = $this->resolveDocumentCommunityId($request, $user);
         $isAdmin     = $this->isCommunityAdmin($user);
 
         $query = DB::table('community_documents')
@@ -442,7 +485,7 @@ class CommunityDocumentController extends Controller
     public function recordDownload(Request $request, int $id): JsonResponse
     {
         $user        = $request->user();
-        $communityId = $this->resolveCommunityId($request, $user);
+        $communityId = $this->resolveResidentCommunityId($request, $user);
 
         $doc = DB::table('community_documents')
             ->where('id', $id)
@@ -470,7 +513,7 @@ class CommunityDocumentController extends Controller
     /* ─── GET /v1/admin/documents ───────────────────────────── */
     public function adminIndex(Request $request): JsonResponse
     {
-        $communityId = $this->resolveCommunityId($request, $request->user());
+        $communityId = $this->resolveAdminCommunityId($request, $request->user());
 
         $query = DB::table('community_documents')
             ->where('community_id', $communityId)
@@ -514,7 +557,7 @@ class CommunityDocumentController extends Controller
     public function storeCategory(Request $request): JsonResponse
     {
         $user        = $request->user();
-        $communityId = $this->resolveCommunityId($request, $user);
+        $communityId = $this->resolveAdminCommunityId($request, $user);
 
         $data = $request->validate([
             'name' => 'required|string|max:100',
@@ -552,7 +595,7 @@ class CommunityDocumentController extends Controller
     public function destroyCategory(Request $request): JsonResponse
     {
         $user        = $request->user();
-        $communityId = $this->resolveCommunityId($request, $user);
+        $communityId = $this->resolveAdminCommunityId($request, $user);
 
         $data = $request->validate([
             'name' => 'required|string|max:100',
@@ -583,7 +626,7 @@ class CommunityDocumentController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user        = $request->user();
-        $communityId = $this->resolveCommunityId($request, $user);
+        $communityId = $this->resolveAdminCommunityId($request, $user);
 
         $data = $this->validateDocumentPayload($request, true);
         $publishing = $this->wantsPublish($request);
@@ -915,7 +958,7 @@ class CommunityDocumentController extends Controller
 
     public function signatureTracking(Request $request): JsonResponse
     {
-        $communityId = $this->resolveCommunityId($request, $request->user());
+        $communityId = $this->resolveAdminCommunityId($request, $request->user());
         $docs = DB::table('community_documents')
             ->where('community_id', $communityId)
             ->whereNull('deleted_at')
@@ -997,7 +1040,7 @@ class CommunityDocumentController extends Controller
 
     public function remind(Request $request, int $id): JsonResponse
     {
-        $communityId = $this->resolveCommunityId($request, $request->user());
+        $communityId = $this->resolveAdminCommunityId($request, $request->user());
         $doc = DB::table('community_documents')
             ->where('id', $id)
             ->where('community_id', $communityId)
@@ -1101,7 +1144,7 @@ class CommunityDocumentController extends Controller
 
     private function communityDocument(Request $request, int $id): object
     {
-        $communityId = $this->resolveCommunityId($request, $request->user());
+        $communityId = $this->resolveAdminCommunityId($request, $request->user());
         $doc = DB::table('community_documents')
             ->where('id', $id)
             ->where('community_id', $communityId)

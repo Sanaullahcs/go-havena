@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { isAdminSearchPending } from "@/lib/admin/table-loading";
+import { subscribeForegroundNotification } from "@/lib/notifications/foreground-notification-events";
 import { createPortal } from "react-dom";
 import { AlarmClock, ArrowLeft, ArrowRight, Bell, Building2, Check, CheckCircle2, ClipboardCheck, Clock, Download, FileText, Files, Home, PenLine, RotateCcw, Search, SlidersHorizontal, Upload, UserRound, Users, X } from "lucide-react";
 import { CharCount } from "@/components/admin/char-count";
@@ -32,7 +33,9 @@ import {
   downloadAgreementExport,
   fetchAgreement,
   fetchAgreementOptions,
+  ADMIN_AGREEMENT_SYNC_MS,
   fetchAgreements,
+  isAgreementNotification,
   publishAgreement,
   remindAgreement,
   revokeAgreement,
@@ -169,9 +172,10 @@ export function AgreementsPanel({
   const [versionSource, setVersionSource] = useState<AgreementSummary | null>(null);
   const [recipientQuery, setRecipientQuery] = useState("");
   const [pdfViewer, setPdfViewer] = useState<{ title: string; url: string } | null>(null);
+  const listSignatureRef = useRef("");
 
-  const load = async (nextPage = page) => {
-    setLoading(true);
+  const load = useCallback(async (nextPage = page, silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await fetchAgreements({
         status,
@@ -181,14 +185,20 @@ export function AgreementsPanel({
         category,
         page: nextPage,
       });
-      setRows(res.data);
-      setMeta(res.meta);
+      const signature = res.data
+        .map((row) => `${row.id}:${row.updated_at}:${row.stats?.signed ?? 0}:${row.stats?.pending ?? 0}`)
+        .join("|");
+      if (!silent || signature !== listSignatureRef.current) {
+        listSignatureRef.current = signature;
+        setRows(res.data);
+        setMeta(res.meta);
+      }
     } catch (err) {
-      toastError(apiError(err));
+      if (!silent) toastError(apiError(err));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [page, status, search, category, person, unit]);
 
   useEffect(() => {
     setPage(1);
@@ -196,8 +206,7 @@ export function AgreementsPanel({
 
   useEffect(() => {
     void load(page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, status, search, category, person, unit]);
+  }, [load, page]);
 
   useEffect(() => {
     if (!initialId) return;
@@ -238,6 +247,31 @@ export function AgreementsPanel({
       }
     }
   };
+
+  useEffect(() => {
+    const sync = () => {
+      if (document.visibilityState !== "visible") return;
+      void load(page, true);
+      const openId = detail?.id ?? info?.id;
+      if (openId) void refreshOpen(openId);
+    };
+    const timer = window.setInterval(sync, ADMIN_AGREEMENT_SYNC_MS);
+    document.addEventListener("visibilitychange", sync);
+    window.addEventListener("focus", sync);
+    const unsubscribe = subscribeForegroundNotification((payload) => {
+      if (!isAgreementNotification(payload)) return;
+      void load(page, true);
+      const agreementId = Number((payload.data as { document_id?: number } | undefined)?.document_id);
+      if (Number.isFinite(agreementId) && agreementId > 0) void refreshOpen(agreementId);
+    });
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", sync);
+      window.removeEventListener("focus", sync);
+      unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load, page, detail?.id, info?.id]);
 
   const handleRemind = async (row: AgreementSummary) => {
     try {

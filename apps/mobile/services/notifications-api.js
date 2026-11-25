@@ -1,6 +1,7 @@
 import { Linking } from "react-native";
 import { apiRequest } from "./api-client";
-import { getCachedUser } from "./auth-session";
+import { getCachedUser, getCommunityId } from "./auth-session";
+import { switchActiveCommunity } from "./profile-api";
 import { isCommunityAdmin } from "./community-access";
 import { fetchAgreementDetail, fetchSignedAgreementLink } from "./documents-api";
 import { parseApiDate } from "../utils/parse-api-date";
@@ -342,6 +343,7 @@ export function normalizeNotification(raw) {
     unitId: data?.unit_id ?? raw.unit_id ?? null,
     unitNumber: data?.unit_number ?? raw.unit_number ?? null,
     documentId: data?.document_id ?? data?.documentId ?? data?.agreement ?? null,
+    communityId: data?.community_id ?? data?.communityId ?? raw.community_id ?? null,
     complaintId: data?.complaint_id ?? data?.complaintId ?? null,
     audience: data?.audience ?? null,
     assignmentId: data?.assignment_id ?? data?.assignmentId ?? null,
@@ -417,6 +419,21 @@ export async function openAdminSignedAgreement(notification) {
 }
 
 /** Map backend action_url to an in-app route. Returns null when no safe destination exists. */
+/** Align resident API scope before opening a community-scoped notification (documents, agreements, etc.). */
+export async function ensureNotificationCommunityContext(notification) {
+  const target = notification?.communityId ?? notification?.community_id;
+  if (target == null || target === "") return;
+
+  const current = await getCommunityId();
+  if (current != null && String(current) === String(target)) return;
+
+  try {
+    await switchActiveCommunity(Number(target));
+  } catch {
+    // Navigation still proceeds; resident endpoints fall back to active_context on the server.
+  }
+}
+
 export function resolveNotificationRoute(notification) {
   if (isInformationalOnlyNotification(notification)) {
     return null;

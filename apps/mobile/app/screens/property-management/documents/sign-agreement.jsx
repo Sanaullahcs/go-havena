@@ -528,6 +528,37 @@ export default function SignAgreement() {
     };
   }, [doc?.id, doc?.file_url, viewOnly, viewingSigned, assignment?.signature_status, assignment?.signed_file_url, loadPdfUrl]);
 
+  useEffect(() => {
+    if (step !== "signed" || !doc?.id || !assignment?.assignment_id) return undefined;
+    let cancelled = false;
+    let tries = 0;
+    const pollSignedPdf = async () => {
+      if (cancelled) return;
+      try {
+        let url = result?.signed_file_url ?? null;
+        if (!url) {
+          url = await fetchSignedAgreementLink(doc.id, assignment.assignment_id);
+        }
+        if (url) {
+          await loadPdfUrl(url);
+          return;
+        }
+      } catch {
+        // Queue may still be rendering the stamped PDF.
+      }
+      tries += 1;
+      if (!cancelled && tries < 20) {
+        setTimeout(pollSignedPdf, 2000);
+      } else if (!cancelled) {
+        setPdfError(true);
+      }
+    };
+    void pollSignedPdf();
+    return () => {
+      cancelled = true;
+    };
+  }, [step, doc?.id, assignment?.assignment_id, result?.signed_file_url, loadPdfUrl]);
+
   const commitStroke = useCallback((path) => {
     setStrokes((current) => [...current, path]);
   }, []);
@@ -703,7 +734,31 @@ export default function SignAgreement() {
         strokes: method === "draw" ? strokes : [],
         ...(viewer && !pdfError ? { placement } : {}),
       });
-      setResult(response.data);
+      const payload = response?.data ?? response;
+      setResult(payload);
+      const signedAt = payload?.signature?.signed_at ?? new Date().toISOString();
+      setDoc((current) => {
+        if (!current) return current;
+        const targetId = assignment.assignment_id;
+        const nextAssignments = (current.assignments ?? []).map((item) => (
+          String(item.assignment_id) === String(targetId)
+            ? {
+              ...item,
+              signature_status: "signed",
+              display_status: "signed",
+              signed_at: signedAt,
+              signed_file_url: payload?.signed_file_url ?? item.signed_file_url ?? null,
+              can_sign: false,
+            }
+            : item
+        ));
+        return {
+          ...current,
+          assignments: nextAssignments,
+          signature_status: "signed",
+          signed_file_url: payload?.signed_file_url ?? current.signed_file_url ?? null,
+        };
+      });
       setViewer(null);
       setPageLabel("");
       setPdfError(false);

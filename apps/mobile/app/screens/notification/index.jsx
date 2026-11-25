@@ -21,6 +21,7 @@ import {
   markNotificationRead,
   isAdminAgreementSignedNotification,
   openAdminSignedAgreement,
+  ensureNotificationCommunityContext,
   resolveNotificationRoute,
   sortNotifications,
 } from "../../../services/notifications-api";
@@ -292,6 +293,7 @@ export default function Notifications() {
 
       const route = resolveNotificationRoute(item);
       if (route?.pathname) {
+        await ensureNotificationCommunityContext(item);
         router.push(route);
         return;
       }

@@ -15,7 +15,12 @@ import {
 import { getPushNotificationsEnabled } from "../../services/notification-preferences";
 import { getCachedUser, getToken, subscribeSessionUser } from "../../services/auth-session";
 import { currentCommunityId, isCommunityAdmin, isResidentMode } from "../../services/community-access";
-import { fetchNotificationUnreadCount, isAdminAgreementSignedNotification, openAdminSignedAgreement } from "../../services/notifications-api";
+import {
+  ensureNotificationCommunityContext,
+  fetchNotificationUnreadCount,
+  isAdminAgreementSignedNotification,
+  openAdminSignedAgreement,
+} from "../../services/notifications-api";
 import { emitMessageUnreadRefresh, emitNotificationRefresh } from "../../services/notification-events";
 
 async function refreshUnreadBadge() {
@@ -67,6 +72,14 @@ async function navigateFromNotificationResponse(response) {
 
   const route = handleNotificationResponse(response);
   if (!route?.pathname) return;
+
+  const communityId = data.community_id ?? data.communityId ?? null;
+  if (communityId) {
+    await ensureNotificationCommunityContext({
+      communityId,
+      community_id: communityId,
+    });
+  }
 
   if (router.canDismiss?.()) {
     router.dismissAll();
