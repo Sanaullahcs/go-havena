@@ -376,6 +376,10 @@ class CommunityRulesDocumentsTest extends TestCase
             ['Rules & Policies', 'Maintenance', 'Financial', 'Property', 'Others'],
             collect($residentList->json('categories'))->pluck('name')->all(),
         );
+        $this->assertSame(
+            ['Rules & Policies', 'Maintenance', 'Financial', 'Property', 'Others'],
+            collect($residentList->json('agreement_categories'))->pluck('name')->all(),
+        );
     }
 
     public function test_resident_can_view_and_download_document(): void

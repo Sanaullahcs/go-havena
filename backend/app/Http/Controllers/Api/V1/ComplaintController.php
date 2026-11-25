@@ -36,7 +36,13 @@ class ComplaintController extends Controller
             'files.*' => 'file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,webp',
         ], ContentFieldRules::messages());
 
-        $complaint = $this->complaints->create($request->user(), $data, $this->uploadedFiles($request, 'files'));
+        $headerCommunity = (int) $request->header('X-Community-Id', 0);
+        $complaint = $this->complaints->create(
+            $request->user(),
+            $data,
+            $this->uploadedFiles($request, 'files'),
+            $headerCommunity > 0 ? $headerCommunity : null,
+        );
 
         return response()->json(['data' => $complaint, 'message' => 'Complaint submitted.'], 201);
     }

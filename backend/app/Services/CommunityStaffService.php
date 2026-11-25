@@ -193,7 +193,6 @@ class CommunityStaffService
     public function store(User $admin, array $input): array
     {
         $communityId = UserActingContextService::requireCurrentCommunityId($admin);
-        $data = $this->validate($input, true);
         $requestedUserId = (int) ($input['user_id'] ?? 0);
         $resident = $requestedUserId > 0 ? $this->approvedResident($communityId, $requestedUserId) : null;
         if ($requestedUserId > 0 && ! $resident) {
@@ -201,6 +200,28 @@ class CommunityStaffService
                 'user_id' => 'Choose an approved resident from this community.',
             ]);
         }
+
+        $linkedUser = null;
+        if ($resident) {
+            $input['name'] = trim((string) ($resident->display_name ?: $resident->name));
+            $input['email'] = (string) $resident->email;
+            $linkedUser = User::query()->find((int) $resident->id);
+        } else {
+            $preEmail = ContactIdentityService::normalizeEmail(trim((string) ($input['email'] ?? '')));
+            $linkedUser = $preEmail ? ContactIdentityService::findUserByEmail($preEmail) : null;
+        }
+        if ($linkedUser) {
+            $registeredEmail = ContactIdentityService::normalizeEmail((string) ($linkedUser->email ?? ''));
+            if ($registeredEmail && ! ContactIdentityService::isPlaceholderEmail($registeredEmail)) {
+                $input['email'] = $registeredEmail;
+            }
+            $accountPhone = $linkedUser->phone ? PhoneNormalizer::accept((string) $linkedUser->phone) : null;
+            if ($accountPhone) {
+                $input['phone'] = $accountPhone;
+            }
+        }
+
+        $data = $this->validate($input, true);
         if ($resident) {
             $data['name'] = trim((string) ($resident->display_name ?: $resident->name));
             $data['email'] = (string) $resident->email;
@@ -209,9 +230,7 @@ class CommunityStaffService
         if (! $email) {
             throw ValidationException::withMessages(['email' => 'Enter a valid email address.']);
         }
-        $user = $resident
-            ? User::query()->find((int) $resident->id)
-            : ContactIdentityService::findUserByEmail($email);
+        $user = $linkedUser ?: ContactIdentityService::findUserByEmail($email);
         $existing = DB::table('community_staff')
             ->where('community_id', $communityId)
             ->where(function ($query) use ($email, $user) {
@@ -231,6 +250,18 @@ class CommunityStaffService
         }
         if ($user && ($user->status ?? '') === 'suspended') {
             abort(422, 'This account is suspended and cannot be added as staff.');
+        }
+
+        if ($user) {
+            $registeredEmail = ContactIdentityService::normalizeEmail((string) ($user->email ?? ''));
+            if ($registeredEmail && ! ContactIdentityService::isPlaceholderEmail($registeredEmail)) {
+                $data['email'] = $registeredEmail;
+                $email = $registeredEmail;
+            }
+            $accountPhone = $user->phone ? PhoneNormalizer::accept((string) $user->phone) : null;
+            if ($accountPhone) {
+                $data['phone'] = $accountPhone;
+            }
         }
 
         $staffId = DB::transaction(function () use ($admin, $communityId, $data, $email, $user) {
@@ -432,30 +463,67 @@ class CommunityStaffService
 
     public function invitations(User $user): array
     {
+        $email = ContactIdentityService::normalizeEmail((string) ($user->email ?? ''));
+
         return DB::table('community_staff')
             ->join('communities', 'communities.id', '=', 'community_staff.community_id')
-            ->where('community_staff.user_id', $user->id)
             ->whereNull('community_staff.activated_at')
+            ->where('community_staff.status', 'active')
+            ->where(function ($query) use ($user, $email) {
+                $query->where('community_staff.user_id', $user->id);
+                if ($email && ! ContactIdentityService::isPlaceholderEmail($email)) {
+                    $query->orWhereRaw('LOWER(community_staff.email) = ?', [$email]);
+                }
+            })
             ->orderBy('communities.name')
             ->get([
                 'community_staff.id',
+                'community_staff.user_id',
                 'community_staff.status',
                 'community_staff.invitation_expires_at',
+                'community_staff.specializations',
                 'communities.id as community_id',
                 'communities.name as community_name',
             ])
-            ->map(function ($row) {
+            ->map(function ($row) use ($user) {
+                if ((int) $row->user_id !== (int) $user->id) {
+                    DB::table('community_staff')->where('id', $row->id)->update([
+                        'user_id' => $user->id,
+                        'updated_at' => now(),
+                    ]);
+                }
                 $expired = $row->invitation_expires_at && now()->greaterThan($row->invitation_expires_at);
+                $skills = json_decode((string) ($row->specializations ?? '[]'), true) ?: [];
 
                 return [
                     'id' => (int) $row->id,
                     'community_id' => (int) $row->community_id,
                     'community_name' => $row->community_name,
+                    'role_label' => 'Maintenance staff · '.$this->skillLabel($skills),
                     'status' => $row->status !== 'active' ? 'inactive' : ($expired ? 'expired' : 'pending'),
                     'expires_at' => $row->invitation_expires_at,
                 ];
             })
             ->all();
+    }
+
+    public function pendingInvitationCount(User $user): int
+    {
+        $email = ContactIdentityService::normalizeEmail((string) ($user->email ?? ''));
+
+        return (int) DB::table('community_staff')
+            ->whereNull('activated_at')
+            ->where('status', 'active')
+            ->where(function ($query) {
+                $query->whereNull('invitation_expires_at')->orWhere('invitation_expires_at', '>', now());
+            })
+            ->where(function ($query) use ($user, $email) {
+                $query->where('user_id', $user->id);
+                if ($email && ! ContactIdentityService::isPlaceholderEmail($email)) {
+                    $query->orWhereRaw('LOWER(email) = ?', [$email]);
+                }
+            })
+            ->count();
     }
 
     public function acceptOwnInvitation(User $user, int $id): array
@@ -525,6 +593,32 @@ class CommunityStaffService
             'invitation_delivery_error' => $result['error'],
             'updated_at' => now(),
         ]);
+        $this->notifyStaffInvitation($staff, $community);
+    }
+
+    private function notifyStaffInvitation(object $staff, string $community): void
+    {
+        $userId = (int) ($staff->user_id ?? 0);
+        if ($userId <= 0) {
+            return;
+        }
+
+        $skills = json_decode((string) ($staff->specializations ?? '[]'), true) ?: [];
+        $roleLabel = $this->skillLabel($skills);
+
+        NotificationService::send(
+            $userId,
+            'info',
+            'Staff invitation',
+            'You were invited as maintenance staff ('.$roleLabel.') for '.$community.'. Open Invitations to accept.',
+            '/screens/staff-tasks/invitations',
+            [
+                'kind' => 'staff',
+                'audience' => 'resident',
+                'staff_id' => (int) $staff->id,
+            ],
+            (int) $staff->community_id,
+        );
     }
 
     private function notifyInvitationAccepted(object $staff, string $community): void

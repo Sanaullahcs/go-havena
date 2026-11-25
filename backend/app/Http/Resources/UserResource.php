@@ -103,7 +103,8 @@ class UserResource extends JsonResource
             'currency' => app(\App\Services\CommunityCurrencyService::class)->forUser($this->resource),
             'staff_access' => app(\App\Services\CommunityStaffService::class)->access($this->resource),
             'needs_invite_code' => \App\Services\InviteCodeService::userNeedsInviteCode($this->resource),
-            'pending_invitation_count' => \App\Models\InviteCode::query()->pendingForUser((int) $this->id)->count(),
+            'pending_invitation_count' => \App\Models\InviteCode::query()->pendingForUser((int) $this->id)->count()
+                + app(\App\Services\CommunityStaffService::class)->pendingInvitationCount($this->resource),
             'invited_by_admin' => OnboardingContext::invitedByAdmin($this->resource),
             'resident_features' => $this->residentFeaturesPayload(),
             ...\App\Services\UserActingContextService::payload($this->resource),

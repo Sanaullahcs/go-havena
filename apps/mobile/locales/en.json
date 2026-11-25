@@ -2479,6 +2479,7 @@
     "noDocuments": "No documents yet",
     "addFirstDocument": "Tap Add to upload your first document.",
     "noDocumentsMatch": "No documents match",
+    "noAgreementsMatch": "No agreements match your filters.",
     "clearFilters": "Clear filters",
     "documentTitle": "Document",
     "deleteDocument": "Delete Document",
@@ -3328,7 +3329,11 @@
     "rejectTitle": "Reject invitation?",
     "rejectBody": "Decline the invitation to {{name}}? Your current communities will not change.",
     "rejectedTitle": "Invitation declined",
-    "rejectedBody": "You declined the invitation to {{name}}."
+    "rejectedBody": "You declined the invitation to {{name}}.",
+    "staffInvitePill": "Staff",
+    "staffRole": "{{role}}",
+    "acceptStaffTitle": "Accept staff invitation?",
+    "acceptStaffBody": "Join {{name}} as a staff member? Your resident communities stay unchanged."
   },
   "myUnits": {
     "title": "My Units",

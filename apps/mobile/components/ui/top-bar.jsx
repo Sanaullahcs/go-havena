@@ -7,6 +7,7 @@ import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useLanguage } from "../../providers/language-provider";
 import { getProfileFields, getRoleLabel } from "../../utils/profile-display";
 import {
   canSwitchCommunities,
@@ -28,17 +29,16 @@ import { useNotificationUnread } from "../../hooks/use-notification-unread";
 import { useMessageUnread } from "../../hooks/use-message-unread";
 import { useApiAction } from "../../hooks/use-api-action";
 import NotificationCountBadge from "./notification-count-badge";
-import LanguageToggle from "./language-toggle";
+import LanguageSelector from "./language-toggle";
 import InboxMenu from "./inbox-menu";
 import CommunityLocationMenu from "./community-location-menu";
 import LocationPickerSheet from "./location-picker-sheet";
 import SwitchCommunitySheet from "./switch-community-sheet";
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
-import { communityUsesMiles } from "../../utils/community-language";
-
 export default function TopBar({ onMenuPress }) {
   const router = useRouter();
   const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const [user, setUser] = useState(null);
   const { unread, messageAlerts } = useNotificationUnread();
   const { unread: messageUnread } = useMessageUnread();
@@ -201,11 +201,6 @@ export default function TopBar({ onMenuPress }) {
   const roleLabel = getRoleLabel(user);
   const hasCommunity = Boolean(user?.memberships?.some((m) => m?.community?.name));
   const title = hasCommunity ? communityName : t("topBar.chooseYourCommunity");
-  const activeCommunity = membershipForCommunity(user, activeCommunityId)?.community
-    ?? getPrimaryMembership(user)?.community;
-  const range = communityUsesMiles(activeCommunity, user)
-    ? { value: "2", unit: t("topBar.miUnit") }
-    : { value: "3", unit: t("topBar.kmUnit") };
   const showNearby = isResidentFeatureEnabled(user, "nearby_places");
   // Community admins manage one community; switch is residents-only when multi-approved.
   const showSwitch = !guestUser && !adminUser && canSwitchCommunities(user);
@@ -249,30 +244,23 @@ export default function TopBar({ onMenuPress }) {
               <View style={styles.pinWrap}>
                 <Feather name="map-pin" size={sf(12)} color={T.white} />
               </View>
-              <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">
+              <Text
+                style={[styles.locationText, isRTL && styles.locationTextRtl]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
                 {title}
               </Text>
               {guestUser ? (
                 <View style={styles.rolePill}>
                   <Text style={styles.rolePillText}>{roleLabel}</Text>
                 </View>
-              ) : showNearby ? (
-                <View style={styles.rangeChip} accessibilityLabel={`${range.value} ${range.unit}`}>
-                  <Text style={styles.rangeValue} numberOfLines={1}>{range.value}</Text>
-                  <Text
-                    style={[styles.rangeUnit, /[\u0600-\u06FF]/.test(range.unit) && styles.rangeUnitAr]}
-                    numberOfLines={1}
-                  >
-                    {range.unit}
-                  </Text>
-                </View>
               ) : null}
-              {showLocationMenu ? <Feather name="chevron-down" size={sf(14)} color={T.navy} /> : null}
             </Pressable>
           </View>
 
           <View style={styles.right}>
-            <LanguageToggle />
+            <LanguageSelector headerRef={headerRef} />
             <Pressable
               ref={inboxBtnRef}
               style={({ pressed }) => [styles.inboxBtn, pressed && styles.inboxBtnPressed]}
@@ -335,7 +323,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: sw(8),
+    gap: sw(6),
     minHeight: sw(40),
   },
   left: {
@@ -358,52 +346,24 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(6),
+    flexWrap: "nowrap",
+    gap: sw(4),
     minWidth: 0,
-    minHeight: sw(36),
-    paddingEnd: sw(2),
   },
   locationText: {
+    flex: 1,
     flexShrink: 1,
-    flexGrow: 1,
     minWidth: 0,
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    lineHeight: sf(22),
+    lineHeight: sf(18),
     color: T.navy,
     fontWeight: "700",
     includeFontPadding: false,
   },
-  rangeChip: {
-    flexDirection: "row",
-    direction: "ltr",
-    alignItems: "center",
-    flexWrap: "nowrap",
-    flexShrink: 0,
-    gap: sw(3),
-    paddingHorizontal: sw(7),
-    paddingVertical: sw(3),
-    borderRadius: 999,
-    backgroundColor: T.mint,
-  },
-  rangeValue: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(11),
-    lineHeight: sf(16),
-    color: T.deepTeal,
-    fontWeight: "700",
-    includeFontPadding: false,
-    writingDirection: "ltr",
-  },
-  rangeUnit: {
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(11),
-    lineHeight: sf(16),
-    color: T.deepTeal,
-    includeFontPadding: false,
-  },
-  rangeUnitAr: {
+  locationTextRtl: {
     writingDirection: "rtl",
+    textAlign: "left",
   },
   rolePill: {
     flexShrink: 0,

@@ -1,131 +1,94 @@
-import React, { useRef, useEffect } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  Animated,
-  Platform,
-} from "react-native";
+import React, { useRef, useState } from "react";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { useLanguage } from "../../providers/language-provider";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sw, sf } from "../../utils/responsive";
 import { rnShadow } from "../../utils/shadow";
+import LanguageMenu, { LANGUAGE_OPTIONS } from "./language-menu";
 
-
-const LANGS = [
-  { code: "en", label: "EN" },
-  { code: "es", label: "ES" },
-  { code: "ar", label: "ع" },
-];
-
-const SEGMENT_W = sw(36);
-const TRACK_PAD = sw(3);
-const TRACK_GAP = sw(2);
-const TRACK_W = TRACK_PAD * 2 + LANGS.length * SEGMENT_W + (LANGS.length - 1) * TRACK_GAP;
-
-export default function LanguageToggle() {
+export default function LanguageSelector({ headerRef }) {
   const { language, changeLanguage } = useLanguage();
-  const activeIdx = LANGS.findIndex((l) => l.code === language) || 0;
-  const slideX = useRef(new Animated.Value(activeIdx * (SEGMENT_W + TRACK_GAP))).current;
-
-  useEffect(() => {
-    Animated.spring(slideX, {
-      toValue: activeIdx * (SEGMENT_W + TRACK_GAP),
-      friction: 10,
-      tension: 180,
-      useNativeDriver: true,
-    }).start();
-  }, [activeIdx]);
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef(null);
+  const current = LANGUAGE_OPTIONS.find((item) => item.code === language) || LANGUAGE_OPTIONS[0];
 
   return (
-    <View style={styles.track}>
-      <Animated.View
-        style={[
-          styles.indicator,
-          { transform: [{ translateX: slideX }] },
-        ]}
-      />
-      {LANGS.map((lang) => {
-        const isActive = lang.code === language;
-        return (
-          <Pressable
-            key={lang.code}
-            style={styles.segment}
-            onPress={() => {
-              if (lang.code !== language) changeLanguage(lang.code);
-            }}
-            hitSlop={2}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isActive }}
-            accessibilityLabel={`Language ${lang.code}`}
+    <>
+      <Pressable
+        ref={triggerRef}
+        style={({ pressed }) => [styles.trigger, pressed && styles.triggerPressed]}
+        onPress={() => setOpen(true)}
+        hitSlop={4}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`Language ${current.nativeLabel}`}
+      >
+        <View style={styles.triggerInner}>
+          <Feather name="globe" size={sf(14)} color={T.navy} style={styles.triggerIcon} />
+          <Text
+            style={[styles.triggerText, language === "ar" && styles.triggerTextAr]}
+            numberOfLines={1}
+            ellipsizeMode="clip"
           >
-            <Text
-              style={[styles.label, isActive && styles.labelActive]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
-            >
-              {lang.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
+            {current.nativeLabel}
+          </Text>
+          <Feather name="chevron-down" size={sf(13)} color={T.navy} style={styles.triggerIcon} />
+        </View>
+      </Pressable>
+
+      <LanguageMenu
+        visible={open}
+        onClose={() => setOpen(false)}
+        headerRef={headerRef}
+        triggerRef={triggerRef}
+        selected={language}
+        onSelect={changeLanguage}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  track: {
-    width: TRACK_W,
-    height: SEGMENT_W + TRACK_PAD * 2,
-    flexDirection: "row",
-    alignItems: "center",
-    direction: "ltr",
-    backgroundColor: "#F1F5F9",
+  trigger: {
+    height: sw(36),
+    paddingHorizontal: sw(8),
     borderRadius: sw(10),
-    padding: TRACK_PAD,
-    gap: TRACK_GAP,
-    position: "relative",
+    backgroundColor: T.white,
+    borderWidth: 1,
+    borderColor: T.border,
     flexShrink: 0,
+    justifyContent: "center",
     ...(Platform.OS === "ios"
-      ? {
-          ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 1 }, opacity: 0.05, radius: 2 }),
-        }
+      ? rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 1 }, opacity: 0.05, radius: 2 })
       : { elevation: 1 }),
   },
-  indicator: {
-    position: "absolute",
-    top: TRACK_PAD,
-    left: TRACK_PAD,
-    width: SEGMENT_W,
-    height: SEGMENT_W,
-    borderRadius: sw(8),
-    backgroundColor: T.navy,
-    ...(Platform.OS === "ios"
-      ? {
-          ...rnShadow({ color: T.navy, offset: { width: 0, height: 2 }, opacity: 0.22, radius: 4 }),
-        }
-      : { elevation: 3 }),
+  triggerPressed: {
+    backgroundColor: T.mint,
+    borderColor: T.teal,
   },
-  segment: {
-    width: SEGMENT_W,
-    height: SEGMENT_W,
+  triggerInner: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    flexWrap: "nowrap",
+    gap: sw(4),
+    maxWidth: sw(118),
   },
-  label: {
-    fontFamily: Fonts.bold,
+  triggerIcon: {
+    flexShrink: 0,
+  },
+  triggerText: {
+    flexShrink: 1,
+    flexGrow: 0,
+    minWidth: 0,
+    fontFamily: Fonts.semiBold,
     fontSize: sf(11),
-    lineHeight: sf(16),
-    fontWeight: "700",
-    color: "#64748B",
-    letterSpacing: 0,
-    textAlign: "center",
+    lineHeight: sf(14),
+    color: T.navy,
     includeFontPadding: false,
   },
-  labelActive: {
-    color: T.white,
+  triggerTextAr: {
+    writingDirection: "rtl",
   },
 });
