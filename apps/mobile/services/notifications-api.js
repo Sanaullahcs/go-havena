@@ -1,8 +1,8 @@
-import { Linking } from "react-native";
 import { apiRequest } from "./api-client";
-import { getCachedUser } from "./auth-session";
-import { isCommunityAdmin } from "./community-access";
-import { fetchAgreementDetail, fetchSignedAgreementLink } from "./documents-api";
+import { getCachedUser, getCommunityId } from "./auth-session";
+import { switchActiveCommunity } from "./profile-api";
+import { isCommunityAdmin, isResidentMode } from "./community-access";
+import { PropertyManagementRoutes } from "../constants/property-management-routes";
 import { parseApiDate } from "../utils/parse-api-date";
 import { getNoticeDetailRoute } from "./notices-api";
 import { getNotificationIconSource } from "../utils/notification-visual";
@@ -342,6 +342,7 @@ export function normalizeNotification(raw) {
     unitId: data?.unit_id ?? raw.unit_id ?? null,
     unitNumber: data?.unit_number ?? raw.unit_number ?? null,
     documentId: data?.document_id ?? data?.documentId ?? data?.agreement ?? null,
+    communityId: data?.community_id ?? data?.communityId ?? raw.community_id ?? null,
     complaintId: data?.complaint_id ?? data?.complaintId ?? null,
     audience: data?.audience ?? null,
     assignmentId: data?.assignment_id ?? data?.assignmentId ?? null,
@@ -361,7 +362,35 @@ export function sortNotifications(notifications) {
 
 export function isAdminAgreementSignedNotification(notification) {
   if (notification?.openSignedPdf === true) return true;
-  return String(notification?.title ?? "").trim().toLowerCase() === "agreement signed";
+  const title = String(notification?.title ?? "").trim().toLowerCase();
+  if (title === "agreement signed") return true;
+  const kind = String(notification?.kind ?? notification?.type ?? "").toLowerCase();
+  return kind === "agreement" && /signed/.test(`${title} ${notification?.description ?? ""}`.toLowerCase());
+}
+
+export function shouldOpenAdminSignedAgreementInApp(notification) {
+  const user = getCachedUser();
+  return isAdminAgreementSignedNotification(notification)
+    && isCommunityAdmin(user)
+    && !isResidentMode(user);
+}
+
+/** In-app signed PDF preview for Community Admin (not external download). */
+export function resolveAdminSignedAgreementRoute(notification) {
+  const documentId = notificationDocumentId(notification);
+  if (!documentId) return null;
+  if (notification?.assignmentId == null || notification.assignmentId === "") {
+    return agreementDetailRoute(documentId);
+  }
+  return {
+    pathname: PropertyManagementRoutes.SIGN_AGREEMENT_SCREEN,
+    params: {
+      documentId: String(documentId),
+      assignmentId: String(notification.assignmentId),
+      mode: "view",
+      source: "signed",
+    },
+  };
 }
 
 function notificationDocumentId(notification) {
@@ -371,55 +400,35 @@ function notificationDocumentId(notification) {
   return params.agreement || params.documentId || params.document_id || null;
 }
 
-function signedRecipientForNotification(recipients, notification) {
-  const signed = (recipients ?? []).filter(
-    (row) => row?.signature_status === "signed" && row?.signed_file_url,
-  );
-  if (signed.length === 0) return null;
-  if (notification?.assignmentId) {
-    const exact = signed.find((row) => String(row.id) === String(notification.assignmentId));
-    if (exact) return exact;
-  }
-  const body = String(notification?.description ?? "").trim();
-  const match = body.match(/^(.*?) signed (.*)\.?$/i);
-  const name = match?.[1]?.trim().toLowerCase();
-  if (name) {
-    const named = signed.filter(
-      (row) => String(row.resident_name ?? "").trim().toLowerCase() === name,
-    );
-    if (named.length > 0) {
-      return named.sort((a, b) => String(b.signed_at ?? "").localeCompare(String(a.signed_at ?? "")))[0];
-    }
-  }
-  return signed.length === 1 ? signed[0] : null;
-}
-
-/** Open the resident's stamped PDF for an admin Agreement Signed notification. */
-export async function openAdminSignedAgreement(notification) {
-  const documentId = notificationDocumentId(notification);
-  if (!documentId) return false;
-  if (notification?.assignmentId) {
-    try {
-      const url = await fetchSignedAgreementLink(documentId, notification.assignmentId);
-      if (url) {
-        await Linking.openURL(url);
-        return true;
-      }
-    } catch {
-      // Older rows can be resolved from the agreement's signed recipients.
-    }
-  }
-  const detail = await fetchAgreementDetail(documentId);
-  const recipient = signedRecipientForNotification(detail?.recipients, notification);
-  if (!recipient?.signed_file_url) return false;
-  await Linking.openURL(recipient.signed_file_url);
-  return true;
+/** @deprecated Use resolveAdminSignedAgreementRoute + router.push for in-app preview. */
+export function openAdminSignedAgreement(notification) {
+  return Boolean(resolveAdminSignedAgreementRoute(notification));
 }
 
 /** Map backend action_url to an in-app route. Returns null when no safe destination exists. */
+/** Align resident API scope before opening a community-scoped notification (documents, agreements, etc.). */
+export async function ensureNotificationCommunityContext(notification) {
+  const target = notification?.communityId ?? notification?.community_id;
+  if (target == null || target === "") return;
+
+  const current = await getCommunityId();
+  if (current != null && String(current) === String(target)) return;
+
+  try {
+    await switchActiveCommunity(Number(target));
+  } catch {
+    // Navigation still proceeds; resident endpoints fall back to active_context on the server.
+  }
+}
+
 export function resolveNotificationRoute(notification) {
   if (isInformationalOnlyNotification(notification)) {
     return null;
+  }
+
+  if (shouldOpenAdminSignedAgreementInApp(notification)) {
+    const preview = resolveAdminSignedAgreementRoute(notification);
+    if (preview?.pathname) return preview;
   }
 
   const actionUrl = notification?.actionUrl;

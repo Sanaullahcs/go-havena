@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator, AppState, Modal, useWindowDimensions } from "react-native";
 import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect, usePathname } from "expo-router";
+import { useRouter, useFocusEffect, usePathname, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../../i18n";
@@ -482,7 +482,13 @@ export default function Documents() {
   const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
+  const { section: sectionParam, refresh: refreshParam } = useLocalSearchParams();
   const isAdmin = getCurrentRole() === "admin";
+  const lastListRefreshKey = useRef(null);
+  const sectionParamRef = useRef(sectionParam);
+  const refreshParamRef = useRef(refreshParam);
+  sectionParamRef.current = sectionParam;
+  refreshParamRef.current = refreshParam;
 
   const [documents, setDocuments] = useState([]);
   const [agreementRows, setAgreementRows] = useState([]);
@@ -539,8 +545,17 @@ export default function Documents() {
 
   useFocusEffect(
     useCallback(() => {
-      load(hasLoadedOnce.current);
-      const timer = setInterval(() => load(true), 15000);
+      if (sectionParamRef.current === "agreements") {
+        setSection("agreements");
+      }
+      const refreshKey = refreshParamRef.current;
+      const shouldForceRefresh = refreshKey && refreshKey !== lastListRefreshKey.current;
+      if (shouldForceRefresh) {
+        lastListRefreshKey.current = refreshKey;
+        setRefreshing(true);
+      }
+      load(hasLoadedOnce.current || Boolean(shouldForceRefresh));
+      const timer = setInterval(() => load(true), isAdmin ? 5000 : 15000);
       const subscription = AppState.addEventListener("change", (state) => {
         if (state === "active") load(true);
       });
@@ -548,7 +563,7 @@ export default function Documents() {
         clearInterval(timer);
         subscription.remove();
       };
-    }, [load]),
+    }, [load, isAdmin]),
   );
 
   const onRefresh = useCallback(() => {

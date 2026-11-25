@@ -85,7 +85,7 @@ export default function CreateComplaintScreen() {
   const titleMessage = touched.title ? titleError(title) : "";
   const descriptionMessage = touched.description ? descriptionError(description) : "";
   const categoryMessage = touched.category && !category ? "Choose a category." : "";
-  const unitMessage = touched.unit && showUnit && !unitId ? "Choose the unit this complaint is about." : "";
+  const unitMessage = touched.unit && showUnit && !unitId ? "Choose the unit this service request is about." : "";
   const canSubmit = !busy
     && !titleError(title)
     && !descriptionError(description)
@@ -164,14 +164,14 @@ export default function CreateComplaintScreen() {
       category: category ? "" : "Choose a category.",
       title: titleError(title),
       description: descriptionError(description),
-      unit: showUnit && !unitId ? "Choose the unit this complaint is about." : "",
+      unit: showUnit && !unitId ? "Choose the unit this service request is about." : "",
     };
     setTouched({ category: true, title: true, description: true, unit: true });
     setErrors(next);
     if (Object.values(next).some(Boolean) || !canSubmit) return;
     const choice = await showConfirm(
-      "Submit Complaint?",
-      "Are you sure you want to submit this complaint?",
+      "Submit service request?",
+      "Are you sure you want to submit this service request?",
       { confirmLabel: "Submit", cancelLabel: "Cancel" },
     );
     if (choice !== "confirm") return;
@@ -187,9 +187,9 @@ export default function CreateComplaintScreen() {
       }, files);
       // Navigate first so dismiss/back from the success dialog cannot hit an empty stack.
       router.replace({ pathname: "/screens/complaints/detail", params: { id: String(created.id) } });
-      await showSuccess("Complaint submitted", "Your complaint has been sent to the support team.");
+      await showSuccess("Service request submitted", "Your service request has been sent to the support team.");
     } catch (err) {
-      await showError("Could not submit", err?.message || "Could not submit the complaint.");
+      await showError("Could not submit", err?.message || "Could not submit the service request.");
     } finally {
       setBusy(false);
     }
@@ -197,7 +197,7 @@ export default function CreateComplaintScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
-      <InternalScreenHeader dense title="New complaint" onBack={goBack} />
+      <InternalScreenHeader dense title="New service request" onBack={goBack} />
       <KeyboardScroll
         style={styles.flex}
         footerHeight={sw(88)}
@@ -226,9 +226,9 @@ export default function CreateComplaintScreen() {
             </Pressable>
           </View>
           {!maintenanceOn ? (
-            <Text style={styles.hint}>Maintenance complaints are turned off for this community. Technical support is still available.</Text>
+            <Text style={styles.hint}>Maintenance service requests are turned off for this community. Technical support is still available.</Text>
           ) : maintenanceNeedsUnit ? (
-            <Text style={styles.hint}>Personal maintenance complaints need an approved unit. Technical support is still available.</Text>
+            <Text style={styles.hint}>Personal maintenance service requests need an approved unit. Technical support is still available.</Text>
           ) : null}
 
           <FormSelect

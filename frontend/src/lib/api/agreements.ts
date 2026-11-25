@@ -65,6 +65,20 @@ export type UnitOption = {
   residents: { id: number; name: string }[];
 };
 
+/** Keep admin agreement lists/details aligned with resident signing (same pattern as complaints). */
+export const ADMIN_AGREEMENT_SYNC_MS = 4_000;
+
+export function isAgreementNotification(payload: {
+  link?: string | null;
+  title?: string | null;
+  data?: Record<string, unknown> | null;
+}) {
+  const link = (payload.link ?? "").toLowerCase();
+  const title = (payload.title ?? "").toLowerCase();
+  const kind = String((payload.data as { kind?: string } | undefined)?.kind ?? "").toLowerCase();
+  return kind === "agreement" || link.includes("agreement") || link.includes("/admin/documents") || title.includes("agreement");
+}
+
 export type AgreementCounts = {
   all: number;
   draft: number;

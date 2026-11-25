@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\ComplaintUserLabels;
 use App\Models\User;
 use App\Services\ContactIdentityService;
 use Illuminate\Http\Request;
@@ -190,7 +191,7 @@ class ComplaintService
             ]);
             $reference = 'CMP-'.str_pad((string) $id, 6, '0', STR_PAD_LEFT);
             DB::table('complaints')->where('id', $id)->update(['reference' => $reference]);
-            $this->event($id, $user->id, 'created', null, 'submitted', 'Complaint submitted.');
+            $this->event($id, $user->id, 'created', null, 'submitted', ComplaintUserLabels::singularForType($type, true).' submitted.');
             foreach ($files as $file) {
                 if ($file instanceof UploadedFile) {
                     $this->storeFile($id, null, $user, $file);
@@ -205,7 +206,7 @@ class ComplaintService
         app(ComplaintMailer::class)->submitted($complaint);
         ActivityLogService::recordStatusChange(
             'complaint_submitted',
-            'Complaint',
+            ComplaintUserLabels::singularForType($type, true),
             $id,
             null,
             'submitted',
@@ -308,27 +309,29 @@ class ComplaintService
         $this->event($id, $user->id, $visibility === 'internal' ? 'internal_note' : 'message', $complaint->status, $complaint->status, null);
 
         if ($visibility === 'public') {
+            $noun = ComplaintUserLabels::singular($complaint);
+            $titled = ComplaintUserLabels::titled($complaint);
             if ((int) $complaint->reporter_user_id === (int) $user->id) {
-                $this->notifyQueue($complaint, 'New complaint reply', $complaint->reference.' has a new message.', $user->id, true);
+                $this->notifyQueue($complaint, 'New '.$noun.' reply', $complaint->reference.' has a new message.', $user->id, true);
             } else {
                 if ($opensResidentChat) {
                     $this->notifyUser(
                         (int) $complaint->reporter_user_id,
                         $complaint,
-                        'Complaint chat started',
-                        'Your community admin sent the first message on '.$complaint->reference.'. Open the complaint to reply.',
+                        $titled.' chat started',
+                        'Your community admin sent the first message on '.$complaint->reference.'. Open the '.$noun.' to reply.',
                         false,
                         true,
                         'resident',
                     );
                 } else {
-                    $this->notifyUser((int) $complaint->reporter_user_id, $complaint, 'New reply on your complaint', 'There is an update on '.$complaint->reference.'.', false, true);
+                    $this->notifyUser((int) $complaint->reporter_user_id, $complaint, 'New reply on your '.$noun, 'There is an update on '.$complaint->reference.'.', false, true);
                 }
                 if ($this->isAssignedStaff($user, $complaint)) {
                     $this->notifyQueue($complaint, 'Staff work update', $complaint->reference.' has a work update.', $user->id, true);
                 }
             }
-            $this->notifyAssignedStaff($complaint, $user, 'New complaint message', 'There is an update on '.$complaint->reference.'.', true);
+            $this->notifyAssignedStaff($complaint, $user, 'New '.$noun.' message', 'There is an update on '.$complaint->reference.'.', true);
             $freshComplaint = $this->find($id);
             if ($mailKind === 'work_update') {
                 app(ComplaintMailer::class)->workUpdated($freshComplaint, $user, (int) $messageId, trim($body));
@@ -433,19 +436,20 @@ class ComplaintService
             ? $fresh->reference.' was reopened: '.$note
             : $fresh->reference.' is now '.$label.'.';
         $this->afterResponse(function () use ($fresh, $user, $from, $to, $note, $byStaff, $eventId, $label, $queueBody, $clearedAssignee, $previousAssigneeId, $id) {
+            $titled = ComplaintUserLabels::titled($fresh);
             if ((int) $fresh->reporter_user_id !== (int) $user->id) {
-                $this->notifyUser((int) $fresh->reporter_user_id, $fresh, 'Complaint '.$label, $fresh->reference.' is now '.$label.'.', false);
+                $this->notifyUser((int) $fresh->reporter_user_id, $fresh, $titled.' '.$label, $fresh->reference.' is now '.$label.'.', false);
             }
             if ($byStaff || (int) $fresh->reporter_user_id === (int) $user->id) {
-                $this->notifyQueue($fresh, 'Complaint '.$label, $queueBody, $user->id);
+                $this->notifyQueue($fresh, $titled.' '.$label, $queueBody, $user->id);
             }
             if ($clearedAssignee && $previousAssigneeId && $previousAssigneeId !== (int) $user->id) {
                 $this->notifyUser($previousAssigneeId, $fresh, 'Assignment removed', $fresh->reference.' was reopened and is waiting for a new staff assignment.', false, false, 'staff');
             } elseif ($fresh->assigned_to_user_id && (int) $fresh->assigned_to_user_id !== (int) $user->id) {
-                $this->notifyUser((int) $fresh->assigned_to_user_id, $fresh, 'Complaint '.$label, $fresh->reference.' is now '.$label.'.', false, false, 'staff');
+                $this->notifyUser((int) $fresh->assigned_to_user_id, $fresh, $titled.' '.$label, $fresh->reference.' is now '.$label.'.', false, false, 'staff');
             }
             app(ComplaintMailer::class)->statusChanged($fresh, $from, $to, $user, $eventId, $note, $byStaff);
-            ActivityLogService::recordStatusChange('complaint_status_changed', 'Complaint', $id, $from, $to, 'Status', $fresh->title, (int) $fresh->reporter_user_id);
+            ActivityLogService::recordStatusChange('complaint_status_changed', $titled, $id, $from, $to, 'Status', $fresh->title, (int) $fresh->reporter_user_id);
         });
 
         return $payload;
@@ -522,7 +526,7 @@ class ComplaintService
         if ($reopenReason) {
             $staffMessage .= ' Resident reopen reason: '.$reopenReason;
         }
-        $this->notifyUser($assigneeId, $fresh, 'Complaint assigned to you', $staffMessage, false, false, 'staff');
+        $this->notifyUser($assigneeId, $fresh, ComplaintUserLabels::titled($fresh).' assigned to you', $staffMessage, false, false, 'staff');
         if ((int) $fresh->reporter_user_id !== $assigneeId) {
             $this->notifyUser((int) $fresh->reporter_user_id, $fresh, 'Staff assigned', $fresh->reference.' was assigned to '.$choice['name'].'.', false);
         }
@@ -733,10 +737,11 @@ class ComplaintService
         $label = $this->statusLabel($to);
         $this->afterResponse(function () use ($fresh, $user, $acceptedEventId, $statusEventId, $label, $note) {
             if ($statusEventId) {
+                $titled = ComplaintUserLabels::titled($fresh);
                 if ((int) $fresh->reporter_user_id !== (int) $user->id) {
-                    $this->notifyUser((int) $fresh->reporter_user_id, $fresh, 'Complaint '.$label, $fresh->reference.' is now '.$label.'.', false);
+                    $this->notifyUser((int) $fresh->reporter_user_id, $fresh, $titled.' '.$label, $fresh->reference.' is now '.$label.'.', false);
                 }
-                $this->notifyQueue($fresh, 'Complaint '.$label, $fresh->reference.' is now '.$label.'.', $user->id);
+                $this->notifyQueue($fresh, $titled.' '.$label, $fresh->reference.' is now '.$label.'.', $user->id);
             }
             app(ComplaintMailer::class)->assignmentAccepted($fresh, $user, $acceptedEventId, $note);
         });
@@ -1719,11 +1724,11 @@ class ComplaintService
             ? trim((string) DB::table('communities')->where('id', $complaint->community_id)->value('name'))
             : '';
         $fromCommunity = $communityName !== '' ? ' from '.$communityName : '';
-        $queueTitle = $complaint->type === 'technical' ? 'New technical complaint' : 'New complaint';
+        $queueTitle = $complaint->type === 'technical' ? 'New technical complaint' : 'New service request';
         $queueBody = $complaint->reference.' was submitted'.$fromCommunity.'.';
         $this->notifyQueue($complaint, $queueTitle, $queueBody, (int) $reporter->id);
 
-        $reporterTitle = $complaint->type === 'technical' ? 'Technical complaint submitted' : 'Complaint submitted';
+        $reporterTitle = $complaint->type === 'technical' ? 'Technical complaint submitted' : 'Service request submitted';
         $reporterBody = $complaint->type === 'technical'
             ? $complaint->reference.' was sent to System Admin. Track it under My technical reports.'
             : $complaint->reference.' was submitted.';

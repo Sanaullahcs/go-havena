@@ -19,8 +19,7 @@ import {
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
-  isAdminAgreementSignedNotification,
-  openAdminSignedAgreement,
+  ensureNotificationCommunityContext,
   resolveNotificationRoute,
   sortNotifications,
 } from "../../../services/notifications-api";
@@ -273,25 +272,9 @@ export default function Notifications() {
         }
       }
 
-      if (isAdminAgreementSignedNotification(item)) {
-        try {
-          const opened = await openAdminSignedAgreement(item);
-          if (opened) return;
-        } catch (err) {
-          await showFailure(t("notifications.couldNotOpenSignedAgreement"), err);
-          return;
-        }
-        await dialog.showDialog({
-          type: "info",
-          title: t("notifications.unableToOpen"),
-          message: t("notifications.couldNotOpenSignedAgreement"),
-          actions: [{ key: "ok", label: t("common.ok"), variant: "primary" }],
-        });
-        return;
-      }
-
       const route = resolveNotificationRoute(item);
       if (route?.pathname) {
+        await ensureNotificationCommunityContext(item);
         router.push(route);
         return;
       }

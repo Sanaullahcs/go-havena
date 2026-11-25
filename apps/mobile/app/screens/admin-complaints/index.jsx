@@ -93,7 +93,7 @@ export default function AdminComplaintsScreen() {
       }
       if (quiet) setError("");
     } catch (err) {
-      if (!quiet) setError(err?.message || "Could not load complaints.");
+      if (!quiet) setError(err?.message || "Could not load service requests.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -221,7 +221,7 @@ export default function AdminComplaintsScreen() {
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={Colors.brandPrimary} /></View>
       ) : error ? (
-        <EmptyState icon="alert-circle" title="Could not load complaints" body={error} actionLabel="Try again" actionIcon="refresh-cw" onAction={() => void load()} />
+        <EmptyState icon="alert-circle" title="Could not load service requests" body={error} actionLabel="Try again" actionIcon="refresh-cw" onAction={() => void load()} />
       ) : (
         <ScrollView
           style={styles.list}
@@ -234,7 +234,7 @@ export default function AdminComplaintsScreen() {
             rows.length === 0 ? (
               <EmptyState
                 icon="life-buoy"
-                title="No community complaints"
+                title="No community service requests"
                 body="Maintenance requests from residents will appear here."
               />
             ) : rows.map((row) => (

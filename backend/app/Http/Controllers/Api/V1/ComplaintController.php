@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Services\ComplaintService;
+use App\Support\ComplaintUserLabels;
 use App\Support\ContentFieldRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -44,7 +45,11 @@ class ComplaintController extends Controller
             $headerCommunity > 0 ? $headerCommunity : null,
         );
 
-        return response()->json(['data' => $complaint, 'message' => 'Complaint submitted.'], 201);
+        $submittedMessage = ComplaintUserLabels::isMaintenanceType($data['type'] ?? null)
+            ? 'Service request submitted.'
+            : 'Complaint submitted.';
+
+        return response()->json(['data' => $complaint, 'message' => $submittedMessage], 201);
     }
 
     public function show(Request $request, int $id): JsonResponse

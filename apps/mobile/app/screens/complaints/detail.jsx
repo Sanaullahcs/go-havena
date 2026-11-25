@@ -110,7 +110,7 @@ export default function ComplaintDetailScreen() {
       setComplaint(await fetchComplaint(id));
       if (quiet) setError("");
     } catch (err) {
-      if (!quiet) setError(err?.message || "Could not open this complaint.");
+      if (!quiet) setError(err?.message || "Could not open this service request.");
     } finally {
       setLoading(false);
     }
@@ -242,9 +242,9 @@ export default function ComplaintDetailScreen() {
       setReopenReason("");
       setReopenFile(null);
       void load(true);
-      void showSuccess("Complaint reopened", "Your community admin has been notified and will assign staff.");
+      void showSuccess("Service request reopened", "Your community admin has been notified and will assign staff.");
     } catch (err) {
-      await showError("Reopen", err?.message || "Could not reopen this complaint.");
+      await showError("Reopen", err?.message || "Could not reopen this service request.");
     } finally {
       reopenSubmittingRef.current = false;
       setReopenSubmitting(false);
@@ -264,13 +264,13 @@ export default function ComplaintDetailScreen() {
       openReopenSheet();
       return;
     }
-    const label = STATUS_ACTION[status] || "Update complaint";
+    const label = STATUS_ACTION[status] || "Update service request";
     const cancelling = status === "cancelled";
     const choice = await showConfirm(
       label,
       cancelling
-        ? "This cancels the complaint for the support team."
-        : "This updates the complaint for the support team.",
+        ? "This cancels the service request for the support team."
+        : "This updates the service request for the support team.",
       {
         confirmLabel: cancelling ? "Cancel" : "Confirm",
         cancelLabel: cancelling ? "Keep" : "Cancel",
@@ -281,9 +281,9 @@ export default function ComplaintDetailScreen() {
     setBusy(true);
     try {
       setComplaint(await updateComplaintStatus(id, status));
-      await showSuccess(label, "The complaint has been updated.");
+      await showSuccess(label, "The service request has been updated.");
     } catch (err) {
-      await showError(label, err?.message || "Could not update the complaint.");
+      await showError(label, err?.message || "Could not update the service request.");
     } finally {
       setBusy(false);
     }
@@ -319,11 +319,11 @@ export default function ComplaintDetailScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
-      <InternalScreenHeader dense title={complaint?.reference || "Complaint"} onBack={goBack} />
+      <InternalScreenHeader dense title={complaint?.reference || "Service request"} onBack={goBack} />
       {loading ? <View style={styles.center}><ActivityIndicator color={Colors.brandPrimary} /></View> : null}
       {!loading && error && !complaint ? (
         <View style={styles.flex}>
-          <EmptyState icon="alert-circle" title="Could not open this complaint" body={error} actionLabel="Try again" actionIcon="refresh-cw" onAction={() => { setLoading(true); void load(); }} />
+          <EmptyState icon="alert-circle" title="Could not open this service request" body={error} actionLabel="Try again" actionIcon="refresh-cw" onAction={() => { setLoading(true); void load(); }} />
         </View>
       ) : null}
       {complaint ? (
@@ -402,7 +402,7 @@ export default function ComplaintDetailScreen() {
               <View style={styles.block}>
                 <SectionHeading icon="check-circle" label="Resolution" />
                 <View style={styles.card}>
-                  <Text style={styles.helper}>Update this complaint for you and the support team.</Text>
+                  <Text style={styles.helper}>Update this service request for you and the support team.</Text>
                   <View style={styles.actions}>
                     {transitions.map((status) => {
                       const tone = status === "cancelled" ? "danger" : status === "closed" ? "primary" : "neutral";
@@ -530,7 +530,7 @@ export default function ComplaintDetailScreen() {
                 <View style={styles.modalIcon}>
                   <Feather name="rotate-ccw" size={sf(18)} color={NAVY} />
                 </View>
-                <Text style={styles.modalTitle}>Reopen Complaint</Text>
+                <Text style={styles.modalTitle}>Reopen Service Request</Text>
                 <Text style={styles.modalSubtitle}>
                   Tell us what is still unresolved so we can reopen and review it.
                 </Text>
@@ -605,7 +605,7 @@ export default function ComplaintDetailScreen() {
                   {reopenSubmitting ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
-                    <Text style={styles.modalConfirmText}>Reopen Complaint</Text>
+                    <Text style={styles.modalConfirmText}>Reopen Service Request</Text>
                   )}
                 </Pressable>
               </View>

@@ -183,17 +183,33 @@ export function apiError(err: unknown): string {
       }
       return "Cannot reach the API server. Make sure the backend is running (npm run backend).";
     }
-    const data = err.response?.data as { message?: string; errors?: Record<string, string[]> } | undefined;
+    const status = err.response.status;
+    const data = err.response?.data as
+      | { message?: string; errors?: Record<string, string[]> }
+      | string
+      | undefined;
+    const hasApiMessage =
+      typeof data === "object" && data !== null && typeof data.message === "string" && data.message.trim() !== "";
+    if ((status === 500 || status === 502 || status === 503 || status === 504) && !hasApiMessage) {
+      return "The API server is not running. From the project root run: npm run backend (or npm run dev).";
+    }
+    if (typeof data === "string") {
+      const trimmed = data.trim();
+      if (trimmed.startsWith("<") || trimmed.includes("Internal Server Error")) {
+        return "The API server is not running. From the project root run: npm run backend (or npm run dev).";
+      }
+    }
+    const payload = typeof data === "object" && data !== null ? data : undefined;
     const genericValidation = "The given data was invalid.";
-    const message = data?.message ?? "";
+    const message = payload?.message ?? "";
     const isInternalDbError = /SQLSTATE|Unknown column|\bSQL:/i.test(message);
     const isPhpInternal =
       /Class ["'][^"']+["'] not found|ErrorException|Stack trace|syntax error,|Undefined (property|variable|constant|method)|Call to undefined|Allowed memory size/i.test(
         message,
       );
     const isInternal = isInternalDbError || isPhpInternal;
-    if (data?.errors && !isInternal) {
-      const first = Object.values(data.errors)[0];
+    if (payload?.errors && !isInternal) {
+      const first = Object.values(payload.errors)[0];
       if (Array.isArray(first) && first[0]) return first[0] as string;
     }
     if (message && message !== genericValidation && !isInternal) return message;
@@ -208,6 +224,15 @@ export function apiError(err: unknown): string {
     }
     if (err.response?.status === 500 || isInternal) {
       const url = String(err.config?.url ?? "");
+      const payload = err.response?.data;
+      const proxyOnlyFailure =
+        !isInternal &&
+        (payload == null ||
+          (typeof payload === "string" &&
+            /internal server error|failed to proxy|ECONNREFUSED/i.test(payload)));
+      if (proxyOnlyFailure) {
+        return "Cannot reach the API server. Start it with npm run backend (or npm run dev).";
+      }
       if (url.includes("notices") || url.includes("upload-image")) {
         return "Could not save this notice. Please try again, or use a smaller image.";
       }

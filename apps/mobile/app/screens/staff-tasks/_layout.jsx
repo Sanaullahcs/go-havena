@@ -18,7 +18,7 @@ export default function StaffTasksLayout() {
       <Stack.Screen name="messages" options={{ title: "Messages" }} />
       <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
       <Stack.Screen name="profile" options={{ title: "Profile" }} />
-      <Stack.Screen name="detail" options={{ title: "Complaint Details", detachPreviousScreen: false }} />
+      <Stack.Screen name="detail" options={{ title: "Service Request Details", detachPreviousScreen: false }} />
       <Stack.Screen name="chat" options={{ title: "Chat", detachPreviousScreen: false }} />
       <Stack.Screen name="invitations" options={{ title: "Invitations" }} />
     </Stack>

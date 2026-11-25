@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\FinalizeAgreementSignaturePdf;
 use App\Mail\HavenaTransactionalMail;
 use App\Support\AppUrls;
 use App\Support\MediaUrl;
@@ -290,46 +291,104 @@ class AgreementService
                 'updated_at' => $signedAt,
             ]);
 
-            $bytes = $this->renderSignedPdf($document, $assignment, $user, $signatureId, $signedAt, $method, $typedName, $strokes, $placement);
-            $checksum = hash('sha256', $bytes);
-            $relative = "agreements/{$document->community_id}/{$signatureId}.pdf";
-            if (! Storage::disk('local')->put($relative, $bytes)) {
-                throw new RuntimeException('Could not store the signed agreement.');
-            }
-
-            DB::table('community_document_signatures')->where('id', $signatureId)->update([
-                'signed_file_path' => $relative,
-                'checksum' => $checksum,
-                'updated_at' => $signedAt,
-            ]);
             DB::table('community_document_assignments')->where('id', $assignment->id)->update([
                 'status' => 'signed',
                 'signed_at' => $signedAt,
-                'signed_file_path' => $relative,
+                'signed_file_path' => null,
                 'updated_at' => $signedAt,
             ]);
 
+            DB::afterCommit(function () use ($signatureId) {
+                FinalizeAgreementSignaturePdf::dispatch($signatureId);
+            });
+
             return [
-                DB::table('community_document_assignments')->where('id', $assignment->id)->first(),
-                DB::table('community_document_signatures')->where('id', $signatureId)->first(),
+                (int) $signatureId,
+                (int) $assignment->id,
             ];
         });
 
-        [$assignment, $signature] = $result;
         if (! $replayed) {
+            [$signatureId, $assignmentId] = $result;
+            $assignment = DB::table('community_document_assignments')->where('id', $assignmentId)->first();
+            $signature = DB::table('community_document_signatures')->where('id', $signatureId)->first();
+
             $this->activity((int) $document->id, (int) $document->community_id, (int) $user->id, (int) $assignment->id, 'signed', [
                 'method' => $signature->method,
                 'version' => (int) $document->version,
             ], $request);
             $this->notifySigned($document, $user, $assignment);
+        } else {
+            [$assignment, $signature] = $result;
         }
+
+        $assignment = DB::table('community_document_assignments')->where('id', $assignment->id)->first();
+        $signature = DB::table('community_document_signatures')->where('id', $signature->id)->first();
+
+        $signedFileUrl = $assignment->signed_file_path
+            ? $this->temporaryFileUrl((int) $assignment->id, $request)
+            : null;
 
         return [
             'assignment' => $assignment,
             'signature' => $this->publicSignature($signature),
             'replayed' => $replayed,
-            'signed_file_url' => $this->temporaryFileUrl((int) $assignment->id, $request),
+            'signed_file_url' => $signedFileUrl,
+            'pdf_ready' => (bool) $assignment->signed_file_path,
         ];
+    }
+
+    public function finalizeSignedAgreementPdf(int $signatureId): void
+    {
+        $signature = DB::table('community_document_signatures')->where('id', $signatureId)->first();
+        if (! $signature) {
+            return;
+        }
+        if ($signature->signed_file_path) {
+            return;
+        }
+
+        $assignment = DB::table('community_document_assignments')
+            ->where('id', $signature->assignment_id)
+            ->lockForUpdate()
+            ->first();
+        $document = DB::table('community_documents')->where('id', $signature->document_id)->whereNull('deleted_at')->first();
+        $user = DB::table('users')->where('id', $signature->user_id)->first();
+        if (! $assignment || ! $document || ! $user || $assignment->status !== 'signed') {
+            return;
+        }
+
+        $strokes = $signature->strokes ? json_decode((string) $signature->strokes, true) : [];
+        $placement = $signature->placement ? json_decode((string) $signature->placement, true) : null;
+        $signedAt = Carbon::parse($signature->signed_at ?? now('UTC'));
+
+        $bytes = $this->renderSignedPdf(
+            $document,
+            $assignment,
+            $user,
+            $signatureId,
+            $signedAt,
+            (string) $signature->method,
+            $signature->typed_name,
+            is_array($strokes) ? $strokes : [],
+            is_array($placement) ? $this->normalizePlacement($placement) : null,
+        );
+        $checksum = hash('sha256', $bytes);
+        $relative = "agreements/{$document->community_id}/{$signatureId}.pdf";
+        if (! Storage::disk('local')->put($relative, $bytes)) {
+            throw new RuntimeException('Could not store the signed agreement.');
+        }
+
+        $now = now('UTC');
+        DB::table('community_document_signatures')->where('id', $signatureId)->update([
+            'signed_file_path' => $relative,
+            'checksum' => $checksum,
+            'updated_at' => $now,
+        ]);
+        DB::table('community_document_assignments')->where('id', $assignment->id)->update([
+            'signed_file_path' => $relative,
+            'updated_at' => $now,
+        ]);
     }
 
     public function decline(object $document, object $user, int $assignmentId): object

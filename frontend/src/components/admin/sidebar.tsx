@@ -85,7 +85,7 @@ const communityContentNav: NavItem[] = [
   { href: "/admin/alerts", label: "Alerts", icon: TriangleAlert },
   { href: "/admin/community-rules", label: "Community Rules", icon: Scale },
   { href: "/admin/documents", label: "Documents", icon: FileText },
-  { href: "/admin/complaints", label: "Complaints", icon: LifeBuoy },
+  { href: "/admin/complaints", label: "Service Requests", icon: LifeBuoy },
   { href: "/admin/staff", label: "Staff", icon: Wrench },
   { href: "/admin/feed", label: "Feed Moderation", icon: Newspaper },
 ];

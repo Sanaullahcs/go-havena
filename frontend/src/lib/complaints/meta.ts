@@ -56,7 +56,7 @@ export const CATEGORY_HINTS: Record<string, string> = {
   pest_control: "Rodents, insects, and infestations.",
   billing_payments: "Incorrect charges and payment issues.",
   resident_behavior: "Neighbor disputes and rule violations.",
-  other: "Complaints not covered by existing categories.",
+  other: "Service requests not covered by existing categories.",
 };
 
 export const COMPLAINT_PRIORITIES = [

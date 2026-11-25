@@ -57,7 +57,13 @@ import {
   type CommunityDocument,
   type DocumentForm,
 } from "@/lib/api/documents";
-import { fetchAgreementOptions, type RecipientOption } from "@/lib/api/agreements";
+import {
+  ADMIN_AGREEMENT_SYNC_MS,
+  fetchAgreementOptions,
+  isAgreementNotification,
+  type RecipientOption,
+} from "@/lib/api/agreements";
+import { subscribeForegroundNotification } from "@/lib/notifications/foreground-notification-events";
 
 const DOCUMENTS_PAGE_SIZE = 6;
 
@@ -511,6 +517,26 @@ export default function DocumentsPage() {
   };
 
   useEffect(() => { void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const sync = () => {
+      if (document.visibilityState !== "visible") return;
+      void load(true);
+    };
+    const timer = window.setInterval(sync, ADMIN_AGREEMENT_SYNC_MS);
+    document.addEventListener("visibilitychange", sync);
+    window.addEventListener("focus", sync);
+    const unsubscribe = subscribeForegroundNotification((payload) => {
+      if (!isAgreementNotification(payload)) return;
+      void load(true);
+    });
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", sync);
+      window.removeEventListener("focus", sync);
+      unsubscribe();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     startTransition(() => setPage(1));
