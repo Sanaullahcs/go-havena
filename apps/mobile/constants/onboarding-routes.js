@@ -28,7 +28,6 @@ import {
 export const STAFF_HOME = "/screens/staff-tasks/home";
 export const STAFF_INVITES = "/screens/staff-tasks/invitations";
 export const STAFF_INVITE_ACCEPT = "/screens/staff-invite";
-export const ASSIGNED_TASKS_TAB = "/(tabs)/assigned-tasks";
 
 /** Activated staff with no resident or community-admin access. */
 export function isStaffOnlyUser(user) {
@@ -46,14 +45,10 @@ export function isResidentWithStaff(user) {
  * Includes staff-only accounts and existing residents who were invited as staff.
  */
 export function hasPendingStaffInvite(user) {
-  if (isCommunityAdminRole(user) || !user?.staff_access?.pending) return false;
-  // Staff-only accounts must accept before any other shell.
-  if (!canAccessDashboard(user)) return true;
-  // Residents with active staff elsewhere still use the app normally; they accept from Invitations.
-  return !user?.staff_access?.active;
+  return Boolean(user?.staff_access?.pending) && !user?.staff_access?.active && !isCommunityAdminRole(user);
 }
 
-/** After accepting a staff invite — staff-only → Staff Home, dual-role → My Assigned Tasks tab. */
+/** After accepting a staff invite — staff-only → Staff Home, resident+staff → Resident Home. */
 export function navigateAfterStaffInviteAccepted(router, user) {
   if (!user) {
     resetTo(router, Routes.LOGIN);
@@ -64,10 +59,6 @@ export function navigateAfterStaffInviteAccepted(router, user) {
     return;
   }
   if (canAccessDashboard(user)) {
-    if (isResidentWithStaff(user)) {
-      resetTo(router, ASSIGNED_TASKS_TAB);
-      return;
-    }
     markFirstHomeVisit();
     resetTo(router, Routes.TABS_HOME, { role: user?.role || "resident" });
     return;

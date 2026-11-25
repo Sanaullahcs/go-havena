@@ -15,7 +15,6 @@ export async function fetchCommunityDocuments(params = {}) {
     documents:  res.data ?? [],
     recent:       res.recent ?? [],
     categories:   res.categories ?? [],
-    agreementCategories: res.agreement_categories ?? [],
     total:        res.total ?? 0,
   };
 }

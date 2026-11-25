@@ -1,6 +1,7 @@
 "use client";
 
 import { DotPulse, RingSpinner } from "@/components/shared/loaders";
+import { MinimalStatusCenter } from "@/components/shared/minimal-status-center";
 import { PageSkeleton, type PageSkeletonVariant } from "@/components/shared/page-skeletons";
 
 export function PageLoader({
@@ -32,6 +33,21 @@ export function PageLoader({
         <p className="text-[13.5px] font-medium text-slate-700">{text}</p>
         <DotPulse className="mt-2 justify-center text-blue-500" />
       </div>
+    </div>
+  );
+}
+
+export function PageOffline({ onRetry }: { onRetry?: () => void }) {
+  return (
+    <div className="flex min-h-[min(420px,calc(100dvh-12rem))] w-full items-center justify-center bg-[#F8F9FA]">
+      <MinimalStatusCenter
+        title="No Internet Connection"
+        description="Your device appears to be offline. Check your connection and try again."
+        actionLabel="Try again"
+        onAction={() => {
+          if (onRetry) onRetry();
+        }}
+      />
     </div>
   );
 }

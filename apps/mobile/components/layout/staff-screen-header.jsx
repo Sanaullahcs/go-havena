@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useNavigation, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -37,24 +37,8 @@ export default function StaffScreenHeader({ title, subtitle, showBack = false, o
           </Pressable>
         ) : null}
         <View style={styles.copy}>
-          <Text
-            style={styles.title}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.82}
-          >
-            {title}
-          </Text>
-          {subtitle ? (
-            <Text
-              style={styles.subtitle}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.85}
-            >
-              {subtitle}
-            </Text>
-          ) : null}
+          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
         </View>
         {residentApp || right ? (
           <View style={styles.right}>
@@ -84,12 +68,12 @@ const styles = StyleSheet.create({
   },
   row: {
     minHeight: sw(56),
-    paddingHorizontal: sw(14),
+    paddingHorizontal: sw(16),
     paddingBottom: sw(14),
     paddingTop: sw(6),
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(6),
+    gap: sw(8),
   },
   back: {
     width: sw(28),
@@ -101,23 +85,19 @@ const styles = StyleSheet.create({
   copy: { flex: 1, minWidth: 0 },
   title: {
     fontFamily: Fonts.bold,
-    fontSize: sf(18),
-    lineHeight: sf(22),
+    fontSize: sf(20),
     color: "#FFFFFF",
-    ...(Platform.OS === "android" ? { includeFontPadding: false } : null),
   },
   subtitle: {
     marginTop: 1,
     fontFamily: Fonts.medium,
-    fontSize: sf(11),
-    lineHeight: sf(14),
+    fontSize: sf(12),
     color: "rgba(255,255,255,0.78)",
-    ...(Platform.OS === "android" ? { includeFontPadding: false } : null),
   },
   right: {
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(10),
+    gap: sw(14),
     flexShrink: 0,
   },
   resident: {

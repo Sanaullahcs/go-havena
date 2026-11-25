@@ -25,6 +25,8 @@ import {
 import { fetchAmenities, fetchMyBookings } from "../../../../services/amenity-api";
 import { subscribeConnectivity } from "../../../../services/connectivity";
 import { getApiErrorMessage, isNetworkLikeError } from "../../../../utils/api-error-core";
+import { useDeviceOffline, recheckDeviceOnline } from "../../../../hooks/use-device-offline";
+import NetworkUnavailablePanel from "../../../../components/ui/network-unavailable-panel";
 import {
   getAmenityVisual,
   getAmenityStatus,
@@ -135,6 +137,8 @@ export default function Amenity() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const deviceOffline = useDeviceOffline();
+  const [retrying, setRetrying] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -257,6 +261,18 @@ export default function Amenity() {
       ? t("propertyMgmt.noFacilitiesDesc")
       : t("propertyMgmt.noFilterFacilitiesDesc");
 
+  const showOfflineOutlet = deviceOffline || loadError?.kind === "offline";
+
+  const retryConnection = useCallback(async () => {
+    setRetrying(true);
+    try {
+      const online = await recheckDeviceOnline();
+      if (online) await load(false);
+    } finally {
+      setRetrying(false);
+    }
+  }, [load]);
+
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenHeader
@@ -301,7 +317,9 @@ export default function Amenity() {
         </ScrollView>
       </View>
 
-      {loading ? (
+      {showOfflineOutlet ? (
+        <NetworkUnavailablePanel onRetry={retryConnection} busy={retrying} />
+      ) : loading ? (
         <ActivityIndicator color={Colors.brandPrimary} style={{ marginTop: sw(40) }} />
       ) : (
         <ScrollView
@@ -324,25 +342,13 @@ export default function Amenity() {
             />
           ) : null}
 
-          {loadError ? (
+          {loadError?.kind === "failed" ? (
             <View style={styles.empty}>
               <View style={styles.emptyIcon}>
-                <Feather
-                  name={loadError.kind === "offline" ? "wifi-off" : "alert-circle"}
-                  size={sf(28)}
-                  color="#94A3B8"
-                />
+                <Feather name="alert-circle" size={sf(28)} color="#94A3B8" />
               </View>
-              <Text style={styles.emptyTitle}>
-                {loadError.kind === "offline"
-                  ? t("propertyMgmt.offlineTitle")
-                  : t("propertyMgmt.loadFailed")}
-              </Text>
-              <Text style={styles.emptyText}>
-                {loadError.kind === "offline"
-                  ? t("propertyMgmt.offlineBody")
-                  : loadError.message}
-              </Text>
+              <Text style={styles.emptyTitle}>{t("propertyMgmt.loadFailed")}</Text>
+              <Text style={styles.emptyText}>{loadError.message}</Text>
               <TouchableOpacity
                 style={styles.retryBtn}
                 activeOpacity={0.85}

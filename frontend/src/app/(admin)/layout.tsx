@@ -35,6 +35,8 @@ import {
 } from "@/lib/admin/community-admin-onboarding";
 import { AdminOnboardingTopBar } from "@/components/admin/onboarding/onboarding-top-bar";
 import { COMPLETE_PROFILE_SIGN_OUT_MESSAGE, confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
+import { PageOffline } from "@/components/shared/page-states";
+import { useOnlineStatus } from "@/lib/use-online-status";
 
 const PAGE_TITLES: Record<string, string> = {
   "/admin": "Dashboard",
@@ -135,12 +137,22 @@ function isBillingOrOnboardingPath(pathname: string) {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const online = useOnlineStatus();
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Always start unchecked so SSR HTML matches the first client render (no localStorage on server).
   const [checked, setChecked] = useState(false);
   const [accessBlocked, setAccessBlocked] = useState<string | null>(null);
   const [accessBlockedTitle, setAccessBlockedTitle] = useState("Access unavailable");
   const [onboardingOnly, setOnboardingOnly] = useState(false);
+
+  const refreshWhenOnline = useCallback(() => {
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      router.refresh();
+    }
+  }, [router]);
+
+  const renderOutlet = (content: React.ReactNode) =>
+    online ? content : <PageOffline onRetry={refreshWhenOnline} />;
 
   // Apply cached session before paint so onboarding admins skip the dashboard skeleton flash.
   useLayoutEffect(() => {
@@ -348,7 +360,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   : "px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8",
             ].join(" ")}
           >
-            {children}
+            {renderOutlet(children)}
           </main>
         </div>
       </ForegroundNotificationProvider>
@@ -365,8 +377,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <AdminTopBar title={title} onMenuOpen={() => setDrawerOpen(true)} />
 
           <main className="mx-auto min-w-0 w-full max-w-[1680px] flex-1 overflow-x-hidden px-4 py-3 sm:px-5 sm:py-4 lg:px-6">
-            <AdminPushBootstrap />
-            {children}
+            {online ? <AdminPushBootstrap /> : null}
+            {renderOutlet(children)}
           </main>
         </div>
       </div>

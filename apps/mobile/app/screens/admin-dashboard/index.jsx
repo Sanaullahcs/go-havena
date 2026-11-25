@@ -39,6 +39,9 @@ import { isResidentFeatureEnabled, isReviewActionEnabled } from "../../../consta
 import { useSessionUser } from "../../../hooks/use-session-user";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { AdminDashboardSkeleton } from "../../../components/ui/skeleton-loader";
+import { isNetworkLikeError } from "../../../utils/api-error-core";
+import { useDeviceOffline, recheckDeviceOnline } from "../../../hooks/use-device-offline";
+import NetworkUnavailablePanel from "../../../components/ui/network-unavailable-panel";
 
 let dashboardCache = null;
 
@@ -362,6 +365,8 @@ export default function AdminDashboardScreen() {
   const [approvingId, setApprovingId] = useState(null);
   const { runAction, showFailure } = useApiAction();
   const hasStatsRef = useRef(Boolean(dashboardCache?.stats));
+  const deviceOffline = useDeviceOffline();
+  const [retrying, setRetrying] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!silent && !hasStatsRef.current) setLoading(true);
@@ -401,8 +406,12 @@ export default function AdminDashboardScreen() {
         setStats(null);
         setPendingActions([]);
       }
-      setLoadError(err?.message || t("admin.couldNotLoadDashboard"));
-      if (!silent && !hasStatsRef.current) await showFailure(t("admin.couldNotLoadDashboard"), err);
+      setLoadError(
+        isNetworkLikeError(err) ? "offline" : (err?.message || t("admin.couldNotLoadDashboard")),
+      );
+      if (!silent && !hasStatsRef.current && !isNetworkLikeError(err)) {
+        await showFailure(t("admin.couldNotLoadDashboard"), err);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -564,6 +573,18 @@ export default function AdminDashboardScreen() {
     load(true);
   };
 
+  const showOfflineOutlet = (deviceOffline || loadError === "offline") && !stats;
+
+  const retryConnection = useCallback(async () => {
+    setRetrying(true);
+    try {
+      const online = await recheckDeviceOnline();
+      if (online) await load(false);
+    } finally {
+      setRetrying(false);
+    }
+  }, [load]);
+
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <ScreenHeader
@@ -595,9 +616,11 @@ export default function AdminDashboardScreen() {
         >
           <AdminDashboardSkeleton />
         </ScrollView>
+      ) : showOfflineOutlet ? (
+        <NetworkUnavailablePanel onRetry={retryConnection} busy={retrying} />
       ) : loadError && !stats ? (
         <View style={styles.centered}>
-          <Feather name="wifi-off" size={sf(28)} color={AdminTheme.textMuted} />
+          <Feather name="alert-circle" size={sf(28)} color={AdminTheme.textMuted} />
           <Text style={styles.errorText}>{loadError}</Text>
           <Pressable style={styles.retryBtn} onPress={() => load()}>
             <Text style={styles.retryText}>{t("admin.tryAgain")}</Text>

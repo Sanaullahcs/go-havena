@@ -34,9 +34,7 @@ import {
   rejectMyInvitation,
   switchActiveCommunity,
 } from "../../../services/profile-api";
-import { acceptStaffInvitation, fetchStaffInvitations } from "../../../services/complaints-api";
-import { fetchMe } from "../../../services/auth-api";
-import { navigateAfterAuth, navigateAfterStaffInviteAccepted } from "../../../constants/onboarding-routes";
+import { navigateAfterAuth } from "../../../constants/onboarding-routes";
 import SwitchCommunitySheet from "../../../components/ui/switch-community-sheet";
 import {
   promptAddUnitsBeforeSwitch,
@@ -211,15 +209,10 @@ function CommunityCard({ row, activeCommunityId, t }) {
   );
 }
 
-function isStaffInvitation(invite) {
-  return invite?.kind === "staff";
-}
-
 function InvitationCard({ invite, onPress, onAccept, onReject, t }) {
   const name = invite.community?.name || t("community.myCommunity");
   const location = communityLocation(invite.community);
   const expiry = formatExpiry(invite.expires_at, t);
-  const staffInvite = isStaffInvitation(invite);
   const units = (invite.units || [])
     .map((unit) => unit.unit_number)
     .filter(Boolean);
@@ -237,7 +230,7 @@ function InvitationCard({ invite, onPress, onAccept, onReject, t }) {
         >
           <View style={styles.cardRow}>
             <View style={styles.inviteAvatar}>
-              <Feather name={staffInvite ? "tool" : "mail"} size={sf(18)} color="#1B4F8A" />
+              <Feather name="mail" size={sf(18)} color="#1B4F8A" />
             </View>
 
             <View style={styles.cardCopy}>
@@ -247,16 +240,10 @@ function InvitationCard({ invite, onPress, onAccept, onReject, t }) {
                 </Text>
                 <View style={styles.invitePendingPill}>
                   <Text style={styles.invitePendingPillText}>
-                    {staffInvite ? t("myCommunity.staffInvitePill") : t("myCommunity.statusPending")}
+                    {t("myCommunity.statusPending")}
                   </Text>
                 </View>
               </View>
-
-              {staffInvite && invite.role_label ? (
-                <Text style={styles.cardMeta} numberOfLines={2}>
-                  {t("myCommunity.staffRole", { role: invite.role_label })}
-                </Text>
-              ) : null}
 
               {location ? (
                 <View style={styles.metaRow}>
@@ -323,7 +310,6 @@ function InviteDetailSheet({ invite, onClose, onAccept, onReject, t }) {
   const units = (invite.units || [])
     .map((unit) => unit.unit_number)
     .filter(Boolean);
-  const staffInvite = isStaffInvitation(invite);
 
   return (
     <AppModal visible={Boolean(invite)} onRequestClose={onClose}>
@@ -379,12 +365,6 @@ function InviteDetailSheet({ invite, onClose, onAccept, onReject, t }) {
                 </Text>
               </View>
             ) : null}
-            {staffInvite && invite.role_label ? (
-              <View style={styles.detailRow}>
-                <Feather name="briefcase" size={sf(14)} color={T.gray} />
-                <Text style={styles.detailText}>{invite.role_label}</Text>
-              </View>
-            ) : null}
             {expiry ? (
               <View style={styles.detailRow}>
                 <Feather name="clock" size={sf(14)} color={T.gray} />
@@ -403,21 +383,19 @@ function InviteDetailSheet({ invite, onClose, onAccept, onReject, t }) {
           ) : null}
 
           <View style={styles.sheetActions}>
-            {staffInvite ? null : (
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.rejectBtn}
-                onPress={onReject}
-              >
-                <Feather name="x" size={sf(15)} color="#B91C1C" />
-                <Text style={styles.rejectBtnText}>
-                  {t("myCommunity.reject")}
-                </Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.rejectBtn}
+              onPress={onReject}
+            >
+              <Feather name="x" size={sf(15)} color="#B91C1C" />
+              <Text style={styles.rejectBtnText}>
+                {t("myCommunity.reject")}
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity
               activeOpacity={0.9}
-              style={[styles.acceptBtn, staffInvite && styles.acceptBtnFull]}
+              style={styles.acceptBtn}
               onPress={onAccept}
             >
               <Feather name="check" size={sf(15)} color="#FFFFFF" />
@@ -466,26 +444,15 @@ export default function MyCommunityScreen() {
       const quiet = silent || loadedOnce.current;
       if (!quiet) setLoading(true);
       try {
-        const [communityPayload, inviteRows, staffRows] = await Promise.all([
+        const [communityPayload, inviteRows] = await Promise.all([
           fetchMyCommunities(),
           fetchMyInvitations(),
-          fetchStaffInvitations().catch(() => []),
         ]);
         setCommunities(communityPayload.communities || []);
         setActiveCommunityId(
           communityPayload.activeCommunityId ?? currentCommunityId(null),
         );
-        const staffInvites = (staffRows ?? [])
-          .filter((row) => row.status === "pending")
-          .map((row) => ({
-            id: `staff-${row.id}`,
-            staffInvitationId: row.id,
-            kind: "staff",
-            role_label: row.role_label || "Maintenance staff",
-            community: { id: row.community_id, name: row.community_name },
-            expires_at: row.expires_at,
-          }));
-        setInvitations([...(inviteRows || []), ...staffInvites]);
+        setInvitations(inviteRows || []);
         loadedOnce.current = true;
       } catch (err) {
         await showFailure(t("myCommunity.title"), err);
@@ -663,31 +630,8 @@ export default function MyCommunityScreen() {
     });
   };
 
-  const acceptInvite = async (invite) => {
-    if (!invite) return;
+  const acceptInvite = (invite) => {
     setSelectedInvite(null);
-
-    if (isStaffInvitation(invite)) {
-      const name = invite.community?.name || t("community.myCommunity");
-      const confirmed = await dialog.showConfirm(
-        t("myCommunity.acceptStaffTitle"),
-        t("myCommunity.acceptStaffBody", { name }),
-        { confirmLabel: t("myCommunity.accept"), cancelLabel: t("common.cancel") },
-      );
-      if (confirmed !== "confirm") return;
-
-      await runAction({
-        action: () => acceptStaffInvitation(invite.staffInvitationId),
-        successTitle: t("myCommunity.accept"),
-        onSuccess: async () => {
-          const user = await fetchMe();
-          await load({ silent: true });
-          navigateAfterStaffInviteAccepted(router, user);
-        },
-      });
-      return;
-    }
-
     router.push({
       pathname: "/screens/invite-code",
       params: {
@@ -1451,10 +1395,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     color: "#B91C1C",
-  },
-  acceptBtnFull: {
-    flexGrow: 1,
-    minWidth: "100%",
   },
   acceptBtn: {
     flex: 1,

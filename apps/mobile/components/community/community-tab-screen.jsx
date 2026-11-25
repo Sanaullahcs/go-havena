@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -16,6 +16,8 @@ import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
 import { useSessionUser } from "../../hooks/use-session-user";
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
+import { useDeviceOffline, recheckDeviceOnline } from "../../hooks/use-device-offline";
+import NetworkUnavailablePanel from "../ui/network-unavailable-panel";
 
 const TABS = [
   { id: "feed", labelKey: "community.feed", icon: "message-circle", color: T.navy },
@@ -41,6 +43,9 @@ export default function CommunityTabScreen() {
     });
   }, [sessionUser]);
   const [activeTab, setActiveTab] = useState("feed");
+  const deviceOffline = useDeviceOffline();
+  const [panelEpoch, setPanelEpoch] = useState(0);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     if (tabs.length === 0) return;
@@ -66,6 +71,26 @@ export default function CommunityTabScreen() {
   }, [activeTab, router, t]);
 
   const subtitle = t(TAB_SUBTITLE_KEYS[activeTab] ?? TAB_SUBTITLE_KEYS.feed);
+
+  const retryConnection = useCallback(async () => {
+    setRetrying(true);
+    try {
+      const online = await recheckDeviceOnline();
+      if (online) setPanelEpoch((n) => n + 1);
+    } finally {
+      setRetrying(false);
+    }
+  }, []);
+
+  const wasOfflineRef = useRef(deviceOffline);
+  useEffect(() => {
+    if (wasOfflineRef.current && !deviceOffline) {
+      setPanelEpoch((n) => n + 1);
+    }
+    wasOfflineRef.current = deviceOffline;
+  }, [deviceOffline]);
+
+  const showOfflineInOutlet = deviceOffline;
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
@@ -119,20 +144,18 @@ export default function CommunityTabScreen() {
       )}
 
       <View style={styles.panelHost}>
-        {activeTab === "feed" ? (
-          <View style={styles.tabPane}>
+        {showOfflineInOutlet ? (
+          <NetworkUnavailablePanel onRetry={retryConnection} busy={retrying} />
+        ) : activeTab === "feed" ? (
+          <View style={styles.tabPane} key={`feed-${panelEpoch}`}>
             <CommunityFeedPanel />
           </View>
-        ) : null}
-
-        {activeTab === "marketplace" ? (
-          <View style={styles.tabPane}>
+        ) : activeTab === "marketplace" ? (
+          <View style={styles.tabPane} key={`marketplace-${panelEpoch}`}>
             <CommunityListingsScreen embedded />
           </View>
-        ) : null}
-
-        {activeTab === "deals" ? (
-          <View style={styles.tabPane}>
+        ) : activeTab === "deals" ? (
+          <View style={styles.tabPane} key={`deals-${panelEpoch}`}>
             <DealsOffer embedded />
           </View>
         ) : null}

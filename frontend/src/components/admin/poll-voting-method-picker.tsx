@@ -25,12 +25,12 @@ export function PollVotingMethodPicker({
   className?: string;
 }) {
   return (
-    <div className={`nl-notice-field ${className}`.trim()}>
-      <p className="nl-notice-label">
+    <div className={className}>
+      <p className="text-[16px] font-semibold leading-6 text-[#0A2A43]">
         Voting method
-        {required ? <span className="text-red-500"> *</span> : null}
+        {required ? <span className="text-red-600"> *</span> : null}
       </p>
-      <div className="space-y-2" role="radiogroup" aria-label="Voting method">
+      <div className="mt-3 space-y-3" role="radiogroup" aria-label="Voting method">
         {OPTIONS.map((option) => {
           const selected = value === option.value;
           return (
@@ -41,7 +41,7 @@ export function PollVotingMethodPicker({
               aria-checked={selected}
               disabled={disabled}
               onClick={() => onChange(option.value)}
-              className="flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition disabled:opacity-60"
+              className="flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition disabled:opacity-60"
               style={{
                 borderColor: selected ? "#1B4F8A" : "#e2e8f0",
                 background: selected ? "#F8FBFD" : "#fff",
@@ -53,9 +53,9 @@ export function PollVotingMethodPicker({
               >
                 {selected ? <span className="h-2.5 w-2.5 rounded-full bg-[#1B4F8A]" /> : null}
               </span>
-              <span className="nl-notice-audience-option min-w-0">
-                <span className="nl-notice-option-title">{option.title}</span>{" "}
-                <span className="nl-notice-schedule-hint">{option.hint}</span>
+              <span className="min-w-0 text-[15px] leading-6 text-[#0A2A43]">
+                <span className="font-semibold">{option.title}</span>{" "}
+                <span className="font-normal text-slate-500">{option.hint}</span>
               </span>
             </button>
           );

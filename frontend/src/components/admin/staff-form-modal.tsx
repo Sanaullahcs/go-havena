@@ -275,7 +275,7 @@ export function StaffFormModal({
           <div className="min-w-0 flex-1 pt-0.5">
             <h3 id="staff-form-title" className="text-base font-bold text-[#0A2A43]">{editing ? "Edit staff" : "Add staff"}</h3>
             <p className="mt-0.5 text-[13px] leading-5 text-slate-500">
-              {editing ? "Update this staff member for the current community." : "Add a new staff member or assign an existing resident as staff to manage community tasks."}
+              {editing ? "Update this staff member for the current community." : "Invite a resident or a new worker. Resident access stays separate."}
             </p>
           </div>
           <button type="button" onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600" aria-label="Close">

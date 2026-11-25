@@ -54,15 +54,15 @@ export function PollDurationPicker({
   };
 
   return (
-    <div className={`nl-notice-field ${className}`.trim()}>
+    <div className={className}>
       <div className="flex items-start gap-2">
         <Clock className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="nl-notice-label">
+          <p className="text-[16px] font-semibold leading-6 text-[#0A2A43]">
             Poll duration
-            {required ? <span className="text-red-500"> *</span> : null}
+            {required ? <span className="text-red-600"> *</span> : null}
           </p>
-          <p className="nl-notice-schedule-hint">Choose how long residents can vote.</p>
+          <p className="text-[14px] leading-5 text-slate-500">Choose how long residents can vote.</p>
         </div>
       </div>
 
@@ -82,8 +82,8 @@ export function PollDurationPicker({
               disabled={disabled}
               onClick={() => setUnit(tab)}
               className={[
-                "nl-schedule-chip min-w-[5.5rem] capitalize disabled:opacity-60",
-                active ? "nl-schedule-chip--active" : "",
+                "min-w-[5.5rem] rounded-full px-4 py-1.5 text-[14px] font-semibold capitalize transition disabled:opacity-60",
+                active ? "bg-white text-[#0A2A43] shadow-sm" : "text-slate-500 hover:text-slate-700",
               ].join(" ")}
             >
               {tab}
@@ -102,13 +102,13 @@ export function PollDurationPicker({
               disabled={disabled}
               onClick={() => onChange({ unit, kind: "preset", value: preset })}
               className={[
-                "relative flex min-h-[3.25rem] flex-col items-center justify-center rounded-2xl border px-2 py-2.5 text-center transition disabled:opacity-60",
+                "relative flex min-h-[3.25rem] flex-col items-center justify-center rounded-2xl border px-2 py-2.5 text-center text-[14px] font-semibold transition disabled:opacity-60",
                 active
                   ? "border-[#1B4F8A] bg-[#E8F0F7] text-[#1B4F8A]"
                   : "border-slate-200 bg-white text-[#0A2A43] hover:border-slate-300",
               ].join(" ")}
             >
-              <span className="nl-notice-option-title">{pollDurationLabel(unit, preset)}</span>
+              {pollDurationLabel(unit, preset)}
               {active ? (
                 <Check className="mt-1 h-3.5 w-3.5 text-[#1B4F8A]" strokeWidth={2.5} aria-hidden />
               ) : null}
@@ -126,13 +126,13 @@ export function PollDurationPicker({
             })
           }
           className={[
-            "relative flex min-h-[3.25rem] flex-col items-center justify-center rounded-2xl border px-2 py-2.5 text-center transition disabled:opacity-60",
+            "relative flex min-h-[3.25rem] flex-col items-center justify-center rounded-2xl border px-2 py-2.5 text-center text-[14px] font-semibold transition disabled:opacity-60",
             isCustomSelected(value, unit)
               ? "border-[#1B4F8A] bg-[#E8F0F7] text-[#1B4F8A]"
               : "border-slate-200 bg-white text-[#0A2A43] hover:border-slate-300",
           ].join(" ")}
         >
-          <span className="nl-notice-option-title">Custom</span>
+          Custom
           {isCustomSelected(value, unit) ? (
             <Check className="mt-1 h-3.5 w-3.5 text-[#1B4F8A]" strokeWidth={2.5} aria-hidden />
           ) : null}
@@ -140,8 +140,8 @@ export function PollDurationPicker({
       </div>
 
       {value.kind === "custom" ? (
-        <div className="nl-notice-picker-field mt-3">
-          <label htmlFor={customId} className="nl-notice-picker-label">
+        <div className="mt-3">
+          <label htmlFor={customId} className="text-[13px] font-medium text-slate-600">
             Custom {unit === "hours" ? "hours" : "days"}
           </label>
           <input
@@ -158,9 +158,9 @@ export function PollDurationPicker({
                 value: clampPollCustomValue(value.unit, Number(e.target.value)),
               })
             }
-            className="nl-input w-full"
+            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-[15px] text-[#0A2A43] outline-none focus:border-[#1B4F8A] focus:bg-white focus:ring-2 focus:ring-[#1B4F8A]/15 disabled:opacity-60"
           />
-          <p className="nl-notice-schedule-note">
+          <p className="mt-1 text-[12px] text-slate-500">
             {unit === "hours" ? `Between 1 and ${POLL_MAX_HOURS} hours.` : `Between 1 and ${POLL_MAX_DAYS} days.`}
           </p>
         </div>
