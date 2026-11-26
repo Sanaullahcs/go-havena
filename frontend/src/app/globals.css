@@ -457,7 +457,8 @@ body {
   transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .auth-mode-switch[data-active="system"] .auth-mode-switch__slider,
-.auth-mode-switch[data-active="register"] .auth-mode-switch__slider {
+.auth-mode-switch[data-active="register"] .auth-mode-switch__slider,
+.auth-mode-switch[data-active="landlord"] .auth-mode-switch__slider {
   transform: translateX(100%);
 }
 .auth-mode-switch__tab {
@@ -1800,6 +1801,30 @@ html.nl-scroll-locked .overflow-y-scroll {
 }
 .nl-picker-compact .nl-picker-text {
   font-size: 0.8125rem;
+}
+
+/* Occupancy / toolbar filter: trigger sits flush inside a segmented control */
+.nl-toolbar-select .nl-picker-trigger {
+  min-height: 2rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0 0.5rem 0 0.625rem;
+}
+.nl-toolbar-select .nl-picker-trigger.has-value,
+.nl-toolbar-select .nl-picker-trigger:hover,
+.nl-toolbar-select .nl-picker-trigger.nl-picker-trigger-open {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.nl-toolbar-select .nl-picker-text {
+  font-size: 0.78125rem;
+  font-weight: 600;
+}
+.nl-toolbar-select .nl-picker-chevron {
+  color: #64748b;
 }
 
 /* Resident activity modal */

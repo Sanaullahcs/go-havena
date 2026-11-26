@@ -5,7 +5,7 @@ import { ClearableInput } from "@/components/admin/clearable-field";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { AdminBadge, StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, Building2, CalendarDays, Mail, Settings2, UserCircle2, X } from "lucide-react";
 import { ResidentInviteProfileNotice } from "@/components/admin/resident-invite-profile-notice";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { UserAvatar } from "@/components/admin/user-avatar";
@@ -41,7 +41,15 @@ import { adminTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading"
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
-import { MemberCommunitiesLabel, MemberUnitsLabel, ResidentDirectoryUnitsLabel } from "@/components/admin/member-units-label";
+import {
+  deriveMemberOccupancyKind,
+  memberOccupancyLabel,
+  MemberCommunitiesLabel,
+  MemberUnitsLabel,
+  ResidentDirectoryUnitsLabel,
+  type MemberOccupancyKind,
+  type MemberUnitLike,
+} from "@/components/admin/member-units-label";
 import { MemberUnitsDetail } from "@/components/admin/member-units-detail";
 import { fetchAdminCommunities, type AdminCommunityOption } from "@/lib/api/communities";
 import { MemberInviteResultModal } from "@/components/admin/member-invite-result-modal";
@@ -87,6 +95,39 @@ const ROLE_STYLE: Record<string, string> = {
   member:    "bg-slate-100 text-slate-600",
   guest:     "bg-amber-100 text-amber-700",
 };
+
+const OCCUPANCY_KIND_STYLE: Record<string, string> = {
+  landlord: "bg-indigo-50 text-indigo-800 ring-1 ring-indigo-100",
+  resident: "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100",
+  other:    ROLE_STYLE.member,
+};
+
+function memberUnitsForOccupancy(member: Member): MemberUnitLike[] {
+  if (member.units?.length) return member.units;
+  return (member.communities ?? []).flatMap((community) => community.units ?? []);
+}
+
+function memberOccupancyKindForDisplay(member: Member): MemberOccupancyKind {
+  if (member.occupancy_kind === "resident" || member.occupancy_kind === "landlord") {
+    return member.occupancy_kind;
+  }
+  if (member.occupancy_kind === "member") {
+    return "other";
+  }
+  // Prefer full membership units from profile detail when present (list payload is display-scoped).
+  return deriveMemberOccupancyKind(memberUnitsForOccupancy(member));
+}
+
+function memberRoleDisplay(member: Member): { label: string; className: string } {
+  if (member.role === "admin" || member.role === "moderator" || member.role === "guest") {
+    return { label: roleLabel(member.role), className: ROLE_STYLE[member.role] ?? ROLE_STYLE.member };
+  }
+  const kind = memberOccupancyKindForDisplay(member);
+  return {
+    label: memberOccupancyLabel(kind),
+    className: OCCUPANCY_KIND_STYLE[kind] ?? ROLE_STYLE.member,
+  };
+}
 
 type Filter = "all" | MembershipStatus;
 
@@ -817,7 +858,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
             { label: "Member" },
             ...(viewingAllCommunities ? [{ label: "Community" }] : []),
             { label: "Unit" },
-            { label: "Role" },
+            { label: "Type" },
             { label: "Joined" },
             { label: "Status" },
             { label: "Actions", right: true },
@@ -864,21 +905,25 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                       )}
                     </DtCell>
                   )}
-                  <DtCell nowrap>
+                  <DtCell nowrap className="min-w-[9.75rem] max-w-[11.5rem]">
                     {isSystemResidents ? (
                       <ResidentDirectoryUnitsLabel
                         communities={m.communities}
                         units={m.units}
-                        unitNumber={m.unit_number}
                       />
                     ) : (
-                      <MemberUnitsLabel units={m.units} unitNumber={m.unit_number} />
+                      <MemberUnitsLabel units={m.units} />
                     )}
                   </DtCell>
                   <DtCell>
-                    <span className={`rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${ROLE_STYLE[m.role] ?? ROLE_STYLE.member}`}>
-                      {roleLabel(m.role)}
-                    </span>
+                    {(() => {
+                      const role = memberRoleDisplay(m);
+                      return (
+                        <span className={`rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${role.className}`}>
+                          {role.label}
+                        </span>
+                      );
+                    })()}
                   </DtCell>
                   <DtCell nowrap muted>
                     {new Date(m.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
@@ -1328,23 +1373,89 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
       />
 
       {viewing && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="flex max-h-[min(92dvh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-2xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
-              <div className="min-w-0 pr-3">
-                <h3 className="truncate text-[15px] font-bold text-slate-900">{viewing.name}</h3>
-                <p className="mt-0.5 text-[12.5px] text-slate-500">Member profile</p>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="member-profile-title"
+            className="flex max-h-[min(92dvh,760px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_28px_90px_-16px_rgba(15,61,95,0.28)]"
+          >
+            <div className="relative shrink-0 overflow-hidden border-b border-slate-200/80 bg-gradient-to-br from-[#F4F9FC] via-white to-white px-5 pb-4 pt-5">
+              <ProfileDialogMesh className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-[#1B4F8A]/[0.06] blur-2xl" />
+              <div className="relative flex items-start gap-4">
+                <UserAvatar
+                  name={viewing.name ?? ""}
+                  src={viewing.avatar_url}
+                  size={56}
+                  className="shrink-0 shadow-md ring-[3px] ring-white"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1B4F8A]/70">Member profile</p>
+                  <h3 id="member-profile-title" className="mt-1 truncate text-[20px] font-bold tracking-tight text-slate-900">
+                    {viewing.name}
+                  </h3>
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                    <AdminBadge tone={memberStatusBadgeTone(viewing.status)}>{statusLabel(viewing.status)}</AdminBadge>
+                    {(() => {
+                      const role = memberRoleDisplay(viewing);
+                      return (
+                        <span className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold shadow-sm ${role.className}`}>
+                          {role.label}
+                        </span>
+                      );
+                    })()}
+                    {viewing.role !== "member" ? (
+                      <span className="rounded-full bg-slate-900/5 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                        {roleLabel(viewing.role)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewing(null)}
+                  aria-label="Close"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white/90 text-slate-500 shadow-sm transition hover:bg-white hover:text-slate-800"
+                >
+                  <X className="h-4 w-4" strokeWidth={2} />
+                </button>
               </div>
-              <button type="button" onClick={() => setViewing(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"><X className="h-4 w-4" strokeWidth={2} /></button>
+              {!viewLoading ? (
+                <div className="relative mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <ProfileSummaryCard
+                    icon={<UserCircle2 className="h-4 w-4" />}
+                    label="Member type"
+                    value={memberRoleDisplay(viewing).label}
+                  />
+                  <ProfileSummaryCard
+                    icon={<Building2 className="h-4 w-4" />}
+                    label="Units"
+                    value={<MemberUnitsLabel variant="summary" units={viewing.units} unitNumber={viewing.unit_number} />}
+                  />
+                  <ProfileSummaryCard
+                    icon={<CalendarDays className="h-4 w-4" />}
+                    label="Joined"
+                    value={new Date(viewing.created_at).toLocaleDateString(undefined, {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  />
+                </div>
+              ) : null}
             </div>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 text-sm sm:px-6 sm:py-5">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50/40 px-5 py-5 text-sm">
               {viewLoading ? (
-                <p className="text-slate-500">Loading profile…</p>
+                <p className="py-12 text-center text-slate-500">Loading profile…</p>
               ) : (
                 <>
-                  <ProfileRow label="Email" value={formatDisplayEmail(viewing.email) ?? "—"} />
-                  <ProfileRow label="Role" value={roleLabel(viewing.role)} />
-                  <ProfileRow label="Status" value={statusLabel(viewing.status)} />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <MemberProfileSection title="Contact" icon={<Mail className="h-3.5 w-3.5" />}>
+                      <ProfileRow label="Email" value={formatDisplayEmail(viewing.email) ?? "—"} />
+                      <ProfileRow label="Phone" value={<PhoneDisplay value={viewing.phone} />} />
+                    </MemberProfileSection>
+
+                    <MemberProfileSection title="Account" icon={<Settings2 className="h-3.5 w-3.5" />}>
                   {(viewing.status === "invitation_sent" || viewing.status === "invite_rejected") && viewing.invite_code ? (
                     <ProfileRow
                       label="Invite code"
@@ -1372,11 +1483,13 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     />
                   ) : null}
                   {viewing.status === "rejected" && viewing.rejection_reason ? (
-                    <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2.5">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">
-                        Rejection reason
-                      </p>
-                      <p className="mt-1 text-sm leading-relaxed text-rose-800">{viewing.rejection_reason}</p>
+                    <div className="py-2.5">
+                      <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">
+                          Rejection reason
+                        </p>
+                        <p className="mt-1 text-sm leading-relaxed text-rose-800">{viewing.rejection_reason}</p>
+                      </div>
                     </div>
                   ) : null}
                   {viewing.rejected_by ? (
@@ -1385,7 +1498,6 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                       value={viewing.rejected_by === "system_admin" ? "System administrator" : "Community administrator"}
                     />
                   ) : null}
-                  <ProfileRow label="Phone" value={<PhoneDisplay value={viewing.phone} />} />
                   {isSystemResidents ? (
                     <ProfileRow
                       label="Communities"
@@ -1421,6 +1533,9 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   ) : viewing.community_name ? (
                     <ProfileRow label="Community" value={viewing.community_name} />
                   ) : null}
+                    </MemberProfileSection>
+                  </div>
+
                   <MemberUnitsDetail
                     units={viewing.units}
                     communities={isSystemResidents ? viewing.communities : undefined}
@@ -1435,13 +1550,18 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                       void runRejectUnitPackage(packageId, unitNumber, communityId);
                     }}
                   />
-                  <ProfileRow label="Bio" value={viewing.bio?.trim() ? viewing.bio : "—"} />
-                  <ProfileRow label="Joined" value={new Date(viewing.created_at).toLocaleString()} />
+
+                  {viewing.bio?.trim() ? (
+                    <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm">
+                      <h4 className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">About</h4>
+                      <p className="mt-2 text-[13px] leading-relaxed text-slate-700">{viewing.bio.trim()}</p>
+                    </section>
+                  ) : null}
                 </>
               )}
             </div>
             {(showProfileApproveReject || showProfileReapprove || showProfileReactivate) ? (
-              <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-6">
+              <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/50 px-5 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                 {showProfileApproveReject ? (
                   <>
                     <button
@@ -1529,8 +1649,8 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                 )}
               </div>
             ) : (
-              <div className="flex shrink-0 justify-end border-t border-slate-100 px-4 py-4 sm:px-6">
-                <button type="button" className="nl-btn-secondary w-full sm:w-auto" onClick={() => setViewing(null)}>
+              <div className="flex shrink-0 justify-end border-t border-slate-200/80 bg-white px-5 py-4">
+                <button type="button" className="nl-btn-secondary w-full sm:min-w-[7rem] sm:w-auto" onClick={() => setViewing(null)}>
                   Close
                 </button>
               </div>
@@ -1542,11 +1662,62 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   );
 }
 
+function memberStatusBadgeTone(status: MembershipStatus | string): "amber" | "green" | "red" | "slate" | "blue" {
+  if (status === "approved" || status === "active") return "green";
+  if (status === "pending" || status === "invitation_sent" || status === "pending_review") return "amber";
+  if (status === "rejected" || status === "invite_rejected" || status === "inactive" || status === "suspended") return "red";
+  return "slate";
+}
+
+function ProfileDialogMesh({ className }: { className?: string }) {
+  return <div className={className} aria-hidden />;
+}
+
+function ProfileSummaryCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-2.5 rounded-xl border border-white/80 bg-white/90 px-3 py-2.5 shadow-sm ring-1 ring-slate-200/60 backdrop-blur-sm">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#E8F1FB] text-[#1B4F8A]">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+        <div className="mt-1 text-[13px] font-semibold text-slate-900">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function MemberProfileSection({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="h-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm">
+      <h4 className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/50 px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
+        {icon ? <span className="text-[#1B4F8A]">{icon}</span> : null}
+        {title}
+      </h4>
+      <div className="divide-y divide-slate-100/80 px-4">{children}</div>
+    </section>
+  );
+}
+
 function ProfileRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1 border-b border-slate-50 pb-2 last:border-0 sm:flex-row sm:gap-3">
-      <span className="w-full shrink-0 text-[12px] font-semibold text-slate-500 sm:w-24">{label}</span>
-      <span className="min-w-0 text-[13px] text-slate-800 break-words">{value || "—"}</span>
+    <div className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <span className="shrink-0 text-[12px] font-medium text-slate-500">{label}</span>
+      <span className="min-w-0 text-[13px] font-medium text-slate-800 sm:text-right break-words">{value || "—"}</span>
     </div>
   );
 }

@@ -86,6 +86,9 @@ class PayableResolver
         };
 
         $contactId = (int) ($row->billing_contact_user_id ?: 0);
+        if ($contactId > 0 && app(\App\Services\Landlord\LandlordAccessService::class)->rentedOwnerCannotPay($contactId, (int) $row->unit_id)) {
+            $contactId = 0;
+        }
 
         return new Payable(
             PaymentAttempt::PAYABLE_SERVICE_BILL,

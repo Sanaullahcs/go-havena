@@ -138,6 +138,7 @@ export function billStatusMeta(bill, t) {
 }
 
 export function canPayBill(bill) {
+  if (bill?.landlord_bill_status_only) return false;
   const meta = String(bill?.status ?? "").toLowerCase();
   if (hasProcessingPayment(bill)) return false;
   if (bill?.can_submit_proof === true) return true;

@@ -92,6 +92,7 @@ const communityContentNav: NavItem[] = [
 
 const communityPropertyNav: NavItem[] = [
   { href: "/admin/units", label: "Units", icon: Home },
+  { href: "/admin/landlord-ownership", label: "Landlord Claims", icon: ClipboardList },
   { href: "/admin/unit-requests", label: "Unit Requests", icon: ClipboardList },
   { href: "/admin/services", label: "Services", icon: Droplets },
   { href: "/admin/local-essentials", label: "Local Essentials", icon: MapPin },

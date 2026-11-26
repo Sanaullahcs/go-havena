@@ -42,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'guest.access'    => \App\Http\Middleware\EnsureGuestAccessValid::class,
             'account.access'  => \App\Http\Middleware\EnsureAccountAccessValid::class,
             'resident.feature'=> \App\Http\Middleware\EnsureResidentFeature::class,
+            'resident.community' => \App\Http\Middleware\EnsureResidentCommunityAccess::class,
             'admin.feature'   => \App\Http\Middleware\EnsureAdminRouteFeature::class,
         ]);
     })

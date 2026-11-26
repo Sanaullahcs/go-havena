@@ -16,11 +16,15 @@ export interface Member {
   community_name?: string | null;
   membership_id: number | null;
   unit_number: string | null;
+  /** Resident / landlord / member — members with role=member only. */
+  occupancy_kind?: "resident" | "landlord" | "member" | null;
   units?: Array<{
     id: number | null;
     unit_number: string;
     association_status: string;
     is_billing_contact: boolean;
+    occupancy?: "live_here" | "rented" | "vacant" | string | null;
+    ownership_status?: string | null;
     residence_type?: string | null;
     utility_bill_url?: string | null;
     package_id?: number | null;

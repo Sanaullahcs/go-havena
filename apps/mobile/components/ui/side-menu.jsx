@@ -416,6 +416,9 @@ function SideMenuPanel({ visible, onClose }) {
       user && !isGuestUser(user) && !isCommunityAdmin(user)
         ? item("units", "grid", "nav.myUnits", "/screens/my-units")
         : null,
+      user && !isGuestUser(user) && !isCommunityAdmin(user)
+        ? item("landlord", "layers", "nav.landlord", "/screens/landlord")
+        : null,
     ].filter(Boolean);
 
     const guestChildren = isResidentFeatureEnabled(user, "guest_invites")

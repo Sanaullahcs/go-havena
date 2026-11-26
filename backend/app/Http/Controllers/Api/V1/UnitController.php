@@ -137,6 +137,7 @@ class UnitController extends Controller
             'units.*.unit_number' => 'required|string|max:50',
             'units.*.is_new_unit' => 'sometimes|boolean',
             'units.*.residence_type' => 'required|in:homeowner,tenant',
+            'units.*.occupancy' => 'nullable|in:live_here,rented,vacant',
             'units.*.utility_bill_url' => 'required|string|max:1024',
             'units.*.ownership_proof_url' => 'nullable|string|max:1024',
             'units.*.tenancy_proof_url' => 'nullable|string|max:1024',

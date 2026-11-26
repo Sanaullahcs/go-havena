@@ -20,9 +20,11 @@ const PAGE_TITLES: Record<string, string> = {
   "/wellness":    "Wellness",
   "/marketplace": "Marketplace",
   "/property":    "Property",
+  "/units":       "My Units",
   "/payments":    "Payments",
   "/profile":     "My Profile",
   "/support":     "Help & Support",
+  "/landlord":    "Landlord",
 };
 
 function getTitle(pathname: string) {

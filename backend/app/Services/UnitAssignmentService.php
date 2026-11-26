@@ -151,8 +151,10 @@ class UnitAssignmentService
         $this->pruneUnitsCopiedFromOtherCommunities((int) $user->id, $communityId);
 
         $rows = $this->findUnitAssociationsForUser((int) $user->id, $communityId);
+        $ownershipByUnit = $this->ownershipRowsForUser((int) $user->id, $communityId);
+        $packageOccupancy = $this->packageOccupancyByUnit((int) $user->id, $communityId);
 
-        return array_map(function ($unit) use ($user) {
+        $briefs = array_map(function ($unit) use ($user, $ownershipByUnit, $packageOccupancy) {
             // Preserve join aliases — refreshBillingContactIfStale reloads units.* only.
             $associationStatus = $unit->unit_resident_status ?? self::RESIDENT_ACTIVE;
             $associationSource = $unit->unit_resident_source ?? null;
@@ -168,9 +170,128 @@ class UnitAssignmentService
             $payload['association_source'] = $associationSource;
             $payload['association_rejection_reason'] = $associationRejectionReason;
             $payload['unit_resident_id'] = $unitResidentId;
+            $this->attachOccupancyAndApproval($payload, $ownershipByUnit, $packageOccupancy);
 
             return $payload;
         }, $rows);
+
+        $seen = [];
+        foreach ($briefs as $payload) {
+            $seen[(int) $payload['id']] = true;
+        }
+
+        foreach ($ownershipByUnit as $unitId => $ownership) {
+            if (isset($seen[$unitId])) {
+                continue;
+            }
+            $unit = DB::table('units')
+                ->where('id', $unitId)
+                ->where('kind', self::KIND_RESIDENTIAL)
+                ->first();
+            if (! $unit) {
+                continue;
+            }
+            $payload = $this->formatUnit($unit, (int) $user->id);
+            // Not an active residency. Callers that count association_status=active must skip this row.
+            $payload['association_status'] = 'ownership';
+            $payload['association_source'] = 'ownership';
+            $payload['association_rejection_reason'] = null;
+            $payload['unit_resident_id'] = null;
+            $this->attachOccupancyAndApproval($payload, $ownershipByUnit, $packageOccupancy);
+            $briefs[] = $payload;
+        }
+
+        usort($briefs, function (array $a, array $b): int {
+            return strnatcasecmp((string) ($a['unit_number'] ?? ''), (string) ($b['unit_number'] ?? ''));
+        });
+
+        return $briefs;
+    }
+
+    /**
+     * @return array<int, object>
+     */
+    private function ownershipRowsForUser(int $userId, int $communityId): array
+    {
+        if (! Schema::hasTable('unit_ownerships')) {
+            return [];
+        }
+
+        $rows = DB::table('unit_ownerships')
+            ->where('user_id', $userId)
+            ->where('community_id', $communityId)
+            ->whereIn('status', ['pending', 'approved', 'rejected'])
+            ->orderByDesc('id')
+            ->get();
+
+        $byUnit = [];
+        foreach ($rows as $row) {
+            $unitId = (int) $row->unit_id;
+            if (! isset($byUnit[$unitId])) {
+                $byUnit[$unitId] = $row;
+            }
+        }
+
+        return $byUnit;
+    }
+
+    /**
+     * Latest stored occupancy on a registration package item, keyed by unit id.
+     *
+     * @return array<int, string>
+     */
+    private function packageOccupancyByUnit(int $userId, int $communityId): array
+    {
+        if (! Schema::hasTable('unit_registration_package_items')
+            || ! Schema::hasColumn('unit_registration_package_items', 'occupancy')) {
+            return [];
+        }
+
+        $rows = DB::table('unit_registration_package_items as items')
+            ->join('unit_registration_packages as packages', 'packages.id', '=', 'items.package_id')
+            ->where('packages.user_id', $userId)
+            ->where('packages.community_id', $communityId)
+            ->whereNotNull('items.unit_id')
+            ->whereIn('items.occupancy', ['live_here', 'rented', 'vacant'])
+            ->orderByDesc('items.id')
+            ->get(['items.unit_id', 'items.occupancy']);
+
+        $byUnit = [];
+        foreach ($rows as $row) {
+            $unitId = (int) $row->unit_id;
+            if (! isset($byUnit[$unitId])) {
+                $byUnit[$unitId] = (string) $row->occupancy;
+            }
+        }
+
+        return $byUnit;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<int, object>  $ownershipByUnit
+     * @param  array<int, string>  $packageOccupancy
+     */
+    private function attachOccupancyAndApproval(array &$payload, array $ownershipByUnit, array $packageOccupancy): void
+    {
+        $unitId = (int) ($payload['id'] ?? 0);
+        $ownership = $ownershipByUnit[$unitId] ?? null;
+        $storedOccupancy = $ownership && in_array((string) ($ownership->occupancy ?? ''), ['live_here', 'rented', 'vacant'], true)
+            ? (string) $ownership->occupancy
+            : ($packageOccupancy[$unitId] ?? null);
+
+        $payload['occupancy'] = $storedOccupancy;
+        $payload['ownership_id'] = $ownership ? (int) $ownership->id : null;
+        $payload['ownership_status'] = $ownership ? (string) $ownership->status : null;
+
+        $association = (string) ($payload['association_status'] ?? '');
+        if (in_array($association, [self::RESIDENT_ACTIVE, self::RESIDENT_PENDING, self::RESIDENT_REJECTED], true)) {
+            $payload['approval_status'] = $association === self::RESIDENT_ACTIVE ? 'approved' : $association;
+
+            return;
+        }
+
+        $payload['approval_status'] = $ownership ? (string) $ownership->status : null;
     }
 
     public function activeUnitCountForUser(int $userId, int $communityId): int
@@ -956,24 +1077,38 @@ class UnitAssignmentService
                 $payload['joined_at'] = $existing->joined_at ?: $now;
             }
             DB::table('unit_residents')->where('id', $existing->id)->update($payload);
+            $residentId = (int) $existing->id;
+        } else {
+            $insert = [
+                'unit_id' => $unitId,
+                'community_id' => $communityId,
+                'user_id' => $userId,
+                'status' => $status,
+                'joined_at' => $status === self::RESIDENT_ACTIVE ? $now : null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            if (Schema::hasColumn('unit_residents', 'source')) {
+                $insert['source'] = $source;
+            }
 
-            return (int) $existing->id;
+            $residentId = (int) DB::table('unit_residents')->insertGetId($insert);
         }
 
-        $insert = [
-            'unit_id' => $unitId,
-            'community_id' => $communityId,
-            'user_id' => $userId,
-            'status' => $status,
-            'joined_at' => $status === self::RESIDENT_ACTIVE ? $now : null,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ];
-        if (Schema::hasColumn('unit_residents', 'source')) {
-            $insert['source'] = $source;
+        if (in_array($status, [self::RESIDENT_ACTIVE, self::RESIDENT_PENDING], true)) {
+            app(\App\Services\Landlord\LandlordAdvisoryService::class)->syncForResident(
+                $communityId,
+                $unitId,
+                $userId,
+                $residentId,
+            );
         }
 
-        return (int) DB::table('unit_residents')->insertGetId($insert);
+        if ($status === self::RESIDENT_ACTIVE) {
+            app(\App\Services\Landlord\LandlordBillingContactService::class)->syncForUnit($unitId);
+        }
+
+        return $residentId;
     }
 
     /** Leave other units, then attach (legacy single-unit move). */
@@ -1004,12 +1139,20 @@ class UnitAssignmentService
             ]);
 
             $oldUnit = DB::table('units')->find($row->unit_id);
+            $leftUnitId = (int) $row->unit_id;
             if ($oldUnit && (int) ($oldUnit->billing_contact_user_id ?? 0) === $userId) {
-                $next = $this->nextEligibleBillingContact((int) $row->unit_id, $communityId);
-                DB::table('units')->where('id', $row->unit_id)->update([
-                    'billing_contact_user_id' => $next,
-                    'updated_at' => $now,
-                ]);
+                $landlordBilling = app(\App\Services\Landlord\LandlordBillingContactService::class);
+                if ($landlordBilling->appliesToUnit($leftUnitId)) {
+                    $landlordBilling->syncForUnit($leftUnitId);
+                } else {
+                    $next = $this->nextEligibleBillingContact($leftUnitId, $communityId);
+                    DB::table('units')->where('id', $leftUnitId)->update([
+                        'billing_contact_user_id' => $next,
+                        'updated_at' => $now,
+                    ]);
+                }
+            } elseif ($oldUnit) {
+                app(\App\Services\Landlord\LandlordBillingContactService::class)->syncForUnit($leftUnitId);
             }
 
             if ($cancelPendingTransfers) {
@@ -1295,12 +1438,17 @@ class UnitAssignmentService
                 ]);
             }
 
-            if ($unitId > 0 && (int) ($unit->billing_contact_user_id ?? 0) === $userId) {
-                $next = $this->nextEligibleBillingContact($unitId, $communityId);
-                DB::table('units')->where('id', $unitId)->update([
-                    'billing_contact_user_id' => $next,
-                    'updated_at' => $now,
-                ]);
+            if ($unitId > 0) {
+                $landlordBilling = app(\App\Services\Landlord\LandlordBillingContactService::class);
+                if ($landlordBilling->appliesToUnit($unitId)) {
+                    $landlordBilling->syncForUnit($unitId);
+                } elseif ((int) ($unit->billing_contact_user_id ?? 0) === $userId) {
+                    $next = $this->nextEligibleBillingContact($unitId, $communityId);
+                    DB::table('units')->where('id', $unitId)->update([
+                        'billing_contact_user_id' => $next,
+                        'updated_at' => $now,
+                    ]);
+                }
             }
 
             if ($unitId > 0) {

@@ -42,6 +42,7 @@ const TYPE_META: Record<
   amenity_payment: { tone: "amber", icon: FileText, accent: "#D97706", soft: "#FFFBEB" },
   service_payment: { tone: "amber", icon: FileText, accent: "#F59E0B", soft: "#FFFBEB" },
   unit_registration: { tone: "cyan", icon: Home, accent: "#0D9488", soft: "#F0FDFA" },
+  landlord_ownership: { tone: "blue", icon: Home, accent: "#1B4F8A", soft: "#E8F0F7" },
 };
 
 function ReviewQueueRow({

@@ -19,6 +19,9 @@ type ThemedSelectProps = {
   error?: string;
   onBlur?: () => void;
   onFocus?: () => void;
+  /** Shorter trigger height — pairs with admin table toolbars. */
+  compact?: boolean;
+  className?: string;
 };
 
 export function ThemedSelect({
@@ -33,6 +36,8 @@ export function ThemedSelect({
   error,
   onBlur,
   onFocus,
+  compact = false,
+  className,
 }: ThemedSelectProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -71,7 +76,10 @@ export function ThemedSelect({
   }, [open]);
 
   return (
-    <div className="nl-notice-field min-w-0 w-full" ref={wrapRef}>
+    <div
+      className={["nl-notice-field min-w-0 w-full", compact ? "nl-picker-compact" : "", className ?? ""].filter(Boolean).join(" ")}
+      ref={wrapRef}
+    >
       {label ? <label className="nl-notice-label">{label}</label> : null}
       <div className="nl-picker-wrap min-w-0 w-full">
         <button

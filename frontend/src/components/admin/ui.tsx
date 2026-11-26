@@ -493,16 +493,24 @@ export function DtRow({
   muted = false,
   id,
   className,
+  onClick,
 }: {
   children: ReactNode;
   muted?: boolean;
   id?: string;
   className?: string;
+  onClick?: () => void;
 }) {
   return (
     <tr
       id={id}
-      className={`group border-b border-slate-100/80 transition-colors last:border-0 ${muted ? "opacity-60" : "hover:bg-blue-50/30"} ${className ?? ""}`}
+      onClick={onClick}
+      className={[
+        "group border-b border-slate-100/80 transition-colors last:border-0",
+        muted ? "opacity-60" : "hover:bg-blue-50/30",
+        onClick ? "cursor-pointer" : "",
+        className ?? "",
+      ].join(" ")}
     >
       {children}
     </tr>

@@ -129,6 +129,17 @@ class UserActingContextService
                 }
             }
 
+            if ($memberIds !== []) {
+                $owned = DB::table('unit_ownerships')
+                    ->where('user_id', $user->id)
+                    ->where('status', 'approved')
+                    ->whereIn('community_id', $memberIds)
+                    ->pluck('community_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
+                $accessible = array_merge($accessible, $owned);
+            }
+
             return array_values(array_unique($accessible));
         });
     }

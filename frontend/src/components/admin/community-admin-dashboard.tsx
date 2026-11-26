@@ -65,6 +65,7 @@ import {
   approveUnitRegistrationPackage,
   rejectUnitRegistrationPackage,
 } from "@/lib/api/property-services";
+import { approveAdminLandlordClaim, rejectAdminLandlordClaim } from "@/lib/api/landlord";
 import { apiError } from "@/lib/api/client";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { toastError, toastSuccess } from "@/lib/alert";
@@ -377,6 +378,14 @@ export default function CommunityAdminDashboard() {
             await rejectUnitRegistrationPackage(action.id, String(result.value ?? "").trim());
             toastSuccess("Unit request rejected");
           }
+        } else if (action.type === "landlord_ownership") {
+          if (verb === "approve") {
+            await approveAdminLandlordClaim(action.id);
+            toastSuccess("Landlord ownership approved");
+          } else {
+            await rejectAdminLandlordClaim(action.id, String(result.value ?? "").trim() || undefined);
+            toastSuccess("Landlord ownership rejected");
+          }
         }
         await load(true);
       } catch (err) {
@@ -397,6 +406,7 @@ export default function CommunityAdminDashboard() {
     "event",
     "alert",
     "unit_registration",
+    "landlord_ownership",
   ]);
 
   const handleCreate = async (payload: NoticeFormData) => {
@@ -632,6 +642,16 @@ export default function CommunityAdminDashboard() {
       badge: stats.pending_unit_requests ? `${stats.pending_unit_requests} pending` : undefined,
       tone: "cyan",
       icon: dashIcon(ClipboardList),
+    },
+    {
+      label: "Landlord Claims",
+      href: "/admin/landlord-ownership",
+      desc: "Review ownership and occupancy claims from residents",
+      badge: stats.pending_landlord_ownership_claims
+        ? `${stats.pending_landlord_ownership_claims} pending`
+        : undefined,
+      tone: "blue",
+      icon: dashIcon(Building2),
     },
     {
       label: "Services",

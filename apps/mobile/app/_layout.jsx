@@ -182,6 +182,10 @@ export default function RootLayout() {
           options={{ headerShown: false, contentStyle: styles.screen }}
         />
         <Stack.Screen
+          name="screens/landlord/index"
+          options={{ headerShown: false, contentStyle: styles.screen }}
+        />
+        <Stack.Screen
           name="screens/my-community/index"
           options={{ headerShown: false, contentStyle: styles.screen }}
         />

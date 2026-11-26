@@ -17,6 +17,7 @@ import {
   isCommunityAdminUser,
 } from "@/lib/auth/session";
 import { handleLoginError } from "@/lib/auth/login-error";
+import { OTP_RESEND_LOCK_SECONDS } from "@/lib/auth/otp-config";
 import {
   AuthBackLink,
   AuthErrorBanner,
@@ -36,7 +37,7 @@ import {
   readPersistedReferralCode,
 } from "@/lib/auth/referral-storage";
 import { ApiError } from "@/lib/api/client";
-import { confirmAction } from "@/lib/alert";
+import { confirmAction, showOtpResendLockAlert } from "@/lib/alert";
 import { EMAIL_FORMAT_MESSAGE, isValidEmailAddress } from "@/lib/admin/form-validation-utils";
 import {
   clearRegisterOtpChallenge,
@@ -47,6 +48,8 @@ import {
   resendAvailableAtFromRateLimit,
   type PersistedRegisterOtpChallenge,
 } from "@/lib/auth/register-otp-challenge";
+import { normalizeOtpRateLimit } from "@/lib/auth/otp-rate-limit";
+import { useOtpResendLockMessage } from "@/hooks/use-otp-resend-lock-message";
 
 type OtpStep = "email" | "code";
 
@@ -89,6 +92,13 @@ export function RegisterPageClient({
   const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(restored?.expiresAt ?? null);
   const [otpExpiresInSeconds, setOtpExpiresInSeconds] = useState<number | null>(null);
   const verifyLock = useRef(false);
+  const {
+    lockMessage,
+    startResendLock,
+    startResendLockFromError,
+    clearResendLock,
+  } = useOtpResendLockMessage();
+  const bannerError = lockMessage ?? error;
 
   const rememberChallenge = (
     nextEmail: string,
@@ -236,6 +246,7 @@ export function RegisterPageClient({
     }
 
     setError(null);
+    clearResendLock();
     setOtp("");
     setOtpSending(true);
     try {
@@ -259,6 +270,17 @@ export function RegisterPageClient({
         }
         return;
       }
+      if (err instanceof ApiError && err.code === "OTP_RESEND_LOCKED") {
+        const limits = normalizeOtpRateLimit(err.rateLimit);
+        const lockSeconds =
+          limits.retryAfterSeconds > 0 ? limits.retryAfterSeconds : OTP_RESEND_LOCK_SECONDS;
+        setOtpRateLimit(err.rateLimit ?? null);
+        setError(null);
+        startResendLock(lockSeconds);
+        void showOtpResendLockAlert(lockSeconds);
+        return;
+      }
+      clearResendLock();
       await handleLoginError(err, setError);
     } finally {
       setOtpSending(false);
@@ -269,6 +291,7 @@ export function RegisterPageClient({
     if (code.length !== 6 || otpSending || loading || verifyLock.current) return;
     verifyLock.current = true;
     setError(null);
+    clearResendLock();
     setLoading(true);
     try {
       const res = await verifyCommunityAdminOtp(
@@ -296,6 +319,7 @@ export function RegisterPageClient({
       if (/referral/i.test(message)) {
         clearPersistedReferralCode();
         setOtpStep("email");
+        clearResendLock();
         setError(
           "This referral link is invalid. You can continue signup without a referral, or open a fresh invite link.",
         );
@@ -309,8 +333,15 @@ export function RegisterPageClient({
         if (err.code === "INVALID_OTP" || err.code === "OTP_VERIFY_LOCKED") {
           setExtendOtpResendCooldown(true);
         }
-        setError(err.message);
+        if (err.code === "OTP_RESEND_LOCKED") {
+          setError(null);
+          startResendLockFromError(err);
+        } else {
+          clearResendLock();
+          setError(err.message);
+        }
       } else {
+        clearResendLock();
         await handleLoginError(err, setError);
       }
       setLoading(false);
@@ -320,6 +351,7 @@ export function RegisterPageClient({
   const resendOtp = async () => {
     if (!isValidEmailAddress(email)) return;
     setError(null);
+    clearResendLock();
     setOtpSending(true);
     try {
       const { rate_limit, expires_at, expires_in_seconds } = await requestCommunityAdminOtp(
@@ -331,9 +363,16 @@ export function RegisterPageClient({
     } catch (err) {
       if (err instanceof ApiError && (err.code?.startsWith("OTP_") ?? false)) {
         if (err.rateLimit) setOtpRateLimit(err.rateLimit);
-        setError(err.message);
+        if (err.code === "OTP_RESEND_LOCKED") {
+          setError(null);
+          startResendLockFromError(err);
+        } else {
+          clearResendLock();
+          setError(err.message);
+        }
         return;
       }
+      clearResendLock();
       await handleLoginError(err, setError);
     } finally {
       setOtpSending(false);
@@ -371,6 +410,7 @@ export function RegisterPageClient({
                 onClick={() => {
                   forgetChallenge();
                   setError(null);
+                  clearResendLock();
                 }}
               >
                 Back to email
@@ -401,13 +441,13 @@ export function RegisterPageClient({
               <AuthStepDots step={communityStep} />
             </div>
 
-            {error ? (
+            {bannerError ? (
               <div className="mt-4">
-                <AuthErrorBanner message={error} />
+                <AuthErrorBanner message={bannerError} />
               </div>
             ) : null}
 
-            {otpStep === "email" && referralCode && !error ? (
+            {otpStep === "email" && referralCode && !bannerError ? (
               <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-2.5 text-[13px] text-teal-900">
                 Referral code <span className="font-semibold">{referralCode}</span> will be applied when you create your account.
               </div>
@@ -419,6 +459,7 @@ export function RegisterPageClient({
                 onEmailChange={(value) => {
                   setEmail(value);
                   setError(null);
+                  clearResendLock();
                 }}
                 onFocus={() => setEmailFocused(true)}
                 onBlur={() => setEmailFocused(false)}
@@ -439,17 +480,21 @@ export function RegisterPageClient({
                 onOtpChange={(value) => {
                   setOtp(value);
                   setError(null);
+                  clearResendLock();
                 }}
                 onVerify={verifyOtp}
                 onResend={resendOtp}
                 sending={otpSending}
                 verifying={loading}
-                error={Boolean(error)}
+                error={Boolean(bannerError)}
                 initialRateLimit={otpRateLimit}
                 extendResendCooldown={extendOtpResendCooldown}
                 expiresAt={otpExpiresAt}
                 expiresInSeconds={otpExpiresInSeconds}
-                onExpired={forgetChallenge}
+                onExpired={() => {
+                  clearResendLock();
+                  forgetChallenge();
+                }}
               />
             )}
             <AuthLegalLinks className="mt-4" />

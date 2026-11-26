@@ -231,6 +231,8 @@ export function actionTypeLabel(type: AdminDashboardPendingAction["type"]) {
       return "Service bill";
     case "unit_registration":
       return "Unit request";
+    case "landlord_ownership":
+      return "Landlord claim";
     default:
       return "Item";
   }
@@ -258,6 +260,8 @@ export function actionTypeStyle(type: AdminDashboardPendingAction["type"]) {
       return "bg-cyan-50 text-cyan-800 ring-cyan-100";
     case "unit_registration":
       return "bg-teal-50 text-teal-800 ring-teal-100";
+    case "landlord_ownership":
+      return "bg-blue-50 text-blue-800 ring-blue-100";
     default:
       return "bg-slate-100 text-slate-700 ring-slate-200";
   }

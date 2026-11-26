@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -226,7 +227,7 @@ class UnitRegistrationPackageService
                     ]);
                 }
 
-                $itemId = DB::table('unit_registration_package_items')->insertGetId([
+                $itemRow = [
                     'package_id' => $packageId,
                     'unit_id' => $existing?->id,
                     'unit_number' => $unitNumber,
@@ -236,7 +237,12 @@ class UnitRegistrationPackageService
                     'status' => self::STATUS_PENDING,
                     'created_at' => now(),
                     'updated_at' => now(),
-                ]);
+                ];
+                if (Schema::hasColumn('unit_registration_package_items', 'occupancy')) {
+                    $itemRow['occupancy'] = $this->normalizeOccupancy($raw['occupancy'] ?? null, $residenceType, $index);
+                }
+
+                $itemId = DB::table('unit_registration_package_items')->insertGetId($itemRow);
 
                 $this->storeProofsForItem(
                     $communityId,
@@ -321,8 +327,26 @@ class UnitRegistrationPackageService
                     $package->kind === self::KIND_INITIAL ? 'package' : 'addon',
                 );
 
-                // New unit → requester becomes billing contact. Existing unit → contact unchanged.
-                if ($item->is_new_unit) {
+                $occupancy = isset($item->occupancy) ? (string) $item->occupancy : '';
+                $ownerNonResident = ($item->residence_type ?? '') === 'homeowner'
+                    && in_array($occupancy, ['rented', 'vacant'], true);
+
+                if ($ownerNonResident) {
+                    DB::table('unit_residents')
+                        ->where('unit_id', $unitId)
+                        ->where('user_id', $package->user_id)
+                        ->where('status', UnitAssignmentService::RESIDENT_ACTIVE)
+                        ->update([
+                            'status' => UnitAssignmentService::RESIDENT_LEFT,
+                            'left_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                }
+
+                $landlordOccupancy = ($item->residence_type ?? '') === 'homeowner'
+                    && in_array($occupancy, ['rented', 'vacant'], true);
+
+                if ($item->is_new_unit && ! $landlordOccupancy) {
                     $unitRow = DB::table('units')->where('id', $unitId)->lockForUpdate()->first();
                     if ($unitRow && empty($unitRow->billing_contact_user_id)) {
                         DB::table('units')->where('id', $unitId)->update([
@@ -345,6 +369,23 @@ class UnitRegistrationPackageService
                         'review_status' => self::STATUS_APPROVED,
                         'updated_at' => now(),
                     ]);
+
+                if (($item->residence_type ?? '') === 'homeowner' && in_array($occupancy, ['live_here', 'rented', 'vacant'], true)) {
+                    $proof = DB::table('unit_proof_documents')
+                        ->where('package_item_id', $item->id)
+                        ->where('kind', 'ownership_proof')
+                        ->value('file_url');
+                    app(\App\Services\Landlord\UnitOwnershipService::class)->recordApprovedFromPackage(
+                        (int) $package->community_id,
+                        $unitId,
+                        (int) $package->user_id,
+                        $occupancy,
+                        $reviewerId,
+                        $proof ? (string) $proof : null,
+                    );
+                }
+
+                app(\App\Services\Landlord\LandlordBillingContactService::class)->syncForUnit($unitId);
             }
 
             DB::table('unit_registration_packages')->where('id', $package->id)->update([
@@ -617,6 +658,30 @@ class UnitRegistrationPackageService
                     $index,
                     self::STATUS_APPROVED,
                 );
+
+                $occupancy = trim((string) ($raw['occupancy'] ?? ''));
+                if ($unitId && $residenceType === 'homeowner' && in_array($occupancy, ['live_here', 'rented', 'vacant'], true)) {
+                    app(\App\Services\Landlord\UnitOwnershipService::class)->recordApprovedFromPackage(
+                        $communityId,
+                        $unitId,
+                        $userId,
+                        $occupancy,
+                        $userId,
+                        isset($raw['ownership_proof_url']) ? (string) $raw['ownership_proof_url'] : null,
+                    );
+                    if (in_array($occupancy, ['rented', 'vacant'], true)) {
+                        DB::table('unit_residents')
+                            ->where('unit_id', $unitId)
+                            ->where('user_id', $userId)
+                            ->where('status', UnitAssignmentService::RESIDENT_ACTIVE)
+                            ->update([
+                                'status' => UnitAssignmentService::RESIDENT_LEFT,
+                                'left_at' => now(),
+                                'updated_at' => now(),
+                            ]);
+                    }
+                    app(\App\Services\Landlord\LandlordBillingContactService::class)->syncForUnit($unitId);
+                }
                 $index++;
             }
 
@@ -842,5 +907,27 @@ class UnitRegistrationPackageService
         }
 
         return implode(', ', $numbers);
+    }
+
+    private function normalizeOccupancy(mixed $value, ?string $residenceType, int $index): ?string
+    {
+        $occupancy = is_string($value) ? trim($value) : '';
+        if ($occupancy === '') {
+            return null;
+        }
+
+        if (! in_array($occupancy, ['live_here', 'rented', 'vacant'], true)) {
+            throw ValidationException::withMessages([
+                "units.{$index}.occupancy" => 'Occupancy must be live_here, rented, or vacant.',
+            ]);
+        }
+
+        if ($residenceType === 'tenant' && $occupancy !== '') {
+            throw ValidationException::withMessages([
+                "units.{$index}.occupancy" => 'Tenants do not set ownership occupancy.',
+            ]);
+        }
+
+        return $occupancy;
     }
 }

@@ -27,15 +27,80 @@ import {
 } from "../../../services/property-services-api";
 import { uploadUtilityBill } from "../../../services/profile-api";
 import { getCommunityId } from "../../../services/auth-session";
+import { fetchLandlordAccess } from "../../../services/landlord-api";
 import { pickImage } from "../../../utils/pickImage";
 import { sf, sw } from "../../../utils/responsive";
 
-function statusTone(status) {
-  const key = String(status || "").toLowerCase();
-  if (key === "active") return { bg: "#ECFDF5", text: "#047857", labelKey: "myUnits.statusActive" };
-  if (key === "pending") return { bg: "#FFFBEB", text: "#B45309", labelKey: "myUnits.statusPending" };
-  if (key === "rejected") return { bg: "#FEF2F2", text: "#B91C1C", labelKey: "myUnits.statusRejected" };
-  return { bg: "#F1F5F9", text: "#475569", labelKey: "myUnits.statusOther" };
+function occupancyPresentation(occupancy) {
+  if (occupancy === "live_here") return { bg: "#E8F0F7", text: "#1B4F8A", labelKey: "myUnits.occupancyLiveHere" };
+  if (occupancy === "rented") return { bg: "#F5F3FF", text: "#6D28D9", labelKey: "myUnits.occupancyRented" };
+  if (occupancy === "vacant") return { bg: "#F1F5F9", text: "#334155", labelKey: "myUnits.occupancyVacant" };
+  return null;
+}
+
+function approvalPresentation(status) {
+  if (status === "approved") return { bg: "#ECFDF5", text: "#047857", labelKey: "myUnits.approvalApproved" };
+  if (status === "pending") return { bg: "#FFFBEB", text: "#B45309", labelKey: "myUnits.approvalPending" };
+  if (status === "rejected") return { bg: "#FEF2F2", text: "#B91C1C", labelKey: "myUnits.approvalRejected" };
+  return null;
+}
+
+function resolveApprovalStatus(unit) {
+  const raw = String(unit?.approval_status ?? "").trim().toLowerCase();
+  if (raw === "approved" || raw === "pending" || raw === "rejected") return raw;
+  const ownership = String(unit?.ownership_status ?? "").trim().toLowerCase();
+  if (ownership === "approved" || ownership === "pending" || ownership === "rejected") return ownership;
+  const assoc = String(unit?.association_status ?? "").trim().toLowerCase();
+  if (assoc === "active") return "approved";
+  if (assoc === "pending" || assoc === "rejected") return assoc;
+  return raw || null;
+}
+
+function viewerLivesInUnit(unit) {
+  const assoc = String(unit?.association_status ?? "").toLowerCase();
+  if (assoc !== "active") return false;
+  const occupancy = String(unit?.occupancy ?? "").toLowerCase();
+  if (occupancy === "rented" || occupancy === "vacant") return false;
+  return true;
+}
+
+function residentsSummary(unit, t) {
+  const count = Math.max(0, Number(unit?.resident_count ?? 0));
+  const occupancy = String(unit?.occupancy ?? "").toLowerCase();
+  const livesHere = viewerLivesInUnit(unit);
+
+  if (livesHere) {
+    if (occupancy === "live_here" && count <= 1) {
+      return t("myUnits.residentsYouLiveHere");
+    }
+    if (count === 0) {
+      return t("myUnits.residentsYouLiveHere");
+    }
+    return t("myUnits.residentsCount", { count });
+  }
+
+  if (occupancy === "rented" || occupancy === "vacant" || String(unit?.association_status ?? "") === "ownership") {
+    if (count === 0) {
+      return t("myUnits.residentsNone");
+    }
+    return t("myUnits.residentsCount", { count });
+  }
+
+  if (count === 0) {
+    return t("myUnits.residentsNone");
+  }
+  return t("myUnits.residentsCount", { count });
+}
+
+function billingSummary(unit, t) {
+  if (unit?.is_billing_contact) {
+    return { emphasize: true, text: t("myUnits.youAreBillingContact") };
+  }
+  const name = String(unit?.billing_contact?.name ?? "").trim();
+  if (name) {
+    return { emphasize: false, text: name };
+  }
+  return { emphasize: false, text: t("myUnits.noBillingContact") };
 }
 
 export default function MyUnitsScreen() {
@@ -55,6 +120,7 @@ export default function MyUnitsScreen() {
   const [catalog, setCatalog] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isLandlord, setIsLandlord] = useState(false);
 
   useEffect(() => {
     if (!requestOpen) {
@@ -84,8 +150,15 @@ export default function MyUnitsScreen() {
   const enrolledUnitNumbers = useMemo(() => {
     const enrolled = new Set();
     for (const unit of units) {
-      const status = String(unit.association_status || "active").toLowerCase();
-      if (status !== "active" && status !== "pending" && status !== "invite") continue;
+      const status = String(unit.association_status || "").toLowerCase();
+      const approval = String(unit.approval_status || "").toLowerCase();
+      const linked =
+        status === "active" ||
+        status === "pending" ||
+        status === "invite" ||
+        approval === "approved" ||
+        approval === "pending";
+      if (!linked) continue;
       const number = String(unit.unit_number ?? "").trim().toLowerCase();
       if (number) enrolled.add(number);
     }
@@ -107,6 +180,12 @@ export default function MyUnitsScreen() {
       const payload = await fetchMyUnits();
       setUnits(payload.units || []);
       setMeta(payload.meta || {});
+      try {
+        const access = await fetchLandlordAccess();
+        setIsLandlord(Boolean(access?.landlord_dashboard));
+      } catch {
+        setIsLandlord(false);
+      }
     } catch (err) {
       await showFailure(t("myUnits.title"), err);
     } finally {
@@ -173,6 +252,7 @@ export default function MyUnitsScreen() {
               unit_number: trimmed,
               is_new_unit: isNewUnit,
               residence_type: residenceType,
+              occupancy: residenceType === "homeowner" ? "live_here" : undefined,
               utility_bill_url: utilityUrl,
             },
           ],
@@ -211,11 +291,14 @@ export default function MyUnitsScreen() {
     Boolean(utilityFile?.uri) &&
     !submitting;
 
+  const footerInset = Math.max(insets.bottom, sw(12));
+
   return (
-    <SafeAreaView style={propertyStyles.safe} edges={["left", "right"]}>
+    <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader title={t("myUnits.title")} onBack={() => router.back()} />
       <ScrollView
-        contentContainerStyle={{ padding: sw(16), paddingBottom: sw(40) }}
+        style={styles.scroll}
+        contentContainerStyle={{ padding: sw(16), paddingBottom: sw(16) }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -229,7 +312,7 @@ export default function MyUnitsScreen() {
         <View style={styles.hero}>
           <Text style={styles.heroEyebrow}>{t("myUnits.eyebrow")}</Text>
           <Text style={styles.heroTitle}>
-            {t("myUnits.count", { count: activeCount })}
+            {t("myUnits.registeredCount", { count: units.length })}
           </Text>
           <Text style={styles.heroBody}>{t("myUnits.subtitle")}</Text>
           {meta?.pending_initial_package ? (
@@ -251,30 +334,60 @@ export default function MyUnitsScreen() {
         ) : (
           <View style={{ gap: sw(10) }}>
             {units.map((unit) => {
-              const tone = statusTone(unit.association_status);
-              const isRejected = String(unit.association_status || "").toLowerCase() === "rejected";
+              const approvalKey = resolveApprovalStatus(unit);
+              const occupancy = occupancyPresentation(unit.occupancy);
+              const approval = approvalPresentation(approvalKey);
+              const residentsText = residentsSummary(unit, t);
+              const billing = billingSummary(unit, t);
+              const isRejected = approvalKey === "rejected";
               return (
-                <View key={`${unit.id}-${unit.association_status}`} style={styles.card}>
+                <View key={`${unit.id}-${unit.unit_number}-${approvalKey}`} style={styles.card}>
                   <View style={styles.cardTop}>
                     <View style={styles.iconWrap}>
                       <Feather name="home" size={18} color="#0F766E" />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.unitNumber}>{unit.unit_number}</Text>
-                      <Text style={styles.unitMeta}>
-                        {unit.is_billing_contact
-                          ? t("myUnits.youAreBillingContact")
-                          : unit.billing_contact?.name
-                            ? t("myUnits.billingContact", { name: unit.billing_contact.name })
-                            : t("myUnits.residentOnly")}
-                      </Text>
+                    <Text style={styles.unitNumber}>{t("nav.unit", { number: unit.unit_number })}</Text>
+                  </View>
+
+                  <View style={styles.detailPanel}>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>{t("myUnits.occupancyLabel")}</Text>
+                      {occupancy ? (
+                        <View style={[styles.badge, { backgroundColor: occupancy.bg }]}>
+                          <Text style={[styles.badgeText, { color: occupancy.text }]}>{t(occupancy.labelKey)}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.statusMissing}>{t("myUnits.statusMissing")}</Text>
+                      )}
                     </View>
-                    <View style={[styles.badge, { backgroundColor: tone.bg }]}>
-                      <Text style={[styles.badgeText, { color: tone.text }]}>
-                        {t(tone.labelKey)}
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>{t("myUnits.approvalLabel")}</Text>
+                      {approval ? (
+                        <View style={[styles.badge, { backgroundColor: approval.bg }]}>
+                          <Text style={[styles.badgeText, { color: approval.text }]}>{t(approval.labelKey)}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.statusMissing}>{t("myUnits.statusMissing")}</Text>
+                      )}
+                    </View>
+                    <View style={styles.residentsBlock}>
+                      <Text style={styles.detailLabel}>{t("myUnits.residentsLabel")}</Text>
+                      <Text style={styles.residentsText}>{residentsText}</Text>
+                    </View>
+                    <View style={styles.residentsBlock}>
+                      <Text style={styles.detailLabel}>{t("myUnits.billingContactLabel")}</Text>
+                      <Text
+                        style={[
+                          styles.residentsText,
+                          billing.emphasize && styles.billingYou,
+                          billing.text === t("myUnits.noBillingContact") && styles.billingMuted,
+                        ]}
+                      >
+                        {billing.text}
                       </Text>
                     </View>
                   </View>
+
                   {isRejected ? (
                     <Pressable
                       style={styles.reasonBtn}
@@ -304,6 +417,15 @@ export default function MyUnitsScreen() {
             })}
           </View>
         )}
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: footerInset }]}>
+        <Pressable style={styles.secondaryCta} onPress={() => router.push("/screens/landlord")}>
+          <Feather name="layers" size={18} color="#0F766E" />
+          <Text style={styles.secondaryCtaText}>
+            {isLandlord ? t("myUnits.myProperties") : t("myUnits.becomeLandlord")}
+          </Text>
+        </Pressable>
 
         {!meta?.pending_initial_package ? (
           <Pressable style={styles.cta} onPress={() => void openRequest()}>
@@ -311,7 +433,7 @@ export default function MyUnitsScreen() {
             <Text style={styles.ctaText}>{t("myUnits.requestAnother")}</Text>
           </Pressable>
         ) : null}
-      </ScrollView>
+      </View>
 
       <Modal visible={requestOpen} animationType="slide" transparent onRequestClose={() => setRequestOpen(false)}>
         <View style={styles.modalBackdrop}>
@@ -451,6 +573,16 @@ export default function MyUnitsScreen() {
 }
 
 const styles = {
+  screen: { flex: 1, backgroundColor: "#FFFFFF" },
+  scroll: { flex: 1 },
+  footer: {
+    paddingHorizontal: sw(16),
+    paddingTop: sw(12),
+    gap: sw(10),
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+  },
   hero: {
     backgroundColor: "#F0FDFA",
     borderRadius: sw(18),
@@ -523,6 +655,41 @@ const styles = {
     flexDirection: "row",
     alignItems: "center",
     gap: sw(12),
+    marginBottom: sw(12),
+  },
+  detailPanel: {
+    borderRadius: sw(12),
+    borderWidth: 1,
+    borderColor: "#E6EEF6",
+    backgroundColor: "#F8FAFC",
+    padding: sw(12),
+    gap: sw(10),
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: sw(12),
+  },
+  detailLabel: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(12),
+    color: "#475569",
+  },
+  residentsBlock: { gap: sw(4) },
+  residentsText: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    color: "#334155",
+    lineHeight: sf(18),
+  },
+  billingYou: {
+    fontFamily: Fonts.semiBold,
+    color: "#0F766E",
+  },
+  billingMuted: {
+    color: "#94A3B8",
+    fontStyle: "italic",
   },
   iconWrap: {
     width: sw(40),
@@ -544,6 +711,7 @@ const styles = {
     color: "#64748B",
   },
   badge: {
+    alignSelf: "flex-start",
     borderRadius: 999,
     paddingHorizontal: sw(10),
     paddingVertical: sw(4),
@@ -551,8 +719,8 @@ const styles = {
   badgeText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(11),
-    textTransform: "capitalize",
   },
+  statusMissing: { fontFamily: Fonts.medium, fontSize: sf(13), color: "#94A3B8" },
   reasonBtn: {
     marginTop: sw(12),
     alignSelf: "flex-start",
@@ -571,8 +739,23 @@ const styles = {
     fontSize: sf(12),
     color: "#B91C1C",
   },
+  secondaryCta: {
+    backgroundColor: "#ECFDF5",
+    borderRadius: sw(14),
+    minHeight: sw(48),
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: sw(8),
+    borderWidth: 1,
+    borderColor: "#99F6E4",
+  },
+  secondaryCtaText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(14),
+    color: "#0F766E",
+  },
   cta: {
-    marginTop: sw(18),
     backgroundColor: "#0F766E",
     borderRadius: sw(14),
     minHeight: sw(48),

@@ -378,7 +378,7 @@ class OtpController extends Controller
         if (AdminRoleService::isSystemAdmin($user) || AdminRoleService::isCommunityAdminRole($user)) {
             $this->failValidation(
                 'email',
-                'This account uses the admin portal. Sign in there instead.',
+                'This account uses community admin sign-in. Open the Community admin tab on the login page.',
                 'USE_ADMIN_PORTAL',
             );
         }
@@ -408,6 +408,14 @@ class OtpController extends Controller
             }
 
             return;
+        }
+
+        if (in_array($user->role ?? '', ['resident', 'guest'], true)) {
+            $this->failValidation(
+                'email',
+                'This email is a resident account. Use resident sign-in to open your home and landlord dashboard.',
+                'USE_RESIDENT_PORTAL',
+            );
         }
 
         $this->failValidation(

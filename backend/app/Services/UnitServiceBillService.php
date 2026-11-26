@@ -403,6 +403,7 @@ class UnitServiceBillService
 
     public function acknowledge(object $ownedBill, int $userId): array
     {
+        $this->assertLandlordMayPayBill($userId, (int) $ownedBill->unit_id);
         if (! in_array((string) $ownedBill->status, [self::STATUS_UNPAID, self::STATUS_OVERDUE], true)) {
             throw ValidationException::withMessages([
                 'bill' => 'This bill cannot be acknowledged in its current status.',
@@ -438,6 +439,7 @@ class UnitServiceBillService
 
     public function submitPaymentProof(object $ownedBill, UploadedFile $file, array $data, Request $request): array
     {
+        $this->assertLandlordMayPayBill((int) ($ownedBill->billing_contact_user_id ?? 0), (int) $ownedBill->unit_id);
         $this->assertAcknowledgedIfRequired($ownedBill);
         $this->assertCanSubmitProof((string) $ownedBill->status);
         app(\App\Services\Payments\OnlinePaymentPresenter::class)->assertNoPaymentInFlight(
@@ -1703,21 +1705,36 @@ class UnitServiceBillService
         }
     }
 
+    private function assertLandlordMayPayBill(int $userId, int $unitId): void
+    {
+        if (app(\App\Services\Landlord\LandlordAccessService::class)->rentedOwnerCannotPay($userId, $unitId)) {
+            throw ValidationException::withMessages([
+                'bill' => 'Landlords can view bill status for a rented unit. The resident billing contact pays this bill.',
+            ]);
+        }
+    }
+
     private function formatResidentBill(?object $row, Request $request): array
     {
         abort_if(! $row, 404, 'Bill not found.');
+        $viewerId = (int) ($row->billing_contact_user_id ?: 0);
+        $rentedOwner = $viewerId > 0 && app(\App\Services\Landlord\LandlordAccessService::class)
+            ->rentedOwnerCannotPay($viewerId, (int) $row->unit_id);
         $core = $this->formatBillCore($row, $request);
-        $core['can_acknowledge'] = (bool) $row->require_acknowledgement
+        $core['landlord_bill_status_only'] = $rentedOwner;
+        $core['can_acknowledge'] = ! $rentedOwner && (bool) $row->require_acknowledgement
             && empty($row->acknowledged_at)
             && in_array((string) $row->status, [self::STATUS_UNPAID, self::STATUS_OVERDUE], true);
-        $core['can_submit_proof'] = in_array((string) $row->status, [
+        $core['can_submit_proof'] = ! $rentedOwner && in_array((string) $row->status, [
             self::STATUS_UNPAID, self::STATUS_ACKNOWLEDGED, self::STATUS_REJECTED, self::STATUS_OVERDUE,
         ], true) && ! $this->mustAcknowledgeBeforePayment($row);
-        $core['online_payment'] = app(\App\Services\Payments\OnlinePaymentPresenter::class)->forPayable(
-            \App\Models\PaymentAttempt::PAYABLE_SERVICE_BILL,
-            (int) $row->id,
-            (int) $row->community_id,
-        );
+        $core['online_payment'] = $rentedOwner
+            ? ['available' => false, 'reason' => 'landlord_view_only']
+            : app(\App\Services\Payments\OnlinePaymentPresenter::class)->forPayable(
+                \App\Models\PaymentAttempt::PAYABLE_SERVICE_BILL,
+                (int) $row->id,
+                (int) $row->community_id,
+            );
 
         return $core;
     }

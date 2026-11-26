@@ -141,6 +141,7 @@ export default function UnitEntriesSection({
         locked: false,
         is_new_unit: true,
         residence_type: "",
+        occupancy: "",
         utilityFile: null,
       },
     ]);
@@ -268,6 +269,30 @@ export default function UnitEntriesSection({
             </View>
             {errors[`${prefix}_residence`] ? (
               <Text style={styles.errorText}>{errors[`${prefix}_residence`]}</Text>
+            ) : null}
+
+            {entry.residence_type === "homeowner" ? (
+              <View style={{ marginTop: 8 }}>
+                <Text style={styles.proofLabel}>{t("landlord.occupancyLabel")}</Text>
+                <View style={styles.residenceRow}>
+                  {[
+                    ["live_here", "landlord.occupancyLiveHere"],
+                    ["rented", "landlord.occupancyRented"],
+                    ["vacant", "landlord.occupancyVacant"],
+                  ].map(([value, labelKey]) => {
+                    const active = entry.occupancy === value;
+                    return (
+                      <TouchableOpacity
+                        key={value}
+                        style={[styles.typeCard, active && styles.typeCardActive]}
+                        onPress={() => updateEntry(index, { occupancy: value })}
+                      >
+                        <Text style={styles.typeTitle}>{t(labelKey)}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
             ) : null}
 
             <ProofUploadBox

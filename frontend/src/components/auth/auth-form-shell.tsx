@@ -44,6 +44,49 @@ export function AuthModeSwitch({
   );
 }
 
+export type LoginPortalKind = "community_admin" | "landlord";
+
+export function LoginPortalTabs({
+  active,
+  onChange,
+  disabled,
+}: {
+  active: LoginPortalKind;
+  onChange: (portal: LoginPortalKind) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      className="auth-mode-switch mb-4"
+      data-active={active === "landlord" ? "landlord" : "community"}
+      role="tablist"
+      aria-label="Sign in as"
+    >
+      <span className="auth-mode-switch__slider" aria-hidden />
+      <button
+        type="button"
+        role="tab"
+        aria-selected={active === "community_admin"}
+        disabled={disabled}
+        onClick={() => onChange("community_admin")}
+        className="auth-mode-switch__tab"
+      >
+        Community admin
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={active === "landlord"}
+        disabled={disabled}
+        onClick={() => onChange("landlord")}
+        className="auth-mode-switch__tab"
+      >
+        Landlord
+      </button>
+    </div>
+  );
+}
+
 export function CommunityAuthTabs({
   active,
   query = "",

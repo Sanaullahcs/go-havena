@@ -83,6 +83,13 @@ export async function confirmPendingDashboardAction(
           confirmText: "Approve",
           color: "green",
         });
+      case "landlord_ownership":
+        return confirmAction({
+          title: `Approve landlord claim for ${action.title}?`,
+          text: action.detail ?? "Landlord tools and billing rules will apply after approval.",
+          confirmText: "Approve",
+          color: "green",
+        });
       default:
         return confirmAction({ title: "Confirm action?", confirmText: "Confirm" });
     }

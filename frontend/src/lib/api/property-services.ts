@@ -259,6 +259,27 @@ export async function fetchMyUnit() {
   return (data.data ?? null) as CommunityUnit | null;
 }
 
+export type MyUnitRecord = {
+  id: number;
+  unit_number: string;
+  occupancy?: "live_here" | "rented" | "vacant" | null;
+  approval_status?: "pending" | "approved" | "rejected" | null;
+  ownership_status?: "pending" | "approved" | "rejected" | null;
+  association_status?: string | null;
+  association_rejection_reason?: string | null;
+  resident_count?: number;
+  is_billing_contact?: boolean;
+  billing_contact?: { id?: number; name?: string } | null;
+};
+
+export async function fetchMyUnits() {
+  const { data } = await api.get("/v1/units/mine");
+  return {
+    units: (data.units ?? []) as MyUnitRecord[],
+    meta: (data.meta ?? {}) as { unit_count?: number; association_count?: number },
+  };
+}
+
 export type UnitRegistrationPackage = {
   id: number;
   community_id: number;

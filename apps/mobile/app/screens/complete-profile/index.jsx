@@ -1016,6 +1016,7 @@ export default function CompleteProfile() {
               unit_number: number,
               is_new_unit: isNew,
               residence_type: residence,
+              occupancy: entry.occupancy || undefined,
               utility_bill_url: utilityUrl,
             };
           });

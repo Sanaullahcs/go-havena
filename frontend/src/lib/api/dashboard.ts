@@ -15,6 +15,7 @@ export interface AdminDashboardStats {
   pending_amenity_payments?: number;
   pending_service_payments?: number;
   pending_unit_requests?: number;
+  pending_landlord_ownership_claims?: number;
   pending_businesses?: number;
   published_notices: number;
   upcoming_events?: number;
@@ -54,7 +55,8 @@ export interface AdminDashboardPendingAction {
     | "amenity_review"
     | "amenity_payment"
     | "service_payment"
-    | "unit_registration";
+    | "unit_registration"
+    | "landlord_ownership";
   amenity_id?: number;
   id: number;
   user_id?: number;

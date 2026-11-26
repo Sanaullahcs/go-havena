@@ -12,6 +12,8 @@ use App\Services\AdminRoleService;
 use App\Services\AmenitySharedBillService;
 use App\Services\MemberLifecycleStatus;
 use App\Services\UnitServiceBillService;
+use App\Support\Landlord\UnitOwnershipOccupancy;
+use App\Support\Landlord\UnitOwnershipStatus;
 use App\Support\NoticeExpiry;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
@@ -117,6 +119,7 @@ class DashboardController extends Controller
         $pendingAmenityPayments = 0;
         $pendingServicePayments = 0;
         $pendingUnitRequests = 0;
+        $pendingLandlordClaims = 0;
         if ($communityId) {
             $pendingAmenityReviews = (int) DB::table('amenities')
                 ->where('community_id', $communityId)
@@ -126,6 +129,7 @@ class DashboardController extends Controller
             $pendingAmenityPayments = $amenityBills->countCommunityAdminReviewablePendingPayments($communityId, $viewerId);
             $pendingServicePayments = $serviceBills->countAdminPendingVerification($communityId);
             $pendingUnitRequests = $this->countPendingUnitRegistrationPackages($communityId);
+            $pendingLandlordClaims = $this->countPendingLandlordOwnershipClaims($communityId);
         }
 
         $communitiesQuery = Community::query();
@@ -344,7 +348,7 @@ class DashboardController extends Controller
                     'pending_approval_total'     => $communityId
                         ? $pendingMembers + $pendingListings + $pendingPosts + $pendingBookings + $pendingBusinesses
                             + $pendingAmenityReviews + $pendingAmenityPayments + $pendingServicePayments
-                            + $pendingUnitRequests
+                            + $pendingUnitRequests + $pendingLandlordClaims
                         : $pendingMembers + $pendingCommunityRequests + $pendingListings + $pendingCommunityAdmins,
                     'banned_members'             => $bannedMembers,
                     'open_reports'               => $openReports,
@@ -362,6 +366,7 @@ class DashboardController extends Controller
                     'pending_amenity_payments'   => $pendingAmenityPayments,
                     'pending_service_payments'   => $pendingServicePayments,
                     'pending_unit_requests'      => $pendingUnitRequests,
+                    'pending_landlord_ownership_claims' => $pendingLandlordClaims,
                     'total_communities'          => $totalCommunities,
                     'active_regions'             => $activeRegions,
                     'pending_community_requests' => $pendingCommunityRequests,
@@ -432,6 +437,7 @@ class DashboardController extends Controller
         $pendingAmenityPayments = 0;
         $pendingServicePayments = 0;
         $pendingUnitRequests = 0;
+        $pendingLandlordClaims = 0;
         if ($communityId) {
             $pendingAmenityReviews = (int) DB::table('amenities')
                 ->where('community_id', $communityId)
@@ -441,6 +447,7 @@ class DashboardController extends Controller
             $pendingAmenityPayments = $amenityBills->countCommunityAdminReviewablePendingPayments($communityId, $viewerId);
             $pendingServicePayments = $serviceBills->countAdminPendingVerification($communityId);
             $pendingUnitRequests = $this->countPendingUnitRegistrationPackages($communityId);
+            $pendingLandlordClaims = $this->countPendingLandlordOwnershipClaims($communityId);
         }
 
         $businessesQuery = DB::table('businesses')->whereNull('deleted_at');
@@ -481,11 +488,12 @@ class DashboardController extends Controller
                 'pending_posts'          => $pendingPosts,
                 'pending_approval_total' => $pendingMembers + $pendingCommunityRequests + $pendingPosts + $pendingListings + $pendingBookings + $pendingBusinesses
                     + $pendingAmenityReviews + $pendingAmenityPayments + $pendingServicePayments
-                    + $pendingUnitRequests,
+                    + $pendingUnitRequests + $pendingLandlordClaims,
                 'pending_amenity_reviews' => $pendingAmenityReviews,
                 'pending_amenity_payments' => $pendingAmenityPayments,
                 'pending_service_payments' => $pendingServicePayments,
                 'pending_unit_requests' => $pendingUnitRequests,
+                'pending_landlord_ownership_claims' => $pendingLandlordClaims,
             ],
             'pending_actions' => $pendingActions,
             'generated_at'    => now()->toIso8601String(),
@@ -1070,6 +1078,7 @@ class DashboardController extends Controller
         }
 
         $unitRequests = $this->buildPendingUnitRegistrationActions($communityId);
+        $landlordClaims = $this->buildPendingLandlordOwnershipActions($communityId);
 
         return collect([
             ...$memberships,
@@ -1085,6 +1094,7 @@ class DashboardController extends Controller
             ...$amenityPayments,
             ...$servicePayments,
             ...$unitRequests,
+            ...$landlordClaims,
         ])
             ->unique(fn (array $item) => ($item['type'] ?? '').':'.($item['id'] ?? ''))
             ->sortByDesc('created_at')
@@ -1250,6 +1260,78 @@ class DashboardController extends Controller
                 'action_href'  => '/admin/unit-requests',
             ];
         })->all();
+    }
+
+    private function countPendingLandlordOwnershipClaims(?int $communityId): int
+    {
+        if (! $communityId || ! Schema::hasTable('unit_ownerships')) {
+            return 0;
+        }
+
+        return (int) DB::table('unit_ownerships')
+            ->where('community_id', $communityId)
+            ->where('status', UnitOwnershipStatus::PENDING)
+            ->count();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function buildPendingLandlordOwnershipActions(?int $communityId): array
+    {
+        if (! $communityId || ! Schema::hasTable('unit_ownerships')) {
+            return [];
+        }
+
+        $rows = DB::table('unit_ownerships as o')
+            ->join('units', 'units.id', '=', 'o.unit_id')
+            ->join('users', 'users.id', '=', 'o.user_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->leftJoin('communities', 'communities.id', '=', 'o.community_id')
+            ->where('o.community_id', $communityId)
+            ->where('o.status', UnitOwnershipStatus::PENDING)
+            ->orderByDesc('o.created_at')
+            ->limit(15)
+            ->get([
+                'o.id',
+                'o.user_id',
+                'o.community_id',
+                'o.occupancy',
+                'o.proof_url',
+                'o.created_at',
+                'units.unit_number',
+                DB::raw('COALESCE(profiles.display_name, users.name) as resident_name'),
+                'users.email',
+                'users.phone',
+                'communities.name as community_name',
+            ]);
+
+        return $rows->map(function ($row) {
+            $occupancy = $this->landlordOccupancyLabel((string) $row->occupancy);
+            $proof = $this->resolveMediaUrl($row->proof_url ?? null);
+
+            return [
+                'type' => 'landlord_ownership',
+                'id' => (int) $row->id,
+                'user_id' => (int) $row->user_id,
+                'community_id' => (int) $row->community_id,
+                'title' => PhoneNormalizer::displayName($row->resident_name, $row->phone, $row->email),
+                'subtitle' => $row->community_name ?? 'Community',
+                'detail' => "Unit {$row->unit_number} · {$occupancy} · landlord claim",
+                'utility_bill_url' => $proof,
+                'created_at' => $row->created_at,
+                'action_label' => 'Review landlord claim',
+                'action_href' => '/admin/landlord-ownership',
+            ];
+        })->all();
+    }
+
+    private function landlordOccupancyLabel(string $occupancy): string
+    {
+        return match ($occupancy) {
+            UnitOwnershipOccupancy::LIVE_HERE => 'I live here',
+            UnitOwnershipOccupancy::RENTED => 'Rented out',
+            UnitOwnershipOccupancy::VACANT => 'Vacant',
+            default => $occupancy,
+        };
     }
 
     /**

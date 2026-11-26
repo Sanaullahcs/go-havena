@@ -71,6 +71,9 @@ use App\Http\Controllers\Api\V1\NearbyPlaceController;
 use App\Http\Controllers\Api\V1\CommunityDirectoryController;
 use App\Http\Controllers\Api\V1\InviteQrImageController;
 use App\Http\Controllers\Api\V1\CommunityFeatureController;
+use App\Http\Controllers\Api\V1\LandlordAccessController;
+use App\Http\Controllers\Api\V1\LandlordController;
+use App\Http\Controllers\Api\V1\AdminLandlordOwnershipController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -137,7 +140,7 @@ Route::prefix('v1')->group(function () {
         ->whereNumber('assignment');
 
     /* ── Authenticated ── */
-    Route::middleware(['auth:sanctum', 'guest.access', 'account.access'])->group(function () {
+    Route::middleware(['auth:sanctum', 'guest.access', 'account.access', 'resident.community'])->group(function () {
 
         /* Profile */
         Route::get('/me',             [ProfileController::class, 'show']);
@@ -175,6 +178,14 @@ Route::prefix('v1')->group(function () {
         Route::post('/communities/{id}/join',      [CommunityController::class, 'join']);
         Route::get('/communities/{id}/units',      [UnitController::class, 'communityIndex'])->whereNumber('id');
         Route::post('/communities/{id}/units',     [UnitController::class, 'communityStore'])->whereNumber('id');
+        Route::get('/landlord/access',             [LandlordAccessController::class, 'show']);
+        Route::get('/landlord/portfolio',          [LandlordController::class, 'portfolio']);
+        Route::post('/landlord/enable',            [LandlordController::class, 'enable']);
+        Route::post('/landlord/ownership-claims',  [LandlordController::class, 'claimOwnership']);
+        Route::patch('/landlord/ownerships/{id}/occupancy', [LandlordController::class, 'updateOccupancy'])->whereNumber('id');
+        Route::get('/landlord/advisory-reviews',   [LandlordController::class, 'advisoryIndex']);
+        Route::post('/landlord/advisory-reviews/{id}', [LandlordController::class, 'advisoryDecide'])->whereNumber('id');
+        Route::put('/landlord/primary-residence',  [LandlordController::class, 'setPrimaryResidence']);
         Route::get('/units/mine',                  [UnitController::class, 'mine']);
         Route::post('/units/mine/registration-packages', [UnitController::class, 'submitRegistrationPackage']);
         Route::post('/units/mine/onboarding-units', [UnitController::class, 'completeOnboardingUnits']);
@@ -617,6 +628,10 @@ Route::prefix('v1')->group(function () {
                 Route::get('/unit-registration-packages',     [UnitController::class, 'adminPackagesIndex']);
                 Route::post('/unit-registration-packages/{id}/approve', [UnitController::class, 'adminApprovePackage'])->whereNumber('id');
                 Route::post('/unit-registration-packages/{id}/reject',  [UnitController::class, 'adminRejectPackage'])->whereNumber('id');
+                Route::get('/landlord-ownership-claims',     [AdminLandlordOwnershipController::class, 'index']);
+                Route::get('/landlord-ownership-claims/{id}', [AdminLandlordOwnershipController::class, 'show'])->whereNumber('id');
+                Route::post('/landlord-ownership-claims/{id}/approve', [AdminLandlordOwnershipController::class, 'approve'])->whereNumber('id');
+                Route::post('/landlord-ownership-claims/{id}/reject', [AdminLandlordOwnershipController::class, 'reject'])->whereNumber('id');
                 Route::get('/property-services',              [PropertyServiceController::class, 'adminIndex']);
                 Route::post('/property-services',             [PropertyServiceController::class, 'store']);
                 Route::patch('/property-services/{id}',       [PropertyServiceController::class, 'update'])->whereNumber('id');

@@ -5,13 +5,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { requestResidentOtp, verifyResidentOtp } from "@/lib/api/auth";
 import { setSession, getToken } from "@/lib/auth/session";
 import { handleLoginError } from "@/lib/auth/login-error";
-import { otpResendLockUserMessage } from "@/lib/auth/otp-config";
+import { OTP_RESEND_LOCK_SECONDS } from "@/lib/auth/otp-config";
+import { showOtpResendLockAlert } from "@/lib/alert";
+import { normalizeOtpRateLimit } from "@/lib/auth/otp-rate-limit";
 import { ApiError } from "@/lib/api/client";
 import { validateEmailField } from "@/lib/admin/form-validation-utils";
 import { LoadingButton } from "@/components/shared/loaders";
 import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
 import { AuthLegalLinks } from "@/components/auth/auth-legal-links";
 import { HavenaLockup } from "@/components/shared/havena-lockup";
+import { useOtpResendLockMessage } from "@/hooks/use-otp-resend-lock-message";
 
 const DEMO_ACCOUNTS = [
   { label: "Resident", email: "sarah@havena.app", accent: "#14B8A6" },
@@ -36,6 +39,13 @@ function ResidentLoginPageInner() {
   const [extendOtpResendCooldown, setExtendOtpResendCooldown] = useState(false);
   const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
   const [otpExpiresInSeconds, setOtpExpiresInSeconds] = useState<number | null>(null);
+  const {
+    lockMessage,
+    startResendLock,
+    startResendLockFromError,
+    clearResendLock,
+  } = useOtpResendLockMessage();
+  const bannerError = lockMessage ?? error;
 
   useEffect(() => {
     // Legacy email links used /resident-login?staff_invite=… — never auto-accept or send to the dashboard.
@@ -59,6 +69,7 @@ function ResidentLoginPageInner() {
     }
 
     setError(null);
+    clearResendLock();
     setOtp("");
     setOtpSending(true);
     try {
@@ -69,6 +80,17 @@ function ResidentLoginPageInner() {
       setOtpExpiresInSeconds(expires_in_seconds);
       setOtpStep("code");
     } catch (err) {
+      if (err instanceof ApiError && err.code === "OTP_RESEND_LOCKED") {
+        const limits = normalizeOtpRateLimit(err.rateLimit);
+        const lockSeconds =
+          limits.retryAfterSeconds > 0 ? limits.retryAfterSeconds : OTP_RESEND_LOCK_SECONDS;
+        setOtpRateLimit(err.rateLimit ?? null);
+        setError(null);
+        startResendLock(lockSeconds);
+        void showOtpResendLockAlert(lockSeconds);
+        return;
+      }
+      clearResendLock();
       await handleLoginError(err, setError);
     } finally {
       setOtpSending(false);
@@ -79,6 +101,7 @@ function ResidentLoginPageInner() {
     if (code.length !== 6 || otpSending || loading || verifyLock.current) return;
     verifyLock.current = true;
     setError(null);
+    clearResendLock();
     setLoading(true);
     try {
       const res = await verifyResidentOtp(email.trim(), code);
@@ -92,8 +115,15 @@ function ResidentLoginPageInner() {
         if (err.code === "INVALID_OTP" || err.code === "OTP_VERIFY_LOCKED") {
           setExtendOtpResendCooldown(true);
         }
-        setError(err.code === "OTP_RESEND_LOCKED" ? otpResendLockUserMessage() : err.message);
+        if (err.code === "OTP_RESEND_LOCKED") {
+          setError(null);
+          startResendLockFromError(err);
+        } else {
+          clearResendLock();
+          setError(err.message);
+        }
       } else {
+        clearResendLock();
         await handleLoginError(err, setError);
       }
     }
@@ -101,6 +131,7 @@ function ResidentLoginPageInner() {
 
   const resendOtp = async () => {
     setError(null);
+    clearResendLock();
     setOtpSending(true);
     try {
       const { rate_limit, expires_at, expires_in_seconds } = await requestResidentOtp(email.trim());
@@ -111,9 +142,16 @@ function ResidentLoginPageInner() {
     } catch (err) {
       if (err instanceof ApiError && (err.code?.startsWith("OTP_") ?? false)) {
         if (err.rateLimit) setOtpRateLimit(err.rateLimit);
-        setError(err.code === "OTP_RESEND_LOCKED" ? otpResendLockUserMessage() : err.message);
+        if (err.code === "OTP_RESEND_LOCKED") {
+          setError(null);
+          startResendLockFromError(err);
+        } else {
+          clearResendLock();
+          setError(err.message);
+        }
         return;
       }
+      clearResendLock();
       await handleLoginError(err, setError);
     } finally {
       setOtpSending(false);
@@ -123,6 +161,7 @@ function ResidentLoginPageInner() {
   const fillDemo = (acc: typeof DEMO_ACCOUNTS[0]) => {
     setEmail(acc.email);
     setError(null);
+    clearResendLock();
     setOtpStep("email");
     setOtp("");
   };
@@ -204,6 +243,7 @@ function ResidentLoginPageInner() {
                     setOtpExpiresAt(null);
                     setOtpExpiresInSeconds(null);
                     setError(null);
+                    clearResendLock();
                   }}
                   className="mt-4 text-[13px] font-semibold text-[#0D9488] hover:text-[#0A2A43]"
                 >
@@ -211,13 +251,13 @@ function ResidentLoginPageInner() {
                 </button>
               ) : null}
 
-              {error && (
+              {bannerError && (
                 <div className="mt-5 flex gap-2.5 rounded-lg border border-red-200/80 bg-red-50 px-3.5 py-3 text-[13px] text-red-700" role="alert">
                   <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden className="mt-0.5 shrink-0">
                     <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="1.4" />
                     <path d="M9 5.5v4M9 11.5h.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                   </svg>
-                  {error}
+                  {bannerError}
                 </div>
               )}
 
@@ -236,7 +276,11 @@ function ResidentLoginPageInner() {
                         placeholder="you@example.com"
                         required
                         value={email}
-                        onChange={(e) => { setEmail(e.target.value); setError(null); }}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setError(null);
+                          clearResendLock();
+                        }}
                         className="resident-auth-input"
                         style={{ paddingLeft: "2.625rem", paddingRight: "0.875rem" }}
                       />
@@ -265,17 +309,21 @@ function ResidentLoginPageInner() {
                   onOtpChange={(value) => {
                     setOtp(value);
                     setError(null);
+                    clearResendLock();
                   }}
                   onVerify={verifyOtp}
                   onResend={resendOtp}
                   sending={otpSending}
                   verifying={loading}
-                  error={Boolean(error)}
+                  error={Boolean(bannerError)}
                   initialRateLimit={otpRateLimit}
                   extendResendCooldown={extendOtpResendCooldown}
                   expiresAt={otpExpiresAt}
                   expiresInSeconds={otpExpiresInSeconds}
-                  onExpired={() => setError("This code has expired. Tap Resend code to get a new one.")}
+                  onExpired={() => {
+                    clearResendLock();
+                    setError("This code has expired. Tap Resend code to get a new one.");
+                  }}
                 />
               )}
 

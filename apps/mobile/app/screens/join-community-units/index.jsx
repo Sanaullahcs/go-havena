@@ -221,6 +221,7 @@ export default function JoinCommunityUnitsScreen() {
             unit_number: number,
             is_new_unit: !existingNormalized.has(normalized),
             residence_type: entry.residence_type,
+            occupancy: entry.occupancy || undefined,
             utility_bill_url: utilityUrl,
           });
         }

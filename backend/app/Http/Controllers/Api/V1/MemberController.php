@@ -25,6 +25,7 @@ use App\Services\MemberLifecycleStatus;
 use App\Services\MemberWelcomeNotification;
 use App\Services\NotificationService;
 use App\Support\ActivityActionCatalog;
+use App\Support\Landlord\UnitOwnershipOccupancy;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -701,6 +702,14 @@ class MemberController extends Controller
                     $primary['utility_bill_url'] = $this->resolveMediaUrl($profile->utility_bill_url ?? null);
                 }
             }
+        }
+
+        if (($primary['role'] ?? 'member') === 'member' && $userId > 0) {
+            $primary['occupancy_kind'] = $this->resolveOccupancyKindForMember((object) [
+                'id' => $userId,
+                'community_id' => $primary['community_id'] ?? null,
+                'role' => 'member',
+            ]);
         }
 
         return $primary;
@@ -1940,6 +1949,9 @@ class MemberController extends Controller
             'rejection_reason' => $member->rejection_reason ?? null,
             'rejected_by'      => $member->rejected_by ?? null,
             'units'          => $this->memberUnitsBrief($member, detailed: false),
+            'occupancy_kind' => ($member->role ?? 'member') === 'member'
+                ? $this->resolveOccupancyKindForMember($member)
+                : null,
             'avatar_url'     => $this->resolveMediaUrl($member->avatar_url ?? null),
             'display_name'   => $member->display_name,
             'utility_bill_url' => $this->resolveMediaUrl($member->utility_bill_url ?? null),
@@ -1949,6 +1961,9 @@ class MemberController extends Controller
 
         if ($detailed) {
             $payload['units'] = $this->memberUnitsBrief($member, detailed: true);
+            $payload['occupancy_kind'] = ($member->role ?? 'member') === 'member'
+                ? $this->resolveOccupancyKindForMember($member)
+                : null;
             $payload['unit_number'] = $payload['units'][0]['unit_number'] ?? $payload['unit_number'];
             $payload['phone'] = $member->phone ?? null;
             $payload['bio'] = $member->bio ?? null;
@@ -2281,6 +2296,98 @@ class MemberController extends Controller
     }
 
     /**
+     * Admin members table: residencies plus landlord-owned units that are vacant or rented (not live_here).
+     *
+     * @param  list<array<string, mixed>>  $allUnits
+     * @return list<array<string, mixed>>
+     */
+    private function memberUnitsForAdminList(array $allUnits): array
+    {
+        $portfolio = array_values(array_filter(
+            $allUnits,
+            function (array $row): bool {
+                if (($row['association_status'] ?? '') !== 'ownership') {
+                    return false;
+                }
+
+                $ownershipStatus = strtolower((string) ($row['ownership_status'] ?? 'approved'));
+                if ($ownershipStatus !== 'approved') {
+                    return false;
+                }
+
+                return UnitOwnershipOccupancy::qualifiesForLandlordDashboard($row['occupancy'] ?? null);
+            },
+        ));
+
+        $active = array_values(array_filter(
+            $allUnits,
+            fn (array $row) => ($row['association_status'] ?? 'active') === UnitAssignmentService::RESIDENT_ACTIVE,
+        ));
+        if ($active !== []) {
+            $residentUnitIds = [];
+            foreach ($active as $row) {
+                $unitId = (int) ($row['id'] ?? 0);
+                if ($unitId > 0) {
+                    $residentUnitIds[$unitId] = true;
+                }
+            }
+            $merged = $active;
+            foreach ($portfolio as $row) {
+                $unitId = (int) ($row['id'] ?? 0);
+                if ($unitId > 0 && isset($residentUnitIds[$unitId])) {
+                    continue;
+                }
+                $merged[] = $row;
+            }
+
+            return $merged;
+        }
+
+        // Pending join / unit requests are reviewed in Unit Requests — never listed here.
+        return $portfolio;
+    }
+
+    /** @return 'resident'|'landlord'|'member' */
+    private function resolveOccupancyKindForMember(object $member): string
+    {
+        $userId = (int) ($member->id ?? 0);
+        $communityId = isset($member->community_id) ? (int) $member->community_id : 0;
+        if ($userId < 1 || $communityId < 1) {
+            return 'member';
+        }
+
+        $user = User::query()->find($userId);
+        if (! $user) {
+            return 'member';
+        }
+
+        $allUnits = app(UnitAssignmentService::class)->userUnitsBrief($user, $communityId);
+
+        $hasLandlordPortfolio = collect($allUnits)->contains(function (array $row): bool {
+            if (($row['association_status'] ?? '') !== 'ownership') {
+                return false;
+            }
+            if (strtolower((string) ($row['ownership_status'] ?? '')) !== 'approved') {
+                return false;
+            }
+
+            return UnitOwnershipOccupancy::qualifiesForLandlordDashboard($row['occupancy'] ?? null);
+        });
+        if ($hasLandlordPortfolio) {
+            return 'landlord';
+        }
+
+        $hasActive = collect($allUnits)->contains(
+            fn (array $row) => ($row['association_status'] ?? '') === UnitAssignmentService::RESIDENT_ACTIVE,
+        );
+        if ($hasActive) {
+            return 'resident';
+        }
+
+        return 'member';
+    }
+
+    /**
      * @return list<array{
      *   id: int|null,
      *   unit_number: string,
@@ -2311,41 +2418,43 @@ class MemberController extends Controller
                 : [];
         }
 
-        $units = app(UnitAssignmentService::class)->userUnitsBrief($user, $communityId);
+        $allUnits = app(UnitAssignmentService::class)->userUnitsBrief($user, $communityId);
 
-        // Table / hover: active units when the resident already belongs here.
-        // Pending-only join requests keep those unit numbers so admins can verify them.
+        // List view: active residency, pending join units, or landlord portfolio (vacant / rented only — not live_here).
         if (! $detailed) {
-            $active = array_values(array_filter(
-                $units,
-                fn (array $row) => ($row['association_status'] ?? 'active') === UnitAssignmentService::RESIDENT_ACTIVE,
-            ));
-            $units = $active !== []
-                ? $active
-                : array_values(array_filter(
-                    $units,
-                    fn (array $row) => ($row['association_status'] ?? '') === UnitAssignmentService::RESIDENT_PENDING,
-                ));
+            $units = $this->memberUnitsForAdminList($allUnits);
+        } else {
+            $units = $allUnits;
         }
 
         if ($units !== []) {
             return array_map(
-                fn (array $row) => $this->formatMemberUnitRow(
-                    isset($row['id']) ? (int) $row['id'] : null,
-                    (string) ($row['unit_number'] ?? ''),
-                    (string) ($row['association_status'] ?? 'active'),
-                    (bool) ($row['is_billing_contact'] ?? false),
-                    $member,
-                    $detailed,
-                ),
+                function (array $row) use ($member, $detailed) {
+                    $formatted = $this->formatMemberUnitRow(
+                        isset($row['id']) ? (int) $row['id'] : null,
+                        (string) ($row['unit_number'] ?? ''),
+                        (string) ($row['association_status'] ?? 'active'),
+                        (bool) ($row['is_billing_contact'] ?? false),
+                        $member,
+                        $detailed,
+                    );
+                    $formatted['occupancy'] = $row['occupancy'] ?? null;
+                    $formatted['ownership_status'] = $row['ownership_status'] ?? null;
+                    if ($detailed) {
+                        $formatted['approval_status'] = $row['approval_status'] ?? null;
+                    }
+
+                    return $formatted;
+                },
                 $units,
             );
         }
 
-        // Invited / join-request units not yet synced to unit_residents.
-        // Membership pending (e.g. second-community request or redeemed invite
-        // awaiting admin review) must show as pending — not invite.
-        if (\Illuminate\Support\Facades\Schema::hasTable('invite_unit_assignments')) {
+        // Profile/detail only: invited / join-request units not yet approved for residency.
+        if (
+            $detailed
+            && \Illuminate\Support\Facades\Schema::hasTable('invite_unit_assignments')
+        ) {
             $inviteUnits = DB::table('invite_unit_assignments')
                 ->where('community_id', $communityId)
                 ->where('user_id', $userId)
