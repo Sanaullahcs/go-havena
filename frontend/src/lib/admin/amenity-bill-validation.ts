@@ -42,7 +42,9 @@ export function defaultDueDate(billingMonth: string, dueDay: number | null | und
   const [year, month] = billingMonth.split("-").map(Number);
   const lastDay = new Date(year, month, 0).getDate();
   const day = Math.min(Math.max(dueDay, 1), lastDay);
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const computed = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const issue = todayIsoDate();
+  return computed < issue ? issue : computed;
 }
 
 export function formatBillDate(value?: string | null): string {
@@ -68,6 +70,9 @@ export function validateAmenityBillForm(form: AmenityMonthlyBillForm): FieldErro
   else if (!Number.isFinite(amount) || amount < 0.01) errors.amount_per_resident = "Enter an amount greater than 0.";
 
   if (!form.due_date) errors.due_date = "Due date is required.";
+  else if (form.due_date < todayIsoDate()) {
+    errors.due_date = "Due date cannot be earlier than the issue date.";
+  }
   if (!form.file) errors.file = "Upload the original bill screenshot or document.";
   else if (!ALLOWED_FILE_RE.test(form.file.name)) {
     errors.file = "Use a PDF, Word, JPG, PNG, or WebP file.";

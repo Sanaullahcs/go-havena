@@ -2,12 +2,14 @@ package expo.modules.applocale
 
 import android.app.Activity
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Build
 import android.os.LocaleList
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import java.util.Locale
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import expo.modules.kotlin.modules.Module
@@ -77,6 +79,26 @@ class AppLocaleModule : Module() {
     }
   }
 
+  private fun applyLocaleToCurrentActivity(languageTag: String) {
+    val activity = appContext.currentActivity ?: return
+    activity.runOnUiThread {
+      try {
+        val locale = Locale.forLanguageTag(languageTag)
+        val locales = LocaleList(locale)
+        val resources = activity.resources
+        val config = Configuration(resources.configuration)
+        config.setLocales(locales)
+        @Suppress("DEPRECATION")
+        resources.updateConfiguration(config, resources.displayMetrics)
+        val appResources = activity.applicationContext.resources
+        @Suppress("DEPRECATION")
+        appResources.updateConfiguration(config, appResources.displayMetrics)
+      } catch (_: Exception) {
+        // AppCompat application locales still apply to the next system activity.
+      }
+    }
+  }
+
   private fun applyImeHintToFocused(languageTag: String): Boolean {
     val activity = appContext.currentActivity ?: return false
     val focused = activity.currentFocus as? EditText
@@ -104,8 +126,19 @@ class AppLocaleModule : Module() {
         .putString(PREFS_KEY, languageTag)
         .apply()
       applyAppLocales(languageTag)
-      // Also nudge the currently focused field if any.
       applyImeHintToFocused(languageTag)
+      true
+    }
+
+    Function("prepareSystemLocaleUI") { languageTag: String ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function false
+      context
+        .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .edit()
+        .putString(PREFS_KEY, languageTag)
+        .apply()
+      applyAppLocales(languageTag)
+      applyLocaleToCurrentActivity(languageTag)
       true
     }
 

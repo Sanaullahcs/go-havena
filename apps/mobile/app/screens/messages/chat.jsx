@@ -387,13 +387,10 @@ export default function ChatScreen() {
   const chatItems = useMemo(() => buildChatItems(messages, now, t), [messages, now, t]);
   const isListingChat = Boolean(listingContext?.id);
   const showPeerRole = Boolean(peerRole);
-  const roleLabel = showPeerRole ? peerRoleLabel(peerRole) : "";
 
   const headerSubtitle = isListingChat
     ? t("messages.chat.listingSubtitle", { title: listingContext.title })
-    : showPeerRole
-      ? roleLabel
-      : undefined;
+    : undefined;
 
   const quickReplies = isListingChat ? LISTING_QUICK_REPLIES : NEIGHBOR_QUICK_REPLIES;
   const emptyHint = isListingChat

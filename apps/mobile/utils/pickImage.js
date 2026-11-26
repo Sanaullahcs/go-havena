@@ -5,6 +5,14 @@ import { promptImageSourceAsync } from "../providers/image-source-picker-provide
 import { persistUploadAsset } from "./upload-form-data";
 import { resolveLibraryPicker } from "./gallery-image-options";
 import i18n from "../i18n";
+import { prepareNativeLocaleForSystemUI } from "./native-app-locale";
+
+async function syncLocaleBeforeNativePicker() {
+  prepareNativeLocaleForSystemUI(i18n.language);
+  await new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
 
 function notifyError(showError, title, message) {
   if (showError) {
@@ -116,6 +124,8 @@ export async function takePhoto(onSuccess, options = {}) {
   try {
     const allowed = await ensureCameraPermission(showError);
     if (!allowed) return null;
+
+    await syncLocaleBeforeNativePicker();
 
     const result = await ImagePicker.launchCameraAsync({
       ...pickerOptions,
@@ -272,6 +282,8 @@ export const pickImage = async (onSuccess, options = {}) => {
     const allowed = await ensureLibraryPermission(showError);
     if (!allowed) return null;
 
+    await syncLocaleBeforeNativePicker();
+
     const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
 
     if (!result.canceled && result.assets?.[0]) {
@@ -319,6 +331,8 @@ export async function pickImages(onSuccess, options = {}) {
   try {
     const allowed = await ensureLibraryPermission(showError);
     if (!allowed) return [];
+
+    await syncLocaleBeforeNativePicker();
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],

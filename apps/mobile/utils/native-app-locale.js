@@ -16,8 +16,9 @@ const LANG_TAGS = {
  *   Gboard/Samsung Keyboard may switch only if that language layout is installed.
  *
  * iOS:
- *   Apps cannot force the system keyboard language. We still set AppleLanguages
- *   (best-effort after reload) and apply RTL/LTR on text fields in JS.
+ *   Photo/camera sheets use AppleLanguages + Bundle.main.preferredLocalizations.
+ *   `prepareNativeLocaleForSystemUI` refreshes those before presenting pickers.
+ *   Apps cannot force the system keyboard language on text fields.
  *   Users must enable Arabic/Spanish under Settings → General → Keyboard.
  *
  * Expo Go: native module missing → all calls return false. Use
@@ -32,6 +33,30 @@ export function isNativeAppLocaleAvailable() {
     return Boolean(AppLocale?.isAvailable?.());
   } catch {
     return false;
+  }
+}
+
+export function resolveAppLanguageCode(lang) {
+  const raw = String(lang || "en").toLowerCase().split("-")[0];
+  return raw === "es" || raw === "ar" ? raw : "en";
+}
+
+/** Apply locale immediately before a native sheet (gallery, camera, files). */
+export function prepareNativeLocaleForSystemUI(lang) {
+  const code = resolveAppLanguageCode(lang);
+  const tag = getLanguageTag(code);
+
+  if (Platform.OS === "web") {
+    return setNativeAppLocale(code);
+  }
+
+  try {
+    if (AppLocale?.prepareSystemLocaleUI?.(tag)) {
+      return true;
+    }
+    return setNativeAppLocale(code);
+  } catch {
+    return setNativeAppLocale(code);
   }
 }
 

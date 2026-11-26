@@ -14,6 +14,10 @@ class AppLocaleModule extends NativeModule {
     return false;
   }
 
+  prepareSystemLocaleUI(languageTag: string): boolean {
+    return this.setAppLocale(languageTag);
+  }
+
   setImeHintLocales(_languageTag: string): boolean {
     return false;
   }

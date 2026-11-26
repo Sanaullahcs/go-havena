@@ -25,7 +25,7 @@ export const LANGUAGE_OPTIONS = [
 
 const H_MARGIN = 14;
 const PANEL_GAP = 4;
-const PANEL_W = sw(210);
+const FALLBACK_PANEL_W = sw(120);
 const ROW_H = sw(36);
 const BADGE = sw(28);
 
@@ -49,10 +49,10 @@ export default function LanguageMenu({
 }) {
   const { t } = useTranslation();
   const { width: windowWidth } = useWindowDimensions();
-  const panelWidth = Math.min(PANEL_W, windowWidth - H_MARGIN * 2);
   const [place, setPlace] = useState({
     top: 0,
-    left: Math.max(H_MARGIN, windowWidth - panelWidth - H_MARGIN),
+    left: H_MARGIN,
+    width: FALLBACK_PANEL_W,
   });
   const rise = useRef(new Animated.Value(0)).current;
 
@@ -63,12 +63,15 @@ export default function LanguageMenu({
     trigger.measureInWindow((bx, by, bw, bh) => {
       if (!Number.isFinite(by) || !Number.isFinite(bh)) return;
       const top = by + bh + PANEL_GAP;
-      const anchorRight = Number.isFinite(bx) && Number.isFinite(bw) ? bx + bw : windowWidth - H_MARGIN;
-      const maxLeft = Math.max(H_MARGIN, windowWidth - panelWidth - H_MARGIN);
-      const left = Math.max(H_MARGIN, Math.min(anchorRight - panelWidth, maxLeft));
-      setPlace({ top, left });
+      const triggerW = Number.isFinite(bw) && bw > 0 ? bw : FALLBACK_PANEL_W;
+      const width = Math.min(triggerW, windowWidth - H_MARGIN * 2);
+      const maxLeft = Math.max(H_MARGIN, windowWidth - width - H_MARGIN);
+      const left = Number.isFinite(bx)
+        ? Math.max(H_MARGIN, Math.min(bx, maxLeft))
+        : maxLeft;
+      setPlace({ top, left, width });
     });
-  }, [triggerRef, panelWidth, windowWidth]);
+  }, [triggerRef, windowWidth]);
 
   useEffect(() => {
     if (!visible) return undefined;
@@ -120,7 +123,7 @@ export default function LanguageMenu({
             {
               top: place.top,
               left: place.left,
-              width: panelWidth,
+              width: place.width,
               opacity: rise,
               transform: [
                 {
@@ -151,8 +154,9 @@ export default function LanguageMenu({
                   }}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
+                  accessibilityLabel={item.nativeLabel}
                 >
-                  <View style={styles.row}>
+                  <View style={styles.rowMarkOnly}>
                     <View style={[styles.badge, active && styles.badgeOn]}>
                       <Text
                         style={[
@@ -168,26 +172,7 @@ export default function LanguageMenu({
                         {item.mark}
                       </Text>
                     </View>
-                    <View style={styles.nameSlot}>
-                      <Text
-                        style={[
-                          styles.name,
-                          isAr && styles.nameAr,
-                          isAr && arabicInk,
-                          isAr && { fontSize: sf(14), lineHeight: sf(20) },
-                          active && !isAr && styles.nameOn,
-                        ]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        {item.nativeLabel}
-                      </Text>
-                    </View>
-                    {active ? (
-                      <Feather name="check" size={sf(14)} color={T.navy} />
-                    ) : (
-                      <View style={styles.checkSpacer} />
-                    )}
+                    {active ? <Feather name="check" size={sf(12)} color={T.navy} style={styles.rowCheck} /> : null}
                   </View>
                 </Pressable>
               );
@@ -228,15 +213,18 @@ const styles = StyleSheet.create({
     overflow: "visible",
     justifyContent: "center",
   },
-  row: {
+  rowMarkOnly: {
     width: "100%",
     height: ROW_H,
     flexDirection: "row",
-    flexWrap: "nowrap",
     alignItems: "center",
-    paddingHorizontal: sw(8),
-    gap: sw(8),
+    justifyContent: "center",
+    paddingHorizontal: sw(4),
     direction: "ltr",
+  },
+  rowCheck: {
+    position: "absolute",
+    end: sw(6),
   },
   rowOn: {
     backgroundColor: "rgba(27, 79, 138, 0.08)",
@@ -273,33 +261,5 @@ const styles = StyleSheet.create({
   },
   badgeTextOn: {
     color: T.navy,
-  },
-  nameSlot: {
-    flex: 1,
-    minWidth: 0,
-    height: BADGE,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
-  name: {
-    width: "100%",
-    fontFamily: Fonts.medium,
-    fontSize: sf(13),
-    lineHeight: sf(18),
-    color: T.navy,
-    textAlign: "left",
-    includeFontPadding: false,
-  },
-  nameAr: {
-    fontFamily: "NotoSansArabic-SemiBold",
-    fontWeight: "normal",
-  },
-  nameOn: {
-    fontFamily: Fonts.semiBold,
-  },
-  checkSpacer: {
-    width: sf(15),
-    height: sf(15),
-    flexShrink: 0,
   },
 });

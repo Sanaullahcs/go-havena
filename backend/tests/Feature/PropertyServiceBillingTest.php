@@ -2234,6 +2234,52 @@ class PropertyServiceBillingTest extends TestCase
         $this->assertTrue(collect($adminBills)->contains(fn ($row) => (int) $row['id'] === $octoberBillId));
     }
 
+    public function test_generated_unit_bill_due_date_is_not_before_issue_date_when_due_day_already_passed(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity(880);
+
+        Sanctum::actingAs($admin);
+        $serviceId = $this->withHeaders($this->headers($community->id))
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'Gardening',
+                'category' => 'maintenance',
+                'application_type' => 'automatic',
+                'amount' => 22,
+                'due_day' => 10,
+                'first_billing_month' => '2026-09',
+            ])->assertCreated()->json('data.id');
+
+        $this->assertDatabaseHas('unit_service_bills', [
+            'service_id' => $serviceId,
+            'billing_contact_user_id' => $resident->id,
+            'due_date' => '2026-09-21',
+        ]);
+    }
+
+    public function test_manual_unit_bill_generation_rejects_due_date_before_issue_date(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity(881);
+
+        Sanctum::actingAs($admin);
+        $serviceId = $this->withHeaders($this->headers($community->id))
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'Pool',
+                'category' => 'maintenance',
+                'application_type' => 'automatic',
+                'amount' => 15,
+                'due_day' => 10,
+                'first_billing_month' => '2026-08',
+            ])->assertCreated()->json('data.id');
+
+        $this->withHeaders($this->headers($community->id))
+            ->post("/api/v1/admin/property-services/{$serviceId}/generate-bills", [
+                'billing_period' => '2026-10',
+                'due_date' => '2026-09-10',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['due_date']);
+    }
+
     private function addUnitResident(int $communityId, string $name, string $unitNumber, string $phone): User
     {
         $user = User::factory()->create([

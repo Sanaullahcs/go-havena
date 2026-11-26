@@ -2,11 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { I18nManager, StyleSheet, View, ActivityIndicator } from "react-native";
 import i18n, { initI18n, saveLanguage, SUPPORTED } from "../i18n";
 import { Colors } from "../constants/tokens";
-import { setNativeAppLocale } from "../utils/native-app-locale";
+import { prepareNativeLocaleForSystemUI, setNativeAppLocale } from "../utils/native-app-locale";
 import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
-import { subscribeSessionUser } from "../services/auth-session";
-import { currentCommunityId } from "../services/community-access";
-import { communityPrefersArabic } from "../utils/community-language";
 
 const LanguageContext = createContext({
   language: "en",
@@ -64,6 +61,7 @@ export default function LanguageProvider({ children }) {
         setIsRTL(rtl);
         setArabicTextMetricsEnabled(rtl);
         setNativeAppLocale(lng);
+        prepareNativeLocaleForSystemUI(lng);
       } catch (err) {
         console.warn("[LanguageProvider] init failed", err);
       } finally {
@@ -76,16 +74,12 @@ export default function LanguageProvider({ children }) {
     };
   }, []);
 
-  const languageRef = React.useRef(language);
-  languageRef.current = language;
-  const seenCommunityRef = React.useRef(null);
-  const restoreLangRef = React.useRef(null);
-
   const changeLanguage = useCallback(async (lng) => {
     if (!SUPPORTED.includes(lng) || lng === language) return;
 
     await saveLanguage(lng);
     setNativeAppLocale(lng);
+    prepareNativeLocaleForSystemUI(lng);
     const rtl = languageNeedsRTL(lng);
     publishDirection();
     setArabicTextMetricsEnabled(rtl);
@@ -93,31 +87,6 @@ export default function LanguageProvider({ children }) {
     setLanguage(lng);
     setIsRTL(rtl);
   }, [language]);
-
-  useEffect(() => {
-    return subscribeSessionUser((user) => {
-      const id = currentCommunityId(user);
-      if (!id) return;
-      const membership = (user?.memberships || []).find(
-        (row) => Number(row?.community_id) === Number(id),
-      );
-      const community = membership?.community;
-      if (!community || seenCommunityRef.current === id) return;
-      const previousId = seenCommunityRef.current;
-      seenCommunityRef.current = id;
-      const arabicHome = communityPrefersArabic(community);
-      if (arabicHome && languageRef.current !== "ar") {
-        restoreLangRef.current = languageRef.current;
-        void changeLanguage("ar");
-        return;
-      }
-      if (!arabicHome && previousId != null && restoreLangRef.current && languageRef.current === "ar") {
-        const restore = restoreLangRef.current;
-        restoreLangRef.current = null;
-        void changeLanguage(restore);
-      }
-    });
-  }, [changeLanguage]);
 
   return (
     <LanguageContext.Provider value={{ language, isRTL, changeLanguage, ready }}>

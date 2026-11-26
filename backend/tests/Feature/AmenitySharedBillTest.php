@@ -1323,4 +1323,24 @@ class AmenitySharedBillTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.amenity_bill.amenity_id', $amenityId);
     }
+
+    public function test_admin_amenity_bill_rejects_due_date_before_issue_date(): void
+    {
+        Storage::fake('public');
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity(910);
+        $amenityId = $this->createAmenity($community->id, $admin->id);
+
+        Sanctum::actingAs($admin);
+
+        $this->withHeaders($this->communityHeader($community->id))
+            ->post("/api/v1/admin/amenities/{$amenityId}/bills", [
+                'billing_month' => '2026-09',
+                'title' => 'Gym — September 2026',
+                'amount_per_resident' => 20,
+                'due_date' => '2026-08-31',
+                'file' => UploadedFile::fake()->create('bill.pdf', 100, 'application/pdf'),
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['due_date']);
+    }
 }

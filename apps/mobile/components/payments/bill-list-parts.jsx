@@ -10,7 +10,7 @@ import { sf, sw } from "../../utils/responsive";
 
 const CARD_BORDER = "#D3DCE6";
 
-export const FILTERS = ["due", "review", "paid", "all"];
+export const FILTERS = ["all", "due", "review", "paid"];
 
 /** Default to what needs action; fall back to everything when nothing is due. */
 export function defaultBillFilter(summary) {

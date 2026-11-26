@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\PlaidException;
+use App\Support\BillDueDate;
 use App\Support\MediaUrl;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -223,7 +224,7 @@ class AmenitySharedBillService
                 .(! empty($booking->time_slot) ? ' ('.$booking->time_slot.')' : '')
                 .((int) ($booking->guests ?? 1) > 1 ? ' · '.(int) $booking->guests.' guests' : ''),
             'amount_per_resident' => $fee,
-            'due_date' => $date->toDateString(),
+            'due_date' => BillDueDate::notBeforeIssue($date->toDateString()),
             'billing_month' => Carbon::create(1900, 1, 1)->addDays(max(1, (int) $booking->id))->toDateString(),
             'booking_id' => (int) $booking->id,
             'resident_ids' => [(int) $booking->user_id],
@@ -312,6 +313,9 @@ class AmenitySharedBillService
      */
     public function publishPeriod(object $amenity, array $data, int $createdBy, ?Request $request = null): ?array
     {
+        BillDueDate::assertOnOrAfterIssue((string) $data['due_date']);
+        $data['due_date'] = BillDueDate::toDateString((string) $data['due_date']);
+
         $bookingId = (int) ($data['booking_id'] ?? 0);
         $isShared = $bookingId < 1;
         $billingMonth = $isShared

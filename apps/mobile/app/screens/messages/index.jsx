@@ -30,6 +30,7 @@ import { useNow } from "../../../hooks/use-now";
 import NewChatSheet from "../../../components/messages/new-chat-sheet";
 import { parseApiDate, timeAgo as formatRelativeTime } from "../../../services/feed-api";
 import { sw, sf } from "../../../utils/responsive";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import GuestFeatureErrorState from "../../../components/guest/guest-permission-denied-state";
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../../utils/account-access-sync";
@@ -213,9 +214,6 @@ function NeighborCard({ item, onPress, now, t }) {
             </Text>
           ) : null}
         </View>
-        <View style={styles.metaRow}>
-          <RoleBadge role={item.other_role} />
-        </View>
         {lastMsg ? (
           <Text style={[styles.preview, unread > 0 && styles.previewUnread]} numberOfLines={2}>
             {lastMsg}
@@ -226,11 +224,14 @@ function NeighborCard({ item, onPress, now, t }) {
           </Text>
         )}
       </View>
-      {unread > 0 ? (
-        <UnreadBadge count={unread} />
-      ) : (
-        <Feather name={chevronForward()} size={16} color="#CBD5E1" style={styles.cardChevron} />
-      )}
+      <View style={styles.cardRail}>
+        <RoleBadge role={item.other_role} />
+        {unread > 0 ? (
+          <UnreadBadge count={unread} />
+        ) : (
+          <Feather name={chevronForward()} size={16} color="#CBD5E1" style={styles.cardChevron} />
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -511,53 +512,56 @@ export default function MessagesScreen() {
         }
       />
 
-      {!accessBlocked ? (
-        <MessagesToolbar
-          query={query}
-          onQueryChange={(text) => {
-            setQuery(text);
-            if (text.trim() && filter !== "all") setFilter("all");
-          }}
-          filter={filter}
-          onFilterChange={setFilter}
-          conversations={conversations}
-          t={t}
-        />
-      ) : null}
+      <KeyboardAvoidingView style={styles.keyboardRoot} behavior="padding">
+        {!accessBlocked ? (
+          <MessagesToolbar
+            query={query}
+            onQueryChange={(text) => {
+              setQuery(text);
+              if (text.trim() && filter !== "all") setFilter("all");
+            }}
+            filter={filter}
+            onFilterChange={setFilter}
+            conversations={conversations}
+            t={t}
+          />
+        ) : null}
 
-      <View style={styles.listArea}>
-        {accessBlocked ? (
-          <GuestFeatureErrorState
-            error={error}
-            fallbackFeature="feed"
-            defaultTitle={t("messages.couldNotLoadMessages")}
-            onRetry={() => load()}
-          />
-        ) : showInitialLoader ? (
-          <ActivityIndicator color={Colors.brandPrimaryDeep} style={styles.loader} />
-        ) : (
-          <FlatList
-            data={filtered}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={({ item }) => (
-              <ConversationRow item={item} onPress={handleOpen} now={now} t={t} />
-            )}
-            ListEmptyComponent={
-              <EmptyState
-                query={query}
-                filter={filter}
-                onNewChat={() => setNewChatVisible(true)}
-                t={t}
-              />
-            }
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brandPrimaryDeep} />}
-            contentContainerStyle={filtered.length === 0 ? styles.listEmptyContent : styles.listContent}
-            ItemSeparatorComponent={() => <View style={styles.cardGap} />}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          />
-        )}
-      </View>
+        <View style={styles.listArea}>
+          {accessBlocked ? (
+            <GuestFeatureErrorState
+              error={error}
+              fallbackFeature="feed"
+              defaultTitle={t("messages.couldNotLoadMessages")}
+              onRetry={() => load()}
+            />
+          ) : showInitialLoader ? (
+            <ActivityIndicator color={Colors.brandPrimaryDeep} style={styles.loader} />
+          ) : (
+            <FlatList
+              data={filtered}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <ConversationRow item={item} onPress={handleOpen} now={now} t={t} />
+              )}
+              ListEmptyComponent={
+                <EmptyState
+                  query={query}
+                  filter={filter}
+                  onNewChat={() => setNewChatVisible(true)}
+                  t={t}
+                />
+              }
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brandPrimaryDeep} />}
+              contentContainerStyle={filtered.length === 0 ? styles.listEmptyContent : styles.listContent}
+              ItemSeparatorComponent={() => <View style={styles.cardGap} />}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+            />
+          )}
+        </View>
+      </KeyboardAvoidingView>
 
       <NewChatSheet
         visible={newChatVisible}
@@ -570,6 +574,10 @@ export default function MessagesScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F0F5FF" },
+  keyboardRoot: {
+    flex: 1,
+    minHeight: 0,
+  },
   composeBtn: {
     width: sw(38),
     height: sw(38),
@@ -745,6 +753,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: sw(8),
+  },
+  cardRail: {
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    alignSelf: "stretch",
+    gap: sw(8),
+    flexShrink: 0,
+    minWidth: sw(72),
   },
   metaRow: {
     flexDirection: "row",

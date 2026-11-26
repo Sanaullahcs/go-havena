@@ -147,6 +147,37 @@ function NavRow({ iconName, title, active, badgeCount, depth = 0, danger, open, 
   );
 }
 
+function ResidentModeSwitchRow({ user, onPress }) {
+  const { t, i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
+  const title = canSwitchToAdminMode(user)
+    ? t("nav.returnToAdminMode")
+    : t("nav.switchToResidentMode");
+  const iconName = isResidentMode(user) ? "shield" : "home";
+
+  return (
+    <View style={styles.modeSwitchFooterWrap}>
+      <TouchableOpacity
+        activeOpacity={0.75}
+        onPress={onPress}
+        style={styles.modeSwitchNavRow}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+      >
+        <View style={styles.modeSwitchNavIcon}>
+          <Feather name={iconName} size={17} color="#0F766E" />
+        </View>
+        <Text
+          style={[styles.navLabel, styles.modeSwitchNavLabel, arabic && styles.navLabelAr]}
+          numberOfLines={2}
+        >
+          {title}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function searchParam(value) {
   if (Array.isArray(value)) return String(value[0] ?? "");
   return value == null ? "" : String(value);
@@ -359,6 +390,48 @@ function SideMenuPanel({ visible, onClose }) {
   const openProfile = () => {
     navigateAndClose("/(tabs)/profile");
   };
+
+  const handleModeSwitch = useCallback(() => {
+    if (!user || !canSwitchModes(user)) return;
+
+    const switchingToResident = !isResidentMode(user);
+    const communityId = currentCommunityId(user) ?? user?.resident_mode_communities?.[0]?.id;
+
+    dismissImageSourcePicker();
+    slideAnim.stopAnimation();
+    slideAnim.setValue(-menuWidth);
+    onClose();
+
+    setTimeout(async () => {
+      const choice = await dialog.showConfirm(
+        switchingToResident ? t("nav.switchToResidentTitle") : t("nav.returnToAdminTitle"),
+        switchingToResident ? t("nav.switchToResidentBody") : t("nav.returnToAdminBody"),
+        {
+          confirmLabel: t("nav.switchModeConfirm"),
+          cancelLabel: t("common.cancel"),
+        },
+      );
+      if (choice !== "confirm") return;
+
+      try {
+        const next = await switchActiveContext(
+          switchingToResident ? "resident" : "community_admin",
+          communityId,
+        );
+        syncRoleFromUser(next);
+        setUser(next);
+        navigateAfterAuth(router, next, { mode: "login" });
+        setTimeout(() => {
+          void dialog.showSuccess(
+            switchingToResident ? t("nav.switchedToResidentTitle") : t("nav.switchedToAdminTitle"),
+            switchingToResident ? t("nav.switchedToResidentBody") : t("nav.switchedToAdminBody"),
+          );
+        }, 280);
+      } catch (err) {
+        await dialog.showError(t("nav.couldNotSwitchMode"), err?.message || t("common.tryAgain"));
+      }
+    }, 120);
+  }, [dialog, menuWidth, onClose, router, slideAnim, t, user]);
 
   const initialWellnessCategories = getCachedWellnessHub()?.categories ?? [];
   const [wellnessHub, setWellnessHub] = useState(initialWellnessCategories);
@@ -658,10 +731,7 @@ function SideMenuPanel({ visible, onClose }) {
 
             <ScrollView
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={[
-                styles.scrollContent,
-                { paddingBottom: Math.max(insets.bottom, 16) },
-              ]}
+              contentContainerStyle={styles.scrollContent}
               style={styles.menuBody}
             >
             <TouchableOpacity style={styles.profileShell} activeOpacity={0.85} onPress={openProfile}>
@@ -765,69 +835,14 @@ function SideMenuPanel({ visible, onClose }) {
                 );
               })}
             </View>
+          </ScrollView>
 
-            <View style={styles.footer}>
-              {canSwitchModes(user) ? (
-                <NavRow
-                  iconName={isResidentMode(user) ? "shield" : "home"}
-                  title={
-                    canSwitchToAdminMode(user)
-                      ? t("nav.returnToAdminMode")
-                      : t("nav.switchToResidentMode")
-                  }
-                  onPress={() => {
-                    const switchingToResident = !isResidentMode(user);
-                    const communityId =
-                      currentCommunityId(user) ?? user?.resident_mode_communities?.[0]?.id;
-
-                    dismissImageSourcePicker();
-                    slideAnim.stopAnimation();
-                    slideAnim.setValue(-menuWidth);
-                    onClose();
-
-                    setTimeout(async () => {
-                      const choice = await dialog.showConfirm(
-                        switchingToResident
-                          ? t("nav.switchToResidentTitle")
-                          : t("nav.returnToAdminTitle"),
-                        switchingToResident
-                          ? t("nav.switchToResidentBody")
-                          : t("nav.returnToAdminBody"),
-                        {
-                          confirmLabel: t("nav.switchModeConfirm"),
-                          cancelLabel: t("common.cancel"),
-                        },
-                      );
-                      if (choice !== "confirm") return;
-
-                      try {
-                        const next = await switchActiveContext(
-                          switchingToResident ? "resident" : "community_admin",
-                          communityId,
-                        );
-                        syncRoleFromUser(next);
-                        setUser(next);
-                        navigateAfterAuth(router, next, { mode: "login" });
-                        setTimeout(() => {
-                          void dialog.showSuccess(
-                            switchingToResident
-                              ? t("nav.switchedToResidentTitle")
-                              : t("nav.switchedToAdminTitle"),
-                            switchingToResident
-                              ? t("nav.switchedToResidentBody")
-                              : t("nav.switchedToAdminBody"),
-                          );
-                        }, 280);
-                      } catch (err) {
-                        await dialog.showError(
-                          t("nav.couldNotSwitchMode"),
-                          err?.message || t("common.tryAgain"),
-                        );
-                      }
-                    }, 120);
-                  }}
-                />
-              ) : null}
+            <View
+              style={[
+                styles.footer,
+                { paddingBottom: Math.max(insets.bottom, 12) },
+              ]}
+            >
               <NavRow
                 iconName="user"
                 title={t("nav.profile")}
@@ -852,8 +867,10 @@ function SideMenuPanel({ visible, onClose }) {
                   setTimeout(() => confirmSignOut(dialog), 120);
                 }}
               />
+              {canSwitchModes(user) ? (
+                <ResidentModeSwitchRow user={user} onPress={handleModeSwitch} />
+              ) : null}
             </View>
-          </ScrollView>
           </View>
         </Animated.View>
       </View>
@@ -1118,11 +1135,49 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   footer: {
-    marginTop: 4,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#E8EEF5",
     paddingTop: 8,
+    paddingHorizontal: 12,
     backgroundColor: "#FFFFFF",
+  },
+  modeSwitchFooterWrap: {
+    alignSelf: "stretch",
+    width: "100%",
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E8EEF5",
+  },
+  modeSwitchNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "stretch",
+    width: "100%",
+    minHeight: 48,
+    gap: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: "#F0FDFA",
+    borderWidth: 1,
+    borderColor: "#CCFBF1",
+  },
+  modeSwitchNavIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  modeSwitchNavLabel: {
+    flex: 1,
+    minWidth: 0,
+    color: "#0F766E",
+    fontFamily: Fonts.semiBold,
   },
   headerRow: {
     flexDirection: "row",

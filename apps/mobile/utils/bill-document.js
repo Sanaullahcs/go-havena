@@ -185,9 +185,21 @@ function documentNumber(prefix, kind, id) {
  * Normalises an amenity or unit bill into what the invoice / receipt card shows.
  * `kind` is "amenity" or "unit".
  */
+/** Invoice issue/due rows must not show a due date before the issue date. */
+function billIssueAndDueDates(bill) {
+  const issueRaw = bill?.published_at || bill?.issued_at || bill?.created_at;
+  const issueKey = issueRaw ? String(issueRaw).slice(0, 10) : null;
+  const dueKey = bill?.due_date ? String(bill.due_date).slice(0, 10) : null;
+  if (issueKey && dueKey && dueKey < issueKey) {
+    return { issueRaw, dueRaw: issueKey };
+  }
+  return { issueRaw, dueRaw: bill?.due_date };
+}
+
 export function buildBillDocument(bill, { kind, user, communityId, t }) {
   const status = billStatusMeta(bill, t);
   const paid = status.group === "paid";
+  const { issueRaw, dueRaw } = billIssueAndDueDates(bill);
   const id = kind === "unit" ? bill.id : bill.resident_bill_id ?? bill.id;
   const { communityName } = getProfileFields(user, communityId);
   const proof = bill.payment_proof ?? null;
@@ -208,8 +220,8 @@ export function buildBillDocument(bill, { kind, user, communityId, t }) {
     service: service && service !== title ? service : null,
     period: period || null,
     description: bill.description || null,
-    issuedOn: formatBillDate(bill.published_at || bill.issued_at || bill.created_at),
-    dueOn: formatBillDate(bill.due_date),
+    issuedOn: formatBillDate(issueRaw),
+    dueOn: formatBillDate(dueRaw),
     amount: billAmount(bill),
     amountLabel: formatCommunityMoney(billAmount(bill)),
     status,

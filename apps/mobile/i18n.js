@@ -55,10 +55,8 @@ export async function saveLanguage(lang) {
 
 export async function initI18n() {
   const saved = await getSavedLanguage();
-  const lng =
-    (saved && SUPPORTED.includes(saved) && saved) ||
-    (i18n.language && SUPPORTED.includes(i18n.language) && i18n.language) ||
-    getDeviceLanguage();
+  // Persisted choice always wins on cold start — never infer from community or stale i18n state.
+  const lng = saved && SUPPORTED.includes(saved) ? saved : getDeviceLanguage();
 
   cachedLanguage = lng;
 

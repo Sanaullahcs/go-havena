@@ -3,6 +3,7 @@ import { requireOptionalNativeModule } from "expo";
 type AppLocaleNative = {
   isAvailable(): boolean;
   setAppLocale(languageTag: string): boolean;
+  prepareSystemLocaleUI(languageTag: string): boolean;
   setImeHintLocales(languageTag: string): boolean;
   getAppLocale(): string | null;
   openInputMethodPicker(): boolean;
@@ -11,6 +12,7 @@ type AppLocaleNative = {
 const unavailable: AppLocaleNative = {
   isAvailable: () => false,
   setAppLocale: () => false,
+  prepareSystemLocaleUI: () => false,
   setImeHintLocales: () => false,
   getAppLocale: () => null,
   openInputMethodPicker: () => false,

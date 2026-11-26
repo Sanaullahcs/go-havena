@@ -3,28 +3,17 @@ import Foundation
 import UIKit
 
 public class AppLocaleModule: Module {
-  private static let prefsKey = "havena_app_language_tag"
-
   public static func applySavedLocale() {
-    guard let tag = UserDefaults.standard.string(forKey: prefsKey), !tag.isEmpty else {
+    guard let tag = UserDefaults.standard.string(forKey: AppLocaleBundle.prefsKey), !tag.isEmpty else {
       return
     }
     applyLocale(tag)
   }
 
   private static func applyLocale(_ languageTag: String) {
-    // iOS does not allow apps to programmatically switch the system keyboard.
-    // Updating AppleLanguages only influences preferred language order / dictation
-    // after process restart — and only if the user has that keyboard enabled.
-    let languageCode = languageTag.split(separator: "-").first.map(String.init) ?? languageTag
-    var preferred = [languageTag]
-    if languageCode != languageTag {
-      preferred.append(languageCode)
-    }
-
-    UserDefaults.standard.set(preferred, forKey: "AppleLanguages")
-    UserDefaults.standard.set(languageTag, forKey: "AppleLocale")
-    UserDefaults.standard.synchronize()
+    // iOS cannot switch the system keyboard language. Photo/camera sheets follow
+    // AppleLanguages + Bundle.main.preferredLocalizations — refresh both at runtime.
+    AppLocaleBundle.refreshRuntimeLocale(languageTag)
   }
 
   public func definition() -> ModuleDefinition {
@@ -35,7 +24,11 @@ public class AppLocaleModule: Module {
     }
 
     Function("setAppLocale") { (languageTag: String) -> Bool in
-      UserDefaults.standard.set(languageTag, forKey: Self.prefsKey)
+      Self.applyLocale(languageTag)
+      return true
+    }
+
+    Function("prepareSystemLocaleUI") { (languageTag: String) -> Bool in
       Self.applyLocale(languageTag)
       return true
     }
@@ -46,7 +39,7 @@ public class AppLocaleModule: Module {
     }
 
     Function("getAppLocale") { () -> String? in
-      UserDefaults.standard.string(forKey: Self.prefsKey)
+      UserDefaults.standard.string(forKey: AppLocaleBundle.prefsKey)
     }
 
     Function("openInputMethodPicker") { () -> Bool in

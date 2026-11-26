@@ -19,6 +19,7 @@ import { PAY_BILLS_ENABLED } from "../../services/payments-api";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 import { isGuestUser } from "../../services/community-access";
 import Tap from "../ui/tap";
+import NotificationCountBadge from "../ui/notification-count-badge";
 import { Fonts } from "../../constants/font";
 import { homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
@@ -65,7 +66,8 @@ function noticeFeatureKey(notice) {
   return "notices";
 }
 
-const HERO_HEIGHT_DESIGN = 196;
+/** Single scaled height for en/es/ar — matches main branch carousel geometry. */
+const HERO_HEIGHT_DESIGN = 175;
 /** Auto-advance interval for the home notices carousel. */
 const AUTO_SCROLL_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -101,8 +103,8 @@ function NoticeHeroCard({ item, cardWidth, heroHeight, onPress, onImagePress }) 
     setImageFailed(false);
   }, [item.imageUrl]);
 
-  const circleD = cardWidth * 1.45;
-  const curveRight = cardWidth * 0.30;
+  const circleD = cardWidth * 1.5;
+  const curveRight = cardWidth * 0.4;
 
   return (
     <View style={[styles.heroShell, { width: cardWidth, height: heroHeight }]}>
@@ -153,17 +155,24 @@ function NoticeHeroCard({ item, cardWidth, heroHeight, onPress, onImagePress }) 
           onPress={onPress}
           style={({ pressed }) => [styles.heroCopyInner, pressed && { opacity: 0.85 }]}
         >
-          <View style={[styles.badge, arabic && styles.badgeAr]}>
+          <View style={styles.badge}>
             <Feather name={item.badgeIcon} size={sf(10)} color={T.teal} />
-            <Text style={[styles.badgeText, arabic && styles.badgeTextAr]} numberOfLines={1}>{item.badge}</Text>
+            <Text style={[styles.badgeText, arabic && styles.badgeTextAr]} numberOfLines={1}>
+              {item.badge}
+            </Text>
           </View>
 
-          <Text style={[styles.heroTitle, arabic && styles.heroTitleAr]} numberOfLines={3} ellipsizeMode="tail">
+          <Text
+            style={[styles.heroTitle, arabic && styles.heroTitleAr]}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
             {item.title}
           </Text>
+
           {hasSchedule ? (
             <View style={styles.dateLine}>
-              <Feather name="calendar" size={sf(11)} color="rgba(209,250,245,0.6)" />
+              <Feather name="calendar" size={sf(12)} color="rgba(209,250,245,0.6)" />
               <Text style={[styles.dateText, arabic && styles.dateTextAr]} numberOfLines={1}>
                 {item.dateLabel}
                 {item.dateLabel && item.timeStart ? "  ·  " : ""}
@@ -173,9 +182,11 @@ function NoticeHeroCard({ item, cardWidth, heroHeight, onPress, onImagePress }) 
             </View>
           ) : null}
 
-          <View style={[styles.ctaBtn, arabic && styles.ctaBtnAr]}>
-            <Text style={[styles.ctaText, arabic && styles.ctaTextAr]} numberOfLines={1}>{t("notices.viewDetails")}</Text>
-            <Feather name={arrowForward()} size={sf(9)} color="#fff" />
+          <View style={styles.ctaBtn}>
+            <Text style={[styles.ctaText, arabic && styles.ctaTextAr]} numberOfLines={1}>
+              {t("notices.viewDetails")}
+            </Text>
+            <Feather name={arrowForward()} size={sf(12)} color="#fff" />
           </View>
         </Pressable>
       </View>
@@ -311,9 +322,16 @@ function QuickActionsRow() {
                   </View>
                 )}
                 {item.id === "bills" && PAY_BILLS_ENABLED && billsDue > 0 ? (
-                  <View style={[styles.qaBadge, billsOverdue && styles.qaBadgeAlert]}>
-                    <Text style={styles.qaBadgeText}>{billsDue > 9 ? "9+" : billsDue}</Text>
-                  </View>
+                  <NotificationCountBadge
+                    count={billsDue}
+                    size="sm"
+                    capNine
+                    label={t(item.titleKey)}
+                    style={[
+                      styles.qaBillBadge,
+                      billsOverdue && styles.qaBillBadgeAlert,
+                    ]}
+                  />
                 ) : null}
               </View>
               <Text
@@ -347,8 +365,7 @@ export default function Notices({ items = [], noticesLoaded = false }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [previewImage, setPreviewImage] = useState(null);
   const cardWidth = frame.contentWidth;
-  const arabicHome = String(i18n.language || "").startsWith("ar");
-  const heroHeight = frame.size(arabicHome ? 224 : HERO_HEIGHT_DESIGN);
+  const heroHeight = frame.size(HERO_HEIGHT_DESIGN);
   const listRef = useRef(null);
   const activeIndexRef = useRef(0);
   const userScrollingRef = useRef(false);
@@ -578,7 +595,7 @@ const styles = StyleSheet.create({
     end: 0,
     top: 0,
     bottom: 0,
-    width: "34%",
+    width: "48%",
     overflow: "hidden",
     zIndex: 0,
   },
@@ -597,25 +614,26 @@ const styles = StyleSheet.create({
     start: 0,
     top: 0,
     bottom: 0,
-    width: "68%",
-    paddingStart: sw(16),
-    paddingEnd: sw(10),
+    width: "55%",
+    paddingStart: sw(18),
+    paddingEnd: sw(8),
     paddingTop: sw(14),
-    paddingBottom: sw(14),
+    paddingBottom: sw(16),
     justifyContent: "center",
   },
   heroCopyInner: {
-    alignSelf: "flex-start",
+    flex: 1,
+    justifyContent: "center",
     alignItems: "flex-start",
+    alignSelf: "stretch",
     maxWidth: "100%",
-    gap: sw(8),
   },
   imageTap: {
     position: "absolute",
     end: 0,
     top: 0,
     bottom: 0,
-    width: "32%",
+    width: "45%",
   },
 
   badge: {
@@ -627,11 +645,7 @@ const styles = StyleSheet.create({
     paddingVertical: sw(3),
     borderRadius: 999,
     backgroundColor: "rgba(20,184,166,0.18)",
-    marginBottom: sw(4),
-  },
-  badgeAr: {
-    paddingVertical: sw(5),
-    paddingHorizontal: sw(10),
+    marginBottom: sw(8),
   },
   badgeText: {
     fontFamily: Fonts.bold,
@@ -643,13 +657,13 @@ const styles = StyleSheet.create({
     writingDirection: "auto",
   },
   badgeTextAr: {
+    letterSpacing: 0,
+    fontSize: sf(11),
+    lineHeight: sf(16),
+    writingDirection: "rtl",
     fontFamily: "NotoSansArabic-Bold",
     fontWeight: "normal",
-    letterSpacing: 0,
-    fontSize: sf(12),
-    lineHeight: sf(20),
-    writingDirection: "rtl",
-    includeFontPadding: true,
+    includeFontPadding: false,
   },
   heroTitle: {
     fontFamily: Fonts.bold,
@@ -657,24 +671,23 @@ const styles = StyleSheet.create({
     lineHeight: sf(20),
     color: "#FFFFFF",
     fontWeight: "700",
-    marginBottom: 0,
+    marginBottom: sw(6),
     flexShrink: 1,
     writingDirection: "auto",
   },
   heroTitleAr: {
     fontFamily: "NotoSansArabic-Bold",
     fontWeight: "normal",
-    fontSize: sf(15),
-    lineHeight: sf(26),
+    lineHeight: sf(22),
     writingDirection: "rtl",
-    includeFontPadding: true,
+    includeFontPadding: false,
   },
   dateLine: {
     flexDirection: "row",
     alignItems: "center",
     gap: sw(5),
-    marginTop: sw(6),
-    marginBottom: 0,
+    marginBottom: sw(10),
+    maxWidth: "100%",
   },
   dateText: {
     fontFamily: Fonts.regular,
@@ -686,28 +699,22 @@ const styles = StyleSheet.create({
   },
   dateTextAr: {
     fontFamily: "NotoSansArabic-Regular",
-    fontSize: sf(12),
-    lineHeight: sf(20),
     writingDirection: "rtl",
-    includeFontPadding: true,
+    includeFontPadding: false,
   },
   ctaBtn: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(3),
+    gap: sw(6),
     backgroundColor: T.teal,
-    paddingHorizontal: sw(8),
-    paddingVertical: sw(3),
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(7),
     borderRadius: 999,
-  },
-  ctaBtnAr: {
-    paddingVertical: sw(4),
-    paddingHorizontal: sw(8),
   },
   ctaText: {
     fontFamily: Fonts.bold,
-    fontSize: sf(10),
+    fontSize: sf(10.5),
     lineHeight: sf(14),
     color: "#fff",
     fontWeight: "700",
@@ -716,7 +723,6 @@ const styles = StyleSheet.create({
   ctaTextAr: {
     fontFamily: "NotoSansArabic-Bold",
     fontWeight: "normal",
-    fontSize: sf(11),
     lineHeight: sf(16),
     writingDirection: "rtl",
     includeFontPadding: false,
@@ -794,26 +800,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  qaBadge: {
-    position: "absolute",
+  qaBillBadge: {
     top: -sw(2),
     end: sw(10),
-    minWidth: sw(18),
-    height: sw(18),
-    paddingHorizontal: sw(4),
-    borderRadius: sw(9),
     backgroundColor: T.teal,
     borderWidth: 2,
-    borderColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
   },
-  qaBadgeAlert: { backgroundColor: "#EF4B23" },
-  qaBadgeText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(9),
-    color: "#FFFFFF",
-    includeFontPadding: false,
+  qaBillBadgeAlert: {
+    backgroundColor: "#EF4B23",
   },
   qaLabel: {
     fontFamily: Fonts.medium,

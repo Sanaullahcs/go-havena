@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\BillDueDate;
 use App\Support\MediaUrl;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -94,7 +95,7 @@ class UnitServiceBillService
         }
 
         $amount = $this->resolveGenerateAmount($service, $data);
-        $dueDate = $data['due_date'] ?? $this->defaultDueDate($service, $period);
+        $dueDate = $this->resolveDueDate($service, $period, $data);
         $title = trim((string) ($data['title'] ?? $this->defaultTitle($service, $period)));
         $description = isset($data['description']) && trim((string) $data['description']) !== ''
             ? trim((string) $data['description'])
@@ -993,12 +994,12 @@ class UnitServiceBillService
         }
 
         $amount = $this->resolveGenerateAmount($service, $data);
-        $dueDate = $data['due_date'] ?? $this->defaultDueDate($service, $period);
+        $now = now();
+        $dueDate = $this->resolveDueDate($service, $period, $data, $now);
         $title = trim((string) ($data['title'] ?? (
             $isOneTime ? $service->name.' — one-time fee' : $this->defaultTitle($service, $period)
         )));
         [$unit, $contactId] = $this->prepareUnitForBilling($unit);
-        $now = now();
 
         $billId = (int) DB::table('unit_service_bills')->insertGetId([
             'community_id' => (int) $service->community_id,
@@ -1248,6 +1249,21 @@ class UnitServiceBillService
         }
 
         return $date->toDateString();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function resolveDueDate(object $service, string $period, array $data, ?Carbon $issueAt = null): string
+    {
+        $issue = BillDueDate::issueAt($issueAt);
+        if (isset($data['due_date']) && trim((string) $data['due_date']) !== '') {
+            BillDueDate::assertOnOrAfterIssue((string) $data['due_date'], $issue);
+
+            return BillDueDate::toDateString((string) $data['due_date']);
+        }
+
+        return BillDueDate::notBeforeIssue($this->defaultDueDate($service, $period), $issue);
     }
 
     private function defaultTitle(object $service, string $period): string

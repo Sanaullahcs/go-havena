@@ -48,10 +48,16 @@ function getBadgeMetrics(label, isCompact) {
   };
 }
 
-export default function NotificationCountBadge({ count, size = "md", style, label }) {
+function formatBadgeLabel(count, capNine) {
+  if (!count || count <= 0) return "";
+  if (capNine && count > 9) return "9+";
+  return formatUnreadBadgeCount(count);
+}
+
+export default function NotificationCountBadge({ count, size = "md", style, label, capNine = false }) {
   const { t } = useTranslation();
   const resolvedLabel = label ?? t("common.notifications");
-  const badgeLabel = count > 0 ? formatUnreadBadgeCount(count) : "";
+  const badgeLabel = formatBadgeLabel(count, capNine);
   const isCompact = size === "sm";
   const metrics = useMemo(
     () => (badgeLabel ? getBadgeMetrics(badgeLabel, isCompact) : null),

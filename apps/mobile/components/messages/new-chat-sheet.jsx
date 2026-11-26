@@ -14,13 +14,14 @@ import {
   Platform,
   Dimensions,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import SearchInput from "../ui/search-input";
 import UserAvatar from "../ui/user-avatar";
-import { fetchCommunityMembers, startConversation } from "../../services/messages-api";
+import { fetchCommunityMembers, peerRoleLabel, startConversation } from "../../services/messages-api";
 import { resolveMediaUrl } from "../../utils/profile-display";
 import { sf } from "../../utils/responsive";
 
@@ -31,13 +32,9 @@ const CLOSE_MS = 220;
 
 function MemberRow({ member, loading, onPress }) {
   const { t } = useTranslation();
-  const roleLabel =
-    member.role === "admin"
-      ? t("roles.communityAdmin")
-      : member.role === "moderator"
-        ? t("roles.moderator")
-        : t("common.communityMember");
-  const subtitle = member.unit ? `${t("nav.unit", { number: member.unit })} · ${roleLabel}` : roleLabel;
+  const subtitle = member.unit ? `${t("nav.unit", { number: member.unit })}` : "";
+  const roleLabel = peerRoleLabel(member.role);
+  const admin = roleLabel === "Admin";
 
   return (
     <TouchableOpacity
@@ -55,8 +52,15 @@ function MemberRow({ member, loading, onPress }) {
         <Text style={styles.memberName} numberOfLines={1}>
           {member.name}
         </Text>
-        <Text style={styles.memberMeta} numberOfLines={1}>
-          {subtitle}
+        {subtitle ? (
+          <Text style={styles.memberMeta} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      <View style={[styles.memberRoleBadge, admin ? styles.memberRoleBadgeAdmin : styles.memberRoleBadgeResident]}>
+        <Text style={[styles.memberRoleBadgeText, admin ? styles.memberRoleBadgeTextAdmin : styles.memberRoleBadgeTextResident]}>
+          {roleLabel === "Admin" ? t("roles.communityAdmin") : t("roles.resident")}
         </Text>
       </View>
       {loading ? (
@@ -87,11 +91,9 @@ export default function NewChatSheet({
   const [searching, setSearching] = useState(false);
   const [startingId, setStartingId] = useState(null);
   const [error, setError] = useState("");
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const androidKeyboardOffset = useRef(new Animated.Value(0)).current;
   const requestIdRef = useRef(0);
   const closingRef = useRef(false);
   const skipSearchEffectRef = useRef(false);
@@ -122,7 +124,6 @@ export default function NewChatSheet({
     closingRef.current = false;
     translateY.setValue(SHEET_HEIGHT);
     backdropOpacity.setValue(0);
-    androidKeyboardOffset.setValue(0);
     Animated.parallel([
       Animated.timing(backdropOpacity, {
         toValue: 1,
@@ -138,7 +139,7 @@ export default function NewChatSheet({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [androidKeyboardOffset, backdropOpacity, translateY]);
+  }, [backdropOpacity, translateY]);
 
   const animateClose = useCallback(
     (after) => {
@@ -158,11 +159,6 @@ export default function NewChatSheet({
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
-        Animated.timing(androidKeyboardOffset, {
-          toValue: 0,
-          duration: CLOSE_MS,
-          useNativeDriver: true,
-        }),
       ]).start(({ finished }) => {
         if (finished && !visibleRef.current) {
           setMounted(false);
@@ -171,7 +167,7 @@ export default function NewChatSheet({
         closingRef.current = false;
       });
     },
-    [androidKeyboardOffset, backdropOpacity, translateY],
+    [backdropOpacity, translateY],
   );
 
   useEffect(() => {
@@ -179,12 +175,10 @@ export default function NewChatSheet({
       closingRef.current = false;
       translateY.stopAnimation();
       backdropOpacity.stopAnimation();
-      androidKeyboardOffset.stopAnimation();
       setMounted(true);
       setQuery("");
       setStartingId(null);
       setError("");
-      setKeyboardHeight(0);
       skipSearchEffectRef.current = true;
       requestAnimationFrame(animateOpen);
       loadMembers("", { soft: false });
@@ -207,46 +201,6 @@ export default function NewChatSheet({
     }, 250);
     return () => clearTimeout(timer);
   }, [query, visible, mounted, loadMembers]);
-
-  useEffect(() => {
-    if (!mounted) return undefined;
-
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const onShow = (event) => {
-      const height = event.endCoordinates?.height ?? 0;
-      setKeyboardHeight(height);
-      // Android resize pushes the modal up — nudge the sheet back down so it stays put.
-      if (Platform.OS === "android") {
-        Animated.timing(androidKeyboardOffset, {
-          toValue: height,
-          duration: event.duration && event.duration > 0 ? event.duration : 180,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }).start();
-      }
-    };
-
-    const onHide = (event) => {
-      setKeyboardHeight(0);
-      if (Platform.OS === "android") {
-        Animated.timing(androidKeyboardOffset, {
-          toValue: 0,
-          duration: event?.duration && event.duration > 0 ? event.duration : 160,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }).start();
-      }
-    };
-
-    const showSub = Keyboard.addListener(showEvent, onShow);
-    const hideSub = Keyboard.addListener(hideEvent, onHide);
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, [androidKeyboardOffset, mounted]);
 
   const requestClose = useCallback(() => {
     if (startingId || closingRef.current) return;
@@ -279,8 +233,6 @@ export default function NewChatSheet({
   if (!mounted) return null;
 
   const bottomInset = Math.max(insets.bottom, 12);
-  // Shrink only the list on iOS; keep header/search pinned in place.
-  const listKeyboardInset = Platform.OS === "ios" ? keyboardHeight : 0;
 
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={requestClose} statusBarTranslucent>
@@ -295,10 +247,11 @@ export default function NewChatSheet({
             {
               height: SHEET_HEIGHT,
               paddingBottom: bottomInset,
-              transform: [{ translateY }, { translateY: androidKeyboardOffset }],
+              transform: [{ translateY }],
             },
           ]}
         >
+          <KeyboardAvoidingView style={styles.sheetBody} behavior="padding">
           <View style={styles.handle} />
 
           <View style={styles.header}>
@@ -368,9 +321,7 @@ export default function NewChatSheet({
               }
             />
           )}
-
-          {/* iOS: shrink only the list; keep the drawer anchored so it doesn’t jump up. */}
-          {listKeyboardInset > 0 ? <View style={{ height: listKeyboardInset }} /> : null}
+          </KeyboardAvoidingView>
         </Animated.View>
       </View>
     </Modal>
@@ -393,6 +344,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     zIndex: 2,
     elevation: 8,
+  },
+  sheetBody: {
+    flex: 1,
+    minHeight: 0,
   },
   handle: {
     alignSelf: "center",
@@ -493,6 +448,32 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: sf(11),
     color: "#64748B",
+  },
+  memberRoleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexShrink: 0,
+  },
+  memberRoleBadgeAdmin: {
+    backgroundColor: "#D1FAF5",
+    borderColor: "rgba(20, 184, 166, 0.28)",
+  },
+  memberRoleBadgeResident: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  memberRoleBadgeText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(10),
+    fontWeight: "600",
+  },
+  memberRoleBadgeTextAdmin: {
+    color: "#1B4F8A",
+  },
+  memberRoleBadgeTextResident: {
+    color: "#047857",
   },
   messageBtn: {
     width: 34,
