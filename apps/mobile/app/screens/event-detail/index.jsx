@@ -137,6 +137,8 @@ const SCHEDULE_META = {
 };
 
 function ScheduleRow({ itemKey, title, detail }) {
+  const { i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const meta = SCHEDULE_META[itemKey] ?? SCHEDULE_META.date;
 
   return (
@@ -145,8 +147,8 @@ function ScheduleRow({ itemKey, title, detail }) {
         <Feather name={meta.icon} size={sf(20)} color={meta.color} />
       </View>
       <View style={styles.eventDetailCardCopy}>
-        <Text style={styles.eventDetailCardTitle}>{title}</Text>
-        <Text style={styles.eventDetailCardDetail}>{detail}</Text>
+        <Text style={[styles.eventDetailCardTitle, arabic && styles.eventDetailCardTitleAr]}>{title}</Text>
+        <Text style={[styles.eventDetailCardDetail, arabic && styles.eventDetailCardDetailAr]}>{detail}</Text>
       </View>
     </View>
   );
@@ -551,11 +553,11 @@ export default function EventDetailScreen() {
         </Pressable>
 
         <View style={styles.upcomingEvent}>
-          <Text style={styles.eventTitle} numberOfLines={4} ellipsizeMode="tail">
+          <Text style={[styles.eventTitle, String(i18n.language || "").startsWith("ar") && styles.eventTitleAr]} numberOfLines={4} ellipsizeMode="tail">
             {localizedField(event, "title") || event.title}
           </Text>
           {(localizedField(event, "body") || event.body) ? (
-            <Text style={styles.eventDescription}>
+            <Text style={[styles.eventDescription, String(i18n.language || "").startsWith("ar") && styles.eventDescriptionAr]}>
               {localizedField(event, "body") || event.body}
             </Text>
           ) : null}
@@ -1003,12 +1005,21 @@ const styles = StyleSheet.create({
   },
   eventTitle: {
     fontSize: sf(19),
-    lineHeight: sf(25),
+    lineHeight: sf(32),
     fontWeight: "700",
     color: "#101828",
     fontFamily: Fonts.bold,
     flexShrink: 1,
     width: "100%",
+    includeFontPadding: false,
+  },
+  eventTitleAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    fontSize: sf(20),
+    lineHeight: sf(34),
+    letterSpacing: 0,
+    writingDirection: "rtl",
   },
   reviewBannerPending: {
     marginHorizontal: 20,
@@ -1044,10 +1055,18 @@ const styles = StyleSheet.create({
   eventDescription: {
     marginTop: 8,
     fontSize: sf(13),
-    lineHeight: sf(19),
+    lineHeight: sf(24),
     fontWeight: "400",
     color: "#364153",
     fontFamily: Fonts.regular,
+    includeFontPadding: false,
+  },
+  eventDescriptionAr: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontSize: sf(14),
+    lineHeight: sf(26),
+    letterSpacing: 0,
+    writingDirection: "rtl",
   },
   eventDetailContainer: {
     marginTop: 16,
@@ -1079,17 +1098,35 @@ const styles = StyleSheet.create({
     fontSize: sf(12),
     fontWeight: "600",
     color: "rgba(106, 114, 130, 1)",
-    lineHeight: sf(16),
+    lineHeight: sf(20),
     fontFamily: Fonts.semiBold,
     textTransform: "uppercase",
+    includeFontPadding: false,
+  },
+  eventDetailCardTitleAr: {
+    fontFamily: "NotoSansArabic-SemiBold",
+    fontWeight: "normal",
+    fontSize: sf(13),
+    lineHeight: sf(22),
+    letterSpacing: 0,
+    textTransform: "none",
   },
   eventDetailCardDetail: {
     fontSize: sf(13),
     fontWeight: "700",
     color: "rgba(16, 24, 40, 1)",
-    lineHeight: sf(18),
+    lineHeight: sf(22),
     fontFamily: Fonts.medium,
     marginTop: 2,
+    includeFontPadding: false,
+  },
+  eventDetailCardDetailAr: {
+    fontFamily: "NotoSansArabic-Medium",
+    fontWeight: "normal",
+    fontSize: sf(14),
+    lineHeight: sf(24),
+    letterSpacing: 0,
+    writingDirection: "rtl",
   },
   section: {
     paddingHorizontal: 20,

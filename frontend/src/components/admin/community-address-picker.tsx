@@ -428,7 +428,7 @@ export function CommunityAddressPicker({
           <p className="text-[12px] leading-5 text-slate-400">
             {preserveUserAddress
               ? "Enter the community address, pick a suggestion or use your text to set the pin, then drag the pin if needed."
-              : "Enter the community address and choose a suggestion. Distance is measured from the community."}
+              : "Choose a suggestion. Distance is measured from the community."}
           </p>
         )
       ) : (

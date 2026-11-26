@@ -40,7 +40,8 @@ export default function FeedPostCard({
   style,
   contentTextStyle,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const [votedPost, setVotedPost] = useState(null);
   const viewPost = votedPost && String(votedPost.id) === String(post.id) ? { ...post, poll: votedPost.poll } : post;
   const pollPost = isPollPost(viewPost);
@@ -88,10 +89,10 @@ export default function FeedPostCard({
               style={styles.avatar}
             />
             <View style={styles.userText}>
-              <Text style={[styles.userName, isEngagement && styles.userNameLarge]} numberOfLines={1}>
+              <Text style={[styles.userName, isEngagement && styles.userNameLarge, arabic && styles.userNameAr]} numberOfLines={1}>
                 {authorName}
               </Text>
-              <Text style={styles.userMeta} numberOfLines={1}>
+              <Text style={[styles.userMeta, arabic && styles.userMetaAr]} numberOfLines={1}>
                 {relativeTime}
                 {post.author_unit ? ` · ${t("nav.unit", { number: post.author_unit })}` : ""}
               </Text>
@@ -101,17 +102,17 @@ export default function FeedPostCard({
           <View style={styles.headerActions}>
             {post.status === "pending" ? (
               <View style={[styles.tag, styles.tagWarn]}>
-                <Text style={[styles.tagText, { color: "#B45309" }]}>{t("feed.pending")}</Text>
+                <Text style={[styles.tagText, arabic && styles.tagTextAr, { color: "#B45309" }]}>{t("feed.pending")}</Text>
               </View>
             ) : isSensitive ? (
               <View style={[styles.tag, styles.tagWarn]}>
-                <Text style={[styles.tagText, { color: "#B45309" }]} numberOfLines={2}>
+                <Text style={[styles.tagText, arabic && styles.tagTextAr, { color: "#B45309" }]} numberOfLines={2}>
                   {post.sensitive_label || t("feed.sensitive")}
                 </Text>
               </View>
             ) : post.tag ? (
               <View style={[styles.tag, { backgroundColor: theme.bg }]}>
-                <Text style={[styles.tagText, { color: theme.text }]}>{TOPIC_LABEL_KEY[post.tag] ? t(TOPIC_LABEL_KEY[post.tag]) : post.tag}</Text>
+                <Text style={[styles.tagText, arabic && styles.tagTextAr, { color: theme.text }]}>{TOPIC_LABEL_KEY[post.tag] ? t(TOPIC_LABEL_KEY[post.tag]) : post.tag}</Text>
               </View>
             ) : null}
             {showOptions && !isSensitive ? (
@@ -270,12 +271,26 @@ const styles = StyleSheet.create({
     fontSize: sf(15),
     lineHeight: sf(20),
   },
+  userNameAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    fontSize: sf(14),
+    lineHeight: sf(24),
+    letterSpacing: 0,
+  },
   userMeta: {
     fontFamily: Fonts.regular,
     fontSize: sf(11),
-    lineHeight: sf(14),
+    lineHeight: sf(20),
     color: T.gray,
     marginTop: 1,
+    includeFontPadding: false,
+  },
+  userMetaAr: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontSize: sf(12),
+    lineHeight: sf(22),
+    letterSpacing: 0,
   },
   headerActions: {
     flexDirection: "row",
@@ -287,7 +302,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     alignSelf: "flex-start",
     paddingHorizontal: sw(8),
-    paddingVertical: sw(3),
+    paddingVertical: sw(5),
     borderRadius: 999,
     backgroundColor: T.mint,
   },
@@ -297,9 +312,17 @@ const styles = StyleSheet.create({
   tagText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(10),
-    lineHeight: sf(13),
+    lineHeight: sf(18),
     fontWeight: "600",
     color: T.deepTeal,
+    includeFontPadding: false,
+  },
+  tagTextAr: {
+    fontFamily: "NotoSansArabic-SemiBold",
+    fontWeight: "normal",
+    fontSize: sf(12),
+    lineHeight: sf(20),
+    letterSpacing: 0,
   },
   contentLarge: {
     fontSize: sf(15),

@@ -385,7 +385,9 @@ export default function Notifications() {
       const isSaved = savedIds.includes(Number(notice.id));
       const rsvpLabel = isEventNotice(notice) ? formatEventRsvpLabel(notice) : null;
       const cardDate = formatCardDate(notice);
+      const arabic = String(i18n.language || "").startsWith("ar");
       const categoryLabel = t(`categories.${notice.category ?? "general"}`, { defaultValue: notice.categoryLabel || notice.theme?.label || t("notices.notice") });
+      const categoryShown = arabic ? categoryLabel : String(categoryLabel).toUpperCase();
       const showReviewStatus = selectedTab === "yours" && isEventNotice(notice);
       const reviewPill = showReviewStatus ? reviewStatusMeta(notice, t) : null;
 
@@ -406,9 +408,9 @@ export default function Notifications() {
             <View style={styles.cardContent}>
               <View style={styles.cardTopRow}>
                 <View style={styles.cardTopChips}>
-                  <View style={styles.categoryChip}>
-                    <Text style={styles.categoryChipText} numberOfLines={1}>
-                      {String(categoryLabel).toUpperCase()}
+                  <View style={[styles.categoryChip, arabic && styles.categoryChipAr]}>
+                    <Text style={[styles.categoryChipText, arabic && styles.categoryChipTextAr]} numberOfLines={1}>
+                      {categoryShown}
                     </Text>
                   </View>
                   {reviewPill ? (
@@ -439,11 +441,11 @@ export default function Notifications() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.cardTitle} numberOfLines={2} ellipsizeMode="tail">
+              <Text style={[styles.cardTitle, arabic && styles.cardTitleAr]} numberOfLines={2} ellipsizeMode="tail">
                 {localizedField(notice, "title") || notice.title}
               </Text>
               {(localizedField(notice, "body") || notice.body) ? (
-                <Text style={styles.cardDescription} numberOfLines={2}>
+                <Text style={[styles.cardDescription, arabic && styles.cardDescriptionAr]} numberOfLines={2}>
                   {localizedField(notice, "body") || notice.body}
                 </Text>
               ) : null}
@@ -452,7 +454,7 @@ export default function Notifications() {
                 <View style={styles.cardFooter}>
                   <View style={styles.cardFooterLeft}>
                     {cardDate ? (
-                      <Text style={styles.cardDate}>{cardDate}</Text>
+                      <Text style={[styles.cardDate, arabic && styles.cardDateAr]}>{cardDate}</Text>
                     ) : null}
                     {rsvpLabel ? (
                       <Text
@@ -474,7 +476,7 @@ export default function Notifications() {
         </TouchableOpacity>
       );
     },
-    [openNotice, savedIds, selectedTab, toggleSaved, t],
+    [openNotice, savedIds, selectedTab, toggleSaved, t, i18n.language],
   );
 
   const listEmpty = useMemo(() => {
@@ -893,6 +895,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     color: "#1B4F8A",
   },
+  categoryChipAr: {
+    paddingVertical: sw(5),
+  },
+  categoryChipTextAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    fontSize: sf(12),
+    lineHeight: sf(20),
+    letterSpacing: 0,
+    includeFontPadding: true,
+  },
   reviewPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -923,12 +936,25 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     width: "100%",
   },
+  cardTitleAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    fontSize: sf(15),
+    lineHeight: sf(26),
+    includeFontPadding: true,
+  },
   cardDescription: {
     fontFamily: Fonts.regular,
     fontWeight: "400",
     fontSize: sf(12),
     lineHeight: sf(16),
     color: "#4A5565",
+  },
+  cardDescriptionAr: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontSize: sf(13),
+    lineHeight: sf(22),
+    includeFontPadding: true,
   },
   cardFooter: {
     flexDirection: "row",
@@ -955,6 +981,13 @@ const styles = StyleSheet.create({
     lineHeight: sf(14),
     fontFamily: Fonts.regular,
     color: "rgba(106, 114, 130, 1)",
+  },
+  cardDateAr: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontWeight: "normal",
+    fontSize: sf(12),
+    lineHeight: sf(20),
+    includeFontPadding: true,
   },
   cardRsvp: {
     fontFamily: Fonts.semibold,

@@ -212,8 +212,8 @@
   background: rgba(255, 255, 255, 0.72);
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-transform: none;
   color: var(--lp-teal);
 }
 
@@ -713,29 +713,23 @@
 }
 
 .marketing-landing .lp-features__header {
-  display: grid;
-  gap: 1rem clamp(2rem, 5vw, 4rem);
-  align-items: end;
-}
-
-@media (min-width: 900px) {
-  .marketing-landing .lp-features__header {
-    grid-template-columns: 1.2fr 0.8fr;
-  }
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  align-items: flex-start;
 }
 
 .marketing-landing .lp-features__intro {
-  max-width: 22rem;
+  margin: 0;
+  max-width: 100%;
   font-size: 0.9375rem;
-  line-height: 1.65;
+  line-height: 1.55;
   color: #667085;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 720px) {
   .marketing-landing .lp-features__intro {
-    justify-self: end;
-    text-align: left;
-    padding-bottom: 0.2rem;
+    white-space: nowrap;
   }
 }
 
@@ -6190,6 +6184,405 @@
     min-width: 11rem;
     margin-top: 0;
   }
+}
+
+.marketing-landing .lp-pricing.lp-pricing--checkout {
+  padding-block: 0;
+  background: transparent;
+  contain: none;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__platform {
+  margin-top: 0;
+  padding: 0.7rem 0.75rem 0.75rem;
+  border-radius: 1rem;
+  box-shadow: none;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.7rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-head h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--lp-navy);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-head p {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__cycle {
+  margin-left: 0;
+  padding: 0.35rem 0.55rem;
+  gap: 0.2rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__grid {
+  gap: 0.75rem;
+  margin-top: 0.15rem;
+  padding-top: 0.85rem;
+  overflow: visible;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card {
+  gap: 0.35rem;
+  padding: 1rem 0.95rem 0.9rem;
+  border-radius: 1.2rem;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card--tier {
+  gap: 0.35rem;
+  padding-top: 1.15rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card--tier .lp-pricing__bill,
+.marketing-landing .lp-pricing--checkout .lp-pricing__bill {
+  min-height: 0;
+  gap: 0;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__bill-note {
+  margin-top: 0.15rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card-includes {
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.7rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__includes-label {
+  margin-bottom: 0.25rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__includes-jump {
+  margin-top: 0.2rem;
+  color: #64748b;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: default;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card-features {
+  gap: 0.15rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__price {
+  font-size: 1.65rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__cta {
+  min-height: 2.2rem;
+  margin-top: 0.35rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__platform-row {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__platform-duo-features {
+  padding: 0.7rem 0.8rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__feature-sheet-title {
+  margin-top: 0.2rem;
+  font-size: 1rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__feature-sheet-lead {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__feature-sheet-grid {
+  margin-top: 0.5rem;
+  gap: 0.28rem 0.75rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__custom-panel {
+  gap: 0.45rem;
+  padding: 0.8rem 0.85rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__custom-panel .lp-pricing__custom-title {
+  font-size: 1.05rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__custom-footnote {
+  margin: 0.45rem 0 0;
+  padding-top: 0.45rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid #eef2f6;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--lp-navy);
+  cursor: pointer;
+  text-align: left;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-custom strong,
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-pay strong {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-custom span span,
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-pay span {
+  display: block;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: #64748b;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-note {
+  margin: 0;
+  flex: 1 1 12rem;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-pay {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-pay p {
+  margin: 0;
+  text-align: right;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-pay button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 2.25rem;
+  border: 0;
+  border-radius: 0.7rem;
+  background: var(--lp-navy);
+  padding: 0 0.9rem;
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-pay button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.marketing-landing .lp-pricing__grid--checkout {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 960px) {
+  .marketing-landing .lp-pricing__grid--checkout {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__platform {
+  border-color: #e3ebf2;
+  background: #fff;
+  overflow: visible;
+  border-radius: 1.25rem;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-head,
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-bar {
+  border-color: #e6eef4;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__cycle {
+  border-color: #e3ebf2;
+  background: #f6f8fb;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__cycle-label {
+  color: var(--navy);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__cycle-label svg {
+  color: var(--deep-teal);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__thumb,
+.marketing-landing .lp-pricing--checkout .lp-pricing__toggle button.is-on {
+  background: var(--navy);
+  box-shadow: 0 6px 14px rgba(10, 42, 67, 0.22);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card {
+  border-color: #e3ebf2;
+  background: #fff;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__glyph {
+  border-radius: 0.65rem;
+  background: #e7f4f2;
+  color: var(--deep-teal);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__size {
+  border-radius: 0.5rem;
+  border-color: #e3ebf2;
+  background: #f4f7fa;
+  color: var(--navy);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card-includes {
+  border-color: #e6eef4;
+  background: #f6f8fb;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__includes-label {
+  color: #5c7284;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__each,
+.marketing-landing .lp-pricing--checkout .lp-pricing__card li svg,
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-custom svg {
+  color: var(--deep-teal);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__badge {
+  top: -0.7rem;
+  background: var(--deep-teal);
+  color: #fff;
+  box-shadow: 0 8px 16px rgba(13, 148, 136, 0.28);
+  outline: 3px solid #fff;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-recommended .lp-pricing__size {
+  border-color: #e3ebf2;
+  background: #f4f7fa;
+  color: var(--navy);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-recommended:not(.is-selected) {
+  border-color: #d5e0ea;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected {
+  border-color: #0f3d57;
+  border-radius: 1.2rem;
+  background: #0f3d57;
+  box-shadow: 0 16px 32px rgba(12, 52, 73, 0.18);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected h3,
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__price {
+  color: #fff !important;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__price span,
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__card-top p,
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__bill-note,
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__annual,
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__band-hint,
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__includes-jump,
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected li {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__each,
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__includes-label,
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected li svg {
+  color: #7ee0d4;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__card-includes {
+  border-radius: 0.7rem;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__glyph {
+  background: rgba(255, 255, 255, 0.12);
+  color: #7ee0d4;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__size {
+  border-radius: 0.5rem;
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__cta {
+  border-color: #d5e0ea;
+  background: #fff;
+  color: var(--navy);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__cta:hover {
+  border-color: var(--navy);
+  background: #f6f8fb;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-recommended:not(.is-selected) .lp-pricing__cta {
+  border-color: #d5e0ea;
+  background: #fff;
+  color: var(--navy);
+  box-shadow: none;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__card.is-selected .lp-pricing__cta {
+  border-color: transparent;
+  background: var(--teal);
+  color: #07312e;
+  box-shadow: none;
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-custom strong,
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-pay strong {
+  color: var(--navy);
+}
+
+.marketing-landing .lp-pricing--checkout .lp-pricing__checkout-pay button {
+  background: var(--deep-teal);
+  box-shadow: 0 8px 16px rgba(13, 148, 136, 0.28);
+}
+
+.marketing-landing .lp-pricing__card.is-selected:not(.is-recommended) {
+  border-color: #0f3d57;
+  box-shadow: 0 16px 36px rgba(15, 42, 67, 0.1);
 }
 
 .marketing-landing .lp-pricing__badge {

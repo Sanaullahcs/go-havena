@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { FileText } from "lucide-react";
+import { Building2, Check, FileText, Mail, Phone, UserRound } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { PhoneFieldState } from "@/lib/phone/format";
 import { formatPhoneDisplay } from "@/lib/phone/format";
 import { composePersonName } from "@/lib/admin/person-name";
@@ -16,29 +17,36 @@ function SummaryRow({
   label,
   value,
   empty,
-  clamp = false,
+  icon: Icon,
+  wrap = false,
 }: {
   label: string;
   value: string;
   empty: string;
-  clamp?: boolean;
+  icon: LucideIcon;
+  wrap?: boolean;
 }) {
   const filled = value.trim().length > 0;
   const display = filled ? value : empty;
   return (
-    <p className="grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] items-baseline gap-x-2 py-1 leading-snug">
-      <span className="text-[11px] font-medium text-slate-500">{label}</span>
-      <span
-        className={[
-          "min-w-0 text-[12px]",
-          filled ? "font-medium text-slate-800" : "italic text-slate-400",
-          clamp && filled ? "line-clamp-2 break-all [overflow-wrap:anywhere]" : filled ? "truncate" : "",
-        ].join(" ")}
-        title={filled ? value : undefined}
-      >
-        {display}
+    <div className="flex min-w-0 items-start gap-2.5 py-1.5">
+      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#F4F8FC] text-[#1B4F8A]">
+        <Icon className="h-3.5 w-3.5" aria-hidden />
       </span>
-    </p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</p>
+        <p
+          className={[
+            "mt-0.5 text-[13px] leading-snug",
+            filled ? "font-medium text-slate-800" : "text-slate-400",
+            wrap ? "whitespace-normal [overflow-wrap:break-word]" : "truncate",
+          ].join(" ")}
+          title={filled ? value : undefined}
+        >
+          {display}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -119,64 +127,77 @@ export function CompleteProfileLiveSummary({
       aria-label="Live profile summary"
       aria-live="polite"
     >
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">Live summary</p>
-          <span className="text-[10px] font-medium text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-[#E3ECF6] bg-white shadow-sm">
+        <div className="flex items-center justify-between gap-2 border-b border-[#E3ECF6] bg-[#F7FAFE] px-3.5 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#1B4F8A]">Live summary</p>
+          <span
+            className={[
+              "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+              acceptedTerms ? "bg-[#E7F6F2] text-[#0D9488]" : "bg-slate-100 text-slate-500",
+            ].join(" ")}
+          >
             {acceptedTerms ? "Complete" : "In progress"}
           </span>
         </div>
 
-        <div className="divide-y divide-slate-100 px-3 py-1">
+        <div className="space-y-3 px-3.5 py-3">
           <SummaryGroup title="Contact">
-            <SummaryRow label="Name" value={fullName} empty="—" />
-            <SummaryRow label="Email" value={email} empty="—" />
-            <SummaryRow label="Phone" value={phoneDisplay} empty="—" />
+            <SummaryRow label="Name" value={fullName} empty="Not added" icon={UserRound} />
+            <SummaryRow label="Email" value={email} empty="Not added" icon={Mail} wrap />
+            <SummaryRow label="Phone" value={phoneDisplay} empty="Not added" icon={Phone} />
           </SummaryGroup>
 
           {showDetails ? (
             <SummaryGroup title="Details">
               {showOfficeAddress ? (
-                <SummaryRow label="Office" value={officeAddress} empty="—" clamp />
+                <SummaryRow label="Office" value={officeAddress} empty="Not added" icon={Building2} wrap />
               ) : null}
-              {showUnitNumber ? <SummaryRow label="Unit" value={unitNumber} empty="—" /> : null}
-              {showResidenceType ? <SummaryRow label="Type" value={residenceLabel} empty="—" /> : null}
+              {showUnitNumber ? <SummaryRow label="Unit" value={unitNumber} empty="Not added" icon={Building2} /> : null}
+              {showResidenceType ? <SummaryRow label="Type" value={residenceLabel} empty="Not added" icon={UserRound} /> : null}
             </SummaryGroup>
           ) : null}
 
           {showUtilityBill ? (
-            <div className="py-2">
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">File</p>
+            <div>
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">File</p>
               {hasUtility ? (
-                <div className="flex min-w-0 items-center gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2 py-1.5">
+                <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[#E3ECF6] bg-[#F7FAFE] px-2.5 py-2">
                   {utilityThumb ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={utilityThumb}
                       alt=""
-                      className="h-8 w-8 shrink-0 rounded border border-slate-200 object-cover"
+                      className="h-9 w-9 shrink-0 rounded-lg border border-slate-200 object-cover"
                     />
                   ) : (
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-200 bg-white text-slate-500">
-                      <FileText className="h-3.5 w-3.5" aria-hidden />
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#1B4F8A]">
+                      <FileText className="h-4 w-4" aria-hidden />
                     </span>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12px] font-medium text-slate-800" title={utilityName}>
+                    <p className="truncate text-[13px] font-medium text-slate-800" title={utilityName}>
                       {utilityName}
                     </p>
-                    {utilitySize ? <p className="text-[10px] text-slate-500">{utilitySize}</p> : null}
+                    {utilitySize ? <p className="text-[11px] text-slate-500">{utilitySize}</p> : null}
                   </div>
                 </div>
               ) : (
-                <p className="text-[12px] italic text-slate-400">No file yet</p>
+                <p className="rounded-xl border border-dashed border-[#D5E3F2] bg-[#F7FAFE] px-3 py-2.5 text-[12px] text-slate-500">
+                  No file yet
+                </p>
               )}
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between gap-2 py-2">
-            <span className="text-[11px] font-medium text-slate-500">Terms</span>
-            <span className="text-[11px] font-medium text-slate-700">
+          <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Terms</span>
+            <span
+              className={[
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                acceptedTerms ? "bg-[#E7F6F2] text-[#0D9488]" : "bg-slate-100 text-slate-500",
+              ].join(" ")}
+            >
+              {acceptedTerms ? <Check className="h-3 w-3" strokeWidth={3} aria-hidden /> : null}
               {acceptedTerms ? "Accepted" : "Not accepted"}
             </span>
           </div>

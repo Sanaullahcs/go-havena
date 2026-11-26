@@ -28,9 +28,13 @@ import { homeSectionEmptyHintKey } from "../../utils/home-section-empty-copy";
 
 const PEEK = sw(28);
 const CARD_RADIUS = sw(16);
-/** Fixed text block so every carousel card matches (image height + this). */
-const EVENT_BODY_H = sw(96);
-const META_ROW_H = sw(17);
+const META_ROW_H = sw(20);
+
+function eventBodyHeight(item, arabic) {
+  const rows = [item?.time, item?.location, item?.rsvp].filter((value) => String(value || "").trim()).length;
+  const titleH = (arabic ? sf(22) : sf(18)) * 2;
+  return sw(8) + titleH + (rows > 0 ? sw(4) + META_ROW_H * rows : 0) + sw(8);
+}
 
 function mapEventToCard(notice, lang) {
   return {
@@ -49,23 +53,24 @@ function mapEventToCard(notice, lang) {
 }
 
 function EventCard({ item, width, imageH, onPress }) {
-  const cardH = imageH + EVENT_BODY_H;
+  const { i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const metaLines = [
     { icon: "clock", text: item.time },
     { icon: "map-pin", text: item.location },
     { icon: "users", text: item.rsvp },
-  ];
+  ].filter((row) => String(row.text || "").trim());
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        { width, height: cardH },
+        { width },
         pressed && styles.cardPressed,
       ]}
     >
-      <View style={[styles.cardInner, { height: cardH }]}>
+      <View style={styles.cardInner}>
         <View style={[styles.imageWrap, { height: imageH }]}>
           <NoticeCoverMedia
             fill
@@ -77,7 +82,7 @@ function EventCard({ item, width, imageH, onPress }) {
           {item.date ? (
             <View style={styles.dateBadge}>
               <Feather name="calendar" size={sf(10)} color={T.navy} />
-              <Text style={styles.dateBadgeText} numberOfLines={1}>
+              <Text style={[styles.dateBadgeText, arabic && styles.dateBadgeTextAr]} numberOfLines={1}>
                 {item.date}
               </Text>
             </View>
@@ -85,7 +90,7 @@ function EventCard({ item, width, imageH, onPress }) {
         </View>
 
         <View style={styles.body}>
-          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+          <Text style={[styles.title, arabic && styles.titleAr]} numberOfLines={2}>
             {item.title}
           </Text>
           <View style={styles.metaBlock}>
@@ -94,7 +99,7 @@ function EventCard({ item, width, imageH, onPress }) {
                 {text ? (
                   <>
                     <Feather name={icon} size={sf(12)} color={T.teal} />
-                    <Text style={styles.metaText} numberOfLines={1} ellipsizeMode="tail">
+                    <Text style={[styles.metaText, arabic && styles.metaTextAr]} numberOfLines={1} ellipsizeMode="tail">
                       {text}
                     </Text>
                   </>
@@ -122,12 +127,18 @@ export default function HappeningSoon({ items = [] }) {
   const layout = useMemo(() => {
     const contentWidth = frame.contentWidth;
     const gap = frame.size(12);
+    const arabic = String(i18n.language || "").startsWith("ar");
+    const bodyH = events.reduce(
+      (max, item) => Math.max(max, eventBodyHeight(item, arabic)),
+      eventBodyHeight(null, arabic),
+    );
     if (events.length <= 1) {
       const cardWidth = contentWidth;
       return {
         featured: true,
         cardWidth,
         imageH: Math.round(cardWidth * 0.42),
+        bodyH,
         snap: contentWidth,
         gap,
       };
@@ -137,10 +148,11 @@ export default function HappeningSoon({ items = [] }) {
       featured: false,
       cardWidth,
       imageH: Math.round(cardWidth * 0.42),
+      bodyH,
       snap: cardWidth + gap,
       gap,
     };
-  }, [frame, events.length]);
+  }, [frame, events, i18n.language]);
 
   const openEvent = useCallback(
     (item) => {
@@ -151,7 +163,7 @@ export default function HappeningSoon({ items = [] }) {
 
   const renderItem = useCallback(
     ({ item }) => (
-      <View style={{ width: layout.cardWidth, height: layout.imageH + EVENT_BODY_H, flexShrink: 0 }}>
+      <View style={{ width: layout.cardWidth, flexShrink: 0 }}>
         <EventCard
           item={item}
           width={layout.cardWidth}
@@ -198,7 +210,7 @@ export default function HappeningSoon({ items = [] }) {
         <FlatList
           data={events}
           horizontal
-          style={[styles.carousel, { width: frame.contentWidth, height: layout.imageH + EVENT_BODY_H }]}
+          style={[styles.carousel, { width: frame.contentWidth, height: layout.imageH + layout.bodyH }]}
           showsHorizontalScrollIndicator={false}
           decelerationRate="fast"
           snapToInterval={layout.snap}
@@ -257,44 +269,70 @@ const styles = StyleSheet.create({
   },
   dateBadgeText: {
     fontFamily: Fonts.semiBold,
-    fontSize: sf(9.5),
+    fontSize: sf(10),
+    lineHeight: sf(20),
     color: T.navy,
-    fontWeight: "600",
+    includeFontPadding: false,
+  },
+  dateBadgeTextAr: {
+    fontFamily: "NotoSansArabic-SemiBold",
+    fontWeight: "normal",
+    fontSize: sf(12),
+    lineHeight: sf(22),
+    letterSpacing: 0,
   },
   body: {
-    height: EVENT_BODY_H,
     paddingHorizontal: sw(10),
-    paddingTop: sw(10),
-    paddingBottom: sw(12),
+    paddingTop: sw(8),
+    paddingBottom: sw(8),
     overflow: "hidden",
   },
   title: {
     fontFamily: Fonts.bold,
     fontSize: sf(13),
-    lineHeight: sf(17),
-    height: sf(17),
+    lineHeight: sf(18),
+    includeFontPadding: false,
     color: T.navy,
-    fontWeight: "700",
-    marginBottom: sw(6),
-    writingDirection: "auto",
-    flexShrink: 1,
+    marginBottom: sw(4),
     width: "100%",
+    paddingHorizontal: 1,
+  },
+  titleAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    fontSize: sf(14),
+    lineHeight: sf(22),
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    textAlign: "left",
+    includeFontPadding: true,
+    paddingStart: sw(2),
+    paddingEnd: sw(8),
   },
   metaBlock: {
-    height: META_ROW_H * 3,
+    alignSelf: "stretch",
   },
   metaRow: {
     height: META_ROW_H,
     flexDirection: "row",
     alignItems: "center",
     gap: sw(5),
+    overflow: "visible",
   },
   metaText: {
     fontFamily: Fonts.regular,
     fontSize: sf(11),
-    lineHeight: sf(14),
+    lineHeight: sf(16),
     color: T.gray,
     flex: 1,
-    writingDirection: "auto",
+    includeFontPadding: false,
+  },
+  metaTextAr: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontSize: sf(12),
+    lineHeight: sf(18),
+    letterSpacing: 0,
+    includeFontPadding: false,
+    writingDirection: "rtl",
   },
 });

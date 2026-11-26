@@ -14,8 +14,9 @@ export default function HomeSectionHeader({ label, onPress, style }) {
   return (
     <View style={[homeStyles.sectionHeader, style]}>
       <Text
-        style={[homeStyles.sectionLabel, localStyles.label, arabic && localStyles.labelAr]}
+        style={arabic ? [localStyles.label, localStyles.labelAr] : [homeStyles.sectionLabel, localStyles.label]}
         numberOfLines={1}
+        ellipsizeMode="tail"
       >
         {label}
       </Text>
@@ -26,7 +27,7 @@ export default function HomeSectionHeader({ label, onPress, style }) {
           hitSlop={8}
           accessibilityRole="button"
         >
-          <Text style={localStyles.viewAllText} numberOfLines={1}>
+          <Text style={[localStyles.viewAllText, arabic && localStyles.viewAllTextAr]} numberOfLines={1}>
             {t("common.viewAll")}
           </Text>
           <Feather name={chevronForward()} size={sf(13)} color={T.teal} />
@@ -41,13 +42,22 @@ const localStyles = StyleSheet.create({
     flex: 1,
     flexShrink: 1,
     marginEnd: sw(8),
+    overflow: "visible",
   },
   labelAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
     textTransform: "none",
     letterSpacing: 0,
     fontSize: sf(16),
-    lineHeight: sf(24),
+    lineHeight: sf(30),
+    color: T.navy,
+    textAlign: "left",
     writingDirection: "rtl",
+    includeFontPadding: true,
+    paddingStart: sw(2),
+    paddingEnd: sw(8),
+    overflow: "visible",
   },
   viewAllBtn: {
     flexDirection: "row",
@@ -63,5 +73,16 @@ const localStyles = StyleSheet.create({
     lineHeight: sf(18),
     color: T.teal,
     fontWeight: "600",
+  },
+  viewAllTextAr: {
+    fontFamily: "NotoSansArabic-SemiBold",
+    fontWeight: "normal",
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    includeFontPadding: true,
+    fontSize: sf(12),
+    lineHeight: sf(22),
+    paddingHorizontal: sw(3),
+    overflow: "visible",
   },
 });

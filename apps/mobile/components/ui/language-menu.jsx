@@ -1,115 +1,150 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   View,
   Text,
   StyleSheet,
   Modal,
   Platform,
   Pressable,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
-import { sw, sf, SCREEN_WIDTH } from "../../utils/responsive";
+import { sf, sw } from "../../utils/responsive";
 import { rnShadow } from "../../utils/shadow";
 
 export const LANGUAGE_OPTIONS = [
-  { code: "en", nativeLabel: "English", flag: "🇬🇧" },
-  { code: "es", nativeLabel: "Español", flag: "🇪🇸" },
-  { code: "ar", nativeLabel: "العربية", flag: "🇸🇦" },
+  { code: "en", nativeLabel: "English", mark: "EN" },
+  { code: "es", nativeLabel: "Español", mark: "ES" },
+  { code: "ar", nativeLabel: "العربية", mark: "ع" },
 ];
 
-const PANEL_MIN_W = sw(128);
-const PANEL_MAX_W = sw(148);
-const PANEL_GAP = sw(4);
-const H_MARGIN = sw(16);
-const ROW_H = sw(32);
+const H_MARGIN = 14;
+const PANEL_GAP = 4;
+const PANEL_W = sw(210);
+const ROW_H = sw(36);
+const BADGE = sw(28);
+
+/** Kept off StyleSheet so Arabic padding is not inflated and the word stays next to the mark. */
+const arabicInk = {
+  fontFamily: "NotoSansArabic-SemiBold",
+  fontWeight: "normal",
+  includeFontPadding: false,
+  textAlignVertical: "center",
+  textAlign: "left",
+  writingDirection: "ltr",
+  letterSpacing: 0,
+};
 
 export default function LanguageMenu({
   visible,
   onClose,
-  headerRef,
   triggerRef,
   selected,
   onSelect,
 }) {
   const { t } = useTranslation();
-  const [panel, setPanel] = useState({ top: 0, left: H_MARGIN, width: PANEL_MAX_W });
+  const { width: windowWidth } = useWindowDimensions();
+  const panelWidth = Math.min(PANEL_W, windowWidth - H_MARGIN * 2);
+  const [place, setPlace] = useState({
+    top: 0,
+    left: Math.max(H_MARGIN, windowWidth - panelWidth - H_MARGIN),
+  });
+  const rise = useRef(new Animated.Value(0)).current;
 
   const measurePanel = useCallback(() => {
-    const layout = (bx, by, bw, bh, headerBottom) => {
-      const triggerBottom = Number.isFinite(by) && Number.isFinite(bh) ? by + bh : headerBottom;
-      const top = (triggerBottom ?? 0) + PANEL_GAP;
-      const width = Math.max(
-        PANEL_MIN_W,
-        Math.min(PANEL_MAX_W, Math.ceil(Number.isFinite(bw) ? bw + sw(2) : PANEL_MAX_W)),
-      );
-      const anchorRight = Number.isFinite(bx) && Number.isFinite(bw) ? bx + bw : SCREEN_WIDTH - H_MARGIN;
-      const alignedLeft = anchorRight - width;
-      const left = Math.max(H_MARGIN, Math.min(alignedLeft, SCREEN_WIDTH - width - H_MARGIN));
-      setPanel({ top, left, width });
-    };
+    const trigger = triggerRef?.current;
+    if (!trigger?.measureInWindow) return;
 
-    const run = (bx, by, bw, bh, headerBottom) => {
-      layout(bx, by, bw, bh, headerBottom);
-    };
-
-    headerRef?.current?.measureInWindow((hx, hy, _hw, hh) => {
-      const headerBottom = Number.isFinite(hy) && Number.isFinite(hh) ? hy + hh : undefined;
-      if (triggerRef?.current?.measureInWindow) {
-        triggerRef.current.measureInWindow((bx, by, bw, bh) => {
-          run(bx, by, bw, bh, headerBottom);
-        });
-      } else {
-        run(hx, hy, PANEL_MAX_W, ROW_H, headerBottom);
-      }
+    trigger.measureInWindow((bx, by, bw, bh) => {
+      if (!Number.isFinite(by) || !Number.isFinite(bh)) return;
+      const top = by + bh + PANEL_GAP;
+      const anchorRight = Number.isFinite(bx) && Number.isFinite(bw) ? bx + bw : windowWidth - H_MARGIN;
+      const maxLeft = Math.max(H_MARGIN, windowWidth - panelWidth - H_MARGIN);
+      const left = Math.max(H_MARGIN, Math.min(anchorRight - panelWidth, maxLeft));
+      setPlace({ top, left });
     });
-  }, [headerRef, triggerRef]);
+  }, [triggerRef, panelWidth, windowWidth]);
 
   useEffect(() => {
     if (!visible) return undefined;
     measurePanel();
-    const t1 = setTimeout(measurePanel, 16);
-    const t2 = setTimeout(measurePanel, 64);
+    const t1 = requestAnimationFrame(measurePanel);
+    const t2 = setTimeout(measurePanel, 48);
     return () => {
-      clearTimeout(t1);
+      cancelAnimationFrame(t1);
       clearTimeout(t2);
     };
   }, [visible, measurePanel]);
 
-  if (!visible) return null;
+  useEffect(() => {
+    if (!visible) {
+      rise.setValue(0);
+      return undefined;
+    }
+    rise.setValue(0);
+    const anim = Animated.timing(rise, {
+      toValue: 1,
+      duration: 170,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [visible, rise]);
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="none"
       statusBarTranslucent
       presentationStyle="overFullScreen"
       hardwareAccelerated={Platform.OS === "android" ? true : undefined}
       onRequestClose={onClose}
     >
-      <View style={styles.modalRoot}>
-        <Pressable
-          style={styles.backdrop}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel={t("common.close")}
-        />
-
-        <View
+      <Pressable
+        style={styles.overlay}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel={t("common.close")}
+      >
+        <Animated.View
           pointerEvents="box-none"
-          style={[styles.panelHost, { top: panel.top, left: panel.left, width: panel.width }]}
+          style={[
+            styles.host,
+            {
+              top: place.top,
+              left: place.left,
+              width: panelWidth,
+              opacity: rise,
+              transform: [
+                {
+                  translateY: rise.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-5, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
         >
-          <View style={styles.panel}>
-            {LANGUAGE_OPTIONS.map((item, index) => {
+          <Pressable style={styles.card} onPress={(event) => event.stopPropagation()}>
+            {LANGUAGE_OPTIONS.map((item) => {
               const active = item.code === selected;
-              const isLast = index === LANGUAGE_OPTIONS.length - 1;
+              const isAr = item.code === "ar";
               return (
                 <Pressable
                   key={item.code}
-                  style={({ pressed }) => [styles.rowHit, pressed && styles.rowPressed]}
+                  style={({ pressed }) => [
+                    styles.rowHit,
+                    active && styles.rowOn,
+                    pressed && !active && styles.rowPressed,
+                  ]}
                   onPress={() => {
                     onClose();
                     if (!active) onSelect(item.code);
@@ -118,114 +153,153 @@ export default function LanguageMenu({
                   accessibilityState={{ selected: active }}
                 >
                   <View style={styles.row}>
-                    <Text
-                      style={styles.flag}
-                      accessibilityElementsHidden
-                      importantForAccessibility="no"
-                    >
-                      {item.flag}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.label,
-                        item.code === "ar" && styles.labelAr,
-                        active && styles.labelActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {item.nativeLabel}
-                    </Text>
+                    <View style={[styles.badge, active && styles.badgeOn]}>
+                      <Text
+                        style={[
+                          styles.badgeText,
+                          isAr && styles.badgeAr,
+                          isAr && arabicInk,
+                          isAr && { fontSize: sf(13), lineHeight: BADGE, textAlign: "center" },
+                          active && styles.badgeTextOn,
+                        ]}
+                        numberOfLines={1}
+                        allowFontScaling={false}
+                      >
+                        {item.mark}
+                      </Text>
+                    </View>
+                    <View style={styles.nameSlot}>
+                      <Text
+                        style={[
+                          styles.name,
+                          isAr && styles.nameAr,
+                          isAr && arabicInk,
+                          isAr && { fontSize: sf(14), lineHeight: sf(20) },
+                          active && !isAr && styles.nameOn,
+                        ]}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {item.nativeLabel}
+                      </Text>
+                    </View>
                     {active ? (
-                      <Feather name="check" size={sf(11)} color={T.teal} style={styles.check} />
+                      <Feather name="check" size={sf(14)} color={T.navy} />
                     ) : (
                       <View style={styles.checkSpacer} />
                     )}
                   </View>
-                  {!isLast ? <View style={styles.rowDivider} /> : null}
                 </Pressable>
               );
             })}
-          </View>
-        </View>
-      </View>
+          </Pressable>
+        </Animated.View>
+      </Pressable>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  modalRoot: {
+  overlay: {
     flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.1)",
   },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(15, 23, 42, 0.18)",
-  },
-  panelHost: {
+  host: {
     position: "absolute",
-    zIndex: 2,
-    elevation: 10,
   },
-  panel: {
-    borderRadius: sw(10),
+  card: {
+    width: "100%",
+    flexDirection: "column",
+    alignItems: "stretch",
     backgroundColor: T.white,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(27, 79, 138, 0.14)",
-    paddingVertical: sw(2),
-    overflow: "hidden",
+    borderRadius: sw(14),
+    paddingVertical: sw(4),
+    paddingHorizontal: sw(4),
+    gap: 1,
+    direction: "ltr",
     ...(Platform.OS === "ios"
-      ? rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 4 }, opacity: 0.08, radius: 8 })
-      : { elevation: 5 }),
+      ? rnShadow({ color: "#0B2545", offset: { width: 0, height: 8 }, opacity: 0.14, radius: 18 })
+      : { elevation: 8 }),
   },
   rowHit: {
-    minHeight: ROW_H,
+    width: "100%",
+    height: ROW_H,
+    borderRadius: sw(10),
+    overflow: "visible",
     justifyContent: "center",
   },
-  rowPressed: {
-    backgroundColor: "rgba(226, 245, 242, 0.55)",
-  },
   row: {
+    width: "100%",
+    height: ROW_H,
     flexDirection: "row",
+    flexWrap: "nowrap",
     alignItems: "center",
-    paddingHorizontal: sw(9),
-    gap: sw(6),
-    minHeight: ROW_H,
+    paddingHorizontal: sw(8),
+    gap: sw(8),
+    direction: "ltr",
   },
-  rowDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: T.border,
-    marginStart: sw(9),
-    marginEnd: sw(9),
+  rowOn: {
+    backgroundColor: "rgba(27, 79, 138, 0.08)",
   },
-  flag: {
-    fontSize: sf(12),
-    lineHeight: sf(14),
-    width: sw(18),
-    textAlign: "center",
+  rowPressed: {
+    backgroundColor: "#F4F8FB",
+  },
+  badge: {
+    width: BADGE,
+    height: BADGE,
+    borderRadius: sw(8),
+    backgroundColor: "#EEF3F8",
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
-  label: {
-    flex: 1,
-    minWidth: 0,
-    fontFamily: Fonts.medium,
-    fontSize: sf(11),
-    lineHeight: sf(15),
+  badgeOn: {
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
+  },
+  badgeText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(10),
+    lineHeight: sf(13),
+    letterSpacing: 0.4,
     color: T.navy,
     includeFontPadding: false,
   },
-  labelAr: {
-    writingDirection: "rtl",
+  badgeAr: {
+    fontFamily: "NotoSansArabic-SemiBold",
+    fontWeight: "normal",
+    fontSize: sf(12),
+    lineHeight: sf(13),
+    letterSpacing: 0,
+  },
+  badgeTextOn: {
+    color: T.navy,
+  },
+  nameSlot: {
+    flex: 1,
+    minWidth: 0,
+    height: BADGE,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+  name: {
+    width: "100%",
+    fontFamily: Fonts.medium,
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    color: T.navy,
     textAlign: "left",
+    includeFontPadding: false,
   },
-  labelActive: {
+  nameAr: {
+    fontFamily: "NotoSansArabic-SemiBold",
+    fontWeight: "normal",
+  },
+  nameOn: {
     fontFamily: Fonts.semiBold,
-    fontWeight: "600",
-  },
-  check: {
-    flexShrink: 0,
-    opacity: 0.88,
   },
   checkSpacer: {
-    width: sf(11),
+    width: sf(15),
+    height: sf(15),
     flexShrink: 0,
   },
 });

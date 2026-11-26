@@ -22,6 +22,10 @@ import { useLocationScope } from "../providers/location-scope-provider";
 import { fetchMe } from "../services/auth-api";
 import { getCachedUser, subscribeSessionUser } from "../services/auth-session";
 import { currentCommunityId } from "../services/community-access";
+import {
+  createLocalAccountRestrictedError,
+  isUserLocallyRestricted,
+} from "../utils/guest-permission-errors";
 
 export function useHomeScreen() {
   const { revision } = useLocationScope();
@@ -55,14 +59,14 @@ export function useHomeScreen() {
     }
 
     try {
-      await fetchMe().catch(() => null);
-      const preBlocked = await resolveLoadRestriction("feed");
-      if (preBlocked) {
-        setRestrictionError(preBlocked);
+      const cached = getCachedUser();
+      if (cached && isUserLocallyRestricted(cached)) {
+        setRestrictionError(createLocalAccountRestrictedError(cached, "feed"));
         clearHomeData();
         return;
       }
 
+      const mePromise = fetchMe().catch(() => null);
       const criticalPromise = Promise.allSettled([
         fetchNotices({ perPage: 24 }),
         fetchFeed({ perPage: HOME_SECTION_CARD_LIMIT }),
@@ -120,6 +124,12 @@ export function useHomeScreen() {
 
       if (amenitiesResult.status === "fulfilled") {
         setAmenities(pickLatestApprovedAmenities(amenitiesResult.value ?? []));
+      }
+
+      const me = await mePromise;
+      if (me && isUserLocallyRestricted(me)) {
+        setRestrictionError(createLocalAccountRestrictedError(me, "feed"));
+        clearHomeData();
       }
     } catch {
       // keep previous data on failure

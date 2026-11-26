@@ -242,6 +242,11 @@ function CompleteProfileInner() {
       .finally(() => setLoading(false));
   }, [router, planHint, planQuery]);
 
+  useEffect(() => {
+    router.prefetch("/admin/billing");
+    router.prefetch("/admin/pending-approval");
+  }, [router]);
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (busy || loading) return;
@@ -274,6 +279,7 @@ function CompleteProfileInner() {
       updateUser(meToSessionUser(me));
 
       const next = communityAdminOnboardingPath(getCommunityAdminNextStep(me));
+      setBusy(false);
       router.replace(`${next}${planQuery}`);
     } catch (err) {
       setFormError(apiError(err));

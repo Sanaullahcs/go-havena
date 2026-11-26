@@ -1,8 +1,4 @@
-/**
- * Layout stays left-to-right for every language.
- * Arabic changes the copy and the typeface, not row direction, so a language
- * switch does not flip icons or shift menus.
- */
+/** Chrome stays left-to-right in every language, including Arabic. */
 export function isAppRtl() {
   return false;
 }

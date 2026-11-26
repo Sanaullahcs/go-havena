@@ -1,12 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { ActivityIndicator, DevSettings, I18nManager, StyleSheet, View } from "react-native";
-import * as SecureStore from "expo-secure-store";
-import * as Updates from "expo-updates";
+import { I18nManager, StyleSheet, View, ActivityIndicator } from "react-native";
 import i18n, { initI18n, saveLanguage, SUPPORTED } from "../i18n";
 import { Colors } from "../constants/tokens";
 import { setNativeAppLocale } from "../utils/native-app-locale";
 import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
-import { isExpoGo } from "../utils/expo-runtime";
 import { subscribeSessionUser } from "../services/auth-session";
 import { currentCommunityId } from "../services/community-access";
 import { communityPrefersArabic } from "../utils/community-language";
@@ -23,50 +20,29 @@ export function useLanguage() {
 }
 
 const RTL_LANGUAGES = ["ar"];
-const STALE_RTL_KEY = "nbr_rtl_cleared_v2";
 
 function languageNeedsRTL(lng) {
-  return RTL_LANGUAGES.includes(lng);
+  return RTL_LANGUAGES.includes(String(lng || "").toLowerCase());
 }
 
 /**
- * Native layout direction is fixed when the process starts. Changing language
- * updates the strings immediately, but I18nManager.isRTL stays at the old
- * value until the JS runtime loads again. Sync the flag, then reload once.
+ * Arabic changes the copy, not the chrome. The menu, header, and tabs stay
+ * on the same side as English. Forcing RTL moves that chrome and looks wrong.
  */
-function nativeDirectionMatches(lng) {
-  return I18nManager.isRTL === languageNeedsRTL(lng);
-}
-
-function applyNativeDirection(lng) {
-  const rtl = languageNeedsRTL(lng);
-  I18nManager.allowRTL(rtl);
-  I18nManager.forceRTL(rtl);
-}
-
-async function reloadApp() {
-  if (typeof __DEV__ !== "undefined" && __DEV__ && DevSettings?.reload) {
-    DevSettings.reload();
-    return;
-  }
-  await Updates.reloadAsync();
-}
-
-/** @returns {Promise<boolean>} true when a reload was started */
-async function syncNativeDirection(lng) {
-  if (nativeDirectionMatches(lng) || isExpoGo()) return false;
-  applyNativeDirection(lng);
+function publishDirection() {
+  I18nManager.allowRTL(true);
+  I18nManager.forceRTL(false);
+  I18nManager.swapLeftAndRightInRTL(false);
   try {
-    await SecureStore.setItemAsync(STALE_RTL_KEY, languageNeedsRTL(lng) ? "rtl" : "ltr");
+    I18nManager.isRTL = false;
+    I18nManager.doLeftAndRightSwapInRTL = false;
+    const constants = I18nManager.getConstants?.();
+    if (constants) {
+      constants.isRTL = false;
+      constants.doLeftAndRightSwapInRTL = false;
+    }
   } catch {
-    // The direction flag is already stored by I18nManager.
-  }
-  try {
-    await reloadApp();
-    return true;
-  } catch (err) {
-    console.warn("[LanguageProvider] direction reload failed", err);
-    return false;
+    // Layout stays left-to-right either way.
   }
 }
 
@@ -82,13 +58,11 @@ export default function LanguageProvider({ children }) {
       try {
         const lng = await initI18n();
         if (cancelled) return;
-        if (await syncNativeDirection(lng)) return;
-
+        const rtl = languageNeedsRTL(lng);
+        publishDirection();
         setLanguage(lng);
-        setIsRTL(languageNeedsRTL(lng));
-        // Noto Arabic needs looser line metrics than Inter — avoid top clipping.
-        setArabicTextMetricsEnabled(languageNeedsRTL(lng));
-        // Sync OS app-locale so soft keyboards match (Arabic → Arabic keyboard).
+        setIsRTL(rtl);
+        setArabicTextMetricsEnabled(rtl);
         setNativeAppLocale(lng);
       } catch (err) {
         console.warn("[LanguageProvider] init failed", err);
@@ -113,12 +87,11 @@ export default function LanguageProvider({ children }) {
     await saveLanguage(lng);
     setNativeAppLocale(lng);
     const rtl = languageNeedsRTL(lng);
-    // Flip the font before React re-renders so Arabic and English share one layout pass.
+    publishDirection();
     setArabicTextMetricsEnabled(rtl);
     await i18n.changeLanguage(lng);
     setLanguage(lng);
     setIsRTL(rtl);
-    if (await syncNativeDirection(lng)) return;
   }, [language]);
 
   useEffect(() => {
@@ -149,7 +122,7 @@ export default function LanguageProvider({ children }) {
   return (
     <LanguageContext.Provider value={{ language, isRTL, changeLanguage, ready }}>
       {ready ? (
-        <View style={[styles.directionRoot, isRTL ? styles.directionRtl : styles.directionLtr]}>
+        <View collapsable={false} style={[styles.directionRoot, styles.directionLtr]}>
           {children}
         </View>
       ) : (

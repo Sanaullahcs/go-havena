@@ -1,6 +1,6 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { navigateAppRoute } from "../../utils/app-navigation";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import BurgerButton from "./burger-button";
 import { Fonts } from "../../constants/font";
@@ -13,7 +13,6 @@ import {
   getPrimaryMembership,
   isCommunityAdmin,
   isGuestUser,
-  membershipForCommunity,
 } from "../../services/community-access";
 import { fetchMe, fetchMyCommunities, switchActiveCommunity } from "../../services/profile-api";
 import {
@@ -29,24 +28,22 @@ import { useMessageUnread } from "../../hooks/use-message-unread";
 import { useApiAction } from "../../hooks/use-api-action";
 import NotificationCountBadge from "./notification-count-badge";
 import LanguageToggle from "./language-toggle";
-import InboxMenu from "./inbox-menu";
 import CommunityLocationMenu from "./community-location-menu";
 import LocationPickerSheet from "./location-picker-sheet";
 import SwitchCommunitySheet from "./switch-community-sheet";
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
-import { communityUsesMiles } from "../../utils/community-language";
 
 export default function TopBar({ onMenuPress }) {
   const router = useRouter();
   const { t } = useTranslation();
+  const { width: windowWidth } = useWindowDimensions();
+  const compactLang = windowWidth < 360;
   const [user, setUser] = useState(null);
   const { unread, messageAlerts } = useNotificationUnread();
   const { unread: messageUnread } = useMessageUnread();
   const { dialog, showFailure } = useApiAction();
   const headerRef = useRef(null);
-  const inboxBtnRef = useRef(null);
   const locationBtnRef = useRef(null);
-  const [inboxOpen, setInboxOpen] = useState(false);
   const [communityMenuOpen, setCommunityMenuOpen] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
   const [locationFresh, setLocationFresh] = useState(true);
@@ -54,23 +51,7 @@ export default function TopBar({ onMenuPress }) {
   const [switchRows, setSwitchRows] = useState([]);
   const [switching, setSwitching] = useState(false);
   const [activeCommunityId, setActiveCommunityId] = useState(null);
-  const inboxNavigatingRef = useRef(false);
   const menuActionRef = useRef(false);
-
-  const navigateFromInbox = useCallback(
-    (route) => {
-      if (inboxNavigatingRef.current) return;
-      inboxNavigatingRef.current = true;
-      requestAnimationFrame(() => {
-        setInboxOpen(false);
-        setTimeout(() => {
-          inboxNavigatingRef.current = false;
-          navigateAppRoute(router, route);
-        }, 280);
-      });
-    },
-    [router],
-  );
 
   const afterMenuClose = useCallback((action) => {
     if (menuActionRef.current) return;
@@ -201,18 +182,12 @@ export default function TopBar({ onMenuPress }) {
   const roleLabel = getRoleLabel(user);
   const hasCommunity = Boolean(user?.memberships?.some((m) => m?.community?.name));
   const title = hasCommunity ? communityName : t("topBar.chooseYourCommunity");
-  const activeCommunity = membershipForCommunity(user, activeCommunityId)?.community
-    ?? getPrimaryMembership(user)?.community;
-  const range = communityUsesMiles(activeCommunity, user)
-    ? { value: "2", unit: t("topBar.miUnit") }
-    : { value: "3", unit: t("topBar.kmUnit") };
   const showNearby = isResidentFeatureEnabled(user, "nearby_places");
   // Community admins manage one community; switch is residents-only when multi-approved.
   const showSwitch = !guestUser && !adminUser && canSwitchCommunities(user);
   const showLocationMenu = showNearby || showSwitch;
   const showMessages = isResidentFeatureEnabled(user, "messages");
   const notificationOnly = Math.max(0, (unread || 0) - (messageAlerts || 0));
-  const inboxUnread = showMessages ? notificationOnly + (messageUnread || 0) : unread || 0;
 
   const onLocationPress = () => {
     if (!showLocationMenu) return;
@@ -256,33 +231,35 @@ export default function TopBar({ onMenuPress }) {
                 <View style={styles.rolePill}>
                   <Text style={styles.rolePillText}>{roleLabel}</Text>
                 </View>
-              ) : showNearby ? (
-                <View style={styles.rangeChip} accessibilityLabel={`${range.value} ${range.unit}`}>
-                  <Text style={styles.rangeValue} numberOfLines={1}>{range.value}</Text>
-                  <Text
-                    style={[styles.rangeUnit, /[\u0600-\u06FF]/.test(range.unit) && styles.rangeUnitAr]}
-                    numberOfLines={1}
-                  >
-                    {range.unit}
-                  </Text>
-                </View>
               ) : null}
               {showLocationMenu ? <Feather name="chevron-down" size={sf(14)} color={T.navy} /> : null}
             </Pressable>
           </View>
 
           <View style={styles.right}>
-            <LanguageToggle />
-            <Pressable
-              ref={inboxBtnRef}
-              style={({ pressed }) => [styles.inboxBtn, pressed && styles.inboxBtnPressed]}
-              onPress={() => setInboxOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel={t("notifications.title")}
-            >
-              <Feather name="inbox" size={sf(17)} color={T.navy} />
-              <NotificationCountBadge count={inboxUnread} size="sm" label="inbox" />
-            </Pressable>
+            <LanguageToggle headerRef={headerRef} compact={compactLang} />
+            <View style={styles.actions}>
+              <Pressable
+                style={({ pressed }) => [styles.iconBtn, pressed && styles.iconPressed]}
+                onPress={() => navigateAppRoute(router, "/screens/notification")}
+                accessibilityRole="button"
+                accessibilityLabel={t("notifications.title")}
+                hitSlop={6}
+              >
+                <Ionicons name="notifications-outline" size={sf(18)} color={T.navy} />
+                <NotificationCountBadge count={notificationOnly} size="sm" label={t("notifications.title")} />
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.iconBtn, pressed && styles.iconPressed]}
+                onPress={() => navigateAppRoute(router, "/screens/messages")}
+                accessibilityRole="button"
+                accessibilityLabel={t("notifications.messages")}
+                hitSlop={6}
+              >
+                <Ionicons name="chatbubble-outline" size={sf(17)} color={T.navy} />
+                <NotificationCountBadge count={showMessages ? messageUnread || 0 : 0} size="sm" label={t("notifications.messages")} />
+              </Pressable>
+            </View>
           </View>
         </View>
       </HeaderShell>
@@ -314,18 +291,6 @@ export default function TopBar({ onMenuPress }) {
         onSelect={confirmSwitch}
       />
 
-      <InboxMenu
-        visible={inboxOpen}
-        onClose={() => setInboxOpen(false)}
-        headerRef={headerRef}
-        triggerRef={inboxBtnRef}
-        messageUnread={showMessages ? messageUnread || 0 : 0}
-        notificationUnread={unread || 0}
-        totalUnread={inboxUnread}
-        showMessages={showMessages}
-        onMessagesPress={() => navigateFromInbox("/screens/messages")}
-        onNotificationsPress={() => navigateFromInbox("/screens/notification")}
-      />
     </View>
   );
 }
@@ -333,10 +298,12 @@ export default function TopBar({ onMenuPress }) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
+    flexWrap: "nowrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: sw(8),
-    minHeight: sw(40),
+    minHeight: sw(44),
+    direction: "ltr",
   },
   left: {
     flex: 1,
@@ -346,9 +313,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   pinWrap: {
-    width: sw(26),
-    height: sw(26),
-    borderRadius: sw(8),
+    width: sw(22),
+    height: sw(22),
+    borderRadius: sw(7),
     backgroundColor: T.navy,
     alignItems: "center",
     justifyContent: "center",
@@ -358,14 +325,14 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(6),
+    gap: sw(4),
     minWidth: 0,
     minHeight: sw(36),
-    paddingEnd: sw(2),
+    direction: "ltr",
   },
   locationText: {
     flexShrink: 1,
-    flexGrow: 1,
+    flexGrow: 0,
     minWidth: 0,
     fontFamily: Fonts.bold,
     fontSize: sf(14),
@@ -373,37 +340,6 @@ const styles = StyleSheet.create({
     color: T.navy,
     fontWeight: "700",
     includeFontPadding: false,
-  },
-  rangeChip: {
-    flexDirection: "row",
-    direction: "ltr",
-    alignItems: "center",
-    flexWrap: "nowrap",
-    flexShrink: 0,
-    gap: sw(3),
-    paddingHorizontal: sw(7),
-    paddingVertical: sw(3),
-    borderRadius: 999,
-    backgroundColor: T.mint,
-  },
-  rangeValue: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(11),
-    lineHeight: sf(16),
-    color: T.deepTeal,
-    fontWeight: "700",
-    includeFontPadding: false,
-    writingDirection: "ltr",
-  },
-  rangeUnit: {
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(11),
-    lineHeight: sf(16),
-    color: T.deepTeal,
-    includeFontPadding: false,
-  },
-  rangeUnitAr: {
-    writingDirection: "rtl",
   },
   rolePill: {
     flexShrink: 0,
@@ -421,24 +357,38 @@ const styles = StyleSheet.create({
   },
   right: {
     flexDirection: "row",
+    flexWrap: "nowrap",
     alignItems: "center",
-    gap: sw(6),
+    justifyContent: "flex-end",
+    gap: sw(16),
+    marginStart: sw(8),
     flexShrink: 0,
+    flexGrow: 0,
+    direction: "ltr",
   },
-  inboxBtn: {
+  actions: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    alignItems: "center",
+    gap: sw(14),
+    flexShrink: 0,
+    direction: "ltr",
+  },
+  iconBtn: {
     width: sw(36),
     height: sw(36),
-    borderRadius: sw(10),
-    backgroundColor: T.white,
+    borderRadius: sw(12),
+    backgroundColor: "#F4F8FB",
     borderWidth: 1,
-    borderColor: T.border,
+    borderColor: "#E3EAF1",
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
     overflow: "visible",
+    flexShrink: 0,
   },
-  inboxBtnPressed: {
-    backgroundColor: T.mint,
+  iconPressed: {
+    backgroundColor: "#FFFFFF",
     borderColor: T.teal,
   },
 });

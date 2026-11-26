@@ -226,10 +226,11 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.bold,
     fontSize: sf(15),
-    lineHeight: sf(22),
+    lineHeight: sf(24),
     color: T.navy,
     fontWeight: "700",
-    includeFontPadding: false,
+    includeFontPadding: true,
+    paddingHorizontal: 1,
   },
   sub: {
     fontFamily: Fonts.regular,

@@ -231,7 +231,7 @@ export default function Communities({ posts = [], onPostsChange }) {
   const layout = useMemo(() => {
     const gap = frame.size(12);
     const peek = frame.size(40);
-    const bottom = frame.size(140);
+    const bottom = frame.size(156);
     const cardWidth = Math.min(
       frame.contentWidth,
       Math.max(1, Math.floor(frame.contentWidth - peek)),
@@ -320,7 +320,7 @@ export default function Communities({ posts = [], onPostsChange }) {
 
   if (posts.length === 0) {
     return (
-      <View style={[homeStyles.section, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
+      <View style={[homeStyles.section, styles.feedSection, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
         <HomeSectionHeader
           label={t("community.feed")}
           onPress={() => navigateAppRoute(router, COMMUNITY_FEED_ROUTE)}
@@ -335,7 +335,7 @@ export default function Communities({ posts = [], onPostsChange }) {
   }
 
   return (
-    <View style={[homeStyles.section, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
+    <View style={[homeStyles.section, styles.feedSection, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
       <HomeSectionHeader
         label={t("community.feed")}
         onPress={() => navigateAppRoute(router, COMMUNITY_FEED_ROUTE)}
@@ -372,7 +372,12 @@ export default function Communities({ posts = [], onPostsChange }) {
 const RADIUS = sw(16);
 
 const styles = StyleSheet.create({
-  carousel: { flexGrow: 0, alignSelf: "stretch" },
+  feedSection: {
+    paddingBottom: sw(18),
+    marginBottom: sw(8),
+    zIndex: 1,
+  },
+  carousel: { flexGrow: 0, alignSelf: "stretch", overflow: "visible" },
   listContent: { alignItems: "flex-start" },
   card: {
     borderRadius: RADIUS,
@@ -419,7 +424,7 @@ const styles = StyleSheet.create({
   contentArea: {
     paddingHorizontal: sw(14),
     paddingTop: sw(10),
-    paddingBottom: sw(10),
+    paddingBottom: sw(12),
     flexDirection: "column",
   },
   authorRow: {

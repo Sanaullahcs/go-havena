@@ -10,6 +10,8 @@ type Props = {
   longitude: number;
   onMove: (latitude: number, longitude: number) => void;
   height?: number;
+  /** When false, map won't hijack the scroll wheel (use +/- controls). Default false in scrollable forms. */
+  scrollWheelZoom?: boolean;
 };
 
 const COMMUNITY_MAP_HEIGHT = 300;
@@ -58,7 +60,13 @@ function samePoint(a: L.LatLng, latitude: number, longitude: number) {
   return Math.abs(a.lat - latitude) < 0.0000001 && Math.abs(a.lng - longitude) < 0.0000001;
 }
 
-export function CommunityAddressMap({ latitude, longitude, onMove, height = COMMUNITY_MAP_HEIGHT }: Props) {
+export function CommunityAddressMap({
+  latitude,
+  longitude,
+  onMove,
+  height = COMMUNITY_MAP_HEIGHT,
+  scrollWheelZoom = false,
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
@@ -75,7 +83,7 @@ export function CommunityAddressMap({ latitude, longitude, onMove, height = COMM
       zoom: 16,
       minZoom: 0,
       maxBoundsViscosity: 1,
-      scrollWheelZoom: true,
+      scrollWheelZoom,
       zoomControl: false,
       attributionControl: false,
     });
@@ -169,8 +177,10 @@ export function CommunityAddressMap({ latitude, longitude, onMove, height = COMM
     map.invalidateSize({ animate: false });
   };
 
+  const formScrollClass = scrollWheelZoom ? "" : " havena-address-map--form-scroll";
+
   return (
-    <div className="havena-address-map relative" style={{ height, width: "100%" }}>
+    <div className={`havena-address-map relative${formScrollClass}`} style={{ height, width: "100%" }}>
       <div ref={containerRef} className="absolute inset-0" />
       <button
         type="button"

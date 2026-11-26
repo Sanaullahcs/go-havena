@@ -50,7 +50,7 @@ class ProfileController extends Controller
         }
 
         return response()->json([
-            'data' => $this->buildUserPayload($user),
+            'data' => $this->buildUserPayload($user, syncRemoteBilling: false),
         ]);
     }
 
@@ -345,20 +345,24 @@ class ProfileController extends Controller
 
             $user->load('profile.region');
             MembershipService::approvePendingForActiveCommunities($user, afterProfileSave: true);
-            $user->unsetRelation('memberships');
-            $user->load('memberships');
-            if (! $isCommunityAdmin) {
-                $this->syncUnitAssignments($user);
-            }
-            $this->maybeAwardProfileCompleted($user);
-            // Unit sync rewrites updated_at, which would hide a same-second profile submit.
-            $this->markInviteProfileSubmitted($user);
-            $user->unsetRelation('profile');
-            $user->load('profile');
-            MemberWelcomeNotification::sendForApprovedMemberships($user);
+            app()->terminating(function () use ($user, $isCommunityAdmin): void {
+                $user->unsetRelation('memberships');
+                $user->load('memberships');
+                if (! $isCommunityAdmin) {
+                    $this->syncUnitAssignments($user);
+                }
+                $this->maybeAwardProfileCompleted($user);
+                // Unit sync rewrites updated_at, which would hide a same-second profile submit.
+                $this->markInviteProfileSubmitted($user);
+                $user->unsetRelation('profile');
+                $user->load('profile');
+                MemberWelcomeNotification::sendForApprovedMemberships($user);
+            });
         }
 
         $user->load(['profile.region', 'memberships.community']);
+        $request->attributes->set('havena.lean_profile_save', true);
+
         $after = [
             'name' => $user->name,
             'email' => $user->email,
@@ -371,37 +375,41 @@ class ProfileController extends Controller
             'region' => $user->profile?->region?->title ?? $user->profile?->region_id,
         ];
 
-        ActivityLogService::recordUpdate(
-            'profile_updated',
-            'User',
-            (int) $user->id,
-            $before,
-            $after,
-            [],
-            $user->name,
-            (int) $user->id,
-            array_filter([
-                'related_item' => $user->name,
-                'community_id' => $this->profileActivityCommunityId($user),
-            ]),
-        );
+        app()->terminating(function () use ($user, $before, $after): void {
+            ActivityLogService::recordUpdate(
+                'profile_updated',
+                'User',
+                (int) $user->id,
+                $before,
+                $after,
+                [],
+                $user->name,
+                (int) $user->id,
+                array_filter([
+                    'related_item' => $user->name,
+                    'community_id' => $this->profileActivityCommunityId($user),
+                ]),
+            );
+        });
 
         return response()->json([
-            'data' => $this->buildUserPayload($user),
+            'data' => $this->buildUserPayload($user, syncRemoteBilling: false, approveMemberships: false),
         ]);
     }
 
-    private function buildUserPayload(User $user): array
+    private function buildUserPayload(User $user, bool $syncRemoteBilling = true, bool $approveMemberships = true): array
     {
         $user->load(['profile.region', 'memberships.community']);
-        MembershipService::approvePendingForActiveCommunities($user);
-        $user->load(['profile.region', 'memberships.community']);
+        if ($approveMemberships) {
+            MembershipService::approvePendingForActiveCommunities($user);
+            $user->load(['profile.region', 'memberships.community']);
+        }
 
         $payload = (new UserResource($user))->resolve();
 
         if (AdminRoleService::isCommunityAdminRole($user)) {
             $payload['access'] = app(\App\Services\CommunityAdminAccessService::class)
-                ->accessPayload($user);
+                ->accessPayload($user, $syncRemoteBilling);
         }
 
         return $payload;

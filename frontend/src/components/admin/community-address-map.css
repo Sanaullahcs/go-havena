@@ -8,6 +8,11 @@
   font-family: inherit;
 }
 
+/* Let parent forms scroll when the pointer passes over the map (zoom via +/- controls). */
+.havena-address-map--form-scroll .leaflet-container {
+  touch-action: pan-y;
+}
+
 .havena-address-map .leaflet-container img.leaflet-tile,
 .havena-address-map .leaflet-pane img,
 .havena-address-map .leaflet-container .leaflet-marker-icon,

@@ -14,9 +14,9 @@ import { handleGuestAccessScheduleError } from "../utils/guest-access-schedule";
 import ScreenStatusBar from "../components/layout/screen-status-bar";
 import { prepareAuthScreenChrome } from "../components/layout/chrome-manager";
 
-const MIN_SPLASH_MS = 600;
-const PROFILE_FETCH_MS = 5000;
-const HARD_STOP_MS = 8000;
+const MIN_SPLASH_MS = 250;
+const PROFILE_FETCH_MS = 2500;
+const HARD_STOP_MS = 4000;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -90,6 +90,13 @@ export default function WelcomeScreen() {
           await minSplash;
           if (cancelled) return;
           goLogin();
+          return;
+        }
+
+        const cached = await getUser();
+        if (cached) {
+          goApp(cached);
+          void fetchMe().catch(() => null);
           return;
         }
 

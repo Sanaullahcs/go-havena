@@ -32,7 +32,9 @@ class OtpService
             'code' => app()->environment('production') ? '[hidden]' : ($this->usesKnownTestCode($email) ? $code : '[hidden]'),
         ]);
 
-        if ($this->shouldSendMail()) {
+        // Demo mailboxes are not real inboxes. Sending still hits a 550 and
+        // the admin screen shows "could not send a verification email".
+        if ($this->shouldSendMail() && ! $this->usesKnownTestCode($email)) {
             try {
                 Mail::to($email)->send(new AuthOtpMail($code));
             } catch (\Throwable $e) {

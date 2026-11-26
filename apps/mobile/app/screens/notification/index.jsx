@@ -46,7 +46,14 @@ function fallbackDescriptionWidth() {
   );
 }
 
+function textIsArabic(value) {
+  return /[\u0600-\u06FF]/.test(String(value || ""));
+}
+
 function NotificationRow({ item, onPress }) {
+  const { i18n } = useTranslation();
+  const arabicUi = String(i18n.language || "").startsWith("ar");
+  const titleArabic = textIsArabic(item.title);
   const [bodyWidth, setBodyWidth] = useState(0);
   const description = previewNotificationText(item.description, {
     width: bodyWidth || fallbackDescriptionWidth(),
@@ -69,10 +76,20 @@ function NotificationRow({ item, onPress }) {
               if (next > 0) setBodyWidth(next);
             }}
           >
-            <Text style={styles.notificationTitle}>{item.title}</Text>
+            <Text
+              style={[
+                styles.notificationTitle,
+                titleArabic ? styles.notificationTitleAr : arabicUi && styles.notificationTitleEn,
+              ]}
+            >
+              {item.title}
+            </Text>
             {description ? (
               <Text
-                style={styles.notificationDescription}
+                style={[
+                  styles.notificationDescription,
+                  textIsArabic(description) ? styles.notificationDescriptionAr : arabicUi && styles.notificationTextEn,
+                ]}
                 numberOfLines={DESC_LINES}
                 ellipsizeMode="tail"
               >
@@ -493,10 +510,48 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontFamily: Fonts.bold,
     fontSize: sf(13),
-    lineHeight: TITLE_LINE_H,
+    lineHeight: sf(20),
     color: "rgba(15, 23, 42, 1)",
-    fontWeight: "700",
     flexShrink: 1,
+    includeFontPadding: true,
+  },
+  notificationTitleAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    fontSize: sf(14),
+    lineHeight: sf(24),
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    textAlign: "left",
+    includeFontPadding: true,
+    paddingStart: sw(2),
+    paddingEnd: sw(8),
+  },
+  notificationTitleEn: {
+    fontFamily: Fonts.bold,
+    fontWeight: "normal",
+    letterSpacing: 0,
+    writingDirection: "ltr",
+    textAlign: "left",
+    includeFontPadding: true,
+  },
+  notificationDescriptionAr: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontWeight: "normal",
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    textAlign: "left",
+    includeFontPadding: true,
+    lineHeight: sf(22),
+    paddingEnd: sw(6),
+  },
+  notificationTextEn: {
+    fontFamily: Fonts.regular,
+    fontWeight: "normal",
+    letterSpacing: 0,
+    writingDirection: "ltr",
+    textAlign: "left",
+    includeFontPadding: true,
   },
   notificationDescription: {
     fontFamily: Fonts.medium,

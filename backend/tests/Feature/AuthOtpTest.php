@@ -460,9 +460,7 @@ class AuthOtpTest extends TestCase
             'intent' => 'login',
         ])->assertStatus(202);
 
-        Mail::assertSent(\App\Mail\AuthOtpMail::class, function ($mail) use ($resident) {
-            return $mail->hasTo($resident);
-        });
+        Mail::assertNothingSent();
 
         $this->postJson('/api/v1/auth/otp/verify', [
             'email' => $resident,

@@ -24,6 +24,7 @@ export default function FeedPostContent({
 }) {
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const arabic = String(language || "").startsWith("ar");
   const [expanded, setExpanded] = useState(false);
   const display = useMemo(() => parsePostDisplayContent(post), [post]);
 
@@ -52,7 +53,7 @@ export default function FeedPostContent({
       {bodyText ? (
         <>
           <Text
-            style={[styles.text, textStyle]}
+            style={[styles.text, arabic && styles.textAr, textStyle]}
             numberOfLines={expanded ? undefined : collapsedLines}
           >
             {bodyText}
@@ -69,14 +70,14 @@ export default function FeedPostContent({
         <View style={styles.metaRow}>
           {display.feeling ? (
             <View style={styles.metaChip}>
-              <Text style={styles.metaChipText}>
+              <Text style={[styles.metaChipText, arabic && styles.metaChipTextAr]}>
                 {display.feeling.emoji} {display.feeling.label}
               </Text>
             </View>
           ) : null}
           {display.location ? (
             <View style={styles.metaChip}>
-              <Text style={styles.metaChipText} numberOfLines={1}>
+              <Text style={[styles.metaChipText, arabic && styles.metaChipTextAr]} numberOfLines={1}>
                 📍 {display.location}
               </Text>
             </View>
@@ -94,8 +95,17 @@ const styles = StyleSheet.create({
   text: {
     fontFamily: Fonts.regular,
     fontSize: sf(13),
-    lineHeight: sf(19),
+    lineHeight: sf(24),
     color: T.navy,
+    includeFontPadding: false,
+  },
+  textAr: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontSize: sf(14),
+    lineHeight: sf(26),
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    textAlign: "left",
   },
   toggle: {
     marginTop: sw(4),
@@ -122,7 +132,7 @@ const styles = StyleSheet.create({
     backgroundColor: T.mint,
     borderRadius: 999,
     paddingHorizontal: sw(10),
-    paddingVertical: sw(4),
+    paddingVertical: sw(6),
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: T.border,
     maxWidth: "100%",
@@ -130,6 +140,15 @@ const styles = StyleSheet.create({
   metaChipText: {
     fontFamily: Fonts.medium,
     fontSize: sf(11),
+    lineHeight: sf(20),
     color: T.navy,
+    includeFontPadding: false,
+  },
+  metaChipTextAr: {
+    fontFamily: "NotoSansArabic-Medium",
+    fontWeight: "normal",
+    fontSize: sf(12),
+    lineHeight: sf(22),
+    letterSpacing: 0,
   },
 });

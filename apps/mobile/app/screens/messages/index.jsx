@@ -178,6 +178,8 @@ function UnreadBadge({ count, variant = "neighbor" }) {
 }
 
 function NeighborCard({ item, onPress, now, t }) {
+  const { i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const name = item.other_name ?? t("messages.neighbor");
   const lastMsg = previewText(item, t);
   const unread = item.unread_count ?? 0;
@@ -202,7 +204,7 @@ function NeighborCard({ item, onPress, now, t }) {
       </View>
       <View style={styles.cardBody}>
         <View style={styles.topLine}>
-          <Text style={[styles.name, unread > 0 && styles.nameUnread]} numberOfLines={1}>
+          <Text style={[styles.name, unread > 0 && styles.nameUnread, arabic && styles.nameAr]} numberOfLines={1}>
             {name}
           </Text>
           {time ? (
@@ -234,6 +236,8 @@ function NeighborCard({ item, onPress, now, t }) {
 }
 
 function ListingCard({ item, onPress, now, t }) {
+  const { i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const name = item.other_name ?? t("messages.neighbor");
   const lastMsg = previewText(item, t);
   const unread = item.unread_count ?? 0;
@@ -252,7 +256,7 @@ function ListingCard({ item, onPress, now, t }) {
         <UserAvatar source={item.other_avatar_url} name={name} size={sw(46)} />
         <View style={styles.cardBody}>
           <View style={styles.topLine}>
-            <Text style={[styles.name, unread > 0 && styles.nameUnreadListing]} numberOfLines={1}>
+            <Text style={[styles.name, unread > 0 && styles.nameUnreadListing, arabic && styles.nameAr]} numberOfLines={1}>
               {name}
             </Text>
             {time ? (
@@ -751,10 +755,22 @@ const styles = StyleSheet.create({
   name: {
     fontFamily: Fonts.bold,
     fontSize: sf(15),
-    lineHeight: sf(20),
+    lineHeight: sf(22),
     color: Colors.textPrimary,
-    fontWeight: "700",
     flex: 1,
+    includeFontPadding: true,
+  },
+  nameAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    fontSize: sf(15),
+    lineHeight: sf(26),
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    textAlign: "left",
+    includeFontPadding: true,
+    paddingStart: sw(2),
+    paddingEnd: sw(8),
   },
   nameUnread: {
     color: Colors.brandPrimaryDeep,

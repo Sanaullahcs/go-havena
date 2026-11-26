@@ -71,7 +71,7 @@ class CommunityAdminAccessService
             ?? $user->memberships->first();
     }
 
-    public function isBillingComplete(?int $communityId): bool
+    public function isBillingComplete(?int $communityId, bool $syncRemoteBilling = true): bool
     {
         if (! $communityId) {
             return false;
@@ -88,7 +88,9 @@ class CommunityAdminAccessService
             }
         }
 
-        $this->billing->refreshGraceIfNeeded($communityId);
+        if ($syncRemoteBilling) {
+            $this->billing->refreshGraceIfNeeded($communityId);
+        }
         $subscription = $this->billing->getSubscription($communityId);
         if (! $subscription) {
             return false;
@@ -258,10 +260,10 @@ class CommunityAdminAccessService
      *   blocking_reasons: string[]
      * }
      */
-    public function accessPayload(User $user): array
+    public function accessPayload(User $user, bool $syncRemoteBilling = true): array
     {
         $communityId = $this->managedCommunityId($user);
-        if ($communityId) {
+        if ($syncRemoteBilling && $communityId) {
             $this->billing->refreshGraceIfNeeded($communityId);
         }
         $subscription = $communityId ? $this->billing->getSubscription($communityId) : null;
@@ -273,7 +275,8 @@ class CommunityAdminAccessService
 
         // Mobile /me must heal successful Stripe checkouts that missed the return confirm,
         // otherwise the app keeps showing "Continue in browser" after the user adds a card.
-        if ($community && in_array($subscription?->status, [
+        // Profile save skips this so the button is not waiting on Stripe.
+        if ($syncRemoteBilling && $community && in_array($subscription?->status, [
             CommunitySubscription::STATUS_INCOMPLETE,
             CommunitySubscription::STATUS_PENDING_TRIAL,
         ], true)) {
@@ -281,7 +284,7 @@ class CommunityAdminAccessService
             $subscription = $this->billing->getSubscription($communityId);
         }
 
-        if ($communityId && $platformApproved && $subscription?->isPendingTrial() && ! $subscription->isAdminTransition()) {
+        if ($syncRemoteBilling && $communityId && $platformApproved && $subscription?->isPendingTrial() && ! $subscription->isAdminTransition()) {
             if ($community) {
                 $this->billing->startTrialIfEligible($community);
                 $subscription = $this->billing->getSubscription($communityId);
@@ -290,7 +293,7 @@ class CommunityAdminAccessService
 
         $billingExempt = $this->regionBilling->isBillingExempt($communityId);
         $countryCode = $this->regionBilling->countryCodeForCommunity($communityId);
-        $billingComplete = $this->isBillingComplete($communityId);
+        $billingComplete = $this->isBillingComplete($communityId, $syncRemoteBilling);
         $profileComplete = $this->isProfileComplete($user);
         $hasCommunity = $communityId !== null;
         $canUse = $platformApproved && $billingComplete && $profileComplete;

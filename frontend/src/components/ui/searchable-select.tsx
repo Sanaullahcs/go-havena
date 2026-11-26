@@ -15,6 +15,10 @@ export type SearchableSelectOption = {
   /** Stays at the top of the list and is not hidden by search. */
   pinned?: boolean;
   color?: string;
+  /** Small image shown before the label, such as a flag. */
+  iconUrl?: string;
+  /** Short mark shown before the label when there is no image. */
+  mark?: string;
   disabled?: boolean;
 };
 
@@ -69,10 +73,10 @@ export function SearchableSelect({
 
   const selected = useMemo(() => {
     if (!value) return undefined;
-    if (valueLabel) {
-      return { value, label: valueLabel };
-    }
-    return options.find((opt) => opt.value === value) ?? { value, label: value };
+    const matched = options.find((opt) => opt.value === value);
+    if (matched) return valueLabel ? { ...matched, label: valueLabel } : matched;
+    if (valueLabel) return { value, label: valueLabel };
+    return { value, label: value };
   }, [value, valueLabel, options]);
 
   const filterText = combobox && !editing ? "" : query;
@@ -247,12 +251,7 @@ export function SearchableSelect({
           ].join(" ")}
         >
           <span className={["nl-picker-text flex min-w-0 flex-1 items-center gap-2", selected ? "" : "is-placeholder"].join(" ")}>
-            {selected?.color ? (
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: selected.color }}
-              />
-            ) : null}
+            <SelectMark option={selected} />
             <span className="truncate">{selected?.label ?? placeholder}</span>
           </span>
           <ChevronDown
@@ -343,12 +342,7 @@ export function SearchableSelect({
                           ].join(" ")}
                         >
                           <span className="flex min-w-0 flex-1 items-start gap-2">
-                            {opt.color ? (
-                              <span
-                                className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
-                                style={{ backgroundColor: opt.color }}
-                              />
-                            ) : null}
+                            <SelectMark option={opt} className="mt-0.5" />
                             <span className="min-w-0 flex-1">
                               <span className="block truncate font-medium">{opt.label}</span>
                               {opt.description ? (
@@ -373,4 +367,38 @@ export function SearchableSelect({
       </div>
     </div>
   );
+}
+
+function SelectMark({
+  option,
+  className,
+}: {
+  option?: Pick<SearchableSelectOption, "color" | "iconUrl" | "mark">;
+  className?: string;
+}) {
+  if (!option) return null;
+  if (option.iconUrl) {
+    return (
+      <img
+        src={option.iconUrl}
+        alt=""
+        className={`h-3.5 w-5 shrink-0 rounded-[3px] object-cover ring-1 ring-slate-200 ${className ?? ""}`}
+        onError={(event) => {
+          event.currentTarget.style.display = "none";
+        }}
+      />
+    );
+  }
+  if (option.mark) {
+    return <span className={`shrink-0 text-sm leading-none ${className ?? ""}`}>{option.mark}</span>;
+  }
+  if (option.color) {
+    return (
+      <span
+        className={`h-2.5 w-2.5 shrink-0 rounded-full ${className ?? ""}`}
+        style={{ backgroundColor: option.color }}
+      />
+    );
+  }
+  return null;
 }

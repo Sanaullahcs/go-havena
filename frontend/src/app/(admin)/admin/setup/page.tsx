@@ -19,13 +19,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
+  Check,
   ChevronRight,
   Lock,
   MapPin,
   Plus,
   RotateCcw,
   Search,
-  Sparkles,
+  Users,
 } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
@@ -63,8 +64,6 @@ import {
 } from "@/lib/admin/community-setup-validation";
 import { inputClass } from "@/lib/admin/form-validation-utils";
 import { CommunityAddressPicker } from "@/components/admin/community-address-picker";
-import { formatRegionPlaceLabel } from "@/lib/admin/region-display";
-
 const COMMUNITIES_PAGE_SIZE = 4;
 const COMMUNITIES_VISIBLE_ROWS = 4;
 
@@ -336,7 +335,6 @@ function SetupInner() {
     showError("name", liveErrors) ??
     (nameOverLimit ? COMMUNITY_SETUP_NAME_MAX_MESSAGE : undefined);
   const addressErr = showError("address", liveErrors);
-  const regionPlaceLabel = formatRegionPlaceLabel(selectedRegion);
 
   const cityChosen = Boolean(cityFilter?.name?.trim());
   const regionSearchPending = cityChosen && !regionsLoaded;
@@ -390,50 +388,46 @@ function SetupInner() {
     }
   };
 
+  const requestFormOpen = showAddForm && Boolean(selectedRegion);
+
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-      <section className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-1 flex-col overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white shadow-[0_16px_48px_-28px_rgba(27,79,138,0.35)]">
-        <header className="shrink-0 border-b border-slate-100 px-6 pb-3 pt-5 lg:px-8 lg:pt-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-            Community admin setup
-          </p>
-          {showAddForm && selectedRegion ? (
-            <div className="mt-2 flex min-w-0 items-center gap-3">
-              <SetupOutlineAction
-                icon={ArrowLeft}
-                onClick={() => {
-                  setShowAddForm(false);
-                  setFormError(null);
-                }}
-                ariaLabel="Back to community list"
-              >
-                Back
-              </SetupOutlineAction>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  Request community
-                </p>
-                <h1 className="truncate font-[family-name:var(--font-brand)] text-[1.25rem] font-bold leading-tight tracking-tight text-[#1B4F8A] lg:text-[1.45rem]">
-                  {regionPlaceLabel}
-                </h1>
-              </div>
-            </div>
-          ) : (
-            <>
-              <h1 className="mt-2 font-[family-name:var(--font-brand)] text-[1.55rem] font-bold leading-[1.15] tracking-tight text-[#1B4F8A] lg:text-[1.75rem]">
-                Find your region & community
-              </h1>
-              <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-slate-500">
-                Choose your location on the left. Communities and requests appear on the right — no extra steps.
+      <section
+        className={[
+          "relative mx-auto flex w-full max-w-6xl flex-1 flex-col rounded-[1.6rem] border border-slate-200/80 bg-white shadow-[0_16px_40px_-28px_rgba(27,79,138,0.35)]",
+          requestFormOpen ? "min-h-0" : "h-full min-h-0 overflow-hidden",
+        ].join(" ")}
+      >
+        <header className="relative shrink-0 px-5 pb-2 pt-5 sm:px-7">
+          <SetupHeaderArt />
+          <div className="flex gap-3">
+            <span className="mt-0.5 h-11 w-1 shrink-0 rounded-full bg-[#2F6FE0]" aria-hidden />
+            <div className="min-w-0 sm:pr-48">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Community admin setup
               </p>
-            </>
-          )}
+              <h1 className="mt-1 font-[family-name:var(--font-brand)] text-[1.55rem] font-bold leading-[1.15] tracking-tight text-[#0A2A43] lg:text-[1.85rem]">
+                Find your <span className="text-[#2F6FE0]">region</span> & community
+              </h1>
+              <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-slate-500">
+                Choose your location on the left. Communities and requests appear on the right.
+              </p>
+            </div>
+          </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 overflow-hidden max-lg:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(0,18.5rem)_1fr] lg:divide-x lg:divide-slate-100">
-          <aside className="shrink-0 border-b border-slate-100 px-6 py-5 lg:min-h-0 lg:overflow-hidden lg:border-b-0 lg:px-6 lg:py-6">
+        <div
+          className={[
+            "grid flex-1 gap-4 px-4 pb-4 pt-2 sm:px-6 sm:pb-5 max-lg:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(0,20.5rem)_1fr]",
+            requestFormOpen
+              ? "min-h-0 lg:items-start"
+              : "min-h-0 overflow-hidden lg:grid-rows-[minmax(0,1fr)]",
+          ].join(" ")}
+        >
+          <aside className="flex max-h-full min-h-0 w-full flex-col self-start overflow-y-auto rounded-[1.25rem] border border-[#E3ECF6] bg-[#F7FAFE] px-4 py-4">
             <div className="mb-4 flex items-center justify-between gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <MapPin className="h-3.5 w-3.5 text-[#1B4F8A]" aria-hidden />
                 Region search
               </p>
               {hasLocationFilters ? (
@@ -459,8 +453,8 @@ function SetupInner() {
 
           <main
             className={[
-              "flex min-h-0 flex-1 flex-col overflow-hidden px-6 lg:px-8",
-              showAddForm && selectedRegion ? "py-3 lg:py-4" : "py-5 lg:py-6",
+              "flex min-h-0 min-w-0 flex-col px-1",
+              requestFormOpen ? "py-1" : "h-full overflow-hidden py-0",
             ].join(" ")}
           >
             {formError ? (
@@ -472,7 +466,12 @@ function SetupInner() {
               </div>
             ) : null}
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div
+              className={[
+                "flex flex-col",
+                requestFormOpen ? "min-h-0" : "min-h-0 flex-1 overflow-hidden",
+              ].join(" ")}
+            >
               {showWelcome ? (
                 <SetupWelcomePanel />
               ) : regionSearchPending ? (
@@ -480,105 +479,127 @@ function SetupInner() {
               ) : showNoRegion ? (
                 <SetupNoRegionPanel />
               ) : showAddForm && selectedRegion ? (
-                <form onSubmit={onAddSubmit} noValidate className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain py-0.5 pr-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]">
-              <OnboardingField
-                id="community-name"
-                label="Community name"
-                required
-                error={nameErr}
-                hint="Enter the community name your residents will recognize."
-              >
-                <ClearableInput
-                  id="community-name"
-                  type="text"
-                  autoComplete="organization"
-                  className={inputClass(
-                    nameErr,
-                    "h-12 w-full rounded-xl border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20",
-                  )}
-                  value={name}
-                  maxLength={nameOverLimit ? undefined : COMMUNITY_SETUP_NAME_MAX}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    clearError("name");
-                    setFormError(null);
-                  }}
-                  onBlur={() => touch("name")}
-                  placeholder="e.g. Palm Court HOA"
-                  aria-invalid={Boolean(nameErr)}
-                />
-                {name.length > 0 ? (
-                  <p
-                    className={`text-right text-[11px] tabular-nums ${
-                      name.length > COMMUNITY_SETUP_NAME_MAX ? "text-red-600" : "text-slate-500"
-                    }`}
-                  >
-                    {name.length} / {COMMUNITY_SETUP_NAME_MAX}
-                  </p>
-                ) : null}
-              </OnboardingField>
-
-              <OnboardingField
-                id="community-address"
-                label="Address"
-                required
-                error={addressErr}
-                hint="Street, city, and state"
-              >
-                <CommunityAddressPicker
-                  id="community-address"
-                  value={{ address, latitude, longitude }}
-                  inputClassName={inputClass(
-                    addressErr,
-                    "h-12 w-full rounded-xl border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20",
-                  )}
-                  placeholder="100 Palm Ave, Miami, FL"
-                  onBlur={() => touch("address")}
-                  onChange={(next) => {
-                    setAddress(next.address);
-                    setLatitude(next.latitude);
-                    setLongitude(next.longitude);
-                    clearError("address");
-                    setFormError(null);
-                  }}
-                />
-              </OnboardingField>
-
-              <OnboardingField
-                id="community-description"
-                label="Description"
-                hint="Optional notes about this community"
-              >
-                <ClearableTextarea
-                  id="community-description"
-                  rows={3}
-                  maxLength={1000}
-                  className="min-h-[88px] w-full resize-none rounded-xl border border-slate-200 px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20"
-                  value={description}
-                  onChange={(e) => {
-                    setDescription(e.target.value);
-                    setFormError(null);
-                  }}
-                  placeholder="Optional notes about this community"
-                />
-                {description.length > 0 ? (
-                  <p className="text-right text-[11px] tabular-nums text-slate-500">
-                    {description.length} / 1000
-                  </p>
-                ) : null}
-              </OnboardingField>
-
-                  </div>
-
-                  <div className="mt-2 flex shrink-0 justify-end border-t border-slate-100 bg-white pt-3">
+                <form onSubmit={onAddSubmit} noValidate className="flex w-full flex-col self-start rounded-[1.25rem] border border-[#E6EEF8] bg-[#F7FAFE]">
+                  <div className="flex items-start gap-3 px-4 pb-2 pt-4">
                     <button
-                      type="submit"
-                      disabled={busy}
-                      className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-[#1B4F8A] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#163A66] focus:outline-none focus:ring-2 focus:ring-[#1B4F8A]/30 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-[14rem]"
+                      type="button"
+                      onClick={() => {
+                        setShowAddForm(false);
+                        setFormError(null);
+                      }}
+                      aria-label="Back to community list"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-[#1B4F8A]/25 hover:bg-[#F4F8FC] hover:text-[#1B4F8A] focus:outline-none focus:ring-2 focus:ring-[#1B4F8A]/20"
                     >
-                      {busy ? "Submitting…" : "Continue to profile"}
+                      <ArrowLeft className="h-4 w-4" strokeWidth={2.25} aria-hidden />
                     </button>
+                    <div className="min-w-0">
+                      <p className="font-[family-name:var(--font-brand)] text-lg font-semibold leading-tight text-[#0A2A43]">
+                        Request a community
+                      </p>
+                      <p className="mt-0.5 text-[13px] leading-snug text-slate-500">
+                        Add the name and address. We review the request before residents can join.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="px-4 pb-4">
+                    <div className="rounded-2xl border border-white bg-white p-4 shadow-sm">
+                      <div className="flex flex-col gap-5">
+                        <OnboardingField
+                          id="community-name"
+                          label="Community name"
+                          required
+                          error={nameErr}
+                          hint="The name residents will recognize."
+                        >
+                          <ClearableInput
+                            id="community-name"
+                            type="text"
+                            autoComplete="organization"
+                            className={inputClass(
+                              nameErr,
+                              "h-12 w-full rounded-xl border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20",
+                            )}
+                            value={name}
+                            maxLength={nameOverLimit ? undefined : COMMUNITY_SETUP_NAME_MAX}
+                            onChange={(e) => {
+                              setName(e.target.value);
+                              clearError("name");
+                              setFormError(null);
+                            }}
+                            onBlur={() => touch("name")}
+                            placeholder="e.g. Palm Court HOA"
+                            aria-invalid={Boolean(nameErr)}
+                          />
+                          {name.length > 0 ? (
+                            <p
+                              className={`text-right text-[11px] tabular-nums ${
+                                name.length > COMMUNITY_SETUP_NAME_MAX ? "text-red-600" : "text-slate-500"
+                              }`}
+                            >
+                              {name.length} / {COMMUNITY_SETUP_NAME_MAX}
+                            </p>
+                          ) : null}
+                        </OnboardingField>
+
+                        <OnboardingField
+                          id="community-address"
+                          label="Address"
+                          required
+                          error={addressErr}
+                          hint="Search, then drag the pin if it needs a nudge."
+                        >
+                          <CommunityAddressPicker
+                            id="community-address"
+                            value={{ address, latitude, longitude }}
+                            inputClassName={inputClass(
+                              addressErr,
+                              "h-12 w-full rounded-xl border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20",
+                            )}
+                            placeholder="100 Palm Ave, Miami, FL"
+                            onBlur={() => touch("address")}
+                            onChange={(next) => {
+                              setAddress(next.address);
+                              setLatitude(next.latitude);
+                              setLongitude(next.longitude);
+                              clearError("address");
+                              setFormError(null);
+                            }}
+                          />
+                        </OnboardingField>
+                      </div>
+                      <div className="mt-4">
+                        <OnboardingField
+                          id="community-description"
+                          label="Description"
+                          hint="Optional. A short note helps us review the request."
+                        >
+                          <ClearableTextarea
+                            id="community-description"
+                            rows={3}
+                            maxLength={1000}
+                            className="min-h-[5.5rem] w-full resize-none rounded-xl border border-slate-200 px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20"
+                            value={description}
+                            onChange={(e) => {
+                              setDescription(e.target.value);
+                              setFormError(null);
+                            }}
+                            placeholder="Optional note for the review"
+                          />
+                          {description.length > 0 ? (
+                            <p className="text-right text-[11px] tabular-nums text-slate-500">
+                              {description.length} / 1000
+                            </p>
+                          ) : null}
+                        </OnboardingField>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={busy}
+                        className="mt-4 inline-flex h-12 w-full items-center justify-center rounded-xl bg-[#1B4F8A] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#163A66] focus:outline-none focus:ring-2 focus:ring-[#1B4F8A]/30 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {busy ? "Submitting…" : "Continue to profile"}
+                      </button>
+                    </div>
                   </div>
                 </form>
               ) : selectedRegion ? (
@@ -586,7 +607,6 @@ function SetupInner() {
                   <CommunityList
                     key={selectedRegion.id}
                     className="min-h-0 flex-1"
-                    regionTitle={regionPlaceLabel}
                     query={communityQuery}
                     onQueryChange={setCommunityQuery}
                     loading={!communitiesLoaded}
@@ -637,18 +657,30 @@ function SetupOutlineAction({
   );
 }
 
+function IllustratedEmpty({
+  title,
+  body,
+  className,
+}: {
+  title: string;
+  body: string;
+  className?: string;
+}) {
+  return (
+    <div className={`flex min-h-[16rem] min-w-0 flex-1 flex-col items-center justify-center rounded-[1.25rem] border border-[#E6EEF8] bg-[#F7FAFE] px-6 py-8 text-center ${className ?? ""}`}>
+      <TownIllustration />
+      <p className="mt-2 text-[1.35rem] font-bold tracking-tight text-[#0A2A43]">{title}</p>
+      <p className="mt-2 max-w-md text-[14px] leading-relaxed text-slate-500">{body}</p>
+    </div>
+  );
+}
+
 function SetupWelcomePanel() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-6 text-center">
-      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E8F0F7] text-[#1B4F8A]">
-        <Sparkles className="h-4 w-4" aria-hidden />
-      </span>
-      <h2 className="mt-4 text-base font-semibold text-slate-900">Search on the left</h2>
-      <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-slate-500">
-        Pick country, state, and city. Communities for your region will show here—you can join one or request a new
-        listing.
-      </p>
-    </div>
+    <IllustratedEmpty
+      title="Search on the left"
+      body="Choose a country, state, and city. Communities for that place will show here."
+    />
   );
 }
 
@@ -663,15 +695,10 @@ function SetupLoadingPanel({ message }: { message: string }) {
 
 function SetupNoRegionPanel() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-6 text-center">
-      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
-        <MapPin className="h-5 w-5" aria-hidden />
-      </span>
-      <p className="mt-4 text-sm font-semibold text-slate-900">No Region and Communities Found.</p>
-      <p className="mt-2 max-w-sm text-[13px] leading-relaxed text-slate-500">
-        Try another city nearby, or contact support if you believe this area should be available.
-      </p>
-    </div>
+    <IllustratedEmpty
+      title="No region found"
+      body="Try a nearby city. If this place should be available, contact support."
+    />
   );
 }
 
@@ -838,26 +865,38 @@ function RegionList({
   }, [state?.id]);
 
   const countryOptions = useMemo(() => {
-    const base = countries.map((item) => ({ value: String(item.id), label: item.name }));
+    const base = countries.map((item) => ({
+      value: String(item.id),
+      label: item.name,
+      iconUrl: flagImageUrl(item.code),
+    }));
     if (country && !base.some((opt) => opt.value === String(country.id))) {
-      return [{ value: String(country.id), label: country.name }, ...base];
+      return [{ value: String(country.id), label: country.name, iconUrl: flagImageUrl(country.code) }, ...base];
     }
     return base;
   }, [countries, country]);
 
   const stateOptions = useMemo(() => {
-    const base = states.map((item) => ({ value: String(item.id), label: item.name }));
+    const base = states.map((item) => ({
+      value: String(item.id),
+      label: item.name,
+      iconUrl: country ? subdivisionFlagUrl(country.code, item.code) : undefined,
+    }));
     if (state && !base.some((opt) => opt.value === String(state.id))) {
-      return [{ value: String(state.id), label: state.name }, ...base];
+      return [{
+        value: String(state.id),
+        label: state.name,
+        iconUrl: country ? subdivisionFlagUrl(country.code, state.code) : undefined,
+      }, ...base];
     }
     return base;
-  }, [states, state]);
+  }, [states, state, country]);
 
   const cityOptions = useMemo(() => {
-    const base = cities.map((item) => ({ value: item.name, label: item.name }));
+    const base = cities.map((item) => ({ value: item.name, label: item.name, iconUrl: CITY_ICON }));
     const cityName = city?.name?.trim();
     if (cityName && !base.some((opt) => opt.value === cityName)) {
-      return [{ value: cityName, label: cityName }, ...base];
+      return [{ value: cityName, label: cityName, iconUrl: CITY_ICON }, ...base];
     }
     return base;
   }, [cities, city]);
@@ -977,16 +1016,19 @@ function RegionList({
       </ol>
 
       {readyRegion && selectedRegion ? (
-        <div className="mt-5 flex items-center gap-3 rounded-xl border border-[#1B4F8A]/15 bg-[#F4F8FC] px-3 py-2.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#1B4F8A] shadow-sm">
+        <div className="mt-4 flex items-center gap-2.5 rounded-2xl border border-[#1B4F8A]/10 bg-white px-3 py-2.5 shadow-sm">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEF4FF] text-[#1B4F8A]">
             <MapPin className="h-3.5 w-3.5" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#1B4F8A]/80">Region found</p>
-            <p className="truncate text-[13px] font-semibold text-slate-900">
-              {formatRegionPlaceLabel(readyRegion)}
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1B4F8A]">Location confirmed</p>
+            <p className="text-[13px] font-semibold leading-snug text-slate-900">
+              Ready to choose a community
             </p>
           </div>
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1B4F8A] text-white">
+            <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
+          </span>
         </div>
       ) : null}
     </div>
@@ -1017,7 +1059,6 @@ function CommunityListSkeleton({ count = 5 }: { count?: number }) {
 
 function CommunityList({
   className,
-  regionTitle,
   query,
   onQueryChange,
   loading,
@@ -1032,7 +1073,6 @@ function CommunityList({
   onAdd,
 }: {
   className?: string;
-  regionTitle: string;
   query: string;
   onQueryChange: (value: string) => void;
   loading: boolean;
@@ -1109,11 +1149,10 @@ function CommunityList({
       <div className="shrink-0">
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Communities</p>
-            <span className="text-slate-300" aria-hidden>
-              ·
-            </span>
-            <p className="min-w-0 truncate text-sm font-semibold text-slate-900">{regionTitle}</p>
+            <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <Users className="h-3.5 w-3.5 text-[#1B4F8A]" aria-hidden />
+              Communities
+            </p>
           </div>
           <button
             type="button"
@@ -1153,27 +1192,16 @@ function CommunityList({
         ) : null}
       </div>
 
+      {showEmpty ? (
+        <CommunityEmptyState query={trimmedQuery} />
+      ) : (
       <div
         ref={scrollRef}
-        className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-xl border border-slate-100 bg-slate-50/30 py-2 pl-2 pr-0.5 [scrollbar-width:thin]"
+        className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-[#0A2A43]/8 bg-[linear-gradient(180deg,#F8FBFE_0%,#FFFFFF_28%)] py-2 pl-2 pr-0.5 [scrollbar-width:thin]"
         onScroll={handleScroll}
       >
         {loading && communities.length === 0 ? (
           <CommunityListSkeleton count={COMMUNITIES_VISIBLE_ROWS} />
-        ) : showEmpty ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-4 py-8 text-center">
-            <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[#E8F0F7] text-[#1B4F8A]">
-              <Building2 className="h-4 w-4" aria-hidden />
-            </span>
-            <p className="mt-3 text-sm font-semibold text-slate-900">
-              {trimmedQuery ? "No communities match your search" : "No communities listed yet"}
-            </p>
-            <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
-              {trimmedQuery
-                ? "Try another name or request to add your community below."
-                : `Nothing is listed in ${regionTitle} yet.`}
-            </p>
-          </div>
         ) : (
           <ul className="space-y-2">
             {communities.map((community) => {
@@ -1234,18 +1262,96 @@ function CommunityList({
           </div>
         ) : null}
       </div>
+      )}
 
-      <footer className="mt-4 shrink-0 border-t border-slate-100 bg-white pt-4">
-        <button
-          type="button"
-          onClick={onAdd}
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#1B4F8A]/35 bg-[#F4F8FC] px-4 text-[13px] font-semibold text-[#1B4F8A] transition hover:border-[#1B4F8A]/55 hover:bg-[#E8F0F7]"
-        >
-          <Plus className="h-4 w-4" aria-hidden />
-          Request to Add Community
-        </button>
-      </footer>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="mt-4 inline-flex h-12 w-full shrink-0 items-center justify-center gap-2 rounded-2xl border border-dashed border-[#A9C4F2] bg-[#F4F8FF] px-4 text-[14px] font-semibold text-[#2F6FE0] transition hover:border-[#2F6FE0] hover:bg-[#EAF2FF]"
+      >
+        <Plus className="h-4 w-4" aria-hidden />
+        Request to Add Community
+      </button>
     </div>
+  );
+}
+
+function CommunityEmptyState({ query }: { query: string }) {
+  return (
+    <IllustratedEmpty
+      className="mt-3"
+      title={query ? "No communities match your search" : "No communities listed yet"}
+      body={
+        query
+          ? "Try another name, or request to add the community below."
+          : "This location does not have a community yet. Request one below and we will review it before residents can join."
+      }
+    />
+  );
+}
+
+const CITY_ICON =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="12" rx="2" fill="#EEF3F8" stroke="#8AA0B8" stroke-width="1.4"/><path d="M8 21v-7h3v7M13 21V11h3v10" stroke="#8AA0B8" stroke-width="1.2"/><rect x="9" y="3.5" width="6" height="5.5" rx="1" fill="#E4EBF3" stroke="#8AA0B8" stroke-width="1.2"/></svg>`,
+  );
+
+function flagImageUrl(code: string | null | undefined) {
+  const cc = (code ?? "").trim().toLowerCase();
+  if (!/^[a-z]{2}$/.test(cc)) return undefined;
+  return `https://flagcdn.com/w40/${cc}.png`;
+}
+
+function subdivisionFlagUrl(countryCode: string | null | undefined, stateCode: string | null | undefined) {
+  const cc = (countryCode ?? "").trim().toLowerCase();
+  const sc = (stateCode ?? "").trim().toLowerCase();
+  if (!/^[a-z]{2}$/.test(cc) || !/^[a-z0-9]{1,3}$/.test(sc)) return undefined;
+  return `https://flagcdn.com/w40/${cc}-${sc}.png`;
+}
+
+function SetupHeaderArt() {
+  return (
+    <svg viewBox="0 0 240 96" className="pointer-events-none absolute right-6 top-3 hidden h-[5.4rem] w-auto sm:block" aria-hidden>
+      <path d="M8 82c40-18 78-20 224-6v20H8Z" fill="#E8F2FB" />
+      <path d="M176 14c0-7 10-7 10 0 0 6-5 8-5 14 0-6-5-8-5-14Z" fill="#2F6FE0" />
+      <circle cx="181" cy="12" r="2.2" fill="#fff" />
+      <rect x="36" y="52" width="26" height="26" rx="2" fill="#D5E4F5" />
+      <polygon points="32,54 49,38 66,54" fill="#B7CCE4" />
+      <rect x="86" y="44" width="36" height="34" rx="2" fill="#E7F1FB" stroke="#D3E2F2" />
+      <polygon points="82,46 104,28 126,46" fill="#C5D6EA" />
+      <rect x="148" y="36" width="48" height="42" rx="3" fill="#F4F8FC" stroke="#D5E3F2" />
+      <polygon points="144,38 172,16 200,38" fill="#C9D9EC" />
+      <rect x="160" y="48" width="8" height="8" rx="1" fill="#fff" stroke="#D5E3F2" />
+      <rect x="174" y="48" width="8" height="8" rx="1" fill="#fff" stroke="#D5E3F2" />
+      <rect x="160" y="60" width="8" height="8" rx="1" fill="#fff" stroke="#D5E3F2" />
+      <rect x="174" y="60" width="8" height="8" rx="1" fill="#fff" stroke="#D5E3F2" />
+      <circle cx="70" cy="66" r="8" fill="#C5E4D4" />
+      <rect x="68" y="66" width="4" height="12" rx="1" fill="#8FB39A" />
+      <circle cx="214" cy="62" r="8" fill="#C5E4D4" />
+      <rect x="212" y="62" width="4" height="12" rx="1" fill="#8FB39A" />
+    </svg>
+  );
+}
+
+function TownIllustration() {
+  return (
+    <svg viewBox="0 0 240 128" className="h-32 w-auto" aria-hidden>
+      <ellipse cx="120" cy="108" rx="86" ry="14" fill="#E7F0FA" />
+      <path d="M46 86c20-26 40-28 62 0" fill="#F3F8FD" />
+      <path d="M156 22l3.2 6.4 7 .8-5.2 4.6 1.5 6.8L156 37l-6.5 3.6 1.5-6.8-5.2-4.6 7-.8Z" fill="#8FB4F2" />
+      <rect x="62" y="68" width="32" height="30" rx="2" fill="#D7E6F6" />
+      <polygon points="56,70 78,50 100,70" fill="#B9CEE6" />
+      <rect x="104" y="50" width="52" height="48" rx="3" fill="#F7FBFE" stroke="#D5E4F3" />
+      <polygon points="98,52 130,26 162,52" fill="#C9D9EC" />
+      <rect x="116" y="64" width="9" height="9" rx="1" fill="#fff" stroke="#E1EAF4" />
+      <rect x="132" y="64" width="9" height="9" rx="1" fill="#fff" stroke="#E1EAF4" />
+      <rect x="116" y="78" width="9" height="9" rx="1" fill="#fff" stroke="#E1EAF4" />
+      <rect x="132" y="78" width="9" height="9" rx="1" fill="#fff" stroke="#E1EAF4" />
+      <circle cx="48" cy="86" r="10" fill="#C7E6D6" />
+      <rect x="46" y="86" width="4" height="14" rx="1" fill="#8FB39A" />
+      <circle cx="186" cy="84" r="10" fill="#C7E6D6" />
+      <rect x="184" y="84" width="4" height="14" rx="1" fill="#8FB39A" />
+    </svg>
   );
 }
 

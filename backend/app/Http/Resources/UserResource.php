@@ -16,7 +16,10 @@ class UserResource extends JsonResource
     public function toArray(Request $request): array
     {
         $profile = $this->profile;
-        $units = app(UnitAssignmentService::class)->userUnitsBrief(
+        // Profile save only needs the saved fields and onboarding access. Unit,
+        // family, and invite scans stay on GET /me so the button can return.
+        $lean = (bool) $request->attributes->get('havena.lean_profile_save');
+        $units = $lean ? [] : app(UnitAssignmentService::class)->userUnitsBrief(
             $this->resource,
             \App\Services\UserActingContextService::currentCommunityId($this->resource),
         );
@@ -93,10 +96,14 @@ class UserResource extends JsonResource
                 'billing_contact_unit_count' => $billingContactUnitCount,
             ],
             'is_billing_contact' => $isBillingContact,
-            'invite_units' => $this->inviteUnitsPayload(),
-            ...$this->unitAccessPayload(),
-            'guest_access' => \App\Services\GuestAccessService::guestAccessSummary($this->resource),
-            'family' => \App\Services\FamilyService::onboardingBrief($this->resource),
+            'invite_units' => $lean ? [] : $this->inviteUnitsPayload(),
+            ...($lean
+                ? ['pending_unit_package' => false, 'has_full_unit_access' => false]
+                : $this->unitAccessPayload()),
+            'guest_access' => $lean ? null : \App\Services\GuestAccessService::guestAccessSummary($this->resource),
+            'family' => $lean
+                ? ['family_id' => null, 'state' => 'none', 'family_status' => 'none', 'request' => null]
+                : \App\Services\FamilyService::onboardingBrief($this->resource),
             // Money display for the community the user is currently acting in.
             // Clients read this once per session instead of threading a
             // currency through every amenity, bill, and listing payload.

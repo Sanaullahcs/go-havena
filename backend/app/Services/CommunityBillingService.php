@@ -92,7 +92,8 @@ class CommunityBillingService
     {
         return array_filter(
             $this->plans(),
-            fn ($plan) => (bool) ($plan['is_active'] ?? true),
+            fn ($plan) => (bool) ($plan['is_active'] ?? true)
+                && ((int) ($plan['price_monthly_cents'] ?? 0) > 0 || (int) ($plan['price_yearly_cents'] ?? 0) > 0),
         );
     }
 

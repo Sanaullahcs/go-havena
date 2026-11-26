@@ -153,6 +153,7 @@ export default function NoticeDetailScreen() {
     safeGoBack(router, navigation, { fallbackPath: "/(tabs)/notices" });
   }, [navigation, router]);
   const { t, i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   const [notice, setNotice] = useState(null);
@@ -350,7 +351,7 @@ export default function NoticeDetailScreen() {
           ) : notice ? (
             <>
               <View style={styles.titleRow}>
-                <Text style={styles.title}>{localizedField(notice, "title") || notice.title}</Text>
+                <Text style={[styles.title, arabic && styles.titleAr]}>{localizedField(notice, "title") || notice.title}</Text>
                 {canEditNotice ? (
                   <Pressable
                     onPress={openEditNotice}
@@ -539,7 +540,7 @@ export default function NoticeDetailScreen() {
                   <SectionHeader icon="file-text" title={t('notices.noticeDetails')} accent={theme.accent} />
                   <View style={styles.bodyWrap}>
                     {bodyParagraphs.map((paragraph, index) => (
-                      <Text key={`p-${index}`} style={styles.body}>
+                      <Text key={`p-${index}`} style={[styles.body, arabic && styles.bodyAr]}>
                         {paragraph}
                       </Text>
                     ))}
@@ -782,6 +783,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: -0.3,
   },
+  titleAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    letterSpacing: 0,
+    fontSize: sf(22),
+    lineHeight: sf(36),
+    includeFontPadding: true,
+  },
   metaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -986,6 +995,12 @@ const styles = StyleSheet.create({
     fontSize: sf(15),
     lineHeight: sf(24),
     color: Colors.textBody,
+  },
+  bodyAr: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontSize: sf(16),
+    lineHeight: sf(28),
+    includeFontPadding: true,
   },
   infoTileLink: {
     color: Colors.brandPrimaryDeep,

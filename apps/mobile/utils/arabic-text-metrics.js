@@ -9,8 +9,8 @@ import { StyleSheet } from "react-native";
  * Must be imported before screen modules (see apps/mobile/index.js).
  */
 
-const MIN_LINE_HEIGHT_RATIO = 1.5;
-const MIN_LINE_HEIGHT_FLOOR = 16;
+const MIN_LINE_HEIGHT_RATIO = 1.9;
+const MIN_LINE_HEIGHT_FLOOR = 20;
 
 let installed = false;
 let arabicActive = false;
@@ -28,8 +28,8 @@ function isTextLikeStyle(style) {
 function fixTextStyle(style) {
   const next = { ...style };
 
-  // Android: keep font padding so Arabic ascenders aren't cropped.
-  next.includeFontPadding = true;
+  // Extra Android font padding plus numberOfLines clips Arabic. A taller line box holds the glyphs.
+  next.includeFontPadding = false;
 
   // Override RN Text's default overflow:'hidden' which clips tall Arabic glyphs.
   if (next.overflow == null || next.overflow === "hidden") {

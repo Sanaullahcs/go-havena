@@ -92,12 +92,12 @@ function DealCard({ item, cardWidth, cardHeight, onPress }) {
           locations={[0, 0.45, 1]}
           style={styles.overlay}
         >
-          <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
-{item.businessName ? (
-            <Text style={styles.vendor} numberOfLines={1}>{item.businessName}</Text>
+          <Text style={[styles.title, arabic && styles.titleAr]} numberOfLines={2}>{item.title}</Text>
+          {item.businessName ? (
+            <Text style={[styles.vendor, arabic && styles.vendorAr]} numberOfLines={1}>{item.businessName}</Text>
           ) : null}
           <Pressable style={styles.ctaBtn} onPress={onPress}>
-            <Text style={styles.ctaBtnText}>{t("deals.getDeal")}</Text>
+            <Text style={[styles.ctaBtnText, arabic && styles.ctaBtnTextAr]}>{t("deals.getDeal")}</Text>
             <Feather name={arrowForward()} size={sf(12)} color={T.navy} />
           </Pressable>
         </LinearGradient>
@@ -151,7 +151,7 @@ export default function DealsCornor({ items = [] }) {
 
   if (!cards.length) {
     return (
-      <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
+      <View style={[homeStyles.section, styles.section, { marginHorizontal: frame.sideInset }]}>
         <HomeSectionHeader
           label={t("home.deals")}
           onPress={() => router.push(MarketplaceRoutes.DEALS)}
@@ -166,7 +166,7 @@ export default function DealsCornor({ items = [] }) {
   }
 
   return (
-    <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
+    <View style={[homeStyles.section, styles.section, { marginHorizontal: frame.sideInset }]}>
       <HomeSectionHeader
         label={t("home.deals")}
         onPress={() => router.push(MarketplaceRoutes.DEALS)}
@@ -196,6 +196,9 @@ export default function DealsCornor({ items = [] }) {
 }
 
 const styles = StyleSheet.create({
+  section: {
+    paddingTop: sw(20),
+  },
   carousel: { flexGrow: 0, alignSelf: "stretch", width: "100%" },
   listContent: { paddingEnd: PEEK, alignItems: "flex-start" },
   card: {
@@ -237,11 +240,15 @@ const styles = StyleSheet.create({
     writingDirection: "auto",
   },
   badgeTextAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
     letterSpacing: 0,
     textTransform: "none",
     fontSize: sf(11),
-    lineHeight: sf(16),
+    lineHeight: sf(18),
     writingDirection: "rtl",
+    includeFontPadding: true,
+    paddingHorizontal: sw(2),
   },
   overlay: {
     position: "absolute",
@@ -255,11 +262,25 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.bold,
     fontSize: sf(12.5),
-    lineHeight: sf(17),
+    lineHeight: sf(20),
     color: "#FFFFFF",
     fontWeight: "700",
     flexShrink: 1,
     writingDirection: "auto",
+    includeFontPadding: true,
+  },
+  titleAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    fontSize: sf(14),
+    lineHeight: sf(24),
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    textAlign: "left",
+    includeFontPadding: true,
+    paddingStart: sw(2),
+    paddingEnd: sw(8),
+    overflow: "visible",
   },
   vendor: {
     fontFamily: Fonts.regular,
@@ -267,6 +288,17 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.75)",
     marginTop: sw(2),
     writingDirection: "auto",
+  },
+  vendorAr: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontWeight: "normal",
+    fontSize: sf(11),
+    lineHeight: sf(18),
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    textAlign: "left",
+    includeFontPadding: true,
+    paddingEnd: sw(6),
   },
   ctaBtn: {
     marginTop: sw(8),
@@ -285,5 +317,14 @@ const styles = StyleSheet.create({
     color: T.navy,
     fontWeight: "700",
     writingDirection: "auto",
+  },
+  ctaBtnTextAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    fontSize: sf(12),
+    lineHeight: sf(18),
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    includeFontPadding: true,
   },
 });

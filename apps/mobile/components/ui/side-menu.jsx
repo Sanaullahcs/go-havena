@@ -100,6 +100,8 @@ function DisclosureChevron({ open }) {
 }
 
 function NavRow({ iconName, title, active, badgeCount, depth = 0, danger, open, trailing, onPress }) {
+  const { i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const color = danger ? "#DC2626" : active ? "#0F766E" : "#334155";
   return (
     <TouchableOpacity
@@ -129,6 +131,7 @@ function NavRow({ iconName, title, active, badgeCount, depth = 0, danger, open, 
           depth > 0 && styles.navLabelNested,
           active && styles.navLabelActive,
           danger && styles.navLabelDanger,
+          arabic && (depth > 0 ? styles.navLabelNestedAr : styles.navLabelAr),
         ]}
         numberOfLines={2}
       >
@@ -200,18 +203,19 @@ function drawerWidth(screenWidth) {
 }
 
 function WellnessEmpty({ onExplore }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   return (
     <View style={styles.wellnessEmpty}>
       <View style={styles.wellnessEmptyIcon}>
         <Feather name="heart" size={18} color="#1B4F8A" />
       </View>
-      <Text style={styles.wellnessEmptyTitle}>{t("nav.wellnessComingSoon")}</Text>
-      <Text style={styles.wellnessEmptyHint}>
+      <Text style={[styles.wellnessEmptyTitle, arabic && styles.arabicMenuText]}>{t("nav.wellnessComingSoon")}</Text>
+      <Text style={[styles.wellnessEmptyHint, arabic && styles.arabicMenuText]}>
         {t("nav.wellnessComingSoonMsg")}
       </Text>
       <Pressable style={styles.wellnessEmptyCta} onPress={onExplore}>
-        <Text style={styles.wellnessEmptyCtaText}>{t("nav.browseWellness")}</Text>
+        <Text style={[styles.wellnessEmptyCtaText, arabic && styles.arabicMenuText]}>{t("nav.browseWellness")}</Text>
         <Feather name="arrow-right" size={14} color="#1B4F8A" />
       </Pressable>
     </View>
@@ -256,7 +260,8 @@ function getRoleLabelKey(user) {
 }
 
 function SideMenuPanel({ visible, onClose }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const dialog = useAppDialog();
   const router = useRouter();
   const pathname = usePathname();
@@ -642,7 +647,7 @@ function SideMenuPanel({ visible, onClose }) {
                   </View>
                   <View style={styles.brandCopy}>
                     <HavenaWordmark height={20} />
-                    <Text style={styles.brandSubtitle}>{t("nav.tagline")}</Text>
+                    <Text style={[styles.brandSubtitle, arabic && styles.arabicMenuText]}>{t("nav.tagline")}</Text>
                   </View>
                 </View>
                 <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
@@ -672,7 +677,7 @@ function SideMenuPanel({ visible, onClose }) {
                 ) : null}
                 {!isNewProfile ? (
                   <View style={styles.rolePill}>
-                    <Text style={styles.rolePillText} numberOfLines={1}>
+                    <Text style={[styles.rolePillText, arabic && styles.rolePillTextAr]} numberOfLines={1}>
                       {t(roleLabelKey)}
                     </Text>
                   </View>
@@ -681,7 +686,7 @@ function SideMenuPanel({ visible, onClose }) {
               <Feather name="chevron-down" size={18} color="#94A3B8" />
             </TouchableOpacity>
 
-            <Text style={styles.sectionTitle}>{t("nav.mainMenu")}</Text>
+            <Text style={[styles.sectionTitle, arabic && styles.sectionTitleAr]}>{t("nav.mainMenu")}</Text>
             <View style={styles.menuGroup}>
               {menuGroups.map((group) => {
                 const open = expandedGroup === group.key;
@@ -1036,6 +1041,62 @@ const styles = StyleSheet.create({
   },
   navLabelDanger: {
     color: "#DC2626",
+  },
+  navLabelAr: {
+    fontFamily: "NotoSansArabic-SemiBold",
+    fontWeight: "normal",
+    fontSize: 15,
+    lineHeight: 26,
+    letterSpacing: 0,
+    textTransform: "none",
+    writingDirection: "rtl",
+    includeFontPadding: true,
+    paddingHorizontal: 2,
+    overflow: "visible",
+  },
+  navLabelNestedAr: {
+    fontFamily: "NotoSansArabic-Medium",
+    fontWeight: "normal",
+    fontSize: 14,
+    lineHeight: 24,
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    includeFontPadding: true,
+    paddingHorizontal: 2,
+    overflow: "visible",
+  },
+  arabicMenuText: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontWeight: "normal",
+    letterSpacing: 0,
+    textTransform: "none",
+    writingDirection: "rtl",
+    includeFontPadding: true,
+    lineHeight: 22,
+    overflow: "visible",
+  },
+  rolePillTextAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    letterSpacing: 0,
+    textTransform: "none",
+    fontSize: 11,
+    lineHeight: 18,
+    writingDirection: "rtl",
+    includeFontPadding: true,
+    paddingHorizontal: 2,
+  },
+  sectionTitleAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    letterSpacing: 0,
+    textTransform: "none",
+    fontSize: 13,
+    lineHeight: 24,
+    writingDirection: "rtl",
+    includeFontPadding: true,
+    paddingHorizontal: 2,
+    overflow: "visible",
   },
   navTrailing: {
     width: 18,

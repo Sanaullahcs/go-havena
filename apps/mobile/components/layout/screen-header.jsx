@@ -33,12 +33,13 @@ export default function ScreenHeader({
 }) {
   const router = useRouter();
   const navigation = useNavigation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const handleBack = onBack ?? (() => safeGoBack(router, navigation));
   const resolvedBackLabel = backLabel ?? t("common.back");
 
-  const titleStyle = [styles.title, compact && styles.titleCompact];
-  const subtitleStyle = [styles.subtitle, compact && styles.subtitleCompact];
+  const titleStyle = [styles.title, compact && styles.titleCompact, arabic && styles.titleAr];
+  const subtitleStyle = [styles.subtitle, compact && styles.subtitleCompact, arabic && styles.subtitleAr];
 
   const backControl = showBack ? (
     <BackButton
@@ -138,5 +139,30 @@ const styles = StyleSheet.create({
   subtitleCompact: {
     fontSize: sf(11),
     lineHeight: sf(17),
+  },
+  titleAr: {
+    fontFamily: "NotoSansArabic-Bold",
+    fontWeight: "normal",
+    letterSpacing: 0,
+    fontSize: sf(18),
+    lineHeight: sf(32),
+    writingDirection: "rtl",
+    textAlign: "left",
+    includeFontPadding: true,
+    paddingStart: sw(2),
+    paddingEnd: sw(8),
+    overflow: "visible",
+  },
+  subtitleAr: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontWeight: "normal",
+    letterSpacing: 0,
+    fontSize: sf(13),
+    lineHeight: sf(22),
+    writingDirection: "rtl",
+    textAlign: "left",
+    includeFontPadding: true,
+    paddingStart: sw(2),
+    paddingEnd: sw(8),
   },
 });

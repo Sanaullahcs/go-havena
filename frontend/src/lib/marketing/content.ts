@@ -5,7 +5,7 @@ export const marketingSite = {
 } as const;
 
 export const heroCopy = {
-  eyebrow: "For HOAs, neighborhoods, and every resident",
+  eyebrow: "For HOAs, Neighborhoods, and Every Resident",
   titleBefore: "One trusted place for",
   titleAccent: "the whole neighborhood.",
   leadLines: [
@@ -43,7 +43,7 @@ export const productCopy = {
   eyebrow: "The product",
   titleLine1: "A dashboard for the board.",
   titleLine2: "An app for every resident.",
-  lead: "The board sees the week. Residents see the neighborhood. Both open the same place.",
+  lead: "The board sees the week. Residents see the neighborhood.",
   mainTag: "Community admin",
   mainTitleLine1: "Begin the day with a clear picture",
   mainTitleLine2: "of the community.",

@@ -1,11 +1,14 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sf, sw, hp } from "../../utils/responsive";
 
 /** Empty section card — matches Notices / Deals Corner home placeholders. */
 export default function HomeSectionEmpty({ message, hint, icon, variant = "default" }) {
+  const { i18n } = useTranslation();
+  const arabic = String(i18n.language || "").startsWith("ar");
   const accent = variant === "accent";
 
   return (
@@ -15,8 +18,8 @@ export default function HomeSectionEmpty({ message, hint, icon, variant = "defau
           <Feather name={icon} size={sf(18)} color={accent ? T.white : T.teal} />
         </View>
       ) : null}
-      <Text style={[styles.message, accent && styles.messageAccent]}>{message}</Text>
-      {hint ? <Text style={[styles.hint, accent && styles.hintAccent]}>{hint}</Text> : null}
+      <Text style={[styles.message, arabic && styles.messageAr, accent && styles.messageAccent]}>{message}</Text>
+      {hint ? <Text style={[styles.hint, arabic && styles.hintAr, accent && styles.hintAccent]}>{hint}</Text> : null}
     </View>
   );
 }
@@ -60,6 +63,19 @@ const styles = StyleSheet.create({
     lineHeight: sf(20),
     color: T.navy,
     textAlign: "center",
+    alignSelf: "stretch",
+  },
+  messageAr: {
+    fontFamily: "NotoSansArabic-SemiBold",
+    fontWeight: "normal",
+    fontSize: sf(15),
+    lineHeight: sf(26),
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    textAlign: "center",
+    includeFontPadding: true,
+    paddingHorizontal: sw(10),
+    overflow: "visible",
   },
   messageAccent: {
     color: T.white,
@@ -71,7 +87,19 @@ const styles = StyleSheet.create({
     color: T.gray,
     marginTop: hp(0.5),
     textAlign: "center",
-    maxWidth: "92%",
+    alignSelf: "stretch",
+  },
+  hintAr: {
+    fontFamily: "NotoSansArabic-Regular",
+    fontWeight: "normal",
+    fontSize: sf(13),
+    lineHeight: sf(22),
+    letterSpacing: 0,
+    writingDirection: "rtl",
+    textAlign: "center",
+    includeFontPadding: true,
+    paddingHorizontal: sw(10),
+    overflow: "visible",
   },
   hintAccent: {
     color: "rgba(255,255,255,0.88)",
