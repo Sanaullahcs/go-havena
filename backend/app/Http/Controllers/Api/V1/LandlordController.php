@@ -143,7 +143,7 @@ class LandlordController extends Controller
     {
         $data = $request->validate([
             'status' => 'required|in:approved,rejected',
-            'reason' => 'nullable|string|max:2000',
+            'reason' => 'required_if:status,rejected|nullable|string|max:2000',
         ]);
 
         app(\App\Services\Landlord\LandlordAdvisoryService::class)->decide(

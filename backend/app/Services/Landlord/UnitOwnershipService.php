@@ -154,6 +154,18 @@ class UnitOwnershipService
         }
 
         if ($occupancy === UnitOwnershipOccupancy::LIVE_HERE) {
+            $unitNumber = (string) DB::table('units')->where('id', $row->unit_id)->value('unit_number');
+            $assignments = app(UnitAssignmentService::class);
+            $assignments->assignUserToUnitNumber(
+                (int) $row->community_id,
+                $userId,
+                $unitNumber,
+                false,
+                false,
+                UnitAssignmentService::RESIDENT_ACTIVE,
+                'landlord_ownership',
+            );
+            $assignments->transferBillingContact((int) $row->community_id, (int) $row->unit_id, $userId);
             $this->setPrimaryResidence($userId, (int) $row->community_id, (int) $row->unit_id);
         }
     }
@@ -195,7 +207,7 @@ class UnitOwnershipService
 
         if ($others) {
             throw ValidationException::withMessages([
-                'occupancy' => 'This unit already has other residents. Clear tenancy before marking live here.',
+                'occupancy' => 'You cannot change the status of this unit until the residents currently living in it have moved out.',
             ]);
         }
     }

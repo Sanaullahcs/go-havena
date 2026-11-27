@@ -63,6 +63,7 @@ class LandlordAccessService
                 'o.unit_id',
                 'o.occupancy',
                 'o.status',
+                'o.created_at as claimed_at',
                 'units.unit_number',
                 'units.billing_contact_user_id',
             )
@@ -85,6 +86,7 @@ class LandlordAccessService
                 'unit_id' => (int) $row->unit_id,
                 'unit_number' => (string) $row->unit_number,
                 'occupancy' => $occupancy,
+                'claimed_at' => $row->claimed_at,
                 'resident_count' => $residentCount,
                 'is_billing_contact' => $isBillingContact,
                 'landlord_can_pay_bills' => UnitOwnershipOccupancy::qualifiesForLandlordDashboard($occupancy)

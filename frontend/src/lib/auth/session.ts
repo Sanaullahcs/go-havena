@@ -45,6 +45,8 @@ const RESIDENT_PATH_PREFIXES = [
   "/payments",
   "/profile",
   "/support",
+  "/landlord",
+  "/units",
 ];
 
 function pathStartsWith(pathname: string, prefix: string): boolean {

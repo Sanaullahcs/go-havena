@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { apiError } from "@/lib/api/client";
 import { fetchMyUnits, type MyUnitRecord } from "@/lib/api/property-services";
+import { acceptBillingContactTransfer, rejectBillingContactTransfer } from "@/lib/api/landlord";
+import { toastError, toastSuccess } from "@/lib/alert";
 
 function occupancyLabel(value?: string | null) {
   if (value === "live_here") return "Live here";
@@ -83,6 +85,7 @@ export default function MyUnitsPage() {
   const [units, setUnits] = useState<MyUnitRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [busyTransferId, setBusyTransferId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -166,6 +169,53 @@ export default function MyUnitsPage() {
                     </dd>
                   </div>
                 </dl>
+                {unit.incoming_transfer ? (
+                  <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+                    <p>
+                      {unit.incoming_transfer.requested_by?.name || "A resident"} asked you to become the billing contact for this unit.
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        disabled={busyTransferId === unit.incoming_transfer.id}
+                        onClick={() => {
+                          const requestId = unit.incoming_transfer?.id;
+                          if (!requestId) return;
+                          setBusyTransferId(requestId);
+                          void acceptBillingContactTransfer(requestId)
+                            .then(() => {
+                              toastSuccess("You are now the billing contact.");
+                              return load();
+                            })
+                            .catch((err) => toastError(apiError(err)))
+                            .finally(() => setBusyTransferId(null));
+                        }}
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyTransferId === unit.incoming_transfer.id}
+                        onClick={() => {
+                          const requestId = unit.incoming_transfer?.id;
+                          if (!requestId) return;
+                          setBusyTransferId(requestId);
+                          void rejectBillingContactTransfer(requestId)
+                            .then(() => {
+                              toastSuccess("Request declined. The current billing contact is unchanged.");
+                              return load();
+                            })
+                            .catch((err) => toastError(apiError(err)))
+                            .finally(() => setBusyTransferId(null));
+                        }}
+                        className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 disabled:opacity-60"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 {approval === "rejected" && unit.association_rejection_reason ? (
                   <p className="mt-2 text-xs text-rose-700">{unit.association_rejection_reason}</p>
                 ) : null}

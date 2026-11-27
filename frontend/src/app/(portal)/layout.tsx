@@ -6,6 +6,8 @@ import { AuthShellSkeleton } from "@/components/shared/loaders";
 import { FEATURES_UPDATED_EVENT, FeatureSettingsSync } from "@/components/auth/feature-settings-sync";
 import { getToken, getUser } from "@/lib/auth/session";
 import { residentPathAllowed } from "@/lib/resident-features";
+import { landlordPortalPathAllowed } from "@/lib/landlord-portal";
+import { useLandlordNavState } from "@/hooks/use-landlord-only-nav";
 import { consumeWebHandoffIfPresent } from "@/lib/auth/web-handoff";
 import { PortalSidebar } from "@/components/portal/sidebar";
 import { PortalTopBar } from "@/components/portal/top-bar";
@@ -24,11 +26,17 @@ const PAGE_TITLES: Record<string, string> = {
   "/payments":    "Payments",
   "/profile":     "My Profile",
   "/support":     "Help & Support",
-  "/landlord":    "Landlord",
+  "/landlord/dashboard": "Dashboard",
+  "/landlord/owned":     "Owned Units",
+  "/landlord":           "My Properties",
 };
 
 function getTitle(pathname: string) {
-  return PAGE_TITLES[pathname] ?? "Resident Portal";
+  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
+  if (pathname.startsWith("/landlord/dashboard")) return PAGE_TITLES["/landlord/dashboard"];
+  if (pathname.startsWith("/landlord/owned")) return PAGE_TITLES["/landlord/owned"];
+  if (pathname === "/landlord" || pathname.startsWith("/landlord/")) return PAGE_TITLES["/landlord"];
+  return "Resident Portal";
 }
 
 export default function ResidentPortalLayout({ children }: { children: React.ReactNode }) {
@@ -37,6 +45,7 @@ export default function ResidentPortalLayout({ children }: { children: React.Rea
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [checked, setChecked] = useState(false);
   const [featureRevision, setFeatureRevision] = useState(0);
+  const { landlordPortalNav } = useLandlordNavState();
 
   useEffect(() => {
     let cancelled = false;
@@ -66,10 +75,14 @@ export default function ResidentPortalLayout({ children }: { children: React.Rea
 
   useEffect(() => {
     if (!checked) return;
-    if (!residentPathAllowed(pathname, getUser()?.resident_features)) {
+    if (landlordPortalNav && !landlordPortalPathAllowed(pathname)) {
+      router.replace("/landlord/dashboard");
+      return;
+    }
+    if (!landlordPortalNav && !residentPathAllowed(pathname, getUser()?.resident_features)) {
       router.replace("/home");
     }
-  }, [checked, pathname, router, featureRevision]);
+  }, [checked, pathname, router, featureRevision, landlordPortalNav]);
 
   if (!checked) {
     return <AuthShellSkeleton />;

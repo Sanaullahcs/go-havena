@@ -8,6 +8,7 @@ import { FEATURES_UPDATED_EVENT } from "@/components/auth/feature-settings-sync"
 import { canSwitchToAdminMode, getUser, isResidentMode } from "@/lib/auth/session";
 import { ResidentModeBar } from "@/components/portal/resident-mode-bar";
 import { anyResidentFeatureEnabled, isResidentFeatureEnabled } from "@/lib/resident-features";
+import { useLandlordNavState } from "@/hooks/use-landlord-only-nav";
 
 type NavItem = {
   href: string;
@@ -25,11 +26,38 @@ const mainNav: NavItem[] = [
   { href: "/property",    label: "Property",       icon: NavIconProperty  },
 ];
 
+const landlordWorkspaceNav: NavItem[] = [
+  { href: "/landlord/dashboard", label: "Dashboard", icon: NavIconDashboard },
+  { href: "/landlord", label: "My Properties", icon: NavIconLandlord },
+  { href: "/landlord/owned", label: "Owned Units", icon: NavIconOwned },
+];
+
 const accountNav: NavItem[] = [
   { href: "/units", label: "My Units", icon: NavIconUnits },
-  { href: "/landlord", label: "Landlord", icon: NavIconLandlord },
   { href: "/profile", label: "My Profile", icon: NavIconProfile },
 ];
+
+const landlordOnlyNav: NavItem[] = [
+  ...landlordWorkspaceNav,
+  { href: "/units", label: "My Units", icon: NavIconUnits },
+  { href: "/payments", label: "Payments", icon: NavIconPayments },
+  { href: "/profile", label: "My Profile", icon: NavIconProfile },
+  { href: "/support", label: "Help & Support", icon: NavIconSupport },
+];
+
+function isPortalNavItemActive(pathname: string, href: string): boolean {
+  if (href === "/home") return pathname === "/home";
+  if (href === "/landlord/dashboard") {
+    return pathname === "/landlord/dashboard" || pathname.startsWith("/landlord/dashboard/");
+  }
+  if (href === "/landlord/owned") {
+    return pathname === "/landlord/owned" || pathname.startsWith("/landlord/owned/");
+  }
+  if (href === "/landlord") {
+    return pathname === "/landlord";
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 function NavSection({
   title,
@@ -51,10 +79,7 @@ function NavSection({
         </p>
       )}
       {items.map((item) => {
-        const active =
-          item.href === "/home"
-            ? pathname === "/home"
-            : pathname.startsWith(item.href);
+        const active = isPortalNavItemActive(pathname, item.href);
         const Icon = item.icon;
         return (
           <Link
@@ -94,16 +119,20 @@ function NavSection({
   );
 }
 
-function Brand() {
+function Brand({ landlordOnly = false }: { landlordOnly?: boolean }) {
   return (
-    <Link href="/home" className="nl-sidebar-brand">
+    <Link href={landlordOnly ? "/landlord/dashboard" : "/home"} className="nl-sidebar-brand">
       <span className="nl-sidebar-brand-mark nl-sidebar-brand-mark--solid">
         <HavenaMark size={40} />
       </span>
       <span className="nl-sidebar-brand-copy">
         <span className="nl-sidebar-brand-name">Havena</span>
         <span className="nl-sidebar-brand-role">
-          {isResidentMode() ? "Resident Mode" : "Resident Portal"}
+          {landlordOnly
+            ? "Landlord Portal"
+            : isResidentMode()
+              ? "Resident Mode"
+              : "Resident Portal"}
         </span>
       </span>
     </Link>
@@ -120,6 +149,8 @@ function SidebarInner({
   hideBrand?: boolean;
 }) {
   const [features, setFeatures] = useState(getUser()?.resident_features);
+  const { landlordPortalNav, landlordDashboard } = useLandlordNavState();
+  const filteredAccount = [...accountNav, ...(landlordDashboard ? landlordWorkspaceNav : [])];
 
   useEffect(() => {
     const sync = () => setFeatures(getUser()?.resident_features);
@@ -147,13 +178,19 @@ function SidebarInner({
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
       {!hideBrand && (
         <div className="mb-1.5 shrink-0 border-b border-slate-100 pb-1.5">
-          <Brand />
+          <Brand landlordOnly={landlordPortalNav} />
         </div>
       )}
 
       <nav className="nl-sidebar-scroll -mr-2 min-h-0 flex-1 space-y-1 overflow-y-auto pr-2">
-        <NavSection items={filteredMain} pathname={pathname} onNavigate={onNavigate} />
-        <NavSection title="Account" items={accountNav} pathname={pathname} onNavigate={onNavigate} />
+        {landlordPortalNav ? (
+          <NavSection items={landlordOnlyNav} pathname={pathname} onNavigate={onNavigate} />
+        ) : (
+          <>
+            <NavSection items={filteredMain} pathname={pathname} onNavigate={onNavigate} />
+            <NavSection title="Account" items={filteredAccount} pathname={pathname} onNavigate={onNavigate} />
+          </>
+        )}
       </nav>
 
       <div className="mt-auto shrink-0 border-t border-slate-100 bg-white pt-3">
@@ -185,6 +222,7 @@ export function PortalSidebar({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
+  const { landlordPortalNav } = useLandlordNavState();
 
   return (
     <>
@@ -197,7 +235,7 @@ export function PortalSidebar({
           <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm" onClick={onClose} aria-hidden />
           <aside className="absolute left-0 top-0 flex h-full w-[min(20rem,88vw)] flex-col overflow-hidden border-r border-slate-200 bg-white px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] shadow-2xl">
             <div className="mb-1.5 flex shrink-0 items-start justify-between gap-2 border-b border-slate-100 pb-1.5">
-              <Brand />
+              <Brand landlordOnly={landlordPortalNav} />
               <button onClick={onClose} className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                   <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -221,4 +259,8 @@ function NavIconMarket()   { return <svg width="16" height="16" viewBox="0 0 16 
 function NavIconProperty() { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><path d="M2 13V7l4-3 4 3v6H2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M10 13V9l3 2v2" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M2 13h11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>; }
 function NavIconProfile()  { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><circle cx="8" cy="5.5" r="2.2" stroke="currentColor" strokeWidth="1.3" /><path d="M3.5 13c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>; }
 function NavIconUnits()    { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" /></svg>; }
+function NavIconDashboard() { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><rect x="2" y="2" width="5.5" height="5.5" rx="1.2" stroke="currentColor" strokeWidth="1.3" /><rect x="8.5" y="2" width="5.5" height="5.5" rx="1.2" stroke="currentColor" strokeWidth="1.3" /><rect x="2" y="8.5" width="5.5" height="5.5" rx="1.2" stroke="currentColor" strokeWidth="1.3" /><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1.2" stroke="currentColor" strokeWidth="1.3" /></svg>; }
 function NavIconLandlord() { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><path d="M2 13V6.5l6-3.5 6 3.5V13H2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M6 13V9h4v4" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>; }
+function NavIconOwned() { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><path d="M3 7.2L8 3.5l5 3.7V13H3V7.2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M6.2 13v-3.2h3.6V13" stroke="currentColor" strokeWidth="1.3" /><path d="M11.2 5.2l1.3-1.1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>; }
+function NavIconPayments() { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><rect x="1.5" y="3.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3" /><path d="M1.5 6.5h13" stroke="currentColor" strokeWidth="1.3" /><path d="M4.5 10.5h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>; }
+function NavIconSupport() { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" /><path d="M6 6.2a2 2 0 014 .5c0 1.2-2 1.2-2 2.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /><circle cx="8" cy="11.5" r=".5" fill="currentColor" /></svg>; }

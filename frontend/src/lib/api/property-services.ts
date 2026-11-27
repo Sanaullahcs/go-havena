@@ -270,6 +270,11 @@ export type MyUnitRecord = {
   resident_count?: number;
   is_billing_contact?: boolean;
   billing_contact?: { id?: number; name?: string } | null;
+  incoming_transfer?: {
+    id: number;
+    requested_by?: { id?: number; name?: string | null } | null;
+    unit_number?: string | null;
+  } | null;
 };
 
 export async function fetchMyUnits() {

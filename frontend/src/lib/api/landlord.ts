@@ -10,6 +10,7 @@ export type LandlordAccess = {
   primary_residence_unit_id: number | null;
   landlord_unit_count: number;
   approved_ownership_count: number;
+  owned_units?: LandlordPortfolioUnit[];
   landlord_units: Array<{
     unit_id: number;
     unit_number: string;
@@ -41,12 +42,42 @@ export type LandlordPortfolioUnit = {
     is_billing_contact?: boolean;
   }>;
   billing_contact?: { id: number; name?: string | null } | null;
+  is_billing_contact?: boolean;
+  outgoing_billing_transfer?: {
+    id: number;
+    nominee?: { id: number; name?: string | null } | null;
+  } | null;
   bill_status?: LandlordBillStatus;
   ownership_id?: number;
+  claimed_at?: string | null;
+};
+
+export type LandlordOccupancyGraphPoint = {
+  unit_id: number;
+  unit_number: string;
+  relationship: "owner" | "tenant";
+  occupancy_status: "rented" | "vacant" | "self_occupied";
+  kind: "self_occupied" | "rented" | "vacant" | "tenant";
+  family_member_count: number;
+  resident_count: number;
+};
+
+export type LandlordDashboardStats = {
+  total_owned_units: number;
+  rented_units: number;
+  vacant_units: number;
+  self_occupied_units: number;
+  tenant_status: {
+    is_also_tenant: boolean;
+    summary: string;
+    resident_unit_numbers: string[];
+  };
 };
 
 export type LandlordPortfolioPayload = {
   access: LandlordAccess;
+  dashboard_stats?: LandlordDashboardStats;
+  occupancy_graph?: LandlordOccupancyGraphPoint[];
   pending_claims: Array<{
     id: number;
     unit_id: number;
@@ -55,6 +86,7 @@ export type LandlordPortfolioPayload = {
     status: string;
     created_at: string;
   }>;
+  owned_units?: LandlordPortfolioUnit[];
   landlord_units: LandlordPortfolioUnit[];
   advisory_reviews?: Array<{
     id: number;
@@ -124,6 +156,31 @@ export type AdvisoryReview = {
   display_name: string | null;
   resident_status?: string | null;
 };
+
+export async function requestBillingContactTransfer(unitId: number, nomineeUserId: number) {
+  const { data } = await api.post("/v1/units/mine/billing-contact-transfers", {
+    unit_id: unitId,
+    nominee_user_id: nomineeUserId,
+  });
+  return data;
+}
+
+export async function cancelBillingContactTransfer(id: number) {
+  const { data } = await api.patch(`/v1/billing-contact-transfers/${id}/cancel`);
+  return data;
+}
+
+export async function acceptBillingContactTransfer(id: number) {
+  const { data } = await api.patch(`/v1/billing-contact-transfers/${id}/accept`);
+  return data;
+}
+
+export async function rejectBillingContactTransfer(id: number, reason?: string) {
+  const { data } = await api.patch(`/v1/billing-contact-transfers/${id}/reject`, {
+    rejection_reason: reason,
+  });
+  return data;
+}
 
 export async function decideLandlordAdvisory(id: number, status: "approved" | "rejected", reason?: string) {
   const { data } = await api.post(`/v1/landlord/advisory-reviews/${id}`, { status, reason });

@@ -39,6 +39,7 @@ import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboar
 import { consumeWebHandoffIfPresent } from "@/lib/auth/web-handoff";
 import { validateEmailField } from "@/lib/admin/form-validation-utils";
 import { useOtpResendLockMessage } from "@/hooks/use-otp-resend-lock-message";
+import { setLandlordPortalLoginHint } from "@/lib/landlord-portal";
 import { Suspense } from "react";
 
 type OtpStep = "email" | "code";
@@ -128,7 +129,7 @@ function LoginPageInner() {
 
       if (user?.role === "resident") {
         const portal = parseLoginPortal(searchParams.get("portal"));
-        router.replace(portal === "landlord" ? "/landlord" : "/home");
+        router.replace(portal === "landlord" ? "/landlord/dashboard" : "/home");
       }
     })();
 
@@ -219,7 +220,8 @@ function LoginPageInner() {
       if (isLandlordPortal) {
         const res = await verifyResidentOtp(email.trim(), code);
         setSession(res.token, res.user);
-        router.replace("/landlord");
+        setLandlordPortalLoginHint(true);
+        router.replace("/landlord/dashboard");
         return;
       }
 

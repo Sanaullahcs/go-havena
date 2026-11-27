@@ -192,6 +192,136 @@ class LandlordAccessTest extends TestCase
             ->assertJsonPath('data.primary_residence_unit_id', $unitA)
             ->assertJsonPath('data.active_resident_unit_count', 1)
             ->assertJsonPath('data.approved_ownership_count', 1);
+
+        $this->getJson('/api/v1/landlord/portfolio?community_id='.$community->id)
+            ->assertOk()
+            ->assertJsonPath('data.dashboard_stats.total_owned_units', 1)
+            ->assertJsonPath('data.dashboard_stats.rented_units', 1)
+            ->assertJsonPath('data.dashboard_stats.tenant_status.is_also_tenant', true)
+            ->assertJsonPath('data.dashboard_stats.tenant_status.resident_unit_numbers.0', '101');
+    }
+
+    public function test_occupancy_graph_covers_owned_and_tenant_units(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'units' => $units] = $this->seedCommunity();
+
+        $owner = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        $spouse = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        $tenantA = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        $tenantB = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+
+        $homeId = $this->approvedResident($owner, $community, '101');
+        $homeOwnership = app(UnitOwnershipService::class)->claim(
+            $community->id,
+            $homeId,
+            $owner->id,
+            UnitOwnershipOccupancy::LIVE_HERE,
+        );
+        $this->approveOwnership($homeOwnership, $admin->id);
+        $this->approvedResident($spouse, $community, '101', false);
+
+        $rented = $units->createUnit($community->id, '202');
+        $rentedOwnership = app(UnitOwnershipService::class)->claim(
+            $community->id,
+            (int) $rented->id,
+            $owner->id,
+            UnitOwnershipOccupancy::RENTED,
+        );
+        $this->approveOwnership($rentedOwnership, $admin->id);
+        $this->approvedResident($tenantA, $community, '202', false);
+        $this->approvedResident($tenantB, $community, '202', false);
+
+        $vacant = $units->createUnit($community->id, '303');
+        $vacantOwnership = app(UnitOwnershipService::class)->claim(
+            $community->id,
+            (int) $vacant->id,
+            $owner->id,
+            UnitOwnershipOccupancy::VACANT,
+        );
+        $this->approveOwnership($vacantOwnership, $admin->id);
+
+        app(UnitAssignmentService::class)->assignUserToUnitNumber(
+            $community->id,
+            $owner->id,
+            '404',
+            false,
+            false,
+        );
+
+        $now = now();
+        $ownerFamily = DB::table('families')->insertGetId([
+            'community_id' => $community->id,
+            'head_user_id' => $owner->id,
+            'family_number' => 'FAM-OWNER1',
+            'name' => 'Owner household',
+            'status' => 'active',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('family_members')->insert([
+            [
+                'family_id' => $ownerFamily,
+                'user_id' => $owner->id,
+                'role' => 'head',
+                'status' => 'active',
+                'joined_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'family_id' => $ownerFamily,
+                'user_id' => $spouse->id,
+                'role' => 'member',
+                'status' => 'active',
+                'joined_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+        ]);
+        $tenantFamily = DB::table('families')->insertGetId([
+            'community_id' => $community->id,
+            'head_user_id' => $tenantA->id,
+            'family_number' => 'FAM-TENANT',
+            'name' => 'Tenant household',
+            'status' => 'active',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('family_members')->insert([
+            'family_id' => $tenantFamily,
+            'user_id' => $tenantA->id,
+            'role' => 'head',
+            'status' => 'active',
+            'joined_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        Sanctum::actingAs($owner);
+        $this->getJson('/api/v1/landlord/portfolio?community_id='.$community->id)
+            ->assertOk()
+            ->assertJsonPath('data.occupancy_graph.0.unit_number', '101')
+            ->assertJsonPath('data.occupancy_graph.0.relationship', 'owner')
+            ->assertJsonPath('data.occupancy_graph.0.occupancy_status', 'self_occupied')
+            ->assertJsonPath('data.occupancy_graph.0.kind', 'self_occupied')
+            ->assertJsonPath('data.occupancy_graph.0.resident_count', 2)
+            ->assertJsonPath('data.occupancy_graph.0.family_member_count', 2)
+            ->assertJsonPath('data.occupancy_graph.1.unit_number', '202')
+            ->assertJsonPath('data.occupancy_graph.1.relationship', 'owner')
+            ->assertJsonPath('data.occupancy_graph.1.occupancy_status', 'rented')
+            ->assertJsonPath('data.occupancy_graph.1.resident_count', 2)
+            ->assertJsonPath('data.occupancy_graph.1.family_member_count', 1)
+            ->assertJsonPath('data.occupancy_graph.2.unit_number', '303')
+            ->assertJsonPath('data.occupancy_graph.2.relationship', 'owner')
+            ->assertJsonPath('data.occupancy_graph.2.occupancy_status', 'vacant')
+            ->assertJsonPath('data.occupancy_graph.2.resident_count', 0)
+            ->assertJsonPath('data.occupancy_graph.2.family_member_count', 0)
+            ->assertJsonPath('data.occupancy_graph.3.unit_number', '404')
+            ->assertJsonPath('data.occupancy_graph.3.relationship', 'tenant')
+            ->assertJsonPath('data.occupancy_graph.3.occupancy_status', 'rented')
+            ->assertJsonPath('data.occupancy_graph.3.kind', 'tenant')
+            ->assertJsonPath('data.occupancy_graph.3.resident_count', 1)
+            ->assertJsonPath('data.occupancy_graph.3.family_member_count', 1);
     }
 
     public function test_use_case_4_tenant_on_one_unit_landlord_on_rented_owned_other(): void
@@ -297,7 +427,12 @@ class LandlordAccessTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.access.landlord_dashboard', true)
             ->assertJsonPath('data.landlord_units.0.unit_number', '550')
-            ->assertJsonPath('data.landlord_units.0.bill_status.detail', 'owner_pays');
+            ->assertJsonPath('data.landlord_units.0.bill_status.detail', 'owner_pays')
+            ->assertJsonPath('data.dashboard_stats.total_owned_units', 1)
+            ->assertJsonPath('data.dashboard_stats.rented_units', 1)
+            ->assertJsonPath('data.dashboard_stats.vacant_units', 0)
+            ->assertJsonPath('data.dashboard_stats.self_occupied_units', 0)
+            ->assertJsonPath('data.dashboard_stats.tenant_status.is_also_tenant', false);
     }
 
     public function test_landlord_advisory_reject_does_not_remove_tenant(): void
@@ -745,5 +880,203 @@ class LandlordAccessTest extends TestCase
         $this->approveOwnership($ownershipId, $admin->id);
 
         $this->assertSame($owner->id, (int) DB::table('units')->where('id', $unit->id)->value('billing_contact_user_id'));
+    }
+
+    public function test_live_here_sets_owner_as_billing_contact_and_transfer_is_per_unit(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'units' => $units] = $this->seedCommunity();
+        $owner = User::factory()->create(['role' => 'resident', 'status' => 'active', 'name' => 'Owner']);
+        $roommateA = User::factory()->create(['role' => 'resident', 'status' => 'active', 'name' => 'Roommate A']);
+        $roommateB = User::factory()->create(['role' => 'resident', 'status' => 'active', 'name' => 'Roommate B']);
+        DB::table('community_memberships')->insert([
+            'user_id' => $owner->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $unitA = $units->createUnit($community->id, '775');
+        $unitB = $units->createUnit($community->id, '776');
+        $service = app(UnitOwnershipService::class);
+        $ownA = $service->claim($community->id, (int) $unitA->id, $owner->id, UnitOwnershipOccupancy::VACANT);
+        $ownB = $service->claim($community->id, (int) $unitB->id, $owner->id, UnitOwnershipOccupancy::VACANT);
+        $this->approveOwnership($ownA, $admin->id);
+        $this->approveOwnership($ownB, $admin->id);
+
+        Sanctum::actingAs($owner);
+        $this->patchJson('/api/v1/landlord/ownerships/'.$ownA.'/occupancy', [
+            'occupancy' => UnitOwnershipOccupancy::LIVE_HERE,
+        ])->assertOk();
+        $this->patchJson('/api/v1/landlord/ownerships/'.$ownB.'/occupancy', [
+            'occupancy' => UnitOwnershipOccupancy::LIVE_HERE,
+        ])->assertOk();
+
+        foreach ([$unitA, $unitB] as $unit) {
+            $this->assertSame($owner->id, (int) DB::table('units')->where('id', $unit->id)->value('billing_contact_user_id'));
+            $this->assertDatabaseHas('unit_residents', [
+                'unit_id' => $unit->id,
+                'user_id' => $owner->id,
+                'status' => 'active',
+            ]);
+        }
+
+        $this->approvedResident($roommateA, $community, '775', false);
+        $this->approvedResident($roommateB, $community, '776', false);
+
+        $requestA = $this->postJson('/api/v1/units/mine/billing-contact-transfers', [
+            'unit_id' => $unitA->id,
+            'nominee_user_id' => $roommateA->id,
+        ])->assertCreated()->json('data.id');
+        $requestB = $this->postJson('/api/v1/units/mine/billing-contact-transfers', [
+            'unit_id' => $unitB->id,
+            'nominee_user_id' => $roommateB->id,
+        ])->assertCreated()->json('data.id');
+
+        $portfolio = $this->getJson('/api/v1/landlord/portfolio?community_id='.$community->id)->assertOk()->json('data.owned_units');
+        $rowA = collect($portfolio)->firstWhere('unit_number', '775');
+        $rowB = collect($portfolio)->firstWhere('unit_number', '776');
+        $this->assertSame($requestA, $rowA['outgoing_billing_transfer']['id']);
+        $this->assertSame($requestB, $rowB['outgoing_billing_transfer']['id']);
+
+        Sanctum::actingAs($roommateA);
+        $this->patchJson('/api/v1/billing-contact-transfers/'.$requestA.'/accept')->assertOk();
+
+        Sanctum::actingAs($roommateB);
+        $this->patchJson('/api/v1/billing-contact-transfers/'.$requestB.'/reject')->assertOk();
+
+        $this->assertSame($roommateA->id, (int) DB::table('units')->where('id', $unitA->id)->value('billing_contact_user_id'));
+        $this->assertSame($owner->id, (int) DB::table('units')->where('id', $unitB->id)->value('billing_contact_user_id'));
+        $this->assertSame(2, DB::table('unit_residents')->where('user_id', $owner->id)->where('status', 'active')->count());
+
+        DB::table('unit_residents')->where('unit_id', $unitB->id)->where('user_id', $owner->id)->update([
+            'status' => 'left',
+            'left_at' => now(),
+        ]);
+        DB::table('units')->where('id', $unitB->id)->update(['billing_contact_user_id' => null]);
+
+        Sanctum::actingAs($owner);
+        $this->getJson('/api/v1/landlord/portfolio?community_id='.$community->id)->assertOk();
+        $this->assertSame($owner->id, (int) DB::table('units')->where('id', $unitB->id)->value('billing_contact_user_id'));
+        $this->assertDatabaseHas('unit_residents', [
+            'unit_id' => $unitB->id,
+            'user_id' => $owner->id,
+            'status' => 'active',
+        ]);
+        $this->assertSame($roommateA->id, (int) DB::table('units')->where('id', $unitA->id)->value('billing_contact_user_id'));
+    }
+
+    public function test_owner_billing_contact_can_nominate_only_a_resident_of_that_unit(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'units' => $units] = $this->seedCommunity();
+        $owner = User::factory()->create(['role' => 'resident', 'status' => 'active', 'name' => 'Owner']);
+        DB::table('community_memberships')->insert([
+            'user_id' => $owner->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $home = $units->createUnit($community->id, '775');
+        $other = $units->createUnit($community->id, '776');
+        $service = app(UnitOwnershipService::class);
+        $ownHome = $service->claim($community->id, (int) $home->id, $owner->id, UnitOwnershipOccupancy::VACANT);
+        $ownOther = $service->claim($community->id, (int) $other->id, $owner->id, UnitOwnershipOccupancy::VACANT);
+        $this->approveOwnership($ownHome, $admin->id);
+        $this->approveOwnership($ownOther, $admin->id);
+
+        Sanctum::actingAs($owner);
+        $this->patchJson('/api/v1/landlord/ownerships/'.$ownHome.'/occupancy', [
+            'occupancy' => UnitOwnershipOccupancy::LIVE_HERE,
+        ])->assertOk();
+        $this->patchJson('/api/v1/landlord/ownerships/'.$ownOther.'/occupancy', [
+            'occupancy' => UnitOwnershipOccupancy::LIVE_HERE,
+        ])->assertOk();
+
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active', 'name' => 'Unit Resident']);
+        $neighbor = User::factory()->create(['role' => 'resident', 'status' => 'active', 'name' => 'Neighbor']);
+        $this->approvedResident($resident, $community, '775', false);
+        $this->approvedResident($neighbor, $community, '776', false);
+
+        $this->postJson('/api/v1/units/mine/billing-contact-transfers', [
+            'unit_id' => $home->id,
+            'nominee_user_id' => $neighbor->id,
+        ])->assertStatus(422);
+
+        $requestId = $this->postJson('/api/v1/units/mine/billing-contact-transfers', [
+            'unit_id' => $home->id,
+            'nominee_user_id' => $resident->id,
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($resident);
+        $this->patchJson('/api/v1/billing-contact-transfers/'.$requestId.'/reject')->assertOk();
+
+        $this->assertSame($owner->id, (int) DB::table('units')->where('id', $home->id)->value('billing_contact_user_id'));
+    }
+
+    public function test_claiming_an_occupied_unit_does_not_change_the_tenant(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'units' => $units] = $this->seedCommunity();
+        $owner = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        DB::table('community_memberships')->insert([
+            'user_id' => $owner->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $unit = $units->createUnit($community->id, '201');
+        $tenant = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        $this->approvedResident($tenant, $community, '201', false);
+
+        Sanctum::actingAs($owner);
+        $claim = $this->postJson('/api/v1/landlord/ownership-claims?community_id='.$community->id, [
+            'unit_number' => '201',
+            'is_new_unit' => false,
+            'occupancy' => UnitOwnershipOccupancy::RENTED,
+            'proof_url' => 'https://example.test/deed.pdf',
+        ])->assertCreated();
+
+        $ownershipId = (int) $claim->json('data.ownership_id');
+        $this->assertDatabaseHas('unit_residents', [
+            'unit_id' => $unit->id,
+            'user_id' => $tenant->id,
+            'status' => 'active',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/landlord-ownership-claims/'.$ownershipId.'/reject', [
+            'reason' => 'Proof does not match',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('unit_residents', [
+            'unit_id' => $unit->id,
+            'user_id' => $tenant->id,
+            'status' => 'active',
+        ]);
+        $this->assertSame('rejected', DB::table('unit_ownerships')->where('id', $ownershipId)->value('status'));
+
+        Sanctum::actingAs($owner);
+        $this->postJson('/api/v1/landlord/ownership-claims?community_id='.$community->id, [
+            'unit_number' => '201',
+            'is_new_unit' => false,
+            'occupancy' => UnitOwnershipOccupancy::RENTED,
+            'proof_url' => 'https://example.test/deed.pdf',
+        ])->assertCreated();
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/admin/landlord-ownership-claims/'.$ownershipId.'/approve')->assertOk();
+
+        $this->assertDatabaseHas('unit_residents', [
+            'unit_id' => $unit->id,
+            'user_id' => $tenant->id,
+            'status' => 'active',
+        ]);
+        $this->assertSame('approved', DB::table('unit_ownerships')->where('id', $ownershipId)->value('status'));
     }
 }

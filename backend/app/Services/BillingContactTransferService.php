@@ -20,6 +20,11 @@ class BillingContactTransferService
 
     public function __construct(private UnitAssignmentService $units) {}
 
+    public function outgoingFor(int $unitId, int $userId): ?array
+    {
+        return $this->formatPendingFor($unitId, 'requested_by_user_id', $userId);
+    }
+
     public function enrichResidentUnit(array $payload, User $viewer): array
     {
         $unitId = (int) ($payload['id'] ?? 0);
@@ -43,7 +48,7 @@ class BillingContactTransferService
 
     public function requestTransfer(User $requester, int $nomineeUserId, ?string $message = null, ?int $unitId = null): array
     {
-        $unit = $this->requireViewerUnit($requester, $unitId);
+        $unit = $this->resolveTransferUnit($requester, $unitId);
         if ((int) ($unit->billing_contact_user_id ?? 0) !== (int) $requester->id) {
             throw ValidationException::withMessages([
                 'unit' => 'Only the current billing contact can nominate another resident.',
@@ -268,6 +273,29 @@ class BillingContactTransferService
             'created_at' => $request->created_at,
             'updated_at' => $request->updated_at,
         ];
+    }
+
+    /**
+     * The current billing contact can nominate on a unit they own, including a
+     * rented or vacant unit where they are not themselves a resident.
+     */
+    private function resolveTransferUnit(User $user, ?int $unitId): object
+    {
+        if ($unitId) {
+            $unit = DB::table('units')->where('id', $unitId)->first();
+            $ownsAndIsContact = $unit
+                && (int) ($unit->billing_contact_user_id ?? 0) === (int) $user->id
+                && DB::table('unit_ownerships')
+                    ->where('unit_id', $unit->id)
+                    ->where('user_id', $user->id)
+                    ->where('status', 'approved')
+                    ->exists();
+            if ($ownsAndIsContact) {
+                return $unit;
+            }
+        }
+
+        return $this->requireViewerUnit($user, $unitId);
     }
 
     private function requireViewerUnit(User $user, ?int $unitId = null): object

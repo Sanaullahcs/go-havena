@@ -15,6 +15,7 @@ import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
 import { AuthLegalLinks } from "@/components/auth/auth-legal-links";
 import { HavenaLockup } from "@/components/shared/havena-lockup";
 import { useOtpResendLockMessage } from "@/hooks/use-otp-resend-lock-message";
+import { setLandlordPortalLoginHint } from "@/lib/landlord-portal";
 
 const DEMO_ACCOUNTS = [
   { label: "Resident", email: "sarah@havena.app", accent: "#14B8A6" },
@@ -106,6 +107,7 @@ function ResidentLoginPageInner() {
     try {
       const res = await verifyResidentOtp(email.trim(), code);
       setSession(res.token, res.user);
+      setLandlordPortalLoginHint(false);
       router.replace("/home");
     } catch (err) {
       verifyLock.current = false;
